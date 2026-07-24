@@ -1,0 +1,10 @@
+{
+  "dependencies": ["."],
+  "env": ".env",
+  "graphs": {
+    "chen_clan_academy_agent": "./agent_graph.py:studio_agent_graph"
+  },
+  "http": {
+    "app": "./webapp.py:app"
+  }
+}

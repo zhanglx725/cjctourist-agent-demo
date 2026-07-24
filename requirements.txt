@@ -1,0 +1,12 @@
+# Agent orchestration and LLM integration
+langgraph
+langchain
+langchain-core
+langchain-deepseek
+# Local LangGraph Studio development server (in-memory, development only)
+langgraph-cli[inmem]
+
+# Local Chinese hybrid retrieval (persistent vector index + keyword recall)
+chromadb>=1.0,<2.0
+sentence-transformers>=3.0,<4.0
+rank-bm25>=0.2,<1.0

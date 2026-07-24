@@ -1,0 +1,6 @@
+# Keep Chinese Markdown and Python source as UTF-8 text across platforms.
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.txt text eol=lf
