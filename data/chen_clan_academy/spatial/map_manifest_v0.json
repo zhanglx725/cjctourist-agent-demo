@@ -1,0 +1,22 @@
+{
+  "map_id": "chenjiaci_plan_v0",
+  "display_name": "陈家祠导览平面图 v0",
+  "image_path": "assets/maps/chenjiaci_plan_v0.png",
+  "image_width_px": 2290,
+  "image_height_px": 1339,
+  "source_url_or_description": "广东民间工艺博物馆（陈家祠）官网 720 导览：https://www.gzcjc.com.cn/720/?scene_id=37888476",
+  "copyright_or_permission": "officially_published_display; repository reuse needs confirmation",
+  "map_version_or_date": "官网 720 导览页面，访问/登记日期：2026-07-24",
+  "coordinate_system": "image_pixels_origin_top_left",
+  "orientation": {
+    "north": "image_top",
+    "south": "image_bottom",
+    "east": "image_right",
+    "west": "image_left",
+    "status": "needs_review",
+    "evidence": "图面标注含东门、西门、前院、后花园；需人工确认"
+  },
+  "reviewer": "",
+  "reviewed_at": "",
+  "notes": "本图仅用于相对方位和人工审核的路线网络，不代表室内实时定位或无障碍信息。"
+}
