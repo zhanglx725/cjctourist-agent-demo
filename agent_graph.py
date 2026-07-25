@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import json
 import time
+import re
+from pathlib import Path
 from typing import Annotated, Any
 
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
@@ -14,9 +16,18 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
+from dotenv import load_dotenv
 from rag_retrieval import ChenClanHybridRetriever
+from route_planner import CATALOG_FILE, recommend_route, _read_catalog
 MAX_TOOL_LOOPS = 3
 DEFAULT_DEEPSEEK_MAX_TOKENS = 450
+DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
+
+
+# Load local development settings before any model is constructed.  Existing
+# process environment variables retain priority, so deployment configuration is
+# never overwritten by a local .env file.
+load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
 
 
 class AgentState(TypedDict, total=False):
@@ -26,6 +37,8 @@ class AgentState(TypedDict, total=False):
     tool_loops: int
     retrieved_evidence: list[dict[str, Any]]
     performance_metrics: list[dict[str, Any]]
+    selected_route_id: str
+    active_route_plan: dict[str, Any]
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -81,6 +94,27 @@ def should_direct_rag(user_text: str) -> bool:
     return any(term in user_text for term in knowledge_terms)
 
 
+def should_direct_route(user_text: str) -> bool:
+    """Route requests are deterministic and need no LLM tool-selection turn."""
+    route_terms = ("路线", "规划", "怎么逛", "游览", "参观顺序", "半小时", "一小时", "90分钟")
+    return any(term in user_text for term in route_terms)
+
+
+def _route_request_from_text(user_text: str) -> tuple[int, list[str]]:
+    if re.search(r"90\s*分钟|一小时半|1\.5\s*小时", user_text):
+        minutes = 90
+    elif re.search(r"60\s*分钟|一小时", user_text):
+        minutes = 60
+    else:
+        minutes = 30
+    interests = [
+        term
+        for term in ("灰塑", "木雕", "石雕", "陶塑", "三国", "故事", "吉祥", "工艺")
+        if term in user_text
+    ]
+    return minutes, interests
+
+
 def _latest_user_text(state: AgentState) -> str:
     """Return the current visitor message when routing a fresh graph turn."""
     if not state.get("messages"):
@@ -128,7 +162,8 @@ def build_model(with_tools: bool = True):
     if not os.getenv("DEEPSEEK_API_KEY"):
         raise RuntimeError("DEEPSEEK_API_KEY is not set.")
     max_tokens = int(os.getenv("DEEPSEEK_MAX_TOKENS", str(DEFAULT_DEEPSEEK_MAX_TOKENS)))
-    model = ChatDeepSeek(model="deepseek-chat", temperature=0, max_tokens=max_tokens)
+    model_name = os.getenv("DEEPSEEK_MODEL", DEFAULT_DEEPSEEK_MODEL)
+    model = ChatDeepSeek(model=model_name, temperature=0, max_tokens=max_tokens)
     return model.bind_tools([chen_clan_academy_rag_search]) if with_tools else model
 
 
@@ -141,6 +176,9 @@ def llm_think_node(state: AgentState) -> dict[str, Any]:
     has_evidence = bool(state.get("messages")) and (
         isinstance(state["messages"][-1], ToolMessage)
         or bool(state["messages"][-1].additional_kwargs.get("direct_rag_evidence"))
+    )
+    has_route_plan = bool(state.get("messages")) and bool(
+        state["messages"][-1].additional_kwargs.get("direct_route_plan")
     )
     instruction = (
         "你是陈家祠导游助手。使用用户的语言回答。涉及陈家祠的历史、建筑、装饰、"
@@ -164,8 +202,15 @@ def llm_think_node(state: AgentState) -> dict[str, Any]:
             instruction += "\n本轮本地检索证据如下：\n" + json.dumps(
                 state.get("retrieved_evidence", []), ensure_ascii=False
             )
+    if has_route_plan:
+        instruction += (
+            " 本轮已经由确定性路线规划器生成审核路线。必须以该路线的 stop_ids、"
+            "full_path_node_ids、edge_ids 和时间字段为准说明；不得自行增加景点、边或步行时间。"
+            " 清楚提示时间为地图估算，并可用简洁的金牌导游口吻介绍每一站的 guide_focus。\n"
+            + json.dumps(state.get("active_route_plan", {}), ensure_ascii=False)
+        )
     started = time.perf_counter()
-    response = build_model(with_tools=not reached_limit and not has_evidence).invoke(
+    response = build_model(with_tools=not reached_limit and not has_evidence and not has_route_plan).invoke(
         [{"role": "system", "content": instruction}, *state["messages"]]
     )
     return {
@@ -176,6 +221,51 @@ def llm_think_node(state: AgentState) -> dict[str, Any]:
             time.perf_counter() - started,
             phase="answer" if has_evidence else "tool_decision",
             tool_loops=state.get("tool_loops", 0),
+        ),
+    }
+
+
+def direct_route_node(state: AgentState) -> dict[str, Any]:
+    """Plan and render a reviewed route without risking LLM route fabrication."""
+    query = _latest_user_text(state)
+    minutes, interests = _route_request_from_text(query)
+    started = time.perf_counter()
+    plan = recommend_route(available_minutes=minutes, interests=interests)
+    plan_data = plan.to_dict()
+    catalog = _read_catalog(CATALOG_FILE)
+    stop_lines = []
+    for index, node_id in enumerate(plan.stop_ids[1:], start=1):
+        card = catalog[node_id]
+        stop_lines.append(
+            f"{index}. {card['stop_name']}：{card['guide_focus']}"
+        )
+    total_minutes = (plan.estimated_total_seconds or 0) / 60
+    message = (
+        f"为您推荐“{plan.display_name}”。预计总时长约 {total_minutes:.0f} 分钟"
+        f"（目标 {plan.target_minutes} 分钟）。\n\n"
+        "讲解停留顺序：\n"
+        + "\n".join(stop_lines)
+        + "\n\n"
+        f"路线会经过 {len(plan.full_path_node_ids)} 个已审核空间节点、"
+        f"使用 {len(plan.edge_ids)} 条已审核双向边。"
+        f"时间包含讲解 {plan.estimated_explanation_seconds // 60} 分钟、"
+        f"观察 {plan.estimated_observation_seconds // 60} 分钟、"
+        f"互动 {plan.estimated_interaction_seconds // 60} 分钟和步行约 "
+        f"{plan.estimated_walk_seconds} 秒。\n\n"
+        "提示：步行时间基于官网地图与已审核路线估算，现场通行、驻足和开放情况请以馆方安排为准。"
+    )
+    marker = AIMessage(content=message, additional_kwargs={"direct_route_plan": True})
+    return {
+        "messages": [marker],
+        "selected_route_id": plan.route_id,
+        "active_route_plan": plan_data,
+        "performance_metrics": _append_metric(
+            state,
+            "direct_route",
+            time.perf_counter() - started,
+            route_id=plan.route_id,
+            requested_minutes=minutes,
+            interests=interests,
         ),
     }
 
@@ -259,7 +349,10 @@ def route_after_llm(state: AgentState) -> str:
 
 def route_initial_request(state: AgentState) -> str:
     """Use direct retrieval only for an unambiguous fresh visitor question."""
-    return "direct_rag" if should_direct_rag(_latest_user_text(state)) else "llm_think"
+    text = _latest_user_text(state)
+    if should_direct_route(text):
+        return "direct_route"
+    return "direct_rag" if should_direct_rag(text) else "llm_think"
 
 
 def build_agent_graph(with_checkpointer: bool = True):
@@ -272,12 +365,14 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("llm_think", llm_think_node)
     workflow.add_node("rag_tool", rag_tool_node)
     workflow.add_node("direct_rag", direct_rag_node)
+    workflow.add_node("direct_route", direct_route_node)
     workflow.add_conditional_edges(
         START,
         route_initial_request,
-        {"direct_rag": "direct_rag", "llm_think": "llm_think"},
+        {"direct_rag": "direct_rag", "direct_route": "direct_route", "llm_think": "llm_think"},
     )
     workflow.add_edge("direct_rag", "llm_think")
+    workflow.add_edge("direct_route", END)
     workflow.add_conditional_edges("llm_think", route_after_llm, {"rag_tool": "rag_tool", END: END})
     workflow.add_edge("rag_tool", "llm_think")
     return workflow.compile(checkpointer=MemorySaver()) if with_checkpointer else workflow.compile()

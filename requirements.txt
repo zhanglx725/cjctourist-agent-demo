@@ -1,5 +1,6 @@
 # Agent orchestration and LLM integration
 langgraph
+python-dotenv
 langchain
 langchain-core
 langchain-deepseek

@@ -1,0 +1,109 @@
+{
+  "schema_version": "v1",
+  "status": "approved_stop_skeletons_pending_path_evaluation",
+  "rules": {
+    "only_approved_stops_are_plannable": true,
+    "path_source": "data/chen_clan_academy/spatial/edges_v0.csv",
+    "start_node_id": "entrance_main_outside",
+    "time_warning": "路线时长为地图估算与讲解时长预算，待现场实测后更新。"
+  },
+  "templates": [
+    {
+      "route_id": "highlights_30",
+      "display_name": "30分钟高密度精华线",
+      "target_minutes": 30,
+      "experience_budget": {
+        "observation_seconds_per_stop": 90,
+        "interaction_seconds_per_stop": 120,
+        "notes": "每个正式讲解站预留约1.5分钟观察和约2分钟提问交流。"
+      },
+      "audience": ["首次来访", "时间有限"],
+      "themes": ["建筑装饰", "吉祥题材", "代表性工艺"],
+      "required_stop_ids": [
+        "stop_front_courtyard_center",
+        "label_moon_platform",
+        "stop_front_east_courtyard"
+      ],
+      "optional_stop_ids": [
+        "stop_front_west_courtyard",
+        "stop_front_courtyard_west_inner"
+      ],
+      "stop_order": [
+        "entrance_main_outside",
+        "stop_front_courtyard_center",
+        "label_moon_platform",
+        "stop_front_east_courtyard"
+      ],
+      "selection_notes": "前院中部提供高密度外观讲解；月台承担多工艺比较；前东庭补充吉祥与人物故事。月台与前庭同组，首版选月台。"
+    },
+    {
+      "route_id": "crafts_60",
+      "display_name": "60分钟装饰工艺与故事线",
+      "target_minutes": 60,
+      "experience_budget": {
+        "observation_seconds_per_stop": 180,
+        "interaction_seconds_per_stop": 180,
+        "notes": "每个正式讲解站预留约3分钟观察和约3分钟工艺比较、提问交流。"
+      },
+      "audience": ["工艺爱好者", "摄影和设计兴趣"],
+      "themes": ["灰塑", "木雕", "石雕", "陶塑", "故事题材"],
+      "required_stop_ids": [
+        "stop_front_courtyard_center",
+        "stop_front_courtyard_north",
+        "stop_front_west_courtyard",
+        "stop_rear_west_courtyard",
+        "stop_rear_courtyard"
+      ],
+      "optional_stop_ids": [
+        "stop_rear_courtyard_west",
+        "stop_front_courtyard_west_inner"
+      ],
+      "stop_order": [
+        "entrance_main_outside",
+        "stop_front_courtyard_center",
+        "stop_front_courtyard_north",
+        "stop_front_west_courtyard",
+        "stop_rear_west_courtyard",
+        "stop_rear_courtyard"
+      ],
+      "selection_notes": "使用前庭而非月台，避免前轴重复停留；后西庭重点讲三国故事，后庭补充后部故事装饰。"
+    },
+    {
+      "route_id": "deep_dive_90",
+      "display_name": "90分钟高密度装饰深度线",
+      "target_minutes": 90,
+      "experience_budget": {
+        "observation_seconds_per_stop": 240,
+        "interaction_seconds_per_stop": 300,
+        "notes": "每个正式讲解站预留约4分钟观察和约5分钟深度提问、比较或学习任务。"
+      },
+      "audience": ["研学", "建筑与历史爱好者"],
+      "themes": ["工艺系统", "吉祥题材", "三国与小说故事", "前后空间对照"],
+      "required_stop_ids": [
+        "stop_front_courtyard_center",
+        "label_moon_platform",
+        "stop_front_east_courtyard",
+        "stop_rear_east_courtyard_inner",
+        "stop_rear_courtyard",
+        "stop_rear_west_courtyard"
+      ],
+      "optional_stop_ids": [
+        "stop_front_courtyard_east",
+        "stop_front_courtyard_west_inner",
+        "stop_rear_courtyard_east",
+        "stop_rear_courtyard_west",
+        "stop_front_west_courtyard"
+      ],
+      "stop_order": [
+        "entrance_main_outside",
+        "stop_front_courtyard_center",
+        "label_moon_platform",
+        "stop_front_east_courtyard",
+        "stop_rear_east_courtyard_inner",
+        "stop_rear_courtyard",
+        "stop_rear_west_courtyard"
+      ],
+      "selection_notes": "前部、月台、后部东侧与后部西侧均选取高文物密度节点；可按兴趣增补小说故事或吉祥题材分支。"
+    }
+  ]
+}

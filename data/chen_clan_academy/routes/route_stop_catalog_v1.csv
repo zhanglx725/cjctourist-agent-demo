@@ -1,0 +1,14 @@
+node_id,stop_name,route_role,route_eligible,review_status,recommended_visit_minutes,priority,mapped_ornament_count,mapped_craft_count,representative_ornaments,themes,guide_focus,selection_rationale,source,notes
+stop_front_courtyard_north,前庭,core,true,approved,5,high,13,5,"公孙玩乐;寒江关;夜游赤壁;博古图;五福捧寿","灰塑;木雕;石雕;陶塑;吉祥题材","屋脊与外立面装饰、故事题材观察","映射文物数量第1，工艺覆盖5类",全量人工文物—点位标注,已审核；与月台同属前轴观察组，每条路线只能选择一个
+stop_front_courtyard_center,前院中部,core,true,approved,4,high,11,4,"独角狮;福禄寿;功名富贵;松鹤延年;石狮子","灰塑;石雕;陶塑;吉祥题材","前院外观、灰塑、石狮与功名吉祥题材","映射文物数量第2；从入口自然可达",全量人工文物—点位标注,已审核
+stop_rear_courtyard,后庭,core,true,approved,5,high,11,3,"风尘三侠;福在眼前;郭子仪祝寿;六国大封相;龙王八仙朝玉帝","灰塑;木雕;故事题材","后进中路南面装饰与历史故事","映射文物数量第2；故事题材集中",全量人工文物—点位标注,已审核；名称与后庭东西侧节点需避免混淆
+label_moon_platform,月台,core,true,approved,5,high,10,6,"杏林春燕;截江夺阿斗;引福归堂;书字换鹅;麒麟玉书凤凰图;三阳开泰","灰塑;木雕;石雕;陶塑;铜铁铸","栏杆、望柱与通花装饰的工艺对比","映射10件且工艺类别最多",全量人工文物—点位标注,已审核；与前庭同属前轴观察组，每条路线只能选择一个
+stop_rear_west_courtyard,后西庭,core,true,approved,5,high,9,4,"宝相花;赤壁之战;三顾茅庐;三英战吕布;长坂坡救阿斗","灰塑;木雕;石雕;三国故事","三国故事装饰与后部空间观察","映射9件且故事主题高度集中",全量人工文物—点位标注,已审核；后西庭与后庭西侧为不同节点
+stop_front_east_courtyard,前东庭,core,true,approved,5,high,9,3,"福运连绵;狮子戏球;五福捧寿;一品当朝;张松看孟德新书","灰塑;石雕;吉祥题材","吉祥纹样、人物故事与前院东侧观察","映射9件，兼具吉祥与人物故事",全量人工文物—点位标注,已审核
+stop_rear_east_courtyard_inner,后东庭,optional,true,approved,4,medium,7,2,"蝙蝠;九如图;日月神;枯井救柴进;拳打镇关西","灰塑;木雕;人物故事","后部东侧吉祥与人物故事","映射7件；素材足够但工艺多样性较低",全量人工文物—点位标注,已审核；新增节点已登记并有边连接
+stop_front_courtyard_east,前院东部靠边,optional,true,approved,4,medium,6,3,"百子千孙;刘伶醉酒;凤诏;和合二仙;刘庆伏狼驹","灰塑;陶塑;人物故事","前院东部吉祥与戏曲故事","映射6件；作为前院中部的细分延伸",全量人工文物—点位标注,已审核；与前院东部靠中应避免重复停留
+stop_front_west_courtyard,前西庭,optional,true,approved,4,medium,6,2,"百鸟朝凤;路路顺利;齐眉贺寿;竹林七贤;苏武牧羊","灰塑;石雕;吉祥题材","百鸟朝凤、人物典故与吉祥象征","映射6件；有高辨识度单件百鸟朝凤",全量人工文物—点位标注,已审核；与前院西部靠中应避免重复停留
+stop_front_courtyard_west_inner,前院西部靠中,optional,true,approved,4,medium,5,3,"独占鳌头;桃园结义;三多图;梁山聚义;梧桐柳杏凤群图","灰塑;陶塑;三国;水浒","科举吉祥与小说故事","映射5件且故事辨识度高",全量人工文物—点位标注,已审核；新增节点已登记并有边连接
+stop_rear_courtyard_east,后庭东侧,optional,true,approved,4,medium,5,3,"琶洲砥柱;太师少师;风云际会;狮子滚绣球;博古图","灰塑;石雕;陶塑","后部东侧吉祥纹样与建筑构件","映射5件；作为后庭核心站的细分延伸",全量人工文物—点位标注,已审核；短路线中不建议同时长停后庭和后庭东侧
+stop_rear_courtyard_west,后庭西侧,optional,true,approved,3,low,4,2,"黄飞虎反五关;薛仁贵大战盖苏文;岳飞大破金兵;宝鸭穿莲","木雕;石雕;人物故事","历史人物故事与木石雕对照","映射4件，达到补充站下限",全量人工文物—点位标注,已审核；短路线中不建议同时长停后庭和后庭西侧
+entrance_main_outside,大门外,entry_context,false,approved,2,low,4,2,"曹操大宴铜雀台;践土会盟;雷神张仙;封侯挂印","木雕;石雕;入口外观","入口集合、路线说明与外部装饰提示","映射4件，但主要承担集合和开场",全量人工文物—点位标注,已审核；仅允许作为路线起点或简短开场

@@ -1,12 +1,16 @@
 """No-network checks for Agent timing helpers."""
 
 import unittest
+from langchain_core.messages import HumanMessage
 
 from agent_graph import (
     DEFAULT_DEEPSEEK_MAX_TOKENS,
+    DEFAULT_DEEPSEEK_MODEL,
     MAX_TOOL_LOOPS,
     _append_metric,
     should_direct_rag,
+    should_direct_route,
+    direct_route_node,
 )
 
 
@@ -19,6 +23,7 @@ class AgentProfileTests(unittest.TestCase):
 
     def test_default_answer_budget_is_bounded(self):
         self.assertEqual(DEFAULT_DEEPSEEK_MAX_TOKENS, 450)
+        self.assertEqual(DEFAULT_DEEPSEEK_MODEL, "deepseek-v4-flash")
 
     def test_tool_loop_limit_leaves_room_for_one_evidence_answer(self):
         self.assertGreaterEqual(MAX_TOOL_LOOPS, 1)
@@ -27,6 +32,17 @@ class AgentProfileTests(unittest.TestCase):
         self.assertTrue(should_direct_rag("陈家祠是什么？"))
         self.assertTrue(should_direct_rag("百鸟朝凤是什么装饰？"))
         self.assertFalse(should_direct_rag("你好，今天适合出门吗？"))
+
+    def test_route_request_skips_tool_selection_llm(self):
+        self.assertTrue(should_direct_route("我只有半小时，帮我规划路线"))
+        self.assertTrue(should_direct_route("60分钟看工艺怎么逛？"))
+
+    def test_direct_route_returns_complete_deterministic_message(self):
+        result = direct_route_node(
+            {"messages": [HumanMessage(content="我只有半小时，帮我规划路线")], "performance_metrics": []}
+        )
+        self.assertIn("讲解停留顺序", result["messages"][0].content)
+        self.assertEqual(result["selected_route_id"], "highlights_30")
 
 
 if __name__ == "__main__":

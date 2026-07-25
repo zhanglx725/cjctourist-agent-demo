@@ -1,0 +1,32 @@
+{
+  "schema_version": "v1",
+  "status": "draft",
+  "time_policy": {
+    "walk_time_source": "edge.estimated_walk_seconds",
+    "per_stop_buffer_seconds": 30,
+    "maximum_overrun_ratio": 0.1,
+    "time_warning": "预计步行时间基于官网地图和路线估算，待现场复核。"
+  },
+  "path_policy": {
+    "allowed_edge_statuses": ["confirmed_from_map", "confirmed_from_official_route", "inferred_from_map_geometry", "verified_on_site"],
+    "allow_unknown_direction": false,
+    "allow_repeated_transit_nodes": true,
+    "allow_repeated_guide_stops": false,
+    "allow_unreviewed_route_stops": false
+  },
+  "stop_group_policy": {
+    "maximum_selected_per_group": 1,
+    "groups": {
+      "front_axis_observation": [
+        "stop_front_courtyard_north",
+        "label_moon_platform"
+      ]
+    },
+    "notes": "前庭与月台相距较近；同一条路线只能选择其中一个作为正式讲解停留站。"
+  },
+  "replanning_policy": {
+    "exclude_visited_stops": true,
+    "exclude_skipped_stops": true,
+    "allow_current_stop_as_start": true
+  }
+}
