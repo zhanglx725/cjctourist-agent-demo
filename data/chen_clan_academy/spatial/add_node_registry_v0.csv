@@ -1,0 +1,4 @@
+add_node_key,node_id,name,creation_method,source,status,notes
+后东庭,stop_rear_east_courtyard_inner,后东庭,mirror_of_stop_rear_west_courtyard,Excel add_node 审核与团队空间规则,connected_pending_guide_review,后西庭以以后庭垂直中轴镜像定位；已补 edge_049 至 edge_052；后续 review_notes 出现“新增节点：后东庭”时复用此 node_id
+前院西部靠中,stop_front_courtyard_west_inner,前院西部靠中,midpoint_of_stop_front_courtyard_west_and_stop_front_courtyard_center,Excel add_node 审核与团队空间规则,connected_pending_guide_review,前院西部靠边与前院中部坐标中点；已补 edge_053、edge_054；后续 review_notes 出现“新增节点：前院西部靠中”时复用此 node_id
+前院东部靠中,stop_front_courtyard_east_inner,前院东部靠中,midpoint_of_stop_front_courtyard_east_and_stop_front_courtyard_center,Excel add_node 审核与团队空间规则,connected_pending_guide_review,前院东部靠边与前院中部坐标中点；已补 edge_055、edge_056；后续 review_notes 出现“新增节点：前院东部靠中”时复用此 node_id

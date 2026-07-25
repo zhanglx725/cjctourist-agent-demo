@@ -39,3 +39,6 @@ label_west_gate,西门,gate,148,862,text_label,,,confirmed_from_map,官网720导
 label_east_gate,东门,gate,2142,862,text_label,,,confirmed_from_map,官网720导览图文字,游客可用性待现场确认
 label_office,办公室,service,2015,493,text_label,,,confirmed_from_map,官网720导览图文字,不作为常规游客路线节点
 label_front_courtyard,前院,courtyard,1150,1232,text_label,,,confirmed_from_map,官网720导览图文字,
+stop_rear_east_courtyard_inner,后东庭,junction,1505,348,derived_mirror,,,confirmed_from_map,Excel add_node 审核与团队空间规则,add_node_key=后东庭；由后西庭以以后庭垂直中轴镜像定位；已补连 edge_049 至 edge_052，待现场复核
+stop_front_courtyard_west_inner,前院西部靠中,junction,870,979,derived_midpoint,label_front_courtyard,,confirmed_from_map,Excel add_node 审核与团队空间规则,add_node_key=前院西部靠中；前院西部靠边与前院中部坐标中点；已补连 edge_053、edge_054，待现场复核
+stop_front_courtyard_east_inner,前院东部靠中,junction,1425,987,derived_midpoint,label_front_courtyard,,confirmed_from_map,Excel add_node 审核与团队空间规则,add_node_key=前院东部靠中；前院东部靠边与前院中部坐标中点；已补连 edge_055、edge_056，待现场复核

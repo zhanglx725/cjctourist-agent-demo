@@ -59,3 +59,13 @@ review_notes: 官网720图月台位置；官网文字“月台正面”
 ```
 
 不要修改 `ornament_id`、`raw_heading`、`raw_location`、`detail_lookup_key`、`candidate_*` 与 `match_*` 列。这些是来源信息和可重复生成的程序候选。
+
+## `add_node` 去重规则
+
+当 `reviewer_decision=add_node` 时，`review_notes` 必须以 `新增节点：` 开始，后接规范中文名称，例如：
+
+```text
+新增节点：后东庭；官网图与位置说明……
+```
+
+先查 `add_node_registry_v0.csv` 的 `add_node_key`：存在则复用对应 `node_id`，不得重复创建；不存在才进入新增节点审核流程。当前已登记“后东庭”“前院西部靠中”“前院东部靠中”三个节点，均处于 `created_pending_edges`，在确认实际可通行边前不参与自动路线规划。
