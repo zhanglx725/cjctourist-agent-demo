@@ -14,4 +14,5 @@ py-modules = [
   "rag_ingestion",
   "rag_retrieval",
   "rag_evaluation",
+  "spatial_graph",
 ]

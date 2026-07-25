@@ -10,3 +10,4 @@ langgraph-cli[inmem]
 chromadb>=1.0,<2.0
 sentence-transformers>=3.0,<4.0
 rank-bm25>=0.2,<1.0
+networkx>=3.0,<4.0
