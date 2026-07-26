@@ -24,6 +24,7 @@ VALID_TOUR_MODES = {"chat", "button_guided", "continuous"}
 VALID_STOP_PHASES = {"navigating", "explaining", "awaiting_confirmation", "finished"}
 EVENTS = {
     "arrive_at_stop",
+    "explanation_finished",
     "next_stop",
     "skip_stop",
     "replan_time",
@@ -139,6 +140,7 @@ def handle_tour_event(
     assert tour_state is not None and interaction_state is not None
     handlers = {
         "arrive_at_stop": _arrive,
+        "explanation_finished": _explanation_finished,
         "next_stop": _next,
         "skip_stop": _skip,
         "replan_time": _replan_time,
@@ -146,6 +148,50 @@ def handle_tour_event(
         "confirm_stop_complete": _confirm_complete,
     }
     return handlers[event](tour_state, interaction_state, **payload)
+
+
+def _explanation_finished(
+    tour_state: dict[str, Any], interaction_state: dict[str, Any], **_: Any
+) -> dict[str, Any]:
+    """Mark content playback complete without marking the stop as visited."""
+    current = tour_state.get("current_stop_id")
+    pending = interaction_state.get("pending_stop_id")
+    phase = interaction_state.get("stop_phase")
+    if phase == "awaiting_confirmation" and current == pending:
+        return _result(
+            ok=True,
+            event="explanation_finished",
+            code="explanation_already_finished",
+            message="本点讲解已结束，正在等待您确认是否完成参观。",
+            tour_state=tour_state,
+            interaction_state=interaction_state,
+            idempotent=True,
+        )
+    if current != pending or current not in tour_state["remaining_stop_ids"]:
+        return _rejection(
+            "explanation_finished",
+            "not_current_stop",
+            "只有已到达的当前正式讲解点才能结束讲解播放。",
+            tour_state,
+            interaction_state,
+        )
+    if phase != "explaining":
+        return _rejection(
+            "explanation_finished",
+            "invalid_phase",
+            "当前不处于讲解播放阶段，无法结束本点讲解。",
+            tour_state,
+            interaction_state,
+        )
+    updated_interaction = {**interaction_state, "stop_phase": "awaiting_confirmation"}
+    return _result(
+        ok=True,
+        event="explanation_finished",
+        code="explanation_finished",
+        message="本点讲解已结束，请确认是否完成参观，或选择继续了解、跳过本点。",
+        tour_state=tour_state,
+        interaction_state=updated_interaction,
+    )
 
 
 def _arrive(

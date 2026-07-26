@@ -103,6 +103,64 @@ class TourInteractionTests(unittest.TestCase):
         self.assertEqual(result["tour_state"], arrived["tour_state"])
         self.assertEqual(result["interaction_state"], arrived["interaction_state"])
 
+    def test_explanation_finished_changes_only_interaction_phase(self):
+        arrived = self._arrive_first()
+        result = handle_tour_event(
+            arrived["tour_state"], arrived["interaction_state"], "explanation_finished"
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["code"], "explanation_finished")
+        self.assertEqual(result["tour_state"], arrived["tour_state"])
+        self.assertEqual(result["tour_state"]["visited_stop_ids"], [])
+        self.assertEqual(result["interaction_state"]["pending_stop_id"], "stop_front_courtyard_center")
+        self.assertEqual(result["interaction_state"]["stop_phase"], "awaiting_confirmation")
+
+    def test_repeated_explanation_finished_is_idempotent(self):
+        arrived = self._arrive_first()
+        finished = handle_tour_event(
+            arrived["tour_state"], arrived["interaction_state"], "explanation_finished"
+        )
+        repeated = handle_tour_event(
+            finished["tour_state"], finished["interaction_state"], "explanation_finished"
+        )
+        self.assertEqual(repeated["code"], "explanation_already_finished")
+        self.assertTrue(repeated["idempotent"])
+        self.assertEqual(repeated["tour_state"], finished["tour_state"])
+
+    def test_explanation_finished_requires_current_planned_stop_in_explaining_phase(self):
+        initial = handle_tour_event(self.tour, self.interaction, "explanation_finished")
+        self.assertFalse(initial["ok"])
+        self.assertEqual(initial["code"], "not_current_stop")
+        self_arrived = handle_tour_event(
+            self.tour, self.interaction, "arrive_at_stop", node_id="label_first_main_hall"
+        )
+        result = handle_tour_event(
+            self_arrived["tour_state"], self_arrived["interaction_state"], "explanation_finished"
+        )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["code"], "not_current_stop")
+
+    def test_last_stop_still_requires_confirm_after_explanation_finished(self):
+        prepared_tour, prepared_interaction = self.tour, self.interaction
+        for node_id in ["label_moon_platform", "stop_front_east_courtyard"]:
+            skipped = handle_tour_event(
+                prepared_tour, prepared_interaction, "skip_stop", node_id=node_id
+            )
+            prepared_tour, prepared_interaction = skipped["tour_state"], skipped["interaction_state"]
+        arrived = handle_tour_event(
+            prepared_tour, prepared_interaction, "arrive_at_stop", node_id="stop_front_courtyard_center"
+        )
+        # The only remaining stop is still the arrived first stop.
+        explained = handle_tour_event(
+            arrived["tour_state"], arrived["interaction_state"], "explanation_finished"
+        )
+        self.assertEqual(explained["interaction_state"]["stop_phase"], "awaiting_confirmation")
+        self.assertNotEqual(explained["tour_state"]["route_status"], "completed")
+        completed = handle_tour_event(
+            explained["tour_state"], explained["interaction_state"], "confirm_stop_complete"
+        )
+        self.assertEqual(completed["tour_state"]["route_status"], "completed")
+
     def test_finished_tour_rejects_non_finish_events_and_finish_is_idempotent(self):
         finished = handle_tour_event(self.tour, self.interaction, "finish_tour")
         rejected = handle_tour_event(

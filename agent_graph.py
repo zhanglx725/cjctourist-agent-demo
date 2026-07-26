@@ -26,7 +26,8 @@ from tour_navigation import (
     next_stop_navigation,
 )
 from tour_interaction import handle_tour_event, initialize_interaction
-from tour_intent import TourIntentDecision, classify_tour_intent
+from tour_intent import classify_tour_intent
+from tour_presenter import present_clarification, present_tour_event, present_tour_state
 from tour_state import start_tour
 MAX_TOOL_LOOPS = 3
 DEFAULT_DEEPSEEK_MAX_TOKENS = 450
@@ -50,6 +51,7 @@ class AgentState(TypedDict, total=False):
     active_route_plan: dict[str, Any]
     tour_state: dict[str, Any]
     tour_interaction_state: dict[str, Any]
+    tour_presentation: dict[str, Any]
     last_tour_intent: dict[str, Any]
 
 
@@ -301,12 +303,14 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         + format_next_stop_navigation(next_stop_navigation(tour))
     )
     marker = AIMessage(content=message, additional_kwargs={"direct_route_plan": True})
+    presentation = present_tour_state(tour, interaction)
     return {
         "messages": [marker],
         "selected_route_id": route_id,
         "active_route_plan": plan_data,
         "tour_state": tour,
         "tour_interaction_state": interaction,
+        "tour_presentation": presentation,
         "performance_metrics": _append_metric(
             state,
             "direct_route",
@@ -317,41 +321,6 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
             interests=interests,
         ),
     }
-
-
-def _render_tour_event_result(
-    decision: TourIntentDecision, result: dict[str, Any]
-) -> str:
-    """Render an A1-2 result without adding A1-3 button view models."""
-    if not result["ok"]:
-        return result["message"]
-    navigation = result["data"].get("navigation")
-    if decision.event_type == "arrive_at_stop" and result["code"] == "arrived":
-        node_id = decision.arguments.get("node_id") if decision.arguments else None
-        card = _read_catalog(CATALOG_FILE).get(node_id or "", {})
-        return (
-            f"已记录：您已到达 {card.get('stop_name', node_id)}。\n"
-            + (f"本点讲解焦点：{card.get('guide_focus', '该点的具体讲解内容待后续 RAG 编排。')}\n" if card else "")
-            + "讲解结束后请明确确认完成；确认前不会计入已访问记录。"
-        )
-    if decision.event_type == "replan_time":
-        plan = result["data"].get("plan")
-        if plan:
-            return (
-                f"已按剩余 {decision.arguments['available_minutes']} 分钟更新路线，保留 {len(plan.stop_ids)} 个正式讲解点，"
-                f"预计总时长 {round((plan.estimated_total_seconds or 0) / 60)} 分钟。\n"
-                + (format_next_stop_navigation(navigation) if navigation else result["message"])
-            )
-    if decision.event_type == "finish_tour" and result["tour_state"]:
-        tour = result["tour_state"]
-        return (
-            "本次游览已结束。"
-            f"已完成讲解点 {len(tour['visited_stop_ids'])} 个，"
-            f"跳过 {len(tour['skipped_stop_ids'])} 个，"
-            f"未完成 {len(tour['remaining_stop_ids'])} 个。"
-            "该记录将作为后续游览寄语与成就统计的事实基础。"
-        )
-    return result["message"] + ("\n" + format_next_stop_navigation(navigation) if navigation else "")
 
 
 def tour_event_node(state: AgentState) -> dict[str, Any]:
@@ -372,9 +341,11 @@ def tour_event_node(state: AgentState) -> dict[str, Any]:
         decision.event_type,
         **(decision.arguments or {}),
     )
+    presentation = present_tour_event(result)
     updates: dict[str, Any] = {
-        "messages": [AIMessage(content=_render_tour_event_result(decision, result))],
+        "messages": [AIMessage(content=presentation["message"])],
         "last_tour_intent": decision.to_dict(),
+        "tour_presentation": presentation,
         "performance_metrics": _append_metric(
             state,
             "tour_event",
@@ -400,9 +371,14 @@ def clarification_node(state: AgentState) -> dict[str, Any]:
     decision = classify_tour_intent(
         _latest_user_text(state), state.get("tour_state"), state.get("tour_interaction_state")
     )
+    presentation = present_clarification(
+        decision.clarification_message or "请换一种更明确的说法。",
+        state.get("tour_interaction_state"),
+    )
     return {
-        "messages": [AIMessage(content=decision.clarification_message or "请换一种更明确的说法。")],
+        "messages": [AIMessage(content=presentation["message"])],
         "last_tour_intent": decision.to_dict(),
+        "tour_presentation": presentation,
         "performance_metrics": _append_metric(state, "clarification", 0.0, reason_code=decision.reason_code),
     }
 

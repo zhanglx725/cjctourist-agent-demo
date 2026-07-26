@@ -18,7 +18,7 @@
 | A1-0 交互事件契约 | **已冻结** |
 | A1-1 统一交互适配层 | **已实现并验证** |
 | A1-2 文本“确认完成”与导游控制语句识别 | **已实现并验证（核心 38 项；完整回归 90 项）** |
-| A1-3 按钮导游与连续导游回复 | **仅保留契约，待实现** |
+| A1-3 按钮导游与连续导游回复 | **已实现并验证（完整回归 101 项）** |
 | 游览中 RAG 问答后恢复导游 | **未来 A2** |
 | 论文摘要卡、比较卡、术语卡、打卡点卡 | **建设中，尚未接入** |
 
@@ -218,7 +218,7 @@ confirm_stop_complete → 唯一写入 visited 的事件
 - **RAG**：A1-1 不调用 RAG，尚未自动讲解文物。  
 - **TourState**：已访问语义更可靠，后续成就/寄语可以复用。  
 - **卡片**：论文/比较/术语/打卡卡没有改动，也尚未参与选点。  
-- **待实现**：文本“我讲完了”意图（A1-2）、按钮与连续导游回复（A1-3）、游览中 RAG 问答恢复导游（A2）、持久化、实时定位、人流避让。
+- **待实现**：游览中 RAG 问答恢复导游（A2）、持久化、实时定位、人流避让。
 
 > A1-1 已使用项目 `.venv\Scripts\python.exe` 完成本地回归：62 项 TourState、导航、重规划、Agent、路线与动态路线测试全部通过。答辩可表述为“已实现并完成当前回归验证”；但按钮 UI、A2 RAG 恢复导游等未来能力仍不可表述为已实现。
 
@@ -244,7 +244,7 @@ confirm_stop_complete → 唯一写入 visited 的事件
    到达不等于完成。确认语义能使游览统计、成就和结束寄语基于真实行为。
 
 6. **游客不想输入点位名称怎么办？**  
-   底层协议已支持稳定事件和 node_id；按钮/连续模式在 A1-3 实现，当前尚未上线。
+   底层协议已支持稳定事件和 node_id；A1-3 已完成 UI 中立的按钮/连续展示协议，真实前端页面仍未开发。
 
 7. **中途问“灰塑是什么”会不会打断路线？**  
    当前可作为普通 RAG 问答；“回答后自动恢复当前导游上下文”是未来 A2，尚未实现。
@@ -324,7 +324,7 @@ confirm_stop_complete → 唯一写入 visited 的事件
 - **已实现并验证**：纯分类器、结构化路由、统一适配层执行、澄清不改状态、Agent 集成测试；核心 38 项与完整 90 项本机回归均通过。
 - **不受影响**：审核空间边、稳定 node ID、路线模板、动态路线算法、RAG 证据规则与知识卡数据。
 - **仅保留接口**：`validate_event_suggestion()`；当前 A1-2 不调用真实 LLM。
-- **未来规划**：A1-3 按钮/连续导游，A2 问答后恢复导游，阶段 B 点位讲解编排器。
+- **未来规划**：真实前端页面、A2 问答后恢复导游，阶段 B 点位讲解编排器。
 - **风险**：规则首版未覆盖的同义表达会澄清而不冒险执行；这是有意的安全优先取舍。
 
 ### 11.6 一分钟答辩讲稿
@@ -357,6 +357,74 @@ confirm_stop_complete → 唯一写入 visited 的事件
 结果：进入现有 RAG；TourState 不变（A2 的答后恢复导游尚未实现）
 ```
 
-## 12. 后续实施报告附加规范
+## 12. A1-3：连续导游回复与按钮协议（已实现并验证）
+
+### 12.1 用户问题与实现流程
+
+游客不应记住事件名称，更不应由前端根据中文文案猜测下一步。A1-3 将 A1-1 的结构化事件结果转为稳定展示协议，前端未来只展示并按 `actions[].id` 提交事件。
+
+```text
+handle_tour_event() 的结构化结果
+  → present_tour_event() / present_tour_state() / present_clarification()
+  → {message, phase, actions, event, code, ok, idempotent}
+  → 前端展示；用户或系统选择 action.id
+  → handle_tour_event() 再次校验并修改状态
+```
+
+`explanation_finished` 是本次补充的生命周期事件：讲解播放结束时从 `explaining` 进入 `awaiting_confirmation`。它不代表游客已经参观完成，最后一站也必须再由 `confirm_stop_complete` 写入 `visited_stop_ids`。
+
+### 12.2 核心文件、方案与状态安全
+
+| 文件/函数 | 作用 |
+| --- | --- |
+| `tour_presenter.py` | 纯展示层，提供 `present_tour_event`、`present_tour_state`、`present_clarification` 与按 phase 生成的 `available_actions`。 |
+| `tour_interaction.py: _explanation_finished()` | 适配层中唯一可改变讲解生命周期阶段的实现。 |
+| `agent_graph.py: tour_presentation` | 将展示协议随 Agent 响应一并保存；状态快照仍只来自适配层。 |
+| `test_tour_presenter.py` | 验证不同阶段的文案、稳定 action ID、参数与纯函数无副作用。 |
+
+我们没有把按钮逻辑写进前端、没有按中文按钮文案分支，也没有把“再停留一会”伪造成新事件。`replan_time` 需要分钟数，因此 action 明确携带 `input_schema`，让前端收集参数而不是猜测。LLM/RAG 均不参与 presenter；只有 `handle_tour_event()` 能修改状态。
+
+### 12.3 关键测试防止的错误
+
+1. `test_explanation_finished_changes_only_interaction_phase` 防止讲解播放结束误写 `visited_stop_ids`。
+2. `test_last_stop_still_requires_confirm_after_explanation_finished` 防止最后一站因播报结束而自动结束路线。
+3. `test_waiting_confirmation_exposes_confirm_not_explanation_finished` 防止前端在等待确认阶段重复展示错误生命周期按钮。
+4. `test_error_and_clarification_have_no_actions` 防止错误或歧义状态出现可能被错误执行的按钮。
+5. `test_start_route_initializes_session_tour_and_interaction_state` 的扩展断言确保新路线初始化即有稳定的导航动作协议。
+
+### 12.4 已实现、接口与未来边界
+
+- **已实现并验证**：8 个冻结事件中的 `explanation_finished`、纯展示协议、稳定 action ID、A1-3 单元测试和 Agent 响应中的 `tour_presentation`；完整 101 项本机回归均通过。
+- **仅保留接口**：`replan_time` 的 `input_schema`；未来前端负责采集整数但不做状态推断。
+- **未来规划**：真实 Web/移动端、A2 问答后恢复导游、阶段 B 的讲解内容编排与知识卡接入。
+- **不变边界**：空间图、路线模板、动态选点、RAG 规则和知识卡数据均未修改。
+
+### 12.5 一分钟答辩讲稿
+
+> A1-3 解决的是“后端已经知道状态，前端怎样安全展示并推进导览”的问题。我们把展示层做成纯函数：它接收适配层的结果，输出中文提示、当前阶段和带稳定事件 ID 的按钮数组。前端不解析“讲完了，去下一站”这句话，而是提交 `confirm_stop_complete`。为解决讲解结束与游客完成参观不同的问题，我们新增 `explanation_finished`：它只把阶段从 explaining 切到 awaiting_confirmation，不会写入已访问记录。最终仍由统一适配层验证事件、参数和阶段，因此 UI、LLM 和 RAG 都无法直接篡改 TourState。
+
+### 12.6 面试追问与参考回答
+
+1. **为什么要返回 action ID，而不只返回文案？** 文案可本地化和改版，稳定 ID 才能可靠对应冻结事件。
+2. **为什么讲解结束不算完成站点？** 游客可能还在观察、拍照或提问；真实完成必须显式确认。
+3. **为什么 `replan_time` 有 input schema？** 避免前端自行猜测参数格式，后端仍会再次校验整数分钟数。
+4. **为什么 presenter 不调用 RAG？** 展示协议只解释既有事件结果；内容问答和恢复导游属于 A2。
+5. **如何避免前端绕过状态机？** 前端只能提交 action ID 与参数，服务端统一进入 `handle_tour_event()` 校验。
+6. **为什么不实现“再停留一会”？** 冻结契约没有对应事件；无意义新增状态会破坏可审计性，因此首版不提供状态动作。
+
+### 12.7 现场演示
+
+```text
+到达月台 → phase=explaining
+actions=[explanation_finished, request_stop_detail, skip_stop, replan_time, finish_tour]
+
+系统播放讲解结束 → explanation_finished
+phase=awaiting_confirmation，visited 不变
+actions=[confirm_stop_complete, request_stop_detail, skip_stop, replan_time, finish_tour]
+
+游客点击 confirm_stop_complete → 月台进入 visited，pending 更新为下一站，phase=navigating
+```
+
+## 13. 后续实施报告附加规范
 
 每个 A1/A2 子任务完成时，实施报告末尾必须基于真实代码与测试结果说明：用户问题、前后流程、文件/函数/字段、方案取舍、LLM 状态边界、至少三个测试、模块影响、风险、1 分钟讲稿、至少 5 个追问、演示示例，以及“已验证/待验证/接口/未来”状态。若发生规划—实现冲突，还必须记录冲突、最终语义、依据和软件工程原则。

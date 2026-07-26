@@ -93,6 +93,18 @@ A1-1 已由项目 `.venv\Scripts\python.exe` 完成本地 62 项回归测试并�
 
 项目负责人已使用 `.venv` 完成 A1-2 核心 38 项测试与完整 90 项回归，结果均为 `OK`。后续修改 `tour_intent.py`、A1 事件路由或 Agent 事件节点时，至少复跑 `test_tour_intent.py`、`test_agent_tour_state.py` 与 A1-1 的交互/导航/重规划回归。
 
+## A1-3 连续导游展示协议（已实现并验证）
+
+| 文件 | 职责 | 边界 |
+| --- | --- | --- |
+| `tour_presenter.py` | 纯函数：把适配层响应转为 `message / phase / actions`；每个 `actions[].id` 都是冻结事件，前端按 ID 和参数调用，不解析中文文案。 | 不修改 TourState/交互状态，不调用 LLM/RAG，不生成路线。 |
+| `tour_interaction.py: explanation_finished` | 生命周期事件：`explaining → awaiting_confirmation`，只改变交互阶段。 | 不把站点写入 visited，不移除 remaining，不改变路线事实。 |
+| `test_tour_presenter.py` | 验证前往、计划内到达、自主到达、等待确认、完成、跳过、重规划、结束、错误和澄清的展示协议。 | 不依赖真实前端或网络。 |
+
+`replan_time` 按钮携带 `input_schema.available_minutes`，前端必须收集整数后才能提交；“再停留一会”没有被冻结事件，因此 A1-3 不提供会改变状态的按钮。
+
+项目负责人已使用 `.venv` 完成 A1-3 相关回归，共 101 项测试均为 `OK`。后续修改展示协议、生命周期事件或 Agent 的 `tour_presentation` 时，应至少复跑 `test_tour_presenter.py`、`test_tour_interaction.py`、`test_tour_intent.py`、`test_agent_tour_state.py` 与路线回归。
+
 人工填写 `route_review_results_v1.csv` 时：`manual_status` 只能填 `approved`、`revise` 或 `rejected`；其余四个判断列填 `yes`、`no` 或 `needs_site_check`。只填写人工列，不改自动生成的路径、时间、点位和边字段。
 
 动态路线 A0 的开发顺序固定为：候选过滤 → 点位评分 → 时间预算组合 → 评估集 → Agent 接入。论文卡、比较卡尚未参与 A0 评分；后续只可通过已审核 `card_id` 增加可解释加分项。

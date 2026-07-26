@@ -741,7 +741,7 @@ glossary_ids
 
 ### 13.6 A1-0 交互契约冻结
 
-已新增 `TOUR_INTERACTION_CONTRACT.md`，作为 A1-1 至 A1-4 的唯一交互契约。它冻结了 7 个白名单事件、统一响应包、错误码、前置条件、状态转移、幂等规则和“禁止按时间自动完成”的约束。
+已新增 `TOUR_INTERACTION_CONTRACT.md`，作为 A1-1 至 A1-4 的唯一交互契约。它冻结了 8 个白名单事件、统一响应包、错误码、前置条件、状态转移、幂等规则和“禁止按时间自动完成”的约束；其中 A1-3 补充的 `explanation_finished` 只表示讲解播放结束，不表示游客完成参观。
 
 现有 TourState 首版中“到达即计入已访问”的行为与连续导游记录语义不完全一致。契约已明确：从 A1-1 起改为“到达 → 讲解/等待确认 → `confirm_stop_complete()` 才计入 `visited_stop_ids`”；本 A1-0 阶段不改运行代码，因此已通过的 A 阶段测试仍保持有效。
 
@@ -754,6 +754,14 @@ glossary_ids
 - `tour_event` 只调用 `tour_interaction.handle_tour_event()` 并采纳其返回快照；`clarification` 不输出 TourState 更新；
 - 已新增 `test_tour_intent.py`、更新 Agent 路由集成测试；当前 38 项核心测试和 90 项完整回归均为 `OK`。
 
+### A1-3 连续导游回复与按钮协议（已实现并验证）
+
+- 契约新增 `explanation_finished`：只将 `explaining` 切换至 `awaiting_confirmation`，不写入已访问、不删除剩余点，也不会结束最后一站；
+- 新增 `tour_presenter.py`，以纯函数将适配层结果转为稳定的 `message / phase / actions` 协议；每个 `actions[].id` 都是冻结事件，中文文案不参与前端逻辑判断；
+- `agent_graph.py` 新增 `tour_presentation` 响应字段，路线初始化、事件结果和澄清结果均可提供 UI 中立展示数据；
+- `replan_time` 动作附带 `input_schema.available_minutes`，A1-3 不新增“再停留一会”状态事件；
+- 项目负责人已使用 `.venv` 完成 101 项本机回归，结果均为 `OK`。
+
 ### 13.7 A1-1 统一交互事件适配层
 
 - 新增 `tour_interaction.py`：所有游览事件经 `handle_tour_event()` 进入，返回冻结契约规定的 `ok`、`event`、`code`、`message`、TourState、交互状态、`data` 与 `idempotent` 响应包。
@@ -761,5 +769,5 @@ glossary_ids
 - 已废止“到达即完成”：计划内到达仅记录当前位置并进入 `explaining`；只有 `confirm_stop_complete()` 会将该点从 remaining 移入 visited。最后一站也必须确认后才结束。
 - 保留冻结契约的 `self_arrival`：合法但非 pending 的空间点会记录真实当前位置与 `last_arrival_kind=self_arrival`，但不改变正式路线顺序、已访问或跳过记录。
 - 有当前未确认讲解点时，`next_stop` 会返回结构化 `invalid_phase`；重规划保留该点一次、不将其作为新候选重复加入；跳过当前点只进入 skipped。
-- `agent_graph.py` 的既有确定性到达、下一站、跳过、改时间和结束节点已改为调用适配层。自然语言“确认完成”意图与按钮协议仍按阶段边界留给 A1-2/A1-3。
+- `agent_graph.py` 的既有确定性到达、下一站、跳过、改时间和结束节点已改为调用适配层。A1-2 已实现自然语言“确认完成”意图；A1-3 已完成并验证连续导游展示协议，按钮只使用冻结事件 ID。
 - 已使用项目虚拟环境完整路径运行 62 项回归测试，覆盖 TourState、A1 交互、导航、重规划、Agent、路线、空间图、动态路线、锚点基准与人工审核报告；结果均为 `OK`。

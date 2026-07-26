@@ -24,6 +24,7 @@ class AgentTourStateTests(unittest.TestCase):
         result = self._started()
         self.assertEqual(result["tour_state"]["selected_route_id"], "highlights_30")
         self.assertEqual(result["tour_interaction_state"]["stop_phase"], "navigating")
+        self.assertIn("arrive_at_stop", [item["id"] for item in result["tour_presentation"]["actions"]])
 
     def test_arrival_routes_to_unified_event_node_and_adapter(self):
         initial = self._started()
@@ -35,6 +36,8 @@ class AgentTourStateTests(unittest.TestCase):
         self.assertEqual(result["last_tour_intent"]["event_type"], "arrive_at_stop")
         self.assertEqual(result["tour_state"]["visited_stop_ids"], [])
         self.assertEqual(result["tour_interaction_state"]["stop_phase"], "explaining")
+        self.assertEqual(result["tour_presentation"]["phase"], "explaining")
+        self.assertIn("explanation_finished", [item["id"] for item in result["tour_presentation"]["actions"]])
 
     def test_text_confirmation_is_only_path_that_marks_visit_complete(self):
         initial = self._started()
