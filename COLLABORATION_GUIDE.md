@@ -68,6 +68,12 @@ TourState 首版字段固定为 `selected_route_id`、`route_stop_ids`、`curren
 
 后续导游交互、游览中 RAG 问答、讲解编排器、用户画像与知识卡接入的阶段边界见 `TOUR_GUIDE_ROADMAP.md`。任何新增论文卡、比较卡、术语卡或打卡点卡都不得绕过该文档和本文件中既定的 `card_id` / `node_id` 规则。
 
+## A1 交互契约（冻结）
+
+`TOUR_INTERACTION_CONTRACT.md` 是 A1-0 已冻结的唯一事件与状态契约。A1-1 的 `tour_interaction.py`、A1-2 的 `agent_graph.py` 文本路由、A1-3 的按钮/连续导游响应都必须引用它，不得各自定义事件名称、错误码或状态写入规则。
+
+关键兼容调整：现有 A 阶段首版的 `arrive_at_stop()` 会直接记为已访问；A1-1 起统一改为“到达 → explaining → `confirm_stop_complete()` 后才写入 `visited_stop_ids`”。空间主键、路线事实字段和旧路线数据不变。A1-0 只冻结契约，尚未改变现有运行逻辑。
+
 人工填写 `route_review_results_v1.csv` 时：`manual_status` 只能填 `approved`、`revise` 或 `rejected`；其余四个判断列填 `yes`、`no` 或 `needs_site_check`。只填写人工列，不改自动生成的路径、时间、点位和边字段。
 
 动态路线 A0 的开发顺序固定为：候选过滤 → 点位评分 → 时间预算组合 → 评估集 → Agent 接入。论文卡、比较卡尚未参与 A0 评分；后续只可通过已审核 `card_id` 增加可解释加分项。

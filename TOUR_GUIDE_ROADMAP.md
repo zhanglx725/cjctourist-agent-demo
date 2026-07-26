@@ -12,70 +12,135 @@
 
 默认产品不应要求游客记住“我到月台了”这类提示词。TourState 将支持以下入口，底层都调用相同的确定性状态函数：
 
-1. 文本自主模式：游客说“我到月台了”“下一站去哪”“跳过这里”。
-2. 按钮引导模式：界面发送稳定事件，例如 `arrive_at_stop(node_id)`、`next_stop`、`skip_stop`、`replan_time`。
-3. 连续导游模式：播报结束后展示“完成，前往下一站”“再讲详细”“跳过”“我还有 X 分钟”等按钮，等待游客确认。
+1. **文本自主模式**：游客说"我到月台了""下一站去哪""跳过这里"，LLM 将其理解为事件后调用状态函数。
+2. **按钮引导模式**（默认推荐）：界面发送稳定事件，例如 `arrive_at_stop(node_id)`、`next_stop`、`skip_stop`、`replan_time`，无歧义，适合大多数游客。
+3. **连续导游模式**：Agent 完成讲解播报后显示操作面板，游客点击"讲完了，去下一站""再讲详细""跳过此点""我还有 X 分钟"，无需聊天输入。
 
-不得仅按计时自动标记游客已参观完成；现实中可能拍照、提问、停留或受人流影响。后续可增加：
+不得仅按计时自动标记游客已参观完成；现实中可能拍照、提问、停留或受人流影响。应采用"自动播报 + 轻确认"策略：
 
 ```text
-tour_mode: chat / button_guided / continuous
-pending_stop_id
-stop_phase: navigating / explaining / awaiting_confirmation
+讲解播放结束
+→ 界面提示：本点参观完成了吗？
+   [完成，前往下一站]
+   [再停留一会]
+   [跳过后续讲解]
 ```
+
+后续状态字段（UI/交互层）：
+
+```text
+pending_stop_id              # 当前等待访问的点位
+tour_mode                    # chat / button_guided / continuous
+stop_phase                   # navigating / explaining / awaiting_confirmation
+```
+
+但此层暂不需在 TourState 纯函数中实现；只需确保 `arrive_at_stop` 等原子函数幂等且不产生副作用。不同交互模式最终只是调用这些确定函数的不同方式。
 
 ## 游览中问答与继续导游（A2，后续）
 
 游客在任何点位都可以插入问题，例如“灰塑是什么”“这幅三国故事讲什么”。处理流程应为：
 
 ```text
-TourState 保持不变
+检查 TourState 中 current_stop_id
 → RAG 检索并回答当前问题
-→ 回复末尾恢复当前导游上下文：当前点、下一操作按钮或下一站提示
+  （可选）若答案引用当前点位的讲解卡，增加信息完整度
+→ 回复末尾恢复当前导游上下文：
+  "你正在[点位名]。[回答内容]。
+   下一步：[按钮或提示]"
 ```
 
-问答本身不应自动增加 `visited_stop_ids`，也不应重置当前路线。只有显式到达、跳过、确认完成或重规划事件可以修改 TourState。
+问答本身**不应自动增加 `visited_stop_ids`**，也不应重置当前路线。只有显式到达、跳过、确认完成或重规划事件可以修改 TourState。这保证了 `visited_stop_ids` 真实反映游客实际到达的点位，而不是提问历史。
 
-## 阶段 B：点位讲解编排器
+## 阶段 B：点位讲解编排器（后续，与 A 并行）
 
 新增建议：
 
 ```text
 guide_program_planner.py
 test_guide_program_planner.py
+data/chen_clan_academy/guides/
 ```
 
-职责：从点位讲解包的全部已映射文物中，按游客兴趣与时间选择 1–3 件代表对象，生成可审计的 `StopProgram`。示例：
+职责：从点位讲解包（`node_guide_cards_v1.json`）的全部已映射文物中，按游客兴趣与时间选择 1–3 件代表对象，生成可审计的 `StopProgram`。示例：
 
 ```json
 {
   "node_id": "label_moon_platform",
   "budget_seconds": 300,
+  "visitor_profile": {"detail_level": "standard", "interests": ["建筑工艺"]},
   "selected_items": [
-    {"ornament_id": "orn_078", "role": "核心观察", "planned_seconds": 90},
-    {"topic": "石雕与铁铸通花栏板的对比", "role": "工艺比较", "planned_seconds": 90},
-    {"topic": "观察任务与提问", "role": "互动", "planned_seconds": 120}
-  ]
-}
-```
+    {
+      "ornament_id": "orn_078",
+      "ornament_name": "石雕栏板",
+      "role": "核心观察",
+      "planned_seconds": 90,
+      "rag_query_hints": ["石雕栏板特点", "铁铸通花对比"]
+    },
+    {
+      "topic": "石雕与铁铸通花栏板的对比",
+      "role": "工艺比较",
+      "planned_seconds": 90,
+      "comparison_card_id": "comp_001"
+    },
+    {
+      "topic": "观察任务与提问",
+      "role": "互动",
+      "planned_seconds": 120
+    }（与 B 并行）
 
-`StopProgram` 的时间应回写进路线预算。路线规划与讲解编排必须保持分层：前者决定走法与点位，后者决定讲解对象、叙事方式与时间分配。
-
-讲解深度规则：
-
-| detail_level | 内容 |
-| --- | --- |
-| `short` | 一件代表文物 + 一句观察提示 |
-| `standard` | 代表文物 + 工艺或寓意 |
-| `deep` | 代表文物 + 工艺比较 + 历史故事或研究延伸 |
-
-生成讲解时，先用 RAG/知识卡为已选对象取证，再由导游生成器组织自然语言；不得让生成模型先决定空间路径。
-
-## 阶段 C：最小用户画像与个性化
-
-先只收集或追问：
+新增建议：
 
 ```text
+visitor_profile.py
+test_visitor_profile.py
+data/chen_clan_academy/profiles/
+```
+
+**首版仅收集三项（追问 + 智能填充）：**
+
+```text
+available_minutes      # 可用时间
+interests              # 兴趣：灰塑、木雕、三国、建筑、摄影等
+detail_level           # short / standard / deep
+```
+
+**后续可选字段（不在首版强制）：**
+
+```text
+visitor_type           # 首次来访 / 亲子 / 研学 / 工艺爱好 / 摄影爱好
+language               # zh / en （多语言后续支持）
+photo_preference       # yes / no （是否主动需要拍照建议）
+accessibility_need     # 行动便利、视障等特殊需求
+```
+
+**兴趣到优先点位的初步映射：**
+
+| 兴趣标签 | 优先讲解点位 | 关键文物类型 | 讲解卡类型 |
+| --- | --- | --- | --- |
+| 灰塑 | 前庭、前院中部、前东庭、后庭 | 灰塑人物故事、吉祥题材 | 标准 + 工艺比较 |
+| 木雕 | 前庭、后庭、后西庭 | 木雕梁架、窗花 | 标准 + 工艺特写 |
+| 三国故事 | 后西庭、前院西部靠中 | 灰塑三国人物 | 深度 + 故事扩展 |
+| 建筑工艺 | 月台、前院中部、前庭 | 栏板、花脊、梁架 | 深度 + 建筑结构卡 |
+| 吉祥题材 | 前院中部、前东庭、前西庭 | 灰塑纹样、寓意 | 标准 + 寓意卡 |
+| 摄影 | 前院、月台、后庭（光线与视角优先） | 全类型（视觉焦点） | 标准 + 打卡点卡 |
+| 研学 | 月台、后庭、后西庭 | 建筑工艺代表、历史沿革 | 深度 + 论文摘要卡 |
+
+**三人追问策略：**
+
+```text
+自我介绍 / 欢迎
+→ "您有多少时间参观？(30/45/60/75/90分钟)"
+→ "对哪方面最感兴趣？(灰塑/木雕/三国/建筑/吉祥/摄影/研学/不确定)"
+  若"不确定"，则根据时长和默认推荐
+→ "希望快速了解，还是深入学习？(快速/标准/深入)"
+→ 推荐路线 + 询问"我们从月台出发好吗？"
+```
+
+**集成到 Agent 流程：**
+
+1. 首次 `direct_route` 被调用时，若缺少 `interests` 或 `detail_level`，转向"用户追问"节点。
+2. 后续路线、讲解编排和 RAG 问答都读取同一份 `visitor_profile`。
+3. 允许游客中途改变兴趣（"突然想深入了解木雕""没时间了"），触发重规划。
 available_minutes
 interests
 detail_level
