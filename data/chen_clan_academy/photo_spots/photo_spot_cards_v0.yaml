@@ -1,0 +1,145 @@
+version: v0
+verified_at: 2026-07-26
+source_scope: >-
+  点位与装饰题材来自已审核的路线停靠点和建筑装饰位置索引；拍摄条件并未进行现场复核。
+cards:
+  - photo_spot_id: photo_family_five_blessings
+    title_zh: 五福捧寿：家庭祝福主题
+    node_id: stop_front_courtyard_north
+    target_ornaments: ["博古图、五福捧寿"]
+    target_groups: [family, multigenerational, elders]
+    themes: [family_blessing, longevity, traditional_pattern]
+    pose_template_ids: [pose_parent_child_observation]
+    cultural_prompt_zh: 可把“五福捧寿”作为全家留影时的文化话题：先找出五福与寿意，再记录一家人同行的时刻。
+    recommended_capture_zh: 以纹样细节或“人物与纹样同框”为创作方向；具体站位、距离和是否允许合影须现场确认。
+    popularity_status: editorial_recommended
+    review_status: draft_manual_review
+    evidence_refs: [S11]
+    boundaries_zh: 传统纹样寓意仅作文化解读，不承诺现实效果；不得遮挡通行或靠近、触摸构件。
+
+  - photo_spot_id: photo_family_hundred_sons
+    title_zh: 百子千孙：亲子与家族记忆主题
+    node_id: stop_front_courtyard_east
+    target_ornaments: [百子千孙, 和合二仙]
+    target_groups: [family, parents_with_children, multigenerational]
+    themes: [family_blessing, children_task, family_prosperity]
+    pose_template_ids: [pose_parent_child_observation]
+    cultural_prompt_zh: 适合亲子同行时做“找一找家族兴旺寓意”的观察打卡，并把题材含义作为照片说明。
+    recommended_capture_zh: 优先拍摄纹样本身与儿童观察的过程；是否适合人物合影、是否能看清细节需现场确认。
+    popularity_status: editorial_recommended
+    review_status: draft_manual_review
+    evidence_refs: [S11]
+    boundaries_zh: 不把“百子千孙”直接解释为现实祝愿或生育倡议；儿童须由监护人照看，不在通道停留追逐。
+
+  - photo_spot_id: photo_architecture_moon_platform
+    title_zh: 月台通花：工艺与建筑细节主题
+    node_id: label_moon_platform
+    target_ornaments: ["麒麟玉书凤凰图", 三阳开泰]
+    target_groups: [young_adults, friends, architecture_enthusiasts]
+    themes: [architecture_signature, craft_detail, openwork]
+    pose_template_ids: [pose_side_detail_gaze, pose_detail_observation]
+    cultural_prompt_zh: 用栏板、望柱与通花装饰表现陈家祠的构件细节；适合回答“建筑工艺怎么被看见”。
+    recommended_capture_zh: 建议以局部细节、重复纹样和空间层次为拍摄主题；具体镜位、人物是否可进入画面须现场确认。
+    popularity_status: editorial_recommended
+    review_status: draft_manual_review
+    evidence_refs: [S11]
+    boundaries_zh: 仅在开放区域、许可拍摄的前提下取景；不得倚靠栏板、翻越设施或使用闪光灯。
+
+  - photo_spot_id: photo_architecture_front_facade
+    title_zh: 前庭门厅：中轴对称与陈家祠辨识主题
+    node_id: stop_front_courtyard_center
+    target_ornaments: [石狮子, 功名富贵, 松鹤延年]
+    target_groups: [young_adults, friends, first_time_visitors]
+    themes: [architecture_signature, axial_symmetry, entrance_hall, first_visit]
+    pose_template_ids: [pose_centered_entrance]
+    cultural_prompt_zh: 可把入口前庭的中轴、门厅层次和石雕、灰塑作为“我在陈家祠”的识别元素，而不是只拍建筑外观。
+    recommended_capture_zh: 可尝试以中轴对称和门厅层次作为画面组织；人物合影位置、可否使用三脚架和现场人流条件待审核。
+    popularity_status: editorial_recommended
+    review_status: draft_manual_review
+    evidence_refs: [S11]
+    boundaries_zh: 不得把石狮等文物作为攀坐、触摸或摆拍道具；通道繁忙时应放弃停留拍摄。
+
+  - photo_spot_id: photo_architecture_roof_ridge
+    title_zh: 前庭屋脊：远景中的陶塑与灰塑层次
+    node_id: stop_front_courtyard_north
+    target_ornaments: [鳌鱼, 瓜瓞绵绵]
+    target_groups: [young_adults, friends, photography_enthusiasts]
+    themes: [architecture_signature, roof_ridge, ceramic_sculpture, grey_plaster]
+    pose_template_ids: [pose_side_detail_gaze]
+    cultural_prompt_zh: 适合从远景观察屋脊轮廓、陶塑与灰塑如何共同构成建筑顶部的视觉层次。
+    recommended_capture_zh: 建议把屋脊作为主体，保留必要的建筑轮廓作尺度参照；可否获得无遮挡视线、最佳拍摄时段待现场确认。
+    popularity_status: editorial_recommended
+    review_status: draft_manual_review
+    evidence_refs: [S11]
+    platform_observation_ids: [xhs_20260726_small_deity_ao_fish]
+    boundaries_zh: 不为取景进入限制区域、跨越围栏或占用狭窄通道；风雨或施工期间以现场管理要求为准。
+
+  - photo_spot_id: photo_architecture_corridor_perspective
+    title_zh: 连廊与青云巷：透视和框景主题
+    node_id: stop_front_courtyard_north
+    target_ornaments: []
+    target_groups: [young_adults, friends, photography_enthusiasts]
+    themes: [architecture_signature, corridor_perspective, framing_view, spatial_layer]
+    pose_template_ids: [pose_walkaway_corridor]
+    cultural_prompt_zh: 可从连廊、院落和青云巷的连续关系中寻找透视线与“框景”，把注意力放在空间节奏而非单一摆拍。
+    recommended_capture_zh: 以廊柱、门洞或墙体形成的重复线条组织画面；可拍区域、逆光情况、是否允许停留取景待现场确认。
+    popularity_status: editorial_recommended
+    review_status: draft_manual_review
+    evidence_refs: [S11, CMPREF_LUO_2006]
+    boundaries_zh: 连廊和通道优先保障通行；不得长时间架设设备、引导他人停留或拍摄到不愿入镜的游客。
+
+  - photo_spot_id: photo_portrait_entrance_layers
+    title_zh: 门厅层次：情侣与朋友同行纪念
+    node_id: stop_front_courtyard_center
+    target_ornaments: [石狮子, 功名富贵, 松鹤延年]
+    target_groups: [couples, friends, first_time_visitors]
+    themes: [portrait_memory, entrance_hall, spatial_layer, architecture_signature]
+    pose_template_ids: [pose_centered_entrance, pose_side_detail_gaze]
+    cultural_prompt_zh: 以入口门厅与前庭的空间层次作为人物纪念的背景，让照片既保留同行的人，也能辨认出陈家祠的建筑语境。
+    recommended_capture_zh: 建议采用人物与门厅层次同框的方式，不以文物为摆拍道具；正面/侧面视角、光线是否稳定和人流是否适合合影均待现场确认。
+    popularity_status: editorial_recommended
+    review_status: draft_manual_review
+    evidence_refs: [S11]
+    boundaries_zh: 不攀坐石狮或倚靠构件；不在入口、疏散口和人流密集处停留拍摄，服从现场管理。
+
+  - photo_spot_id: photo_solo_corridor_frame
+    title_zh: 连廊框景：独行游客的到访纪念
+    node_id: stop_front_courtyard_north
+    target_ornaments: []
+    target_groups: [solo_travelers, friends, photography_enthusiasts]
+    themes: [portrait_memory, corridor_perspective, framing_view, spatial_layer]
+    pose_template_ids: [pose_walkaway_corridor]
+    cultural_prompt_zh: 可利用连廊与院落形成的前后景关系，记录“人在陈家祠空间中”的到访感，而非只拍一张建筑空景。
+    recommended_capture_zh: 以门洞、廊柱或院落开口作为人物取景框；可停留位置、光线稳定性、是否可请同行者协助拍摄待现场确认。
+    popularity_status: editorial_recommended
+    review_status: draft_manual_review
+    evidence_refs: [S11, CMPREF_LUO_2006]
+    boundaries_zh: 不妨碍连廊通行，不在狭窄位置久留；不使用闪光灯、补光灯或未经允许的拍摄设备。
+
+  - photo_spot_id: photo_story_three_kingdoms
+    title_zh: 三国故事：朋友同行的识图任务
+    node_id: stop_rear_west_courtyard
+    target_ornaments: [三顾茅庐, 三英战吕布, 长坂坡救阿斗]
+    target_groups: [young_adults, friends, students]
+    themes: [story_task, three_kingdoms, craft_detail]
+    pose_template_ids: [pose_ornament_reference_pending, pose_detail_observation]
+    cultural_prompt_zh: 适合把“认出一个三国故事，并说出人物关系”做成同行朋友之间的轻量打卡任务。
+    recommended_capture_zh: 以单幅故事画面或两三幅细节的组图为主；具体画面是否清晰、是否允许近拍须现场确认。
+    popularity_status: editorial_recommended
+    review_status: draft_manual_review
+    evidence_refs: [S11]
+    boundaries_zh: 不能把题材名称、人物身份或剧情细节仅凭肉眼猜测；讲解须由现有 RAG 取证。
+
+  - photo_spot_id: photo_craft_ornament_route
+    title_zh: 七类工艺：建筑爱好者观察记录
+    node_id: stop_front_courtyard_north
+    target_ornaments: [灰塑, 木雕, 石雕, 陶塑]
+    target_groups: [architecture_enthusiasts, art_enthusiasts, students]
+    themes: [craft_detail, observation_task, architecture_signature]
+    pose_template_ids: [pose_detail_observation]
+    cultural_prompt_zh: 可完成“在同一停靠点辨认两种以上工艺”的记录式打卡，照片重点是材料和工艺差异，而不是人物摆拍。
+    recommended_capture_zh: 用一张远景交代部位、两张局部记录不同工艺；拍摄范围与细部可见性待现场确认。
+    popularity_status: editorial_recommended
+    review_status: draft_manual_review
+    evidence_refs: [S11]
+    boundaries_zh: 工艺名称、材质和制作方法须由术语卡与 RAG 证据核实；不建议为拍摄而使用补光或贴近脆弱构件。

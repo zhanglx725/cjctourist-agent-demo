@@ -1,0 +1,143 @@
+version: v0
+verified_at: 2026-07-26
+description: 已有直接比较文献支持的首批卡。所有卡均为研究限定用途，尚未进入普通导游词的确定性事实库。
+cards:
+  - comparison_id: cmp_grey_plaster_vs_juancheng_brick_plastic
+    theme_zh: 广州灰塑与山东鄄城砖塑：同为建筑塑作，材料与视觉语言不同
+    comparison_level: craft_special_topic
+    comparison_objects: [广州灰塑（含陈家祠案例）, 山东鄄城砖塑]
+    dimensions: [material_and_technique, motifs_and_values, regional_aesthetics]
+    scope_zh: 仅比较广州灰塑与山东鄄城砖塑，不代表所有岭南与北方建筑装饰。
+    similarities_zh:
+      - 研究将二者均视为建筑装饰中的塑作，均承载祈福、象征和审美功能。
+      - 两者都在湿态材料上完成主要塑形，并与建筑部位和地域生活相联系。
+    differences_zh:
+      - 广州灰塑采用石灰体系；鄄城砖塑以黏土泥坯塑形后烧制成陶质构件。
+      - 研究所述广州灰塑题材包含较多沿海与地方物象，鄄城砖塑更强调当地常见的故事、祥瑞与伦理象征题材。
+      - 研究比较中，广州灰塑以多色装饰为突出特征，鄄城砖塑多保留青色砖材本色。
+    on_site_observation_prompt: 在陈家祠观察灰塑时，可看材料塑形、鲜明设色和岭南地方题材；不要把“北方砖塑”笼统理解为单一风格。
+    visitor_conclusion_zh: 陈家祠的灰塑可放在更广的中国建筑塑作传统中理解：共同的祈福功能，会因材料、烧制与否、题材和色彩而呈现不同面貌。
+    source_refs: [CMPREF_LI_LIU_2018]
+    status: approved_research_only
+    claim_strength: research_only
+    limitations_zh: 结论来自一篇直接比较研究；涉及历史原因和地域审美的解释必须归因于该研究，不能扩展为价值高低判断。
+  - comparison_id: cmp_chen_and_zi_ancestral_hall_grey_plaster
+    theme_zh: 陈家祠与资政大夫祠：广州灰塑传统中的共同观察线索
+    comparison_level: same_region_craft_context
+    comparison_objects: [陈氏书院, 花都资政大夫祠]
+    dimensions: [decorative_system, motifs_and_values, regional_aesthetics]
+    scope_zh: 仅用于说明两处案例被同一研究纳入广州灰塑田野调查；不构成两座祠堂整体功能或价值比较。
+    similarities_zh:
+      - 研究以两处祠堂为案例，归纳广州灰塑造型题材丰富、色彩鲜明的共同特征。
+      - 两处案例的装饰都可从家族价值表达、吉祥题材和民俗审美角度阅读。
+    differences_zh: []
+    on_site_observation_prompt: 在陈家祠可从动物、植物、人物与吉祥纹样的组合，以及高明度色彩效果观察广州灰塑的地方性。
+    visitor_conclusion_zh: 陈家祠的灰塑不是孤立的“单一名作”，也属于广州地区祠堂灰塑传统的一部分。
+    source_refs: [CMPREF_LIU_ET_AL_2021]
+    status: approved_research_only
+    claim_strength: research_only
+    limitations_zh: 原研究重点是共同特征，未提供可用于游客的系统差异表；不得据此推定两处灰塑规模、年代或艺术水准的差异。
+  - comparison_id: cmp_chen_vs_jinci_architectural_observation
+    theme_zh: 陈家祠与山西晋祠：跨区域古建筑的观察性比较
+    comparison_level: cross_regional_building
+    comparison_objects: [陈氏书院, 山西晋祠]
+    dimensions: [institution_and_function, spatial_layout, material_and_technique, regional_aesthetics]
+    scope_zh: 两处建筑历史背景、祭祀对象和类型不同；仅用于研究者提出的跨区域艺术观察。
+    similarities_zh:
+      - 研究都将两者视为具有祭祀与文化展示意义的古建筑场所。
+      - 两者都可从空间组织、装饰与材料角度展开观察。
+    differences_zh:
+      - 研究把陈家祠概括为兼具宗族祭祀、联络和应考暂住背景的合族祠/书院；对照对象的祭祀对象和历史背景不同。
+      - 研究将陈家祠的岭南多工艺装饰与晋祠的北方历史建筑艺术并置讨论。
+    on_site_observation_prompt: 用它引导游客区分“宗族书院的功能与装饰系统”与“不同历史祭祀建筑的空间语境”，而非比较谁更古老或更重要。
+    visitor_conclusion_zh: 跨区域比较的价值，是看见建筑如何把当地社会功能、材料与审美组织在一起，而不是给两处古建筑排位。
+    source_refs: [CMPREF_HUANG_2025, CMPREF_LUO_2006]
+    status: approved_research_only
+    claim_strength: research_only
+    limitations_zh: 仅一篇短篇比较研究直接支撑；所有风格性描述应使用“该研究认为”限定，且不能视为同类型祠堂比较。
+  - comparison_id: cmp_chen_vs_kaiping_decorative_observation
+    theme_zh: 陈家祠与开平碉楼：岭南建筑装饰的不同语境
+    comparison_level: cross_type_decorative_observation
+    comparison_objects: [陈氏书院, 开平碉楼]
+    dimensions: [decorative_system, material_and_technique, motifs_and_values]
+    scope_zh: 只比较装饰题材、材料和图案；二者建筑功能不同。
+    similarities_zh:
+      - 研究讨论两者均使用灰塑等装饰材料，并都可见传统吉祥、历史或民俗题材。
+    differences_zh:
+      - 研究以碉楼中的中式题材与西式装饰语汇并置为观察点；陈家祠侧重点落在青云巷门楼等部位的故事性灰塑题材。
+    on_site_observation_prompt: 在陈家祠现场观察装饰“讲什么故事、安放在哪里”；与开平碉楼比较时，仅把后者作为另一种岭南建筑装饰语境。
+    visitor_conclusion_zh: 同属岭南的建筑，装饰资源可以相通，但会因建筑用途和构图部位不同而组织出不同的观看重点。
+    source_refs: [CMPREF_NI_WANG_2016]
+    status: approved_research_only
+    claim_strength: research_only
+    limitations_zh: 对照对象不是同类祠堂；不可由此推出陈家祠或开平碉楼的整体文化地位结论。
+  - comparison_id: cmp_chen_in_guangzhou_cultural_layers
+    theme_zh: 陈家祠在广州城市文化建筑中的观察位置
+    comparison_level: urban_cultural_position
+    comparison_objects: [陈氏书院, 沙面建筑群, 珠江新城现代建筑群]
+    dimensions: [urban_cultural_position, heritage_and_public_role]
+    scope_zh: 这是城市形象研究中的叙事分类，不是景点排名、客流比较或官方地位排序。
+    similarities_zh:
+      - 三类建筑都可作为理解广州不同历史阶段与城市文化的观察入口。
+    differences_zh:
+      - 研究将陈家祠作为广州地方特色建筑群的代表之一，将沙面作为中西融合建筑群的代表之一，将珠江新城作为现代化建筑群的代表之一。
+      - 陈家祠的讲解重点应落在广府宗族、传统建筑装饰与民间工艺，而非替代沙面或现代城市建筑所呈现的历史层。
+    on_site_observation_prompt: 从祠堂—书院—民间工艺博物馆的连续身份出发，理解它为何是认识老广州地方文化的一扇窗口。
+    visitor_conclusion_zh: 如果把广州看作多层历史叠加的城市，陈家祠适合帮助游客读懂广府宗族、传统建筑和民间工艺这一层。
+    source_refs: [CMPREF_FANG_2018, CMPREF_WEN_2010, CMPREF_CHEN_2016]
+    status: approved_research_only
+    claim_strength: research_only
+    limitations_zh: “代表”是论文的研究分类，导游应说“有研究将其视为”，不得表述为唯一或官方认定的广州文化代表。
+  - comparison_id: cmp_chen_and_guangfu_ancestral_hall_types
+    theme_zh: 陈家祠与广府一般宗祠：合族祠与地方祠堂的功能语境
+    comparison_level: same_type_building
+    comparison_objects: [陈氏书院（城市合族祠）, 广府一般宗祠（区域类型）]
+    dimensions: [institution_and_function, patronage_and_social_network, spatial_layout]
+    scope_zh: 比较的是“合族祠”与区域一般宗祠的功能语境和研究分类，不把广府祠堂简化为单一形制。
+    similarities_zh:
+      - 都与祖先祭祀、宗族组织和地方公共生活相关。
+      - 都可从平面、构架、装饰和时代特征进行建筑观察。
+    differences_zh:
+      - 陈家祠属于由不同地区同姓宗族联建的城市合族祠，其历史使用还涉及应考、办事暂住等城市功能。
+      - 区域研究显示，广府祠堂存在多种类型、时代和形制；不能把陈家祠的“三进三路九堂两厢”当作所有广府祠堂的通行样式。
+      - 形制研究认为，陈家祠借用了清代“广三路”格局的基本关系，但以青云巷和纵横廊道把多座建筑与庭院组织为网格式整体；这是从共同类型出发的特殊扩展，而非脱离广府祠堂传统的孤例。
+    on_site_observation_prompt: 现场可观察陈家祠的多路多进布局和丰富装饰；解释时同时说明这是一座具有特殊城市背景的合族祠。
+    visitor_conclusion_zh: 陈家祠既属于广府祠堂传统，也因跨地区同姓宗族联建和城市功能而呈现出不同于一般乡村宗祠的语境。
+    source_refs: [CMPREF_WEN_2010, CMPREF_LAI_2010, CMPREF_FENG, CMPREF_WANG_GUANGFU_FORMS, CMPREF_CHEN_2016, CMPREF_DAI_LI_2017]
+    status: approved_research_only
+    claim_strength: research_only
+    limitations_zh: “一般宗祠”是区域类型概念而非单一建筑；如需与某座具体祠堂比较，必须另建双方证据完整的个案卡。
+  - comparison_id: cmp_shiwan_ceramic_ridge_vs_northern_glazed_ridge
+    theme_zh: 陈家祠石湾瓷塑脊饰与北方低温琉璃建材：烧制与釉料体系的比较
+    comparison_level: craft_special_topic
+    comparison_objects: [陈家祠石湾瓷塑脊饰, 北方低温琉璃建材]
+    dimensions: [material_and_technique, regional_aesthetics]
+    scope_zh: 仅比较检测论文所述的材料与烧制体系；不把“北方琉璃”概括为单一工艺，也不比较装饰价值高低。
+    similarities_zh:
+      - 两者都属于建筑屋脊的陶瓷/琉璃类装饰构件，并通过釉色形成视觉效果。
+    differences_zh:
+      - 研究检测显示，石湾瓷塑脊饰属于高温钙系釉体系，釉料有草木灰助熔剂和加锌传统；论文将其与北方低温琉璃建材的釉料配方区分开。
+      - 论文所检测的清中后期石湾瓷塑样本烧制温度约可达 1100℃，民国样本可达 1200℃以上。
+    on_site_observation_prompt: 观看陈家祠屋脊时，可把鲜明釉色、分件拼装和远距离可见的轮廓理解为一种经过高温烧成的建筑陶瓷工艺。
+    visitor_conclusion_zh: 陈家祠的石湾陶塑不只是“屋顶上的彩色雕像”；从材料上看，它属于岭南高温烧制、施釉拼装的屋脊装饰传统。
+    source_refs: [CMPREF_ZHENG_ET_AL_2015, CMPREF_HUANG_2024]
+    status: approved_research_only
+    claim_strength: research_only
+    limitations_zh: 北方侧结论来自论文的材料技术比较，不能外推到全部北方屋脊装饰；游客表述应聚焦工艺，不作南北审美优劣判断。
+  - comparison_id: cmp_cross_cultural_ornament_translation
+    theme_zh: 陈家祠的外来材料与本土装饰语境：不是照搬，而是转化使用
+    comparison_level: cross_cultural_decorative_observation
+    comparison_objects: [陈家祠传统宗族建筑装饰, 近代传入岭南的西方材料与图像资源]
+    dimensions: [material_and_technique, motifs_and_values, regional_aesthetics]
+    scope_zh: 仅针对小天使纹样、套色玻璃、铸铁等论文讨论的案例；不把陈家祠整体定义为西式建筑。
+    similarities_zh:
+      - 玻璃、铸铁和带翼人物等资源均可在近代中西文化交流语境中找到参照。
+    differences_zh:
+      - 研究认为，陈家祠把外来材料或图像与传统题材、吉祥寓意和宗族建筑空间结合，而非复制西方宗教建筑的原有功能与图像语义。
+      - 套色玻璃窗花仍采用梅兰竹菊等传统题材；月台铁铸通花栏板亦以传统祥瑞图案组织。
+    on_site_observation_prompt: 可在首进东厅和前檐梁架留意小天使图像，在窗花与月台栏板留意材料如何服务于传统图案和空间。
+    visitor_conclusion_zh: 陈家祠的特色之一，是能在传统祠堂里看到外来材料和图像被重新“翻译”为岭南民间装饰语言。
+    source_refs: [CMPREF_YUAN_CHEN_2022, CMPREF_HUANG_2024, CMPREF_DAI_LI_2017]
+    status: approved_research_only
+    claim_strength: research_only
+    limitations_zh: 外来影响与本土转化的解释应归因于研究者；游客现场无法确认细部时，不应把每一处带翼人物或金属构件都直接判为西方影响。

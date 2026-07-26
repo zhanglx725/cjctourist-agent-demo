@@ -1,0 +1,20 @@
+version: v0
+observations:
+  - observation_id: xhs_20260726_small_deity_ao_fish
+    platform: xiaohongshu
+    supplied_title_zh: 来陈家祠找网红小神仙~附位置
+    short_link: http://xhslink.cn/o/3wWY1ewSLVN
+    user_supplied_caption_fragment_zh: 图2.拿捏（独占鳌头——…）
+    possible_subjects: [鳌鱼, 独占鳌头, 小神仙]
+    linked_photo_spot_ids: [photo_architecture_roof_ridge]
+    observation_type: user_supplied_platform_reference
+    verification_status: needs_screenshot_or_post_text
+    verified_facts_zh:
+      - 已有本地装饰位置索引记录“鳌鱼”为陈家祠相关陶塑题材。
+      - “独占鳌头”可作为鳌鱼题材的文化解释线索，仍须由 RAG 证据支撑最终讲解。
+    unverified_items_zh:
+      - 帖子所称“网红小神仙”具体指向哪个装饰。
+      - 图2的实际取景位置、人物站位和“拿捏”动作。
+      - 该帖子是否代表稳定的热门趋势。
+    adoption_rule_zh: >-
+      在收到图2截图或完整图文前，不新增 ornament_pose_reference，也不向游客表述“网红”或推荐模仿动作。

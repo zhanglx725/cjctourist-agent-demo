@@ -1,0 +1,49 @@
+version: v0
+templates:
+  - pose_template_id: pose_centered_entrance
+    title_zh: 中轴站位
+    pose_kind: editorial_pose_template
+    suitable_groups: [solo_travelers, couples, friends, first_time_visitors]
+    instruction_zh: 在允许停留的开阔位置自然站立，让门厅或中轴空间成为背景；可正视镜头，也可轻微侧身望向建筑。
+    trend_status: editorial_recommended
+    safety_boundary_zh: 不站在门槛、入口正中、疏散口或人流主线上；不为对称构图阻碍通行。
+
+  - pose_template_id: pose_side_detail_gaze
+    title_zh: 侧身看细节
+    pose_kind: editorial_pose_template
+    suitable_groups: [solo_travelers, couples, friends, photography_enthusiasts]
+    instruction_zh: 人物侧身，视线投向屋脊、栏板或装饰细节，形成“正在观察建筑”的自然状态。
+    trend_status: editorial_recommended
+    safety_boundary_zh: 仅作远观，不伸手指点、触摸或贴近脆弱构件。
+
+  - pose_template_id: pose_walkaway_corridor
+    title_zh: 连廊行走感
+    pose_kind: editorial_pose_template
+    suitable_groups: [solo_travelers, couples, friends]
+    instruction_zh: 在不影响他人的前提下，以慢步经过或回望的瞬间配合廊柱、门洞的纵深线条。
+    trend_status: editorial_recommended
+    safety_boundary_zh: 不反复走位、奔跑或在狭窄连廊久留；有人流时放弃该姿势。
+
+  - pose_template_id: pose_parent_child_observation
+    title_zh: 亲子一起找纹样
+    pose_kind: editorial_pose_template
+    suitable_groups: [parents_with_children, multigenerational]
+    instruction_zh: 由成人陪同孩子一起观察纹样，以“找到什么了？”的交流瞬间取代刻意摆拍。
+    trend_status: editorial_recommended
+    safety_boundary_zh: 成人全程看护；不让儿童攀爬、触摸、奔跑或跨越设施。
+
+  - pose_template_id: pose_detail_observation
+    title_zh: 记录者视角
+    pose_kind: editorial_pose_template
+    suitable_groups: [architecture_enthusiasts, art_enthusiasts, students]
+    instruction_zh: 以人物远观、记笔记或使用手机记录的姿态，配合一张构件局部照片，形成“观察—记录”组图。
+    trend_status: editorial_recommended
+    safety_boundary_zh: 不使用闪光灯、补光灯或大型器材；不在通道展开纸张、脚架等物品。
+
+  - pose_template_id: pose_ornament_reference_pending
+    title_zh: 与装饰人物呼应（待视觉审核）
+    pose_kind: ornament_pose_reference
+    suitable_groups: [friends, students, photography_enthusiasts]
+    instruction_zh: 仅在现场照片已确认某一人物装饰的动作、并明确不涉及宗教祭祀或不雅戏仿时，可在安全距离外做轻量、尊重的动作呼应。
+    trend_status: disabled_until_visual_review
+    safety_boundary_zh: 不模仿神像、祭祀对象或具有冒犯风险的姿态；不触摸、攀附或遮挡装饰，未经视觉审核不得推荐。
