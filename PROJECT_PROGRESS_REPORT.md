@@ -831,3 +831,29 @@ glossary_ids
 - 新增 `guide_narration.py`，把 B3 的 StopProgram 与逐件 RAG evidence 转为游客可读的当前点开场、1–2 个重点对象、观察提示、简短事实、来源编号和下一步操作。
 - `guide_program_evidence.py` 继续保留 `StopProgram`、角色、计划秒数、完整 evidence、逐件 evidence 与 `source_ids` 作为结构化审计数据；游客消息不展示文件路径、原始 chunk、内部角色或时间字段，也不以截断半句作为事实。
 - `request_stop_detail` 使用同一 StopProgram 生成不同的“再看细一点”讲解，不写 TourState；当前 Agent 默认采用确定性渲染。可选 LLM narrator 仅接收审核对象和 RAG evidence，若调用失败或输出疑似原始 dump 则回退确定性文本。
+
+## 14. B3 术语卡、术语—点位关联与点位检索提示（2026-07-26）
+
+### 14.1 已完成能力
+
+- 新建 `data/chen_clan_academy/glossary/glossary_zh_en_v0.yaml`：当前包含 82 个研究型术语，全部填写 `domain`；术语按领域分组，覆盖建筑构件、装饰材料、雕塑技法、装饰题材与题记、宗族与教育、礼制与祖先、文保、机构与场所等。
+- 术语卡不把“月台、正厅、东厅”等路线讲解点当作术语；它服务于研究建筑、工艺、制度和保护问题的游客。每张卡保留定义、陈家祠关联、检索词、来源引用与中英译法状态。
+- 已新增术语检索规则 `glossary_retrieval_rules_v0.yaml`：按领域指定优先知识文件、适用问法和回答边界；雀替、龛罩、透雕/通雕等高频概念另有覆盖规则。
+- 已从已审核装饰—点位映射生成 `term_stop_associations_v1.json`，得到 12 个讲解点、181 条术语—点位关联；12 个 `node_guide_cards_v1.json` 讲解包均已写入 `glossary_ids`。
+- 已新增 `glossary_retrieval.py`，并接入 `tour_qa.py`：游客在当前点询问解释性问题时，相关术语只作为 RAG 检索提示；“这里有什么”类清单同时展示可继续追问的专业术语。最终事实回答仍必须来自已有检索证据。
+- `requirements.txt` 已显式加入 `PyYAML`；新增术语数据、术语—点位关联和点位术语检索提示测试。项目负责人已报告本轮相关测试通过。
+
+### 14.2 当前边界与人工审核项
+
+- `research_references.md` 已登记雕刻技法参考文献，但尚未摘录页码、原文要点或可直接引用的研究摘要；因此它不是“学术研究摘要卡”完成状态。
+- 82 个术语中 48 个译法为 `reviewed`，34 个仍为 `draft`；英文自动生成与最终中英术语审核尚未完成。
+- 181 条点位关联均为“从已审核装饰映射推导”的候选上下文，不等同于游客在该处必然可见的对象，也不代表室内定位。应优先核查月台、前庭北侧、前庭中部和前庭西侧的关联，再逐点确认。
+- 宗族、科举、保护等级等全局性概念不强行绑定单一点位，仍通过 RAG 与当前问题上下文回答。
+- 研究摘要卡、比较卡、照片/打卡点卡尚未接入 `StopProgram` 的内容选择；它们保留的 `card_id` 接口仍为空。
+
+### 14.3 后续维护流程
+
+1. 新增或修改术语卡后，先确认 `domain`、定义、来源和译法状态。
+2. 运行术语关联生成脚本，审阅 `term_stop_associations_v1.json` 的变更，再由人工确认可见性和表述范围。
+3. 运行 `test_glossary.py`、`test_term_stop_associations.py`、`test_glossary_retrieval.py`，并做“当前点 + 术语问题”的 A2 端到端问答验收。
+4. 只有取得可核查页码/摘录和结论边界后，才将参考文献升级为研究摘要卡，并按稳定 `card_id` 接入讲解编排。

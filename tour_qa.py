@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from route_planner import CATALOG_FILE, _read_catalog
+from glossary_retrieval import format_point_glossary_hint, point_glossary_context
 from tour_intent import resolve_reviewed_node
 from tour_presenter import present_tour_state
 
@@ -59,6 +60,7 @@ def current_stop_context(tour_state: dict[str, Any] | None) -> dict[str, Any] | 
         "candidate_ornament_names": [
             item["name"] for item in card.get("ornaments", []) if item.get("name")
         ],
+        "glossary_context": point_glossary_context(node_id),
         "card": card or None,
     }
 
@@ -138,6 +140,9 @@ def format_point_inventory(
     craft_distribution = card.get("craft_distribution", {})
     names = "、".join(item["name"] for item in ornaments)
     craft_text = "；".join(f"{craft} {count} 件" for craft, count in craft_distribution.items())
+    glossary_context = point_glossary_context(context["node_id"], user_query)
+    glossary_terms = glossary_context.get("terms", [])
+    glossary_text = "、".join(item["zh"] for item in glossary_terms[:8] if item.get("zh"))
     message = (
         f"{context['name']} 的已审核点位清单共有 {len(ornaments)} 件关联文物。\n"
         f"导览关注：{context.get('guide_focus') or '待补充'}。\n"
@@ -145,9 +150,11 @@ def format_point_inventory(
         f"关联文物：{names or '暂无'}。\n"
         "以上是人工审核的“文物—点位”关联清单；如需了解某件文物的工艺、寓意或故事，我会再调用基础 RAG 并给出来源。"
     )
+    if glossary_text:
+        message += f"\n本点可继续追问的专业术语：{glossary_text}。"
     return {
         "message": message,
-        "inventory": {"node_id": context["node_id"], "ornaments": ornaments, "craft_distribution": craft_distribution, "guide_focus": context.get("guide_focus")},
+        "inventory": {"node_id": context["node_id"], "ornaments": ornaments, "craft_distribution": craft_distribution, "guide_focus": context.get("guide_focus"), "glossary_terms": glossary_terms},
         "point_context": context,
         "presentation": {**presentation, "message": message, "code": "point_inventory", "ok": True} if presentation else None,
         "mode": "inventory",
@@ -170,6 +177,9 @@ def build_tour_qa_query(user_query: str, tour_state: dict[str, Any] | None) -> t
         hints.append(f"讲解关注方向：{context['guide_focus']}")
     if candidates:
         hints.append(f"可用于检索的已审核名称提示：{candidates}")
+    glossary_hint = format_point_glossary_hint(context["node_id"], user_query)
+    if glossary_hint:
+        hints.append(glossary_hint)
     hints.append("以上点位信息只用于检索提示；回答中的事实必须由检索 evidence 支持。")
     return f"用户问题：{user_query}\n" + "\n".join(hints), context
 
