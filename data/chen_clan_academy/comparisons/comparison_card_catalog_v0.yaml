@@ -1,0 +1,101 @@
+
+version: v0
+verified_at: 2026-07-26
+description: 首批比较卡的选题与取证任务。所有条目均未完成双方取证，不可直接作为导游事实输出。
+cards:
+  - comparison_id: cmp_guangzhou_cultural_position
+    theme_zh: 陈家祠在广州历史文化参观中的定位
+    comparison_level: urban_cultural_position
+    comparison_objects: [陈家祠, 待确定的广州已核查历史文化场所]
+    dimensions: [urban_cultural_position, institution_and_function, heritage_and_public_role]
+    visitor_question_patterns: [陈家祠在广州有什么特色, 广州这么多景点为什么要来陈家祠, 陈家祠有什么地位]
+    chen_clan_academy_evidence: [S02, S04, S05, S08]
+    counterpart_evidence: []
+    on_site_observation_prompt: 从合族祠与书院的双重功能、建筑装饰和博物馆身份切入。
+    status: evidence_collection
+    claim_strength: evidence_collection
+    evidence_needed: [确定比较对象, 为各对象补充官方定位资料, 明确不作景点排名]
+  - comparison_id: cmp_lingnan_clan_academy_function
+    theme_zh: 陈家祠与岭南其他祠堂、书院的功能组合
+    comparison_level: same_type_building
+    comparison_objects: [陈氏书院, 待确定的岭南合族祠或书院]
+    dimensions: [institution_and_function, patronage_and_social_network, spatial_layout]
+    visitor_question_patterns: [陈家祠和普通祠堂有什么不同, 为什么祠堂又叫书院, 岭南祠堂都这样吗]
+    chen_clan_academy_evidence: [S02, S04, S08]
+    counterpart_evidence: []
+    on_site_observation_prompt: 观察祭祀空间、题捐牌位线索与供子弟应考暂住的历史功能。
+    status: evidence_collection
+    claim_strength: evidence_collection
+    evidence_needed: [至少选择两处同类岭南案例, 补充功能与建造机制的来源]
+  - comparison_id: cmp_regional_ancestral_hall_layout
+    theme_zh: 陈家祠与北方、江南同类祠堂的空间与审美观察
+    comparison_level: cross_regional_building
+    comparison_objects: [陈氏书院, 待确定的北方同类祠堂, 待确定的江南同类祠堂]
+    dimensions: [spatial_layout, regional_aesthetics, decorative_system]
+    visitor_question_patterns: [岭南祠堂和北方祠堂有什么区别, 和江南祠堂有什么不同]
+    chen_clan_academy_evidence: [S04, S05]
+    counterpart_evidence: []
+    on_site_observation_prompt: 从布局、屋脊和装饰配置切入，不用单一地域标签概括全部建筑。
+    status: evidence_collection
+    claim_strength: evidence_collection
+    evidence_needed: [限定时代和建筑类型, 选择有测绘或权威研究的对照案例]
+  - comparison_id: cmp_decorative_system_lingnan
+    theme_zh: 陈家祠的多工艺装饰系统与岭南建筑观察
+    comparison_level: craft_and_architecture
+    comparison_objects: [陈氏书院, 待确定的岭南传统建筑案例]
+    dimensions: [decorative_system, material_and_technique, regional_aesthetics]
+    visitor_question_patterns: [陈家祠的装饰为什么这么多, 它的装饰和别处有什么不同]
+    chen_clan_academy_evidence: [S05, S10]
+    counterpart_evidence: []
+    on_site_observation_prompt: 在屋脊、外墙、梁架、月台和门窗观察不同工艺的分工。
+    status: evidence_collection
+    claim_strength: evidence_collection
+    evidence_needed: [补充可比建筑的工艺调查, 核验数量或规模类说法的比较范围]
+  - comparison_id: cmp_shiwan_ceramic_ridge
+    theme_zh: 陈家祠石湾陶塑脊饰与岭南屋脊装饰传统
+    comparison_level: craft_special_topic
+    comparison_objects: [陈氏书院石湾陶塑脊饰, 待确定的石湾陶塑或岭南屋脊案例]
+    dimensions: [material_and_technique, regional_aesthetics, decorative_system]
+    visitor_question_patterns: [屋脊上的陶塑有什么特别, 和别处屋脊装饰有什么不同]
+    chen_clan_academy_evidence: [S10]
+    counterpart_evidence: []
+    on_site_observation_prompt: 观察屋脊人物、色彩和远观效果；不在无资料时推断单件作者或年代。
+    status: evidence_collection
+    claim_strength: evidence_collection
+    evidence_needed: [石湾陶塑专项来源, 对照案例的馆方或研究资料]
+  - comparison_id: cmp_grey_plaster_lingnan
+    theme_zh: 陈家祠灰塑与岭南灰塑建筑传统
+    comparison_level: craft_special_topic
+    comparison_objects: [陈氏书院灰塑, 待确定的岭南灰塑案例]
+    dimensions: [material_and_technique, decorative_system, heritage_and_public_role]
+    visitor_question_patterns: [灰塑和陶塑有什么不同, 陈家祠灰塑为什么值得看]
+    chen_clan_academy_evidence: [S10]
+    counterpart_evidence: []
+    on_site_observation_prompt: 观察灰塑所处屋脊和墙面部位，以及题材与现场堆塑效果。
+    status: evidence_collection
+    claim_strength: evidence_collection
+    evidence_needed: [灰塑专项研究, 同类建筑案例的可核查资料]
+  - comparison_id: cmp_brick_carving_huizhou
+    theme_zh: 陈家祠砖雕与其他地区砖雕传统的工艺比较
+    comparison_level: craft_special_topic
+    comparison_objects: [陈氏书院砖雕, 待确定的徽州或其他地区砖雕案例]
+    dimensions: [material_and_technique, decorative_system, regional_aesthetics, motifs_and_values]
+    visitor_question_patterns: [陈家祠砖雕和徽州砖雕一样吗, 砖雕有什么地方特色]
+    chen_clan_academy_evidence: [S10]
+    counterpart_evidence: []
+    on_site_observation_prompt: 观察前部外墙砖雕的题材、诗书画结合和雕刻层次。
+    status: evidence_collection
+    claim_strength: evidence_collection
+    evidence_needed: [砖雕专项研究, 明确对照对象和时代, 避免以地区标签替代个案研究]
+  - comparison_id: cmp_late_qing_guangzhou_social_context
+    theme_zh: 陈家祠与晚清广州的宗族、科举和城市活动
+    comparison_level: urban_social_history
+    comparison_objects: [陈氏书院, 晚清广州城市活动背景]
+    dimensions: [patronage_and_social_network, institution_and_function, heritage_and_public_role]
+    visitor_question_patterns: [为什么要在广州建陈家祠, 它和科举有什么关系, 它反映了怎样的晚清广州]
+    chen_clan_academy_evidence: [S02, S04, S08]
+    counterpart_evidence: []
+    on_site_observation_prompt: 从合资建院、应考暂住、祭祀与城市联络功能讲解。
+    status: evidence_collection
+    claim_strength: evidence_collection
+    evidence_needed: [晚清广州城市史和宗族史研究, 区分背景解释与个案事实]

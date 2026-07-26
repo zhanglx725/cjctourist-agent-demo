@@ -1,0 +1,40 @@
+version: v0
+verified_at: 2026-07-26
+description: 用于比较卡的统一维度。每张卡只选择与问题相关的维度，不要求全填。
+dimensions:
+  - dimension_id: urban_cultural_position
+    zh: 城市文化定位
+    asks: [在广州的历史文化叙事中代表什么, 与其他场所分别适合了解什么]
+    evidence_needed: [官方场馆定位, 保护或博物馆资料, 城市文化研究]
+  - dimension_id: institution_and_function
+    zh: 建筑类型与功能
+    asks: [是宗祠、合族祠、书院还是会馆, 祭祀教育联络暂住等功能如何组合]
+    evidence_needed: [馆方历史资料, 建筑或社会史研究]
+  - dimension_id: patronage_and_social_network
+    zh: 建造机制与社会网络
+    asks: [由谁出资, 面向哪些群体, 如何联系科举和城市活动]
+    evidence_needed: [地方志或档案, 馆方资料, 社会史研究]
+  - dimension_id: spatial_layout
+    zh: 空间格局与动线
+    asks: [中轴、院落、廊庑和附属空间如何组织, 参观时应观察什么]
+    evidence_needed: [测绘或建筑研究, 官方建筑介绍]
+  - dimension_id: decorative_system
+    zh: 装饰系统与密度
+    asks: [装饰分布在哪些部位, 多种工艺如何分工, 视觉重心在哪里]
+    evidence_needed: [装饰调查, 馆方资料, 已审核点位与装饰映射]
+  - dimension_id: material_and_technique
+    zh: 材料、制作与保存
+    asks: [使用何种材料和技法, 为什么适于该部位或气候, 保存上有什么特征]
+    evidence_needed: [工艺研究, 保护资料, 馆方资料]
+  - dimension_id: regional_aesthetics
+    zh: 地域审美与工艺传统
+    asks: [屋脊、色彩、题材和工艺传统如何体现地域性]
+    evidence_needed: [区域建筑史研究, 工艺专项研究]
+  - dimension_id: motifs_and_values
+    zh: 题材与社会表达
+    asks: [功名、伦理、吉祥、戏曲和地方生活题材如何服务于建筑功能]
+    evidence_needed: [装饰条目, 图像或题记研究, 社会文化研究]
+  - dimension_id: heritage_and_public_role
+    zh: 保护历程与公共文化角色
+    asks: [保护等级、博物馆转型和公众教育角色如何形成]
+    evidence_needed: [官方保护资料, 场馆沿革资料]
