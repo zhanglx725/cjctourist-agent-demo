@@ -105,6 +105,14 @@ A1-1 已由项目 `.venv\Scripts\python.exe` 完成本地 62 项回归测试并�
 
 项目负责人已使用 `.venv` 完成 A1-3 相关回归，共 101 项测试均为 `OK`。后续修改展示协议、生命周期事件或 Agent 的 `tour_presentation` 时，应至少复跑 `test_tour_presenter.py`、`test_tour_interaction.py`、`test_tour_intent.py`、`test_agent_tour_state.py` 与路线回归。
 
+## A1-4 端到端验收（已实现并验证）
+
+| 文件 | 职责 | 边界 |
+| --- | --- | --- |
+| `test_tour_interaction_e2e.py` | 离线串联路线初始化、文本意图、Agent 路由、`handle_tour_event()` 与展示协议，验收完整导游状态闭环。 | 不调用真实 LLM、RAG 或前端；不新增事件或修改空间/路线/知识卡数据。 |
+
+该测试覆盖计划内到达、`explanation_finished`、确认完成、最后一站、自主到达、跳过后重规划、歧义/多意图/未知点位拒绝、详情占位和幂等性。项目负责人已完成完整 141 项本机回归，结果均为 `OK`；A1 因此正式完成。A2 的游览中 RAG 问答与导游恢复仍未开始。
+
 人工填写 `route_review_results_v1.csv` 时：`manual_status` 只能填 `approved`、`revise` 或 `rejected`；其余四个判断列填 `yes`、`no` 或 `needs_site_check`。只填写人工列，不改自动生成的路径、时间、点位和边字段。
 
 动态路线 A0 的开发顺序固定为：候选过滤 → 点位评分 → 时间预算组合 → 评估集 → Agent 接入。论文卡、比较卡尚未参与 A0 评分；后续只可通过已审核 `card_id` 增加可解释加分项。

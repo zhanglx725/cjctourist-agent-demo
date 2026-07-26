@@ -425,6 +425,84 @@ actions=[confirm_stop_complete, request_stop_detail, skip_stop, replan_time, fin
 游客点击 confirm_stop_complete → 月台进入 visited，pending 更新为下一站，phase=navigating
 ```
 
-## 13. 后续实施报告附加规范
+## 13. A1-4：导游交互端到端验收与阶段收尾（已实现并验证）
+
+### 13.1 本任务解决的用户问题
+
+此前 A1-1、A1-2、A1-3 分别验证了状态机、文本路由和展示协议，但尚未证明它们串联时不会丢失状态或绕开适配层。A1-4 新增离线端到端验收，将“游客发一句话”一直验证到稳定的按钮响应，确保游客能安全地到达、听完、确认、继续、跳过或缩短路线。
+
+### 13.2 修改前后流程
+
+```text
+修改前：各模块单独单测
+
+修改后：游客文本
+  → tour_intent.py（只识别受控事件）
+  → agent_graph.py（确定性路由）
+  → handle_tour_event()（唯一状态写入口）
+  → tour_presenter.py（message / phase / actions）
+```
+
+### 13.3 核心文件、函数与字段
+
+| 项目 | 本次职责 |
+| --- | --- |
+| `test_tour_interaction_e2e.py` | A1 的离线闭环验收；不引入生产业务逻辑。 |
+| `tour_state` | 被检查的路线事实：`current_stop_id`、`visited_stop_ids`、`skipped_stop_ids`、`remaining_stop_ids`。 |
+| `tour_interaction_state` | 被检查的交互事实：`pending_stop_id`、`stop_phase`。 |
+| `tour_presentation` | 被检查的 UI 中立输出：`message`、`phase`、稳定事件 ID 的 `actions`。 |
+
+### 13.4 方案取舍与状态安全
+
+选择离线 E2E，而不是调用真实 DeepSeek 或 LangSmith：验收目标是确定性状态闭环，网络模型会让测试变慢且不稳定。测试通过 `unittest.mock` 观察 Agent 是否调用 `handle_tour_event()`，而不让 LLM、RAG、展示层或测试本身写入 `visited_stop_ids`。这验证了“LLM 只能给事件建议、适配层才可修改状态”的设计，而不是只在文档中声明该原则。
+
+### 13.5 关键测试防止的错误
+
+1. **完整生命周期**：防止“到达即完成”或未确认就推进下一站。
+2. **最后一站**：防止讲解结束后自动把路线标记为 `completed`。
+3. **自主到达**：防止游客提前走到首进正厅后，系统篡改正式讲解顺序或伪造已访问记录。
+4. **跳过 + 重规划**：防止被跳过的点重新回到 `remaining_stop_ids` 或误记为访问。
+5. **歧义、多意图、未知点位**：防止识别不确定时发生部分状态修改。
+6. **详情占位和幂等**：防止 A1 提前接入 A2 RAG，或重复网络/UI 事件造成重复访问计数。
+
+### 13.6 已实现、接口与未来边界
+
+- **已实现并验证**：离线 E2E 验收文件和 7 个闭环场景；项目负责人已完成完整 141 项本机回归，结果均为 `OK`。
+- **未改变**：RAG、空间图、路线算法、稳定 ID、知识卡和真实前端。
+- **仅保留接口**：A1-3 的 `actions` 与 `replan_time` 输入 schema，供未来前端使用。
+- **未来规划**：A2 游览中 RAG 问答后恢复导游、点位讲解编排器、持久化及实时定位；均尚未实现。
+
+### 13.7 一分钟答辩讲稿
+
+> A1-4 是我们对导游交互状态机的阶段验收。此前我们已把到达、讲解结束、确认完成拆成独立事件，也把文本识别和按钮展示分开。本轮没有增加功能，而是通过离线端到端测试把它们串起来：游客一句“我到前院中部了”先被确定性识别，再由 Agent 路由到唯一状态适配层，最后返回带稳定事件 ID 的展示协议。测试特别检查最后一站不会自动结束、自主到达不会打乱路线、歧义输入不会部分执行。这样后续接入 RAG 问答时，有一个可审计、可回归的导游状态底座。
+
+### 13.8 面试追问与参考回答
+
+1. **为什么 E2E 不调用真实 LLM？** A1 验证的是确定性协议；真实模型属于 A2/性能层，会降低回归测试稳定性。
+2. **如何证明 Agent 没绕开状态机？** 测试 mock `agent_graph.handle_tour_event` 并断言文本事件只从该入口执行。
+3. **为什么将 `explanation_finished` 和确认完成分开？** 内容播放结束不代表游客看完、拍完或不再提问，只有显式确认才计入真实访问。
+4. **自主到达为什么不直接加入路线？** 游客位置事实与正式讲解进度是两类事实；混合会破坏路线统计和成就数据。
+5. **歧义输入为什么不猜？** 在导游状态机中错误推进比多问一句风险更高，因此采用澄清优先。
+6. **A1 已经能回答文物问题吗？** 现有普通 RAG 仍可回答事实，但“问答后自动恢复当前导游”是 A2，尚未实现。
+
+### 13.9 现场演示示例
+
+```text
+输入：我有 30 分钟，帮我规划路线
+状态：pending_stop_id=stop_front_courtyard_center，phase=navigating
+
+输入：我到前院中部了
+状态：current_stop_id=stop_front_courtyard_center，phase=explaining，visited=[]
+输出：actions 包含 explanation_finished
+
+系统事件：explanation_finished
+状态：phase=awaiting_confirmation，visited=[]
+
+输入：讲完了，去下一站
+状态：visited=[stop_front_courtyard_center]，pending_stop_id=label_moon_platform，phase=navigating
+输出：下一站导航和 arrive_at_stop 按钮
+```
+
+## 14. 后续实施报告附加规范
 
 每个 A1/A2 子任务完成时，实施报告末尾必须基于真实代码与测试结果说明：用户问题、前后流程、文件/函数/字段、方案取舍、LLM 状态边界、至少三个测试、模块影响、风险、1 分钟讲稿、至少 5 个追问、演示示例，以及“已验证/待验证/接口/未来”状态。若发生规划—实现冲突，还必须记录冲突、最终语义、依据和软件工程原则。
