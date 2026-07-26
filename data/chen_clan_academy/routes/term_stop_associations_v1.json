@@ -1,0 +1,1277 @@
+{
+  "schema_version": "v1",
+  "generation_policy": {
+    "source": "approved node guide cards and reviewed ornament-to-node mapping",
+    "boundary": "Only craft and explicitly named component context are associated; general historical terms remain global unless separately reviewed."
+  },
+  "association_count": 181,
+  "associations": [
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_applique_modeling",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_089 (书字换鹅 / 陶塑)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_blue_brick",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_095 (姜子牙拜相 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_brick_carving",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_100 (三阳开泰 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_carving_in_the_round",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_078 (引福归堂 / 石雕)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_cast_copper_and_iron",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_100 (三阳开泰 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_ceramic_clay",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_089 (书字换鹅 / 陶塑)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_ceramic_sculpture",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_093 (子孙万代 / 福禄久长）（陶塑)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_colored_glaze",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_089 (书字换鹅 / 陶塑)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_granite",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_078 (引福归堂 / 石雕)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_hand_modeling",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_089 (书字换鹅 / 陶塑)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_high_relief",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_095 (姜子牙拜相 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_incised_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_095 (姜子牙拜相 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_lime",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_026 (杏林春燕 / 灰塑)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_lime_plaster_relief",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_026 (杏林春燕 / 灰塑)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_low_relief",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_095 (姜子牙拜相 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_mold_making",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_089 (书字换鹅 / 陶塑)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_openwork",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_095 (姜子牙拜相 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_openwork_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_041 (截江夺阿斗 / 木雕)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_paper_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_026 (杏林春燕 / 灰塑)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_pierced_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_095 (姜子牙拜相 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_relief_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_041 (截江夺阿斗 / 木雕)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_shiwan_ceramic_ridge",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_089 (书字换鹅 / 陶塑)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_stone_carving",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_078 (引福归堂 / 石雕)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_straw_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_026 (杏林春燕 / 灰塑)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_water_polished_blue_brick",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_095 (姜子牙拜相 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "term_id": "term_wood_carving",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_041 (截江夺阿斗 / 木雕)"
+    },
+    {
+      "node_id": "stop_front_courtyard_center",
+      "term_id": "term_applique_modeling",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_083 (凤凰牡丹 / 凤穿牡丹）（陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_center",
+      "term_id": "term_carving_in_the_round",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_069 (金蟾吐瑞气 / 石雕)"
+    },
+    {
+      "node_id": "stop_front_courtyard_center",
+      "term_id": "term_ceramic_clay",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_083 (凤凰牡丹 / 凤穿牡丹）（陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_center",
+      "term_id": "term_ceramic_sculpture",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_090 (四郎探母 / 陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_center",
+      "term_id": "term_colored_glaze",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_083 (凤凰牡丹 / 凤穿牡丹）（陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_center",
+      "term_id": "term_gable_wall",
+      "association_type": "location_component_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_005 (独角狮 / 灰塑); 原始位置含“山墙”"
+    },
+    {
+      "node_id": "stop_front_courtyard_center",
+      "term_id": "term_granite",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_069 (金蟾吐瑞气 / 石雕)"
+    },
+    {
+      "node_id": "stop_front_courtyard_center",
+      "term_id": "term_hand_modeling",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_083 (凤凰牡丹 / 凤穿牡丹）（陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_center",
+      "term_id": "term_lime",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_005 (独角狮 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_center",
+      "term_id": "term_lime_plaster_relief",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_022 (松鹤延年 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_center",
+      "term_id": "term_mold_making",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_083 (凤凰牡丹 / 凤穿牡丹）（陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_center",
+      "term_id": "term_paper_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_005 (独角狮 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_center",
+      "term_id": "term_shiwan_ceramic_ridge",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_083 (凤凰牡丹 / 凤穿牡丹）（陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_center",
+      "term_id": "term_stone_carving",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_080 (状元及第 / 石雕)"
+    },
+    {
+      "node_id": "stop_front_courtyard_center",
+      "term_id": "term_straw_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_005 (独角狮 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "term_id": "term_applique_modeling",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_084 (凤诏 / 陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "term_id": "term_blue_brick",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_094 (和合二仙 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "term_id": "term_brick_carving",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_104 (五伦全图 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "term_id": "term_cast_copper_and_iron",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_104 (五伦全图 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "term_id": "term_ceramic_clay",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_084 (凤诏 / 陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "term_id": "term_ceramic_sculpture",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_084 (凤诏 / 陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "term_id": "term_colored_glaze",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_084 (凤诏 / 陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "term_id": "term_hand_modeling",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_084 (凤诏 / 陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "term_id": "term_high_relief",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_094 (和合二仙 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "term_id": "term_incised_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_094 (和合二仙 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "term_id": "term_lime",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_002 (百子千孙 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "term_id": "term_lime_plaster_relief",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_016 (刘伶醉酒 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "term_id": "term_low_relief",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_094 (和合二仙 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "term_id": "term_mold_making",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_084 (凤诏 / 陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "term_id": "term_openwork",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_094 (和合二仙 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "term_id": "term_paper_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_002 (百子千孙 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "term_id": "term_pierced_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_094 (和合二仙 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "term_id": "term_shiwan_ceramic_ridge",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_084 (凤诏 / 陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "term_id": "term_straw_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_002 (百子千孙 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "term_id": "term_water_polished_blue_brick",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_094 (和合二仙 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_courtyard_north",
+      "term_id": "term_applique_modeling",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_081 (鳌鱼 / 螭吻、鸱吻）（陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_north",
+      "term_id": "term_carving_in_the_round",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_074 (踏雪寻梅 / 石雕)"
+    },
+    {
+      "node_id": "stop_front_courtyard_north",
+      "term_id": "term_ceramic_clay",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_081 (鳌鱼 / 螭吻、鸱吻）（陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_north",
+      "term_id": "term_ceramic_sculpture",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_085 (瓜瓞连绵 / 陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_north",
+      "term_id": "term_colored_glaze",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_081 (鳌鱼 / 螭吻、鸱吻）（陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_north",
+      "term_id": "term_eaves_corridor",
+      "association_type": "location_component_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_011 (公孙玩乐 / 灰塑); 原始位置含“连廊”"
+    },
+    {
+      "node_id": "stop_front_courtyard_north",
+      "term_id": "term_granite",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_074 (踏雪寻梅 / 石雕)"
+    },
+    {
+      "node_id": "stop_front_courtyard_north",
+      "term_id": "term_hand_modeling",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_081 (鳌鱼 / 螭吻、鸱吻）（陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_north",
+      "term_id": "term_lime",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_011 (公孙玩乐 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_north",
+      "term_id": "term_lime_plaster_relief",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_027 (夜游赤壁 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_north",
+      "term_id": "term_mold_making",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_081 (鳌鱼 / 螭吻、鸱吻）（陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_north",
+      "term_id": "term_openwork_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_032 (博古图、五福捧寿 / 木雕)"
+    },
+    {
+      "node_id": "stop_front_courtyard_north",
+      "term_id": "term_paper_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_011 (公孙玩乐 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_north",
+      "term_id": "term_relief_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_032 (博古图、五福捧寿 / 木雕)"
+    },
+    {
+      "node_id": "stop_front_courtyard_north",
+      "term_id": "term_shiwan_ceramic_ridge",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_081 (鳌鱼 / 螭吻、鸱吻）（陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_north",
+      "term_id": "term_stone_carving",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_074 (踏雪寻梅 / 石雕)"
+    },
+    {
+      "node_id": "stop_front_courtyard_north",
+      "term_id": "term_straw_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_011 (公孙玩乐 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_north",
+      "term_id": "term_wood_carving",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_061 (渔舟唱晚 / 木雕)"
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "term_id": "term_applique_modeling",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_088 (三多图 / 陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "term_id": "term_blue_brick",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_096 (梁山聚义 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "term_id": "term_brick_carving",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_103 (梧桐柳杏凤群图 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "term_id": "term_cast_copper_and_iron",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_103 (梧桐柳杏凤群图 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "term_id": "term_ceramic_clay",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_088 (三多图 / 陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "term_id": "term_ceramic_sculpture",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_088 (三多图 / 陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "term_id": "term_colored_glaze",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_088 (三多图 / 陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "term_id": "term_hand_modeling",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_088 (三多图 / 陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "term_id": "term_high_relief",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_096 (梁山聚义 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "term_id": "term_incised_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_096 (梁山聚义 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "term_id": "term_lime",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_006 (独占鳌头 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "term_id": "term_lime_plaster_relief",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_024 (桃园结义 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "term_id": "term_low_relief",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_096 (梁山聚义 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "term_id": "term_mold_making",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_088 (三多图 / 陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "term_id": "term_openwork",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_096 (梁山聚义 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "term_id": "term_paper_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_006 (独占鳌头 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "term_id": "term_pierced_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_096 (梁山聚义 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "term_id": "term_shiwan_ceramic_ridge",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_088 (三多图 / 陶塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "term_id": "term_straw_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_006 (独占鳌头 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "term_id": "term_water_polished_blue_brick",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_096 (梁山聚义 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_east_courtyard",
+      "term_id": "term_blue_brick",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_105 (小天使 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_east_courtyard",
+      "term_id": "term_brick_carving",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_105 (小天使 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_east_courtyard",
+      "term_id": "term_carving_in_the_round",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_065 (吹箫引凤 / 石雕)"
+    },
+    {
+      "node_id": "stop_front_east_courtyard",
+      "term_id": "term_cast_copper_and_iron",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_105 (小天使 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_east_courtyard",
+      "term_id": "term_eaves_corridor",
+      "association_type": "location_component_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_021 (狮子戏球 / 灰塑); 原始位置含“连廊”"
+    },
+    {
+      "node_id": "stop_front_east_courtyard",
+      "term_id": "term_granite",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_065 (吹箫引凤 / 石雕)"
+    },
+    {
+      "node_id": "stop_front_east_courtyard",
+      "term_id": "term_high_relief",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_105 (小天使 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_east_courtyard",
+      "term_id": "term_incised_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_105 (小天使 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_east_courtyard",
+      "term_id": "term_lime",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_009 (福运连绵 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_east_courtyard",
+      "term_id": "term_lime_plaster_relief",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_029 (张松看孟德新书 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_east_courtyard",
+      "term_id": "term_low_relief",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_105 (小天使 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_east_courtyard",
+      "term_id": "term_openwork",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_105 (小天使 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_east_courtyard",
+      "term_id": "term_paper_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_009 (福运连绵 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_east_courtyard",
+      "term_id": "term_pierced_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_105 (小天使 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_east_courtyard",
+      "term_id": "term_stone_carving",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_070 (麻姑献寿 / 石雕)"
+    },
+    {
+      "node_id": "stop_front_east_courtyard",
+      "term_id": "term_straw_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_009 (福运连绵 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_east_courtyard",
+      "term_id": "term_water_polished_blue_brick",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_105 (小天使 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_front_west_courtyard",
+      "term_id": "term_carving_in_the_round",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_073 (苏武牧羊 / 石雕)"
+    },
+    {
+      "node_id": "stop_front_west_courtyard",
+      "term_id": "term_eaves_corridor",
+      "association_type": "location_component_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_031 (竹林七贤 / 灰塑); 原始位置含“连廊”"
+    },
+    {
+      "node_id": "stop_front_west_courtyard",
+      "term_id": "term_granite",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_073 (苏武牧羊 / 石雕)"
+    },
+    {
+      "node_id": "stop_front_west_courtyard",
+      "term_id": "term_lime",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_001 (百鸟朝凤 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_west_courtyard",
+      "term_id": "term_lime_plaster_relief",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_031 (竹林七贤 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_west_courtyard",
+      "term_id": "term_paper_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_001 (百鸟朝凤 / 灰塑)"
+    },
+    {
+      "node_id": "stop_front_west_courtyard",
+      "term_id": "term_stone_carving",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_075 (太平有象 / 石雕)"
+    },
+    {
+      "node_id": "stop_front_west_courtyard",
+      "term_id": "term_straw_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_001 (百鸟朝凤 / 灰塑)"
+    },
+    {
+      "node_id": "stop_rear_courtyard",
+      "term_id": "term_lime",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_007 (风尘三侠 / 灰塑)"
+    },
+    {
+      "node_id": "stop_rear_courtyard",
+      "term_id": "term_lime_plaster_relief",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_010 (福在眼前 / 灰塑)"
+    },
+    {
+      "node_id": "stop_rear_courtyard",
+      "term_id": "term_openwork_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_038 (郭子仪祝寿 / 木雕)"
+    },
+    {
+      "node_id": "stop_rear_courtyard",
+      "term_id": "term_paper_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_007 (风尘三侠 / 灰塑)"
+    },
+    {
+      "node_id": "stop_rear_courtyard",
+      "term_id": "term_relief_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_038 (郭子仪祝寿 / 木雕)"
+    },
+    {
+      "node_id": "stop_rear_courtyard",
+      "term_id": "term_screen",
+      "association_type": "location_component_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_038 (郭子仪祝寿 / 木雕); 原始位置含“屏风”"
+    },
+    {
+      "node_id": "stop_rear_courtyard",
+      "term_id": "term_straw_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_007 (风尘三侠 / 灰塑)"
+    },
+    {
+      "node_id": "stop_rear_courtyard",
+      "term_id": "term_wood_carving",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_059 (夜宴桃李园 / 木雕)"
+    },
+    {
+      "node_id": "stop_rear_courtyard_east",
+      "term_id": "term_applique_modeling",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_082 (博古图 / 陶塑)"
+    },
+    {
+      "node_id": "stop_rear_courtyard_east",
+      "term_id": "term_carving_in_the_round",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_066 (风云际会 / 石雕)"
+    },
+    {
+      "node_id": "stop_rear_courtyard_east",
+      "term_id": "term_ceramic_clay",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_082 (博古图 / 陶塑)"
+    },
+    {
+      "node_id": "stop_rear_courtyard_east",
+      "term_id": "term_ceramic_sculpture",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_082 (博古图 / 陶塑)"
+    },
+    {
+      "node_id": "stop_rear_courtyard_east",
+      "term_id": "term_colored_glaze",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_082 (博古图 / 陶塑)"
+    },
+    {
+      "node_id": "stop_rear_courtyard_east",
+      "term_id": "term_eaves_corridor",
+      "association_type": "location_component_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_018 (琶洲砥柱 / 灰塑); 原始位置含“连廊”"
+    },
+    {
+      "node_id": "stop_rear_courtyard_east",
+      "term_id": "term_granite",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_066 (风云际会 / 石雕)"
+    },
+    {
+      "node_id": "stop_rear_courtyard_east",
+      "term_id": "term_hand_modeling",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_082 (博古图 / 陶塑)"
+    },
+    {
+      "node_id": "stop_rear_courtyard_east",
+      "term_id": "term_lime",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_018 (琶洲砥柱 / 灰塑)"
+    },
+    {
+      "node_id": "stop_rear_courtyard_east",
+      "term_id": "term_lime_plaster_relief",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_023 (太师少师 / 灰塑)"
+    },
+    {
+      "node_id": "stop_rear_courtyard_east",
+      "term_id": "term_mold_making",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_082 (博古图 / 陶塑)"
+    },
+    {
+      "node_id": "stop_rear_courtyard_east",
+      "term_id": "term_paper_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_018 (琶洲砥柱 / 灰塑)"
+    },
+    {
+      "node_id": "stop_rear_courtyard_east",
+      "term_id": "term_shiwan_ceramic_ridge",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_082 (博古图 / 陶塑)"
+    },
+    {
+      "node_id": "stop_rear_courtyard_east",
+      "term_id": "term_stone_carving",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_071 (狮子滚绣球 / 石雕)"
+    },
+    {
+      "node_id": "stop_rear_courtyard_east",
+      "term_id": "term_straw_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_018 (琶洲砥柱 / 灰塑)"
+    },
+    {
+      "node_id": "stop_rear_courtyard_west",
+      "term_id": "term_carving_in_the_round",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_064 (宝鸭穿莲 / 石雕)"
+    },
+    {
+      "node_id": "stop_rear_courtyard_west",
+      "term_id": "term_granite",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_064 (宝鸭穿莲 / 石雕)"
+    },
+    {
+      "node_id": "stop_rear_courtyard_west",
+      "term_id": "term_openwork_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_039 (黄飞虎反五关 / 木雕)"
+    },
+    {
+      "node_id": "stop_rear_courtyard_west",
+      "term_id": "term_relief_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_039 (黄飞虎反五关 / 木雕)"
+    },
+    {
+      "node_id": "stop_rear_courtyard_west",
+      "term_id": "term_screen",
+      "association_type": "location_component_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_039 (黄飞虎反五关 / 木雕); 原始位置含“屏风”"
+    },
+    {
+      "node_id": "stop_rear_courtyard_west",
+      "term_id": "term_stone_carving",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_064 (宝鸭穿莲 / 石雕)"
+    },
+    {
+      "node_id": "stop_rear_courtyard_west",
+      "term_id": "term_wood_carving",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_062 (岳飞大破金兵 / 木雕)"
+    },
+    {
+      "node_id": "stop_rear_east_courtyard_inner",
+      "term_id": "term_lime",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_004 (蝙蝠 / 灰塑)"
+    },
+    {
+      "node_id": "stop_rear_east_courtyard_inner",
+      "term_id": "term_lime_plaster_relief",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_020 (日月神 / 灰塑)"
+    },
+    {
+      "node_id": "stop_rear_east_courtyard_inner",
+      "term_id": "term_openwork_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_042 (枯井救柴进 / 木雕)"
+    },
+    {
+      "node_id": "stop_rear_east_courtyard_inner",
+      "term_id": "term_paper_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_004 (蝙蝠 / 灰塑)"
+    },
+    {
+      "node_id": "stop_rear_east_courtyard_inner",
+      "term_id": "term_relief_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_042 (枯井救柴进 / 木雕)"
+    },
+    {
+      "node_id": "stop_rear_east_courtyard_inner",
+      "term_id": "term_straw_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_004 (蝙蝠 / 灰塑)"
+    },
+    {
+      "node_id": "stop_rear_east_courtyard_inner",
+      "term_id": "term_wood_carving",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_058 (血染鸳鸯楼 / 木雕)"
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "term_id": "term_blue_brick",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_101 (天姬送子 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "term_id": "term_brick_carving",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_102 (完璧归赵 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "term_id": "term_carving_in_the_round",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_076 (天下文明 / 石雕)"
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "term_id": "term_cast_copper_and_iron",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_102 (完璧归赵 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "term_id": "term_granite",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_076 (天下文明 / 石雕)"
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "term_id": "term_high_relief",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_101 (天姬送子 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "term_id": "term_incised_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_101 (天姬送子 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "term_id": "term_lime",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_003 (宝相花 / 灰塑)"
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "term_id": "term_lime_plaster_relief",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_003 (宝相花 / 灰塑)"
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "term_id": "term_low_relief",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_101 (天姬送子 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "term_id": "term_openwork",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_101 (天姬送子 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "term_id": "term_openwork_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_034 (赤壁之战 / 木雕)"
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "term_id": "term_paper_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_003 (宝相花 / 灰塑)"
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "term_id": "term_pierced_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_101 (天姬送子 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "term_id": "term_relief_carving",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_034 (赤壁之战 / 木雕)"
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "term_id": "term_screen",
+      "association_type": "location_component_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_034 (赤壁之战 / 木雕); 原始位置含“屏风”"
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "term_id": "term_stone_carving",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_079 (壮士斗牛 / 石雕)"
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "term_id": "term_straw_fiber_lime_mortar",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_003 (宝相花 / 灰塑)"
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "term_id": "term_water_polished_blue_brick",
+      "association_type": "craft_explanation_context",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_101 (天姬送子 / 砖雕&铜铁铸&壁画)"
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "term_id": "term_wood_carving",
+      "association_type": "direct_craft_observation",
+      "status": "derived_from_approved_ornament_mapping",
+      "evidence": "orn_063 (长坂坡救阿斗 / 木雕)"
+    }
+  ]
+}
