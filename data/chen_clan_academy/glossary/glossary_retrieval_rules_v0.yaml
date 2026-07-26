@@ -1,0 +1,83 @@
+version: v0
+description: 术语领域的检索规则。术语按 glossary_zh_en_v0.yaml 的 domain 继承相应规则。
+domain_rules:
+  institution_and_site:
+    term_type: institution
+    related_knowledge_files: [01_basic_info.md, 02_history_architecture.md]
+    question_intents: [术语定义, 场馆身份, 名称辨析, 中英翻译]
+    answer_scope: retrieve_detail
+  clan_and_education:
+    term_type: social_history_concept
+    related_knowledge_files: [02_history_architecture.md]
+    question_intents: [术语定义, 历史背景, 社会制度, 中英翻译]
+    answer_scope: retrieve_detail
+  heritage_designation:
+    term_type: heritage_status
+    related_knowledge_files: [02_history_architecture.md]
+    question_intents: [术语定义, 保护等级, 年代核验, 中英翻译]
+    answer_scope: retrieve_detail
+  architectural_layout:
+    term_type: layout_concept
+    related_knowledge_files: [02_history_architecture.md]
+    question_intents: [术语定义, 空间分析, 建筑观察, 中英翻译]
+    answer_scope: retrieve_detail
+  architectural_components:
+    term_type: architectural_component
+    related_knowledge_files: [07_ornament_crafts.md, 02_history_architecture.md]
+    question_intents: [术语定义, 构造作用, 工艺观察, 中英翻译]
+    answer_scope: retrieve_detail
+  decorative_crafts:
+    term_type: craft
+    related_knowledge_files: [07_ornament_crafts.md, 08_ornament_items.md, 09_ornament_locations.md]
+    question_intents: [术语定义, 制作流程, 空间分布, 单件装饰, 中英翻译]
+    answer_scope: retrieve_detail
+  decorative_materials:
+    term_type: material
+    related_knowledge_files: [07_ornament_crafts.md]
+    question_intents: [术语定义, 材料特性, 制作流程, 中英翻译]
+    answer_scope: retrieve_detail
+  sculptural_techniques:
+    term_type: technique
+    related_knowledge_files: [07_ornament_crafts.md]
+    question_intents: [术语定义, 技法比较, 制作流程, 中英翻译]
+    answer_scope: research_only
+  clan_and_education:
+    term_type: social_history_concept
+    related_knowledge_files: [02_history_architecture.md]
+    question_intents: [术语定义, 历史背景, 社会制度, 中英翻译]
+    answer_scope: retrieve_detail
+  conservation:
+    term_type: conservation_concept
+    related_knowledge_files: [02_history_architecture.md]
+    question_intents: [术语定义, 保护方法, 历史案例, 中英翻译]
+    answer_scope: retrieve_detail
+  ritual_and_ancestral:
+    term_type: ritual_concept
+    related_knowledge_files: [02_history_architecture.md, 08_ornament_items.md]
+    question_intents: [术语定义, 宗族功能, 文化解释, 中英翻译]
+    answer_scope: retrieve_detail
+  decorative_subjects_and_inscriptions:
+    term_type: motif_or_inscription
+    related_knowledge_files: [07_ornament_crafts.md, 08_ornament_items.md, 09_ornament_locations.md]
+    question_intents: [术语定义, 题材寓意, 单件装饰, 中英翻译]
+    answer_scope: retrieve_detail
+  narrative_and_legends:
+    term_type: narrative_theme
+    related_knowledge_files: [07_ornament_crafts.md, 08_ornament_items.md, 09_ornament_locations.md]
+    question_intents: [题材来源, 装饰位置, 文化解释, 中英翻译]
+    answer_scope: retrieve_detail
+term_overrides:
+  term_quetti_bracket:
+    search_aliases_zh: [雀替, 梁柱雀替]
+    related_term_ids: [term_beam_frame, term_bracket_set, term_wood_carving]
+  term_shrine_canopy:
+    search_aliases_zh: [龛罩, 神龛罩]
+    related_term_ids: [term_shrine_niche, term_wood_carving]
+  term_openwork_carving:
+    search_aliases_zh: [镂雕, 镂空雕]
+    related_term_ids: [term_pierced_carving, term_through_carving, term_openwork]
+    answer_scope: research_only
+  term_pierced_carving:
+    search_aliases_zh: [透雕, 透空雕]
+    related_term_ids: [term_openwork_carving, term_through_carving, term_openwork]
+    answer_scope: research_only

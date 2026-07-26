@@ -17,6 +17,7 @@
 | `route_benchmark_cases_v1.json` | 动态路线与人工锚点的基准用例集 | 固定 30/60/90 对照与 45/75 动态路线的验收场景 |
 | `route_benchmark.py`（项目根目录） | 锚点基准评估器 | 输出动态/锚点的预算、关键点覆盖、兴趣得分与推荐策略，供 A0-6 人工审核 |
 | `route_review.py`（项目根目录） | A0-6 审核报告生成器 | 输出含自动检查与人工审核字段的 `route_review_results_v1.json` |
+| `term_stop_associations_v1.json` | 术语—点位关联 | 由 `build_term_stop_associations.py` 从已审核文物映射生成；只关联工艺和明确命名的构件语境 |
 
 ## 关键边界
 
@@ -43,6 +44,10 @@
 
 研究、比较、术语和多语言卡只增强讲解，不改变路线。打卡点卡只有在包含
 安全、秩序、开放限制和 `route_optional` 审核信息后，才可以作为可选短暂停留加入路线。
+
+`glossary_ids` 由 `build_term_stop_associations.py` 回写。其关联状态为
+`derived_from_approved_ornament_mapping`，表示可用作当前点位的讲解线索，但不能被
+表述为精确室内定位或现场可见性的绝对保证。
 
 ## 审核顺序
 

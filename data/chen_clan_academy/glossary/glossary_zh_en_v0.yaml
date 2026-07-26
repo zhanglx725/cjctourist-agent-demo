@@ -1,0 +1,757 @@
+version: v0
+verified_at: 2026-07-25
+terms:
+  - term_id: term_balustrade
+    domain: architectural_components
+    zh: 栏杆
+    pinyin: Lan Gan
+    en: balustrade
+    short_definition_zh: 台阶、月台等边缘用于围护和装饰的构件。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_beam_frame
+    domain: architectural_components
+    zh: 梁架
+    pinyin: Liang Jia
+    en: timber beam frame
+    short_definition_zh: 由梁等木构件组成、承托屋顶并组织室内空间的木结构骨架。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_bracket_set
+    domain: architectural_components
+    zh: 斗拱
+    pinyin: Dou Gong
+    en: bracket set
+    short_definition_zh: 由斗、拱等构件层叠组合而成，用于承托屋檐和传递荷载的传统木构件系统。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_chitou
+    domain: architectural_components
+    zh: 墀头
+    pinyin: Chi Tou
+    en: chitous at gable ends
+    short_definition_zh: 砖雕常见的建筑装饰部位之一；其在陈家祠具体形制和英文术语待进一步核验。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_chuidai
+    domain: architectural_components
+    zh: 垂带
+    pinyin: Chui Dai
+    en: chuidai
+    short_definition_zh: 陈家祠石雕资料列举的石构件名称之一；术语的具体构造定义和英文译法待进一步核验。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_column_base
+    domain: architectural_components
+    zh: 柱础
+    pinyin: Zhu Chu
+    en: column base
+    short_definition_zh: 承托柱脚、将柱身荷载传递至地面的石质或其他材料构件。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_dado
+    domain: architectural_components
+    zh: 墙裙
+    pinyin: Qiang Qun
+    en: dado
+    short_definition_zh: 墙体下部用于保护墙面的构造或装饰区域；陈家祠部分墙裙使用花岗岩石材。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_drum_stone
+    domain: architectural_components
+    zh: 抱鼓石
+    pinyin: Bao Gu Shi
+    en: drum stone
+    short_definition_zh: 设置于门口等位置、具有围护与装饰作用的石构件。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_eave_board
+    domain: architectural_components
+    zh: 檐板
+    pinyin: Yan Ban
+    en: eave board
+    short_definition_zh: 位于屋檐部位、可施作木雕装饰的板状木构件。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_eaves
+    domain: architectural_components
+    zh: 屋檐
+    pinyin: Wu Yan
+    en: eaves
+    short_definition_zh: 屋顶向墙外伸出的边缘部位，可承载瓦脊、灰塑等建筑装饰。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_eaves_corridor
+    domain: architectural_components
+    zh: 檐廊
+    pinyin: Yan Lang
+    en: eaves corridor
+    short_definition_zh: 沿建筑檐下设置、兼具通行和遮蔽作用的廊道空间。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_gable_wall
+    domain: architectural_components
+    zh: 山墙
+    pinyin: Shan Qiang
+    en: gable wall
+    short_definition_zh: 位于建筑两端、与屋顶坡面相接的墙体；陈家祠灰塑常见于山墙顶端等部位。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_gatehouse
+    domain: architectural_components
+    zh: 门楼
+    pinyin: Men Lou
+    en: gatehouse
+    short_definition_zh: 建筑入口的门式构筑物；陈家祠砖雕资料将其列为可施作装饰的部位之一。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_goumen
+    domain: architectural_components
+    zh: 勾门
+    pinyin: Gou Men
+    en: goumen
+    short_definition_zh: 陈家祠石雕资料列举的石构件名称之一；术语的具体构造定义和英文译法待进一步核验。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_ornamental_hanging_screen
+    domain: architectural_components
+    zh: 花罩
+    pinyin: Hua Zhao
+    en: ornamental hanging screen
+    short_definition_zh: 陈家祠木雕资料列举的装饰性木构件之一，具体构造形制待进一步核验。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_quetti_bracket
+    domain: architectural_components
+    zh: 雀替
+    pinyin: Que Ti
+    en: queti bracket
+    aliases_en: [decorative bracket]
+    short_definition_zh: 梁柱之间兼具承托和装饰作用的木构件。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_railing_panel
+    domain: architectural_components
+    zh: 栏板
+    pinyin: Lan Ban
+    en: railing panel
+    short_definition_zh: 栏杆中间的板状构件；月台处可见铁铸通花栏板。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_roof_ridge
+    domain: architectural_components
+    zh: 屋脊
+    pinyin: Wu Ji
+    en: roof ridge
+    short_definition_zh: 屋顶相交或最高处的脊线及其装饰部位。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_screen
+    domain: architectural_components
+    zh: 屏风
+    pinyin: Ping Feng
+    en: screen
+    short_definition_zh: 用于空间分隔和装饰的屏障式构件。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_screen_door
+    domain: architectural_components
+    zh: 屏门
+    pinyin: Ping Men
+    en: screen door
+    short_definition_zh: 具有分隔、遮挡和装饰作用的木构门扇。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_screen_wall
+    domain: architectural_components
+    zh: 照壁
+    pinyin: Zhao Bi
+    en: screen wall
+    short_definition_zh: 独立设置或位于门前、用于遮挡视线并承载装饰的墙体构件。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_shrine_canopy
+    domain: architectural_components
+    zh: 龛罩
+    pinyin: Kan Zhao
+    en: shrine canopy
+    short_definition_zh: 覆护神龛或祭祀空间、并常施以精细木雕的罩式木构件。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_stone_huobiao
+    domain: architectural_components
+    zh: 石华表
+    pinyin: Shi Hua Biao
+    en: stone huabiao
+    short_definition_zh: 馆方石雕资料列举的石质附属或陈设构件之一；具体形制和英文译法待进一步核验。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_string_course_brick_carving
+    domain: architectural_components
+    zh: 挂线砖雕
+    pinyin: Gua Xian Zhuan Diao
+    en: string-course brick carving
+    short_definition_zh: 外墙檐下与廊门上边饰线条整齐密集的砖雕形式，馆方资料称为挂线砖雕。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_tuodun
+    domain: architectural_components
+    zh: 坨墩
+    pinyin: Tuo Dun
+    en: tuodun block
+    short_definition_zh: 陈家祠木雕资料列举的木构件之一，可承载雕刻装饰；具体构造名称与英文对应待进一步核验。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_window_lintel
+    domain: architectural_components
+    zh: 窗额
+    pinyin: Chuang E
+    en: window lintel
+    short_definition_zh: 窗洞上方或周边的装饰性构件部位；陈家祠砖雕资料将其列为可施作砖雕的部位之一。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_central_axis
+    domain: architectural_layout
+    zh: 中轴
+    pinyin: Zhong Zhou
+    en: central axis
+    short_definition_zh: 从前院到后进正厅组织主要建筑空间和参观顺序的南北向轴线。
+    translation_status: reviewed
+    source_ids: [S06]
+    verified_at: 2026-07-23
+  - term_id: term_three_entries_three_routes
+    domain: architectural_layout
+    zh: 三进三路九堂两厢廊
+    pinyin: San Jin San Lu Jiu Tang Liang Xiang Lang
+    en: three successive halls, three parallel routes, nine halls, and two flanking corridors
+    short_definition_zh: 陈家祠主体建筑的总体布局概括，强调中轴纵深、东西并列和两侧廊道的空间关系。
+    translation_status: draft
+    source_ids: [S04]
+    verified_at: 2026-07-23
+  - term_id: term_academy
+    domain: clan_and_education
+    zh: 书院
+    pinyin: Shu Yuan
+    en: academy
+    short_definition_zh: 传统教育、研习与应试相关活动的场所；陈氏书院同时具有宗族功能。
+    translation_status: reviewed
+    source_ids: [S02]
+    verified_at: 2026-07-23
+  - term_id: term_ancestral_hall_construction_office
+    domain: clan_and_education
+    zh: 建祠公所
+    pinyin: Jian Ci Gong Suo
+    en: ancestral-hall construction office
+    short_definition_zh: 为筹建陈氏书院而设立、负责发动和组织集资等事务的机构。
+    translation_status: draft
+    source_ids: [S02]
+    verified_at: 2026-07-23
+  - term_id: term_examination_candidate
+    domain: clan_and_education
+    zh: 应考
+    pinyin: Ying Kao
+    en: sit for an examination
+    short_definition_zh: 赴考或参加考试；在陈氏书院的历史语境中，指陈氏子弟赴广州参加科举考试。
+    translation_status: reviewed
+    source_ids: [S02]
+    verified_at: 2026-07-23
+  - term_id: term_imperial_examination
+    domain: clan_and_education
+    zh: 科举
+    pinyin: Ke Ju
+    en: imperial examination system
+    short_definition_zh: 中国传统选官考试制度；陈氏书院曾为陈氏子弟赴广州应考提供暂住场所。
+    translation_status: reviewed
+    source_ids: [S02]
+    verified_at: 2026-07-23
+  - term_id: term_joint_ancestral_hall
+    domain: clan_and_education
+    zh: 合族祠
+    pinyin: He Zu Ci
+    en: joint ancestral hall
+    short_definition_zh: 由不同地区、不同支系的同姓宗族共同集资建设和使用的祠堂。
+    translation_status: reviewed
+    source_ids: [S02]
+    verified_at: 2026-07-23
+  - term_id: term_lineage_branch
+    domain: clan_and_education
+    zh: 房
+    pinyin: Fang
+    en: lineage branch
+    short_definition_zh: 宗族内部的支系单位；馆方资料记载，各地陈氏宗族曾以房为单位参与集资。
+    translation_status: draft
+    source_ids: [S02]
+    verified_at: 2026-07-23
+  - term_id: term_lineage_clan
+    domain: clan_and_education
+    zh: 宗族
+    pinyin: Zong Zu
+    en: lineage clan
+    short_definition_zh: 以共同祖先、姓氏和支系关系为纽带形成的亲属组织；陈氏书院的筹建与使用与陈氏宗族网络有关。
+    translation_status: reviewed
+    source_ids: [S02]
+    verified_at: 2026-07-23
+  - term_id: term_tablet_donation
+    domain: clan_and_education
+    zh: 题捐牌位
+    pinyin: Ti Juan Pai Wei
+    en: sponsored ancestral-tablet donation
+    short_definition_zh: 各地陈氏宗族以牌位题捐等方式共同集资建设书院的做法。
+    translation_status: draft
+    source_ids: [S02]
+    verified_at: 2026-07-23
+  - term_id: term_crack_gauge
+    domain: conservation
+    zh: 裂缝计
+    pinyin: Lie Feng Ji
+    en: crack gauge
+    short_definition_zh: 用于监测建筑裂缝变化的仪器；不代表当前陈家祠存在裂缝异常。
+    translation_status: reviewed
+    source_ids: [S09]
+    verified_at: 2026-07-23
+  - term_id: term_inclinometer
+    domain: conservation
+    zh: 倾角仪
+    pinyin: Qing Jiao Yi
+    en: inclinometer
+    short_definition_zh: 用于监测建筑或构件倾斜变化的仪器。
+    translation_status: reviewed
+    source_ids: [S09]
+    verified_at: 2026-07-23
+  - term_id: term_preventive_conservation
+    domain: conservation
+    zh: 预防性保护
+    pinyin: Yufangxing Baohu
+    en: preventive conservation
+    short_definition_zh: 通过监测、预警和风险控制，减少文物与古建筑发生损害的保护理念和措施。
+    translation_status: reviewed
+    source_ids: [S09]
+    verified_at: 2026-07-23
+  - term_id: term_strain_gauge
+    domain: conservation
+    zh: 应变计
+    pinyin: Ying Bian Ji
+    en: strain gauge
+    short_definition_zh: 用于监测构件应变变化的仪器；馆方资料将其用于历史保护监测案例说明。
+    translation_status: reviewed
+    source_ids: [S09]
+    verified_at: 2026-07-23
+  - term_id: term_structural_health_monitoring
+    domain: conservation
+    zh: 建筑动态安全监测
+    pinyin: Jianzhu Dongtai Anquan Jiance
+    en: structural health monitoring
+    short_definition_zh: 汇集裂缝、倾角、应力应变等仪器数据，用于观察古建筑异常和风险的监测方法。
+    translation_status: reviewed
+    source_ids: [S09]
+    verified_at: 2026-07-23
+  - term_id: term_termite_monitoring_and_baiting
+    domain: conservation
+    zh: 白蚁监测预警与诱杀
+    pinyin: Bai Yi Jiance Yujing Yu You Sha
+    en: termite monitoring, early warning, and baiting
+    short_definition_zh: 通过监测装置识别白蚁活动迹象、定位风险区域并设置诱杀措施的古建筑保护方法。
+    translation_status: draft
+    source_ids: [S09]
+    verified_at: 2026-07-23
+  - term_id: term_brick_carving
+    domain: decorative_crafts
+    zh: 砖雕
+    pinyin: Zhuan Diao
+    en: brick carving
+    short_definition_zh: 对青砖进行刻、凿、磨等加工形成的建筑墙面装饰。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_cast_copper_and_iron
+    domain: decorative_crafts
+    zh: 铜铁铸
+    pinyin: Tong Tie Zhu
+    en: cast copper and iron ornamentation
+    short_definition_zh: 陈氏书院中用于连廊檐柱、月台围栏等部位的金属铸造装饰。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_ceramic_sculpture
+    domain: decorative_crafts
+    zh: 陶塑
+    pinyin: Tao Su
+    en: ceramic sculpture
+    short_definition_zh: 以陶泥塑形、煅烧制成的建筑装饰工艺。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_lime_plaster_relief
+    domain: decorative_crafts
+    zh: 灰塑
+    pinyin: Hui Su
+    en: lime-plaster relief
+    discouraged_translations: [gray sculpture]
+    short_definition_zh: 以石灰为主料堆塑、细塑并施彩的岭南建筑装饰工艺。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_painted_decoration
+    domain: decorative_crafts
+    zh: 彩绘
+    pinyin: Cai Hui
+    en: painted decoration
+    short_definition_zh: 包括门神、壁画和楹联等建筑表面的彩绘装饰。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_shiwan_ceramic_ridge
+    domain: decorative_crafts
+    zh: 石湾陶塑脊饰
+    pinyin: Shiwan Taosu Jishi
+    en: Shiwan ceramic ridge ornament
+    aliases_en: [ornamental ceramic ridge]
+    short_definition_zh: 又称花脊，主要装饰在大型建筑屋脊的陶塑脊饰。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_stone_carving
+    domain: decorative_crafts
+    zh: 石雕
+    pinyin: Shi Diao
+    en: stone carving
+    short_definition_zh: 用于栏杆、台基、柱础等建筑构件和装饰的石材雕刻工艺。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_wood_carving
+    domain: decorative_crafts
+    zh: 木雕
+    pinyin: Mu Diao
+    en: wood carving
+    short_definition_zh: 在屏门、梁架、龛罩等木构件上施作的雕刻装饰。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_blue_brick
+    domain: decorative_materials
+    zh: 青砖
+    pinyin: Qing Zhuan
+    en: blue brick
+    short_definition_zh: 用于砖雕的砖材；广东砖雕常采用精制水磨青砖。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_ceramic_clay
+    domain: decorative_materials
+    zh: 陶泥
+    pinyin: Tao Ni
+    en: ceramic clay
+    short_definition_zh: 用于陶塑塑形、经烧制后形成陶质装饰构件的泥料。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_colored_glaze
+    domain: decorative_materials
+    zh: 色釉
+    pinyin: Se You
+    en: colored glaze
+    short_definition_zh: 陶塑脊饰按需要施用的有色釉层，经高温烧制后形成色彩效果。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_granite
+    domain: decorative_materials
+    zh: 花岗岩
+    pinyin: Hua Gang Yan
+    en: granite
+    short_definition_zh: 陈家祠抱鼓石、月台、台基、柱础、栏杆等石构件所用的石材。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_lime
+    domain: decorative_materials
+    zh: 石灰
+    pinyin: Shi Hui
+    en: lime
+    short_definition_zh: 灰塑的主要材料；馆方资料记载其可与草筋、纸筋等纤维材料配合使用。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_paper_fiber_lime_mortar
+    domain: decorative_materials
+    zh: 纸筋灰
+    pinyin: Zhi Jin Hui
+    en: paper-fiber lime mortar
+    short_definition_zh: 以石灰为主料并加入纸纤维等材料制成、用于灰塑细部塑形和表面处理的材料。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_straw_fiber_lime_mortar
+    domain: decorative_materials
+    zh: 草筋灰
+    pinyin: Cao Jin Hui
+    en: straw-fiber lime mortar
+    short_definition_zh: 以石灰为主料并加入发酵稻草或草纸等纤维材料，经锤炼制成的灰塑粗塑材料。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_water_polished_blue_brick
+    domain: decorative_materials
+    zh: 水磨青砖
+    pinyin: Shui Mo Qing Zhuan
+    en: water-polished blue brick
+    short_definition_zh: 经精细加工、用于广东砖雕的青砖材料。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_couplet
+    domain: decorative_subjects_and_inscriptions
+    zh: 楹联
+    pinyin: Ying Lian
+    en: couplet
+    short_definition_zh: 悬挂或书写于建筑柱间、门侧等位置的对联。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_door_gods
+    domain: decorative_subjects_and_inscriptions
+    zh: 门神
+    pinyin: Men Shen
+    en: door gods
+    short_definition_zh: 绘于大门上的守护性彩绘题材。
+    translation_status: reviewed
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_cultural_relics_protection_unit
+    domain: heritage_designation
+    zh: 文物保护单位
+    pinyin: Wen Wu Baohu Danwei
+    en: cultural relics protection unit
+    short_definition_zh: 依法公布并纳入相应级别保护管理的不可移动文物或文物建筑。
+    translation_status: draft
+    source_ids: [S02]
+    verified_at: 2026-07-23
+  - term_id: term_national_key_cultural_relics_site
+    domain: heritage_designation
+    zh: 全国重点文物保护单位
+    pinyin: Quanguo Zhongdian Wenwu Baohu Danwei
+    en: Major Historical and Cultural Site Protected at the National Level
+    aliases_en: [National Key Cultural Relics Protection Unit]
+    short_definition_zh: 国务院公布的国家级不可移动文物保护类别；陈氏书院于 1988 年列入该类别。
+    translation_status: draft
+    source_ids: [S02]
+    verified_at: 2026-07-23
+  - term_id: term_chen_clan_academy
+    domain: institution_and_site
+    zh: 陈氏书院
+    pinyin: Chen Shi Shu Yuan
+    en: Chen Clan Academy
+    aliases_en: [Chen Clan Ancestral Hall]
+    short_definition_zh: 陈家祠的另一名称，兼具合族祠与书院相关功能。
+    translation_status: reviewed
+    source_ids: [S02, S04]
+    verified_at: 2026-07-23
+  - term_id: term_chen_clan_ancestral_hall
+    domain: institution_and_site
+    zh: 陈家祠
+    pinyin: Chen Jia Ci
+    en: Chen Clan Ancestral Hall
+    aliases_en: [Chen Clan Academy]
+    short_definition_zh: 广东民间工艺博物馆馆址，亦称陈氏书院。
+    translation_status: reviewed
+    source_ids: [S01, S02, S04]
+    verified_at: 2026-07-23
+  - term_id: term_guangdong_folk_arts_museum
+    domain: institution_and_site
+    zh: 广东民间工艺博物馆
+    pinyin: Guangdong Minjian Gongyi Bowuguan
+    en: Guangdong Folk Arts Museum
+    short_definition_zh: 以陈家祠为馆址的博物馆。
+    translation_status: reviewed
+    source_ids: [S01, S05]
+    verified_at: 2026-07-23
+  - term_id: term_ancestral_rites
+    domain: ritual_and_ancestral
+    zh: 祭祀
+    pinyin: Ji Si
+    en: ancestral rites
+    short_definition_zh: 围绕祖先供奉和纪念进行的礼仪活动；陈氏书院承担宗族祭祀等功能。
+    translation_status: reviewed
+    source_ids: [S02]
+    verified_at: 2026-07-23
+  - term_id: term_ancestral_tablet
+    domain: ritual_and_ancestral
+    zh: 牌位
+    pinyin: Pai Wei
+    en: ancestral tablet
+    short_definition_zh: 用于祭祀和纪念祖先的牌状供奉物；参与集资的宗族可将祖先牌位供奉于书院神龛。
+    translation_status: reviewed
+    source_ids: [S02]
+    verified_at: 2026-07-23
+  - term_id: term_shrine_niche
+    domain: ritual_and_ancestral
+    zh: 神龛
+    pinyin: Shen Kan
+    en: shrine niche
+    short_definition_zh: 用于安放祭祀对象的龛式空间或构件。
+    translation_status: reviewed
+    source_ids: [S02, S10]
+    verified_at: 2026-07-23
+  - term_id: term_stone_five_altar_set
+    domain: ritual_and_ancestral
+    zh: 石五供
+    pinyin: Shi Wu Gong
+    en: five-piece stone altar set
+    short_definition_zh: 馆方石雕资料列举的石质附属或陈设物之一；具体组合与礼仪用途待进一步核验。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_applique_modeling
+    domain: sculptural_techniques
+    zh: 贴塑
+    pinyin: Tie Su
+    en: appliqué modeling
+    short_definition_zh: 将预制或另行塑成的陶质构件贴附、组合到装饰主体上的陶塑制作方法。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_carving_in_the_round
+    domain: sculptural_techniques
+    zh: 圆雕
+    pinyin: Yuan Diao
+    en: carving in the round
+    short_definition_zh: 从多个方向塑造立体形象、可获得较完整三维体量的雕刻技法。
+    translation_status: reviewed
+    source_ids: [S10]
+    research_reference_ids: [REF_WANG_1987, REF_SHAO_2010]
+    verified_at: 2026-07-23
+  - term_id: term_hand_modeling
+    domain: sculptural_techniques
+    zh: 捏塑
+    pinyin: Nie Su
+    en: hand modeling
+    short_definition_zh: 通过手工捏制塑造人物、动物或纹样形体的陶塑制作方法。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_high_relief
+    domain: sculptural_techniques
+    zh: 高浮雕
+    pinyin: Gao Fu Diao
+    en: high relief
+    short_definition_zh: 在砖雕等工艺中形成较明显凸起和层次的浮雕处理方式。
+    translation_status: draft
+    source_ids: [S10]
+    research_reference_ids: [REF_CAA_2005, REF_GUO_2012]
+    verified_at: 2026-07-23
+  - term_id: term_incised_carving
+    domain: sculptural_techniques
+    zh: 阴刻
+    pinyin: Yin Ke
+    en: incised carving
+    short_definition_zh: 在材料表面刻出凹陷线条或纹样的雕刻技法。
+    translation_status: reviewed
+    source_ids: [S10]
+    research_reference_ids: [REF_WANG_1987, REF_SHAO_2010]
+    verified_at: 2026-07-23
+  - term_id: term_line_engraving
+    domain: sculptural_techniques
+    zh: 线刻
+    pinyin: Xian Ke
+    en: line engraving
+    short_definition_zh: 以线条刻画纹样、轮廓或细节的雕刻技法。
+    translation_status: reviewed
+    source_ids: [S10]
+    research_reference_ids: [REF_WANG_1987, REF_SHAO_2010]
+    verified_at: 2026-07-23
+  - term_id: term_low_relief
+    domain: sculptural_techniques
+    zh: 浅浮雕
+    pinyin: Qian Fu Diao
+    en: low relief
+    short_definition_zh: 在砖雕等工艺中以较浅起伏表现纹样和形象的浮雕处理方式。
+    translation_status: draft
+    source_ids: [S10]
+    research_reference_ids: [REF_CAA_2005, REF_GUO_2012]
+    verified_at: 2026-07-23
+  - term_id: term_mold_making
+    domain: sculptural_techniques
+    zh: 模制
+    pinyin: Mo Zhi
+    en: mold forming
+    short_definition_zh: 借助模具成形或复制装饰构件的陶塑制作方法。
+    translation_status: draft
+    source_ids: [S10]
+    verified_at: 2026-07-23
+  - term_id: term_openwork
+    domain: sculptural_techniques
+    zh: 通花
+    pinyin: Tong Hua
+    en: openwork
+    short_definition_zh: 通过镂空形成通透纹样和空间层次的装饰手法。
+    translation_status: reviewed
+    source_ids: [S10]
+    research_reference_ids: [REF_ZHANG_2016, REF_LU_2008]
+    verified_at: 2026-07-23
+  - term_id: term_openwork_carving
+    domain: sculptural_techniques
+    zh: 镂雕
+    pinyin: Lou Diao
+    en: openwork carving
+    short_definition_zh: 将材料局部镂空，使纹样呈现通透和多层次效果的雕刻技法。
+    translation_status: reviewed
+    source_ids: [S10]
+    research_reference_ids: [REF_ZHANG_2016, REF_LU_2008]
+    verified_at: 2026-07-23
+  - term_id: term_pierced_carving
+    domain: sculptural_techniques
+    zh: 透雕
+    pinyin: Tou Diao
+    en: pierced carving
+    short_definition_zh: 将纹样周围局部或大面积镂空，使图案呈现穿透、通透效果的雕刻技法。
+    translation_status: reviewed
+    source_ids: [S10]
+    research_reference_ids: [REF_ZHANG_2016, REF_LU_2008]
+    verified_at: 2026-07-23
+  - term_id: term_through_carving
+    domain: sculptural_techniques
+    zh: 通雕
+    pinyin: Tong Diao
+    en: through-carving
+    short_definition_zh: 馆方资料列举的广东石雕技法之一；其与透雕、镂雕的严格工艺术语边界待依据学术文献原文摘录核验。
+    translation_status: draft
+    source_ids: [S10]
+    research_reference_ids: [REF_ZHANG_2016, REF_LU_2008]
+    verified_at: 2026-07-23
+  - term_id: term_relief_carving
+    domain: sculptural_techniques
+    zh: 浮雕
+    pinyin: Fu Diao
+    en: relief carving
+    short_definition_zh: 在平面材料上雕出凸起形象、保留背景平面的雕刻技法。
+    translation_status: reviewed
+    source_ids: [S10]
+    research_reference_ids: [REF_CAA_2005, REF_GUO_2012]
+    verified_at: 2026-07-23
