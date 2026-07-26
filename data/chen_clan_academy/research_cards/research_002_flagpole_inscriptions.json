@@ -1,0 +1,40 @@
+{
+  "card_id": "research_002_flagpole_inscriptions",
+  "title_zh": "旗杆夹石补刻与清末科举身份的延续",
+  "status": "reviewed",
+  "verified_at": "2026-07-26",
+  "source": {
+    "citation": "谢莹. (2020). 从陈家祠旗杆夹石上补刻两位留学进士看清末社会变革. 中国地方志, No.323(06), 74-81+127. https://kns.cnki.net/kcms2/article/abstract?v=Jwx2WJw7wUEFQP_WgftQofnHAh5KOsG8KUCroCl8x-UuZPC1n13N0_-dhhNt-i3b0VYyUJssAc21bF_ba3YHPA0zPSoi2LOKjLw5n5DOVxmLSPVDufNsWQgxcrpEHtz2xZtHlq_Vldm3w5hs0hPmItJfHtVE3Mok0FbCSRGUwwzkic5OcU7j0BeLbwO4PTPe9xnAyJXYOMVAw8LzRF_9gw==&uniplatform=NZKPT&language=CHS.",
+    "local_file": "data/chen_clan_academy/raw/research_papers/陈家祠文献/从陈家祠旗杆夹石上补刻两位留学进士看清末社会变革.pdf",
+    "page_locator": "论文首页摘要及第 74 页起“旗杆夹石文字解读及历史背景”章节；完整页码待复核。",
+    "access_scope": "本地研究资料；卡片仅保存概括与引文定位，不复制论文全文。"
+  },
+  "research_question": "为什么科举制度废除后，陈振先与陈启辉的功名文字仍会补刻在陈家祠旗杆夹石上？",
+  "author_position": "作者通过碑文字样、清末教育与授职制度资料及人物考证，认为补刻行为是科举废除后社会身份认同与科举情结延续的实物线索。",
+  "method_and_evidence": [
+    "对东、西侧旗杆夹石文字的释读与布局比较；",
+    "结合进士馆、留学毕业考试及授职制度资料进行制度史考证；",
+    "结合陈振先、陈启辉的经历进行个案解释。"
+  ],
+  "guide_safe_takeaway": "看到旗杆夹石时，可提示游客：它不仅记录传统科举荣耀，也让人看到清末新式教育和留学制度出现后，旧有功名语言仍被用来表达社会身份。此为该论文的研究解释，应与现场碑刻和馆方说明交叉核验。",
+  "supported_questions": [
+    "旗杆夹石上为什么会刻功名？",
+    "科举废除后为什么还会出现“进士”称谓？",
+    "陈家祠如何反映晚清社会转型？"
+  ],
+  "applicable_node_ids": [
+    "stop_front_courtyard_center"
+  ],
+  "topic_tags": [
+    "旗杆夹石",
+    "科举",
+    "留学",
+    "清末社会变革",
+    "碑刻"
+  ],
+  "agreement_and_limits": {
+    "agreement": "论文提供了从实物碑刻进入清末制度变迁的解释路径。",
+    "limits": "涉及碑刻方位、文字细节、人物履历与年代时，必须回查论文原文、现场碑刻或馆方资料；完整期刊信息尚待复核。"
+  },
+  "integration_rule": "完成书目信息与现场碑刻复核后，才可写入前院中部点位的 research_summary_card_ids。"
+}

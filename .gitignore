@@ -24,6 +24,9 @@ data/chen_clan_academy/index/
 models/
 *.log
 
+# Copyrighted local research papers; commit only the reviewed research summary cards.
+data/chen_clan_academy/raw/research_papers/
+
 # Editor and operating-system files
 .vscode/
 .idea/

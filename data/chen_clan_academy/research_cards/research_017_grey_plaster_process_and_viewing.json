@@ -1,0 +1,39 @@
+{
+  "card_id": "research_017_grey_plaster_process_and_viewing",
+  "title_zh": "灰塑细读：从骨架、塑形到近观与仰观的陈家祠灰塑",
+  "status": "reviewed",
+  "verified_at": "2026-07-26",
+  "source": {
+    "citation": "谭美凤. (2013). 广州陈家祠灰塑的装饰艺术特征, 西安美术学院]. https://kns.cnki.net/kcms2/article/abstract?v=Jwx2WJw7wUE49RyQWoAr6HA6C9OjeeRY2OaQPDDczYYQ2R4ue_W8TIoiAbRSe1p1WvPnEEEPUvgN2ImpscldpSEx26D2S4wz2V3v8NjeH6fItxut2vS6ZrQjjaJHzStoN4u5e0pnQ9M9IzNMgi6utnzFBm5BHkkdy0XA7Ri8d8KYvbX6_H_BUwCzPOCabHtvs2Ses_UMfG7g6p5V5EIClg==&uniplatform=NZKPT&language=CHS.",
+    "local_file": "data/chen_clan_academy/raw/research_papers/陈家祠文献/广州陈家祠灰塑的装饰艺术特征.pdf",
+    "page_locator": "摘要与研究说明（PDF pp. 3-4）；灰塑部位、工艺与案例章节pp. 23-36",
+    "access_scope": "本地研究资料；卡片仅保存概括与引文定位，不复制论文全文。"
+  },
+  "research_question": "陈家祠灰塑如何通过材料骨架、塑形层次和设置高度，兼顾远观轮廓与近观细节？",
+  "author_position": "论文将陈家祠灰塑视为兼有材料工艺、地方文化与建筑装饰功能的综合对象，主张从制作过程、题材造型与现场部位一并理解，而不能只把它看作屋面上的彩色图案。",
+  "method_and_evidence": [
+    "以陈家祠灰塑为田野调查对象，结合图像记录与传承人访谈整理工艺信息；",
+    "从灰塑的材料、骨架、塑形与彩饰过程分析其造型特征；",
+    "将灰塑的题材、位置与岭南建筑的装饰需求联系起来讨论。"
+  ],
+  "guide_safe_takeaway": "细读灰塑时，先分辨它是在屋脊、檐下还是连廊近人处；再看轮廓是否以粗劲线条保证远观辨识，人物、花鸟与山水是否在近处补足细节。这样能把“好看”转化为对材料、视距与工艺的观察。",
+  "supported_questions": [
+    "陈家祠灰塑为什么远看轮廓很清楚、近看又有细节？",
+    "灰塑和陶塑在材料与观看位置上有什么不同？",
+    "讲解灰塑时应先看画面，还是先看它所在的建筑部位？"
+  ],
+  "applicable_node_ids": [],
+  "applicable_scope": "whole_site",
+  "topic_tags": [
+    "灰塑",
+    "制作工艺",
+    "建筑部位",
+    "观看距离",
+    "陈家祠"
+  ],
+  "agreement_and_limits": {
+    "agreement": "补充既有灰塑狮子卡，转向工艺和观看方式的细读，不重复狮子题材的具体结论。",
+    "limits": "本地 PDF 封面文本提取不完整，学位授予单位、年份与具体章节页码须人工核对；在此之前不引用制作配方、工序数量或未复核的作者判断。"
+  },
+  "integration_rule": "仅在书目信息与具体部位复核后用于 deep、研学或工艺观察类问答；不得将论文概述写成馆方对某件灰塑的修缮记录。"
+}

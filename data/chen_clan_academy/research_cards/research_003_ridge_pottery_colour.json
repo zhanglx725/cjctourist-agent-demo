@@ -1,0 +1,41 @@
+{
+  "card_id": "research_003_ridge_pottery_colour",
+  "title_zh": "陈家祠屋脊陶塑的色彩构成与观看方法",
+  "status": "reviewed",
+  "verified_at": "2026-07-26",
+  "source": {
+    "citation": "姜陈, 吴珊. (2021). 岭南宗祠建筑屋脊陶塑装饰色彩研究——以广州陈家祠为例. 湖南包装, 36(04), 19-22. https://kns.cnki.net/kcms2/article/abstract?v=Jwx2WJw7wUHE_2pHJUjGgVSLjYTp_UnrlODQXrqfO5zLMC0p82GU_0qRiEFYLOFgP_RvRubi1cyW0A--iNzurHZr1Uo_OrCmCWU2HKeKLTSsr6-X8Maz3nfU3wlrPt8vcFAz4aqslDT14ej8C3_SHNkzaVakVqjqh65rk4nw6QlwmHk-I1Iz-KRBBeQTjrvh4ZYoPdnJKgF2MH3dvs9yyg==&uniplatform=NZKPT&language=CHS. 10.19686/j.cnki.issn1671-4997.2021.04.006.",
+    "local_file": "data/chen_clan_academy/raw/research_papers/陈家祠文献/岭南宗祠建筑屋脊陶塑装饰色彩研究——以广州陈家祠为例.pdf",
+    "page_locator": "pp. 19-22（待人工逐页复核）",
+    "access_scope": "本地研究资料；卡片仅保存概括与引文定位，不复制论文全文。"
+  },
+  "research_question": "陈家祠屋脊陶塑的色彩构成有什么特征，如何通过色彩组织增强屋脊装饰的层次？",
+  "author_position": "作者以聚贤堂正脊为主要范本，使用现场拍摄、色卡比较与图像直方图分析，归纳出屋脊陶塑色彩多样、整体明度偏暗、色调趋于统一等特征，并区分中段、过渡段和尾段的色彩组织。",
+  "method_and_evidence": [
+    "实地拍摄与多角度图像采样；",
+    "中国建筑色卡比较；",
+    "基于图像直方图的亮度、纯度分析；",
+    "以聚贤堂正脊为主案例，其他厅房作为辅助参照。"
+  ],
+  "guide_safe_takeaway": "观察屋脊时，可引导游客先看人物与建筑背景的前后层次，再看中段、过渡段和尾段如何用色彩组织视线。关于具体色号和定量结果，应仅在引用该研究并保留方法范围时说明。",
+  "supported_questions": [
+    "陈家祠屋脊陶塑为什么显得层次丰富？",
+    "看屋脊陶塑时应该先看什么？",
+    "岭南祠堂的陶塑色彩有什么研究发现？"
+  ],
+  "applicable_node_ids": [
+    "stop_front_courtyard_north"
+  ],
+  "topic_tags": [
+    "屋脊陶塑",
+    "聚贤堂",
+    "色彩",
+    "观看方法",
+    "岭南建筑装饰"
+  ],
+  "agreement_and_limits": {
+    "agreement": "论文提供了可用于深度观察的研究方法，与馆方关于陶塑工艺和位置的事实资料互补。",
+    "limits": "结论基于论文的拍摄条件、色卡与图像分析方法；现场光线、修缮状态和观看距离会影响视觉感受，不能把研究结果表述为未经条件限定的恒定事实。"
+  },
+  "integration_rule": "完成专家复核后，才可写入前庭点位的 research_summary_card_ids；不作为普通事实 RAG 的直接证据。"
+}

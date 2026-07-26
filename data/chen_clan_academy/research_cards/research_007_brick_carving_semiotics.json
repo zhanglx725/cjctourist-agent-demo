@@ -1,0 +1,41 @@
+{
+  "card_id": "research_007_brick_carving_semiotics",
+  "title_zh": "陈家祠砖雕的符号分析与现代转化边界",
+  "status": "background",
+  "verified_at": "2026-07-26",
+  "source": {
+    "citation": "黎芷妤. (2023). 基于莫里斯符号学理论的陈家祠砖雕文创设计研究, 仲恺农业工程学院]. https://kns.cnki.net/kcms2/article/abstract?v=Jwx2WJw7wUFbwCYps3TaXwYsxBOzgI6sLPZHYh3_J4y8T9I2TynCJQft2ys_GuU0RTTkJFb0GpZ4Utq9rzfvm9PtN92lPgKB2e5yUDf1bf2SPUs8b39TaDH2lTaz0qmhLy3IuAnSjSkKytt8rlRvZP-xQZuDOhiOcRnVFKHTbKPAwwjcGUBJauRuWs-zN0JFrzSGBxFa6zEJVTyDVdcZ5Q==&uniplatform=NZKPT&language=CHS. 10.27700/d.cnki.gzcny.2023.000372.",
+    "local_file": "data/chen_clan_academy/raw/research_papers/陈家祠文献/基于莫里斯符号学理论的陈家祠砖雕文创设计研究.pdf",
+    "page_locator": "摘要页；全文共 106 页，具体砖雕案例页码待人工复核。",
+    "access_scope": "本地研究资料；卡片仅保存概括与引文定位，不复制论文全文。"
+  },
+  "research_question": "如何将陈家祠砖雕的形态、文化含义和传播语境拆分分析，并在现代文创中谨慎转化？",
+  "author_position": "论文借助莫里斯符号学的语构、语义、语用三个维度分析陈家祠砖雕，并提出从文化内涵梳理、形态提取到当代传播语境设置的文创转化流程。",
+  "method_and_evidence": [
+    "以莫里斯符号学三分法分析砖雕符号；",
+    "结合线上线下文创商店调研和问卷调查讨论受众与市场需求；",
+    "以设计实践验证砖雕符号的转化流程。"
+  ],
+  "guide_safe_takeaway": "深度讲解可把砖雕看作同时具有形态、寓意和使用语境的文化符号；若谈文创，应说明这是研究提出的转化思路，不等于馆方正在销售或授权某种产品。",
+  "supported_questions": [
+    "看砖雕时除了图案，还可以从哪些角度理解？",
+    "传统砖雕怎样转化为现代文创而不只剩下装饰？",
+    "为什么文创设计需要同时考虑图案含义和使用场景？"
+  ],
+  "applicable_node_ids": [
+    "stop_front_courtyard_north",
+    "stop_front_courtyard_center"
+  ],
+  "topic_tags": [
+    "砖雕",
+    "符号学",
+    "文创",
+    "文化转化",
+    "现代设计"
+  ],
+  "agreement_and_limits": {
+    "agreement": "为砖雕观察和文创延伸提供分析框架。",
+    "limits": "论文的设计策略不构成馆方授权、商品信息或现场讲解事实；具体砖雕对象和位置必须由现有 RAG 确认。"
+  },
+  "integration_rule": "完成砖雕对象—点位映射和文创措辞复核后，才可关联节点；不接入路线评分，也不作为商业推荐依据。"
+}

@@ -1,0 +1,39 @@
+{
+  "card_id": "research_019_stone_platform_and_railings",
+  "title_zh": "石雕细读：聚贤堂月台栏板的狮子、果实与通透构图",
+  "status": "reviewed",
+  "verified_at": "2026-07-26",
+  "source": {
+    "citation": "戴瑶, 李景明. (2017). 广州陈家祠的建筑装饰艺术. 江西建材, No.219(18), 31-32. https://kns.cnki.net/kcms2/article/abstract?v=Jwx2WJw7wUG-CXL-MeBy0_hIIePdX7XeJW4v14COq1PzwvmDTceq4uC8axMNNAtHdsHN612bRL8BL4cZSW4nro6zN8b0mwbbS6cYiHQFtiRkAesZZ9jQhqFqeXS_Anl9l2ygoX9yPfG516jTzSzkgLfhmWwuPjroPcl8vtbitha4DJxY_VYQlkEWuyDuS0Xc2K9NagYBh_EJJgIhi-FjzA==&uniplatform=NZKPT&language=CHS.",
+    "local_file": "data/chen_clan_academy/raw/research_papers/陈家祠文献/广州陈家祠的建筑装饰艺术.pdf",
+    "page_locator": "石雕段（PDF p. 2）；书目信息待人工复核。",
+    "access_scope": "本地研究资料；卡片仅保存概括与引文定位，不复制论文全文。"
+  },
+  "research_question": "聚贤堂月台的石雕栏板、望柱与果实、狮子题材，如何同时承担边界、礼仪强调与岭南地域意象的作用？",
+  "author_position": "作者将聚贤堂前月台栏板视为陈家祠石雕工艺的重点部位：石材栏板以通透雕刻组织花鸟纹样，望柱头配置狮子和岭南果实，使月台既保持庄重的礼仪边界，又获得具有地方感和吉祥意味的细部。",
+  "method_and_evidence": [
+    "以聚贤堂月台栏板、望柱头和台阶周边石构件为主要观察对象；",
+    "辨析狮子、菠萝、杨桃、佛手等题材与石雕部位之间的关系；",
+    "把石雕的镂通效果、石材质感与月台的仪式性空间结合讨论。"
+  ],
+  "guide_safe_takeaway": "读月台石雕可从“框架—通花—柱头”三层入手：先看栏杆怎样界定台地，再看通花如何让石材不显笨重，最后看柱头为何由狮子和果实承担视觉收束。题材寓意宜使用“常被解读为”一类措辞，避免把民间象征当作唯一答案。",
+  "supported_questions": [
+    "聚贤堂月台栏杆为什么既厚重又通透？",
+    "石狮与岭南果实为什么会一起出现在望柱头？",
+    "怎样在不触碰文物的前提下细读石雕栏板？"
+  ],
+  "applicable_node_ids": [],
+  "applicable_scope": "whole_site",
+  "topic_tags": [
+    "石雕",
+    "聚贤堂",
+    "月台",
+    "栏板",
+    "望柱"
+  ],
+  "agreement_and_limits": {
+    "agreement": "在既有石雕故事卡之外，补足可现场观察的石雕构件、空间位置和构图逻辑。",
+    "limits": "本地文献的刊名、年份和页码尚未可靠提取；果实和瑞兽的具体名称、数量与寓意均须与馆方图录或现场标识复核后，才能作为事实性回答。"
+  },
+  "integration_rule": "书目信息、题材定名与点位复核完成前，仅限研究草稿；审核后用于深度讲解，不得用于触摸、攀爬或聚集停留的现场引导。"
+}

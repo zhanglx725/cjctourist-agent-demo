@@ -1,0 +1,42 @@
+{
+  "card_id": "research_004_spatial_characteristics",
+  "title_zh": "建筑装饰如何组织陈家祠的空间等级与观看路径",
+  "status": "reviewed",
+  "verified_at": "2026-07-26",
+  "source": {
+    "citation": "石林, 过伟敏. (2016). 广州陈家祠建筑装饰艺术的空间特征解析. 南京艺术学院学报(美术与设计版), No.168(06), 128-131. https://kns.cnki.net/kcms2/article/abstract?v=Jwx2WJw7wUFQ_NEH61dcdm6Tyqzox9Jnlo4ZyUjXfWbzRoEu_VDeAh48JgqWzjWlbPozssY1xuB1kgBGqVIkrp5Epsb3s7k1vOP9Sa-HgLAvtMqfLqQYPWeKD-oImBLP9eqPkkKiOzpQw5eDvojnZ9nafcv-YpeqN8-Y1jorBQnjLqmUF31ppOFPv4Nuwg_UVTFq7OsVkQIby5SYfMOVnA==&uniplatform=NZKPT&language=CHS.",
+    "local_file": "data/chen_clan_academy/raw/research_papers/陈家祠文献/广州陈家祠建筑装饰艺术的空间特征解析.pdf",
+    "page_locator": "pp. 128-131",
+    "access_scope": "本地研究资料；卡片仅保存概括与引文定位，不复制论文全文。"
+  },
+  "research_question": "陈家祠的装饰如何与中轴、庭院、廊门和不同建筑部位共同塑造空间等级与观看体验？",
+  "author_position": "作者将建筑装饰视为组织空间秩序的视觉语言，认为装饰的密度、部位与工艺会提示建筑的礼制等级、功能和观看重点；中路及聚贤堂被解释为装饰最集中、等级最突出的空间。",
+  "method_and_evidence": [
+    "以中轴、前后庭院、廊门、外立面与聚贤堂等空间部位进行案例分析；",
+    "结合装饰题材、工艺和布置位置讨论空间氛围与等级；",
+    "以建筑平面、入口立面和屋脊、月台等构件作为观察对象。"
+  ],
+  "guide_safe_takeaway": "深度讲解可引导游客比较中路与两侧、入口与内院、前庭与聚贤堂：不必逐件背诵装饰，而是观察装饰在哪里更密集、为什么这些位置需要更强的视觉强调。具体尺寸、构件数量和位置仍须回查馆方 RAG。",
+  "supported_questions": [
+    "为什么陈家祠中路看起来最庄重？",
+    "装饰怎样帮助游客理解陈家祠的空间秩序？",
+    "从前庭走向内院时，应该怎样观察装饰变化？"
+  ],
+  "applicable_node_ids": [
+    "stop_front_courtyard_north",
+    "stop_front_courtyard_center",
+    "label_moon_platform"
+  ],
+  "topic_tags": [
+    "空间等级",
+    "中轴",
+    "庭院",
+    "聚贤堂",
+    "建筑装饰"
+  ],
+  "agreement_and_limits": {
+    "agreement": "可为既有空间图和点位讲解提供观察框架，不替代馆方对单个构件的事实说明。",
+    "limits": "“等级”“炫耀”“礼制提示”等属于论文的解释性框架；不能据此推断某个构件的唯一制作动机或未核验的历史事实。"
+  },
+  "integration_rule": "完成点位与措辞复核后，才可关联到相应节点；仅在 deep、研学或空间观察类追问中使用。"
+}

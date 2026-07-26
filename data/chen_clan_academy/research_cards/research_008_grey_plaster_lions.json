@@ -1,0 +1,41 @@
+{
+  "card_id": "research_008_grey_plaster_lions",
+  "title_zh": "陈家祠灰塑狮子的造型、色彩与空间位置",
+  "status": "reviewed",
+  "verified_at": "2026-07-26",
+  "source": {
+    "citation": "曾嘉盈. (2021). 岭南传统灰塑的艺术特征及文化内涵——以陈家祠灰塑狮子为例. 天工, No.42(06), 21-23. https://kns.cnki.net/kcms2/article/abstract?v=Jwx2WJw7wUEsclWHkHD416XaADJH8ZKL-_ht_7wuHzgiu61LH0uU0OTpN1WgAwycxeUbGRO_DX-MIcJ-AeogRqVqxVUwOWGU8bxbmam_NAm76XCq5tA6mtEq7lPU8gpjfGLYUXAZz9CRmzs3QlAm3j3Dkp1cQCJjX-2hySOUNaq2Vpr2dK5T5vOo89LL2n-cZiy2q6ULPLcMBcsb6Pfkaw==&uniplatform=NZKPT&language=CHS.",
+    "local_file": "data/chen_clan_academy/raw/research_papers/陈家祠文献/岭南传统灰塑的艺术特征及文化内涵——以陈家祠灰塑狮子为例.pdf",
+    "page_locator": "pp. 21-23",
+    "access_scope": "本地研究资料；卡片仅保存概括与引文定位，不复制论文全文。"
+  },
+  "research_question": "陈家祠灰塑狮子的造型、色彩、技法和安放位置如何共同服务于建筑空间与文化表达？",
+  "author_position": "作者以陈家祠灰塑狮子为对象，通过实地考察讨论其题材、色彩、动态、神态、圆雕与浮雕技法以及不同位置的配置，并将其解释为宗祠氛围、等级秩序与民间神兽观念的结合。",
+  "method_and_evidence": [
+    "实地考察与灰塑个案观察；",
+    "按圆雕、正脊浮雕、连廊浮雕和点缀浮雕比较形态与位置；",
+    "对题材、用色、动态、表情和组合方式进行归纳。"
+  ],
+  "guide_safe_takeaway": "看灰塑狮子时，可先比较它位于正门、正脊、连廊还是细部：位置会影响它的尺寸、姿态与画面角色。研究中的“威严”“护佑”等是解释框架，应避免把每一只狮子的寓意说成唯一结论。",
+  "supported_questions": [
+    "陈家祠的灰塑狮子为什么有的威猛、有的像在玩耍？",
+    "灰塑狮子在正门、屋脊和连廊中的作用一样吗？",
+    "灰塑狮子的颜色为什么不按真实狮子来画？"
+  ],
+  "applicable_node_ids": [
+    "stop_front_courtyard_north",
+    "stop_front_courtyard_center"
+  ],
+  "topic_tags": [
+    "灰塑",
+    "狮子",
+    "神兽",
+    "正门",
+    "屋脊"
+  ],
+  "agreement_and_limits": {
+    "agreement": "为项目中的灰塑题材和位置资料提供更细的观察维度。",
+    "limits": "论文的个案观察不可外推到所有灰塑；具体构件名称、位置和保存状况须由现有 RAG 或现场资料确认。"
+  },
+  "integration_rule": "完成灰塑条目—点位映射复核后，才可关联节点；适用于深度观察、研学和工艺追问。"
+}

@@ -1,0 +1,39 @@
+{
+  "card_id": "research_014_cold_lane_ventilation",
+  "title_zh": "青云巷的微气候机制：陈家祠冷巷自然通风实测研究",
+  "status": "reviewed",
+  "verified_at": "2026-07-26",
+  "source": {
+    "citation": "马俊丽. (2011). 冷巷的自然通风效果分析研究, 广州大学]. https://kns.cnki.net/kcms2/article/abstract?v=Jwx2WJw7wUHrC-3-2ik9cwkppzfnq6Zc9hjVhydLDTHLqmQmHCi6oeUmHluJCDJA_nQxckdVwjPfR7VRVldNOgfhyUzXzyQOrbNBk9HfWI7IujCxmSAG43QQYt1OeVH7JBwO7aZZZva8zBc01uXB0QUfA9W5cptTYDK1VAoBn7Ivhcb21X1_Y5X8rbayy8ncc9EDp4Et0-ZFDHZp4IcORQ==&uniplatform=NZKPT&language=CHS.",
+    "local_file": "data/chen_clan_academy/raw/research_papers/陈家祠文献/冷巷的自然通风效果分析研究.pdf",
+    "page_locator": "全文共 74 页",
+    "access_scope": "本地研究资料；卡片仅保存概括与引文定位，不复制论文全文。"
+  },
+  "research_question": "陈家祠冷巷作为内部空间构件，如何影响温湿度、风速与相邻房间的热舒适？",
+  "author_position": "论文把陈家祠冷巷视为可被测试的自然通风构件，而非单纯的空间意象；作者以现场测量与数值模拟相互校验，认为日照、巷道几何比例和开口条件会共同影响冷巷及相邻室内空间的微气候。",
+  "method_and_evidence": [
+    "在陈家祠冷巷与庭院等位置比较不同垂直高度的温度、相对湿度和风速；",
+    "以东侧冷巷为主要测试对象，并设置封闭巷口等对照条件；",
+    "建立并校验速度场、温度场模拟模型，讨论高宽比、进深与通风表现之间的关系。"
+  ],
+  "guide_safe_takeaway": "这张卡适合解释“青云巷为什么值得从建筑物理角度观看”：它既分隔建筑体量，也可能成为空气流动、遮阴与热环境调节的一部分。避免把论文的特定测试结果泛化成游客到访当天一定感到凉爽，或作为任何场所的设计参数。",
+  "supported_questions": [
+    "青云巷只是通道吗？",
+    "研究者怎样验证冷巷与自然通风有关？",
+    "为什么冷巷的开口和尺度会影响相邻室内空间？"
+  ],
+  "applicable_node_ids": [],
+  "applicable_scope": "whole_site",
+  "topic_tags": [
+    "内部空间",
+    "青云巷",
+    "自然通风",
+    "建筑物理",
+    "实测与模拟"
+  ],
+  "agreement_and_limits": {
+    "agreement": "为“外封闭、内开敞”和内部巷道系统提供可检验的建筑环境研究视角。",
+    "limits": "论文封面为图像页，作者与年份尚未从本地文本层可靠提取；在书目信息补齐和结论页码复核前，不得升为 reviewed，也不得引用具体温度、风速或比例数值。"
+  },
+  "integration_rule": "仅在书目信息、页码和专业措辞复核完成后用于 deep 或学术问答；不得用作实时体感、节能性能或建筑改造建议。"
+}

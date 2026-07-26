@@ -1,0 +1,42 @@
+{
+  "card_id": "research_011_cantonese_wood_carving",
+  "title_zh": "广式木雕的工艺、题材与建筑空间应用",
+  "status": "background",
+  "verified_at": "2026-07-26",
+  "source": {
+    "citation": "薛拥军. (2012). 广式木雕艺术及其在建筑和室内装饰中的应用研究, 南京林业大学]. https://kns.cnki.net/kcms2/article/abstract?v=Jwx2WJw7wUFBU0HzB-8n0vo5Tk3CyUjje3dNY1d45Eylld_bheDQOCXA-LZRK0nePNf88lyHGYebylVbvmz9I4F37QLM8ncUYL-7qvI_2FlG7pEK88Fwn5EAOOFhFknjcU2sHZT3a4kO1En4GEFHb4wVrpVwmuTdshd3TM1UyTps3volrNPbn8ooWHMX0_m7ZnBIrDH6NAl__kpLY4IBZw==&uniplatform=NZKPT&language=CHS.",
+    "local_file": "data/chen_clan_academy/raw/research_papers/陈家祠文献/广式木雕艺术及其在建筑和室内装饰中的应用研究.pdf",
+    "page_locator": "摘要页；全文共 204 页，陈家祠相关案例页码待人工检索与复核。",
+    "access_scope": "本地研究资料；卡片仅保存概括与引文定位，不复制论文全文。"
+  },
+  "research_question": "广式木雕的传统风格、题材、材料与工艺如何在建筑和室内空间中发挥装饰及组织空间的作用？",
+  "author_position": "论文系统讨论广式木雕的传统风格、题材、材料、工具和技法，并比较传统与现代工艺，归纳其在建筑构件和室内空间中的装饰、分隔与氛围营造作用。",
+  "method_and_evidence": [
+    "广式木雕概念、地域与风格的系统梳理；",
+    "传统材料、工具、工艺与现代工艺的比较；",
+    "广州、佛山、潮州、汕头等地古建筑木雕构件的实例分析；",
+    "与其他木雕流派及现代建筑、室内案例的比较。"
+  ],
+  "guide_safe_takeaway": "当游客询问木雕为何常出现在室内、屏风或檐下时，可借此卡解释木雕既承担叙事与装饰，也会参与分隔、组织和烘托空间。由于该研究并非只针对陈家祠，所有具体构件事实必须由项目 RAG 确认。",
+  "supported_questions": [
+    "广式木雕有什么工艺与题材特点？",
+    "木雕在建筑中除了好看，还起什么作用？",
+    "为什么研究木雕时要同时看材料、工具、工艺和空间位置？"
+  ],
+  "applicable_node_ids": [
+    "stop_front_courtyard_north",
+    "stop_rear_courtyard"
+  ],
+  "topic_tags": [
+    "木雕",
+    "广式木雕",
+    "建筑构件",
+    "工艺",
+    "室内空间"
+  ],
+  "agreement_and_limits": {
+    "agreement": "补足陈家祠木雕讲解所需的广式木雕工艺背景。",
+    "limits": "研究覆盖广式木雕整体而非单一场馆；不得将一般规律直接表述为陈家祠某件木雕的制作事实。"
+  },
+  "integration_rule": "完成陈家祠木雕条目与论文案例的对应复核后，才可关联节点；用于工艺深讲，不替代单件木雕的馆方证据。"
+}

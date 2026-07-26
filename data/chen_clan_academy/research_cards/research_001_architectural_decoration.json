@@ -1,0 +1,40 @@
+{
+  "card_id": "research_001_architectural_decoration",
+  "title_zh": "陈氏书院建筑装饰系统与“七绝”工艺概览",
+  "status": "background",
+  "verified_at": "2026-07-26",
+  "source": {
+    "citation": "陈民喜. (2016). 百粤冠祠,七绝技艺——广州陈氏书院古典建筑装饰艺术欣赏. 中外建筑, No.179(03), 42-50. https://kns.cnki.net/kcms2/article/abstract?v=Jwx2WJw7wUEW9hs6hLNYke0mQviZLvEOUSP4w7HQPtOEmkDWnekNJzKkM2VcJKsQvsTUcHZF-6EG0GPwoe4vjMSrzIpYlXEskgRrLdIqhaK81kLLTttFUpUvzqG0DM_5rTBBXvdy5zbSmgKa2ZtOpn0anz0j-Ej5qbw9AEIAi7xumT678qIDYUiiryt-hKYD9hxmwGWMvxeb2Hd_PNfB3w==&uniplatform=NZKPT&language=CHS. 10.19940/j.cnki.1008-0422.2016.03.007.",
+    "local_file": "data/chen_clan_academy/raw/research_papers/陈家祠文献/百粤冠祠,七绝技艺——广州陈氏书院古典建筑装饰艺术欣赏.pdf",
+    "page_locator": "pp. 42-50",
+    "access_scope": "本地研究资料；卡片仅保存概括与引文定位，不复制论文全文。"
+  },
+  "research_question": "陈氏书院的空间格局、功能与七类建筑装饰工艺如何共同构成其岭南建筑艺术特征？",
+  "author_position": "论文将陈氏书院视为兼具合族祠与书院功能的建筑，并以整体布局及木雕、砖雕、石雕、灰塑、陶塑、彩绘、铜铁铸等装饰门类说明其装饰系统的综合性。",
+  "method_and_evidence": [
+    "建筑格局与功能的概述性阐释；",
+    "对不同装饰门类、分布部位与题材的观察性归纳；",
+    "未见量化采样或逐项构件目录，不能将文中概括延伸为单件文物的精确属性。"
+  ],
+  "guide_safe_takeaway": "深度讲解可把陈家祠理解为“空间礼制、书院功能与多种装饰工艺协同呈现”的整体；具体构件名称、位置和年代仍须由现有馆方 RAG 取证。",
+  "supported_questions": [
+    "为什么陈家祠常被称为“百粤冠祠”？",
+    "“三雕两塑一彩一铁”在陈家祠中指什么？",
+    "陈家祠为什么既像祠堂又与书院有关？"
+  ],
+  "applicable_node_ids": [
+    "stop_front_courtyard_north",
+    "stop_front_courtyard_center"
+  ],
+  "topic_tags": [
+    "建筑格局",
+    "书院功能",
+    "七绝工艺",
+    "建筑装饰"
+  ],
+  "agreement_and_limits": {
+    "agreement": "可作为整体性学术解释，与项目中的馆方建筑和工艺事实资料互补。",
+    "limits": "论文的价值判断和概括属于作者阐释；不应单独作为实时场馆信息、构件定位或唯一历史结论。"
+  },
+  "integration_rule": "完成专家复核后，才可写入相应点位的 research_summary_card_ids；仅在 deep、研学或学术追问意图下检索。"
+}

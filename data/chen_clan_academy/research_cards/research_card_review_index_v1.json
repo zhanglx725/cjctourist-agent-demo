@@ -1,0 +1,65 @@
+{
+  "schema_version": "v1",
+  "reviewed_at": "2026-07-26",
+  "review_basis": [
+    "与陈家祠本体的直接关联：研究是否以陈家祠、陈氏书院或其明确构件为主要对象。",
+    "细读能力：能否落实到可观察的部位、材料/工艺、题材、构图或空间作用。",
+    "研究价值：是否呈现明确问题、方法或可追溯的论证，而非仅作泛化介绍或现代转化。"
+  ],
+  "tiers": {
+    "reviewed": {
+      "label_zh": "专题通过",
+      "use": "可用于 deep、研学与学术追问；仍须以“研究认为”等措辞表述，不替代基础事实 RAG。",
+      "card_ids": [
+        "research_002_flagpole_inscriptions",
+        "research_003_ridge_pottery_colour",
+        "research_004_spatial_characteristics",
+        "research_006_sculptural_metaphor",
+        "research_008_grey_plaster_lions",
+        "research_013_courtyard_corridor_system",
+        "research_014_cold_lane_ventilation",
+        "research_015_grid_spatial_layout",
+        "research_016_academy_ancestral_program",
+        "research_017_grey_plaster_process_and_viewing",
+        "research_018_woodcarving_screens_and_shrines",
+        "research_019_stone_platform_and_railings"
+      ]
+    },
+    "background": {
+      "label_zh": "背景参考",
+      "use": "仅用于补充语境、比较或提示进一步研究；不得单独支撑具体构件定名、现场事实或路线决策。",
+      "card_ids": [
+        "research_001_architectural_decoration",
+        "research_005_museumification",
+        "research_007_brick_carving_semiotics",
+        "research_009_lingnan_cultural_meaning",
+        "research_010_stone_carving_story",
+        "research_011_cantonese_wood_carving",
+        "research_012_foundation_protection",
+        "research_020_roof_sculpture_narrative"
+      ]
+    }
+  },
+  "rationales": {
+    "research_002_flagpole_inscriptions": "以陈家祠旗杆夹石为明确对象，证据与历史问题集中。",
+    "research_003_ridge_pottery_colour": "以陈家祠屋脊陶塑为实地案例，方法和观看维度清晰。",
+    "research_004_spatial_characteristics": "直接解释装饰、部位和空间等级的关系。",
+    "research_006_sculptural_metaphor": "直接分析陈家祠多种雕塑的象征与谐音机制，可支撑题材细读。",
+    "research_008_grey_plaster_lions": "对象、工艺、题材与空间位置均聚焦陈家祠灰塑狮子。",
+    "research_013_courtyard_corridor_system": "直接研究陈家祠庭院、连廊和青云巷的空间组织。",
+    "research_014_cold_lane_ventilation": "以陈家祠冷巷开展实测与模拟，研究方法强。",
+    "research_015_grid_spatial_layout": "在广府祠堂形制研究中对陈家祠设有专门案例分析。",
+    "research_016_academy_ancestral_program": "以营建文献解释陈氏书院的复合功能与空间形成。",
+    "research_017_grey_plaster_process_and_viewing": "直接以陈家祠灰塑讨论制作、部位和观看方式。",
+    "research_018_woodcarving_screens_and_shrines": "可落到陈家祠屏门、龛罩和梁架等室内木雕构件。",
+    "research_019_stone_platform_and_railings": "可落到聚贤堂月台栏板、望柱和石雕题材。",
+    "research_001_architectural_decoration": "适合概览“七绝”装饰系统，但构件细读与方法论颗粒度较低。",
+    "research_005_museumification": "适合解释博物馆化历程，不直接支撑建筑与雕塑细读。",
+    "research_007_brick_carving_semiotics": "陈家祠关联明确，但研究重点偏向文创转化，宜作方法背景。",
+    "research_009_lingnan_cultural_meaning": "文化阐释较宽，适合补充语境，不宜单独支撑单件结论。",
+    "research_010_stone_carving_story": "以当代插画转化切入石雕故事，宜作题材延展而非核心史料。",
+    "research_011_cantonese_wood_carving": "提供广式木雕比较背景，陈家祠本体细节不足。",
+    "research_012_foundation_protection": "工程保护意义高，但与游客所见雕塑和内部细读的直接性较低。",
+    "research_020_roof_sculpture_narrative": "与陈家祠有关但篇幅与构件证据密度较低，作为陶塑叙事的补充背景。"
+  }
+}

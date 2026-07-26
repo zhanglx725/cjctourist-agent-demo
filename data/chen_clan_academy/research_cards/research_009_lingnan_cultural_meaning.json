@@ -1,0 +1,42 @@
+{
+  "card_id": "research_009_lingnan_cultural_meaning",
+  "title_zh": "陈家祠装饰艺术的岭南文化意蕴",
+  "status": "background",
+  "verified_at": "2026-07-26",
+  "source": {
+    "citation": "王娟. (2008). 陈家祠建筑装饰艺术的岭南文化意蕴. 艺术百家, No.101(02), 109-112. https://kns.cnki.net/kcms2/article/abstract?v=Jwx2WJw7wUE1JoDnPy3Cijma0Xjx0qAjVLn18OewqB8a1M_GWUkjMmX7yvlAJTMFPCuOk5ih--1MpOn2mpFFze7atg5VXXFPeTCLi3vhi5Y-mCkh5CIPUTbDj7C94vxNOH7G6X1d1zwuf4-rAs9acyFGiU74qlJ9H4qwxxKrBVMVWVMH-zCTP7OQjVRmPVfeAk6TZI0HkOE=&uniplatform=NZKPT&language=CHS.",
+    "local_file": "data/chen_clan_academy/raw/research_papers/陈家祠文献/陈家祠建筑装饰艺术的岭南文化意蕴.pdf",
+    "page_locator": "pp. 109-112",
+    "access_scope": "本地研究资料；卡片仅保存概括与引文定位，不复制论文全文。"
+  },
+  "research_question": "陈家祠建筑装饰可从哪些文化维度理解其岭南性？",
+  "author_position": "作者从传统哲学、宗教与民俗等角度解释陈家祠装饰的文化意蕴，并将其视为岭南地区开放、兼容与世俗生活愿望在建筑装饰中的呈现。",
+  "method_and_evidence": [
+    "以装饰题材、工艺与典型图像为例进行文化阐释；",
+    "结合传统哲学、宗教与民俗文化材料讨论象征意义；",
+    "以石雕、陶塑、木雕和铁铸等题材说明不同文化线索。"
+  ],
+  "guide_safe_takeaway": "这张卡适合回答“为什么这里既有传统礼制题材，也有地方果木、民俗和外来元素”。应以“该研究从岭南文化角度解释”为前缀，并允许不同研究采用不同文化框架。",
+  "supported_questions": [
+    "陈家祠的装饰为什么具有鲜明的岭南特色？",
+    "宗教、民俗和儒家题材为什么会同时出现在一座祠堂里？",
+    "怎样理解装饰中的地方果木和吉祥图案？"
+  ],
+  "applicable_node_ids": [
+    "stop_front_courtyard_north",
+    "stop_front_courtyard_center",
+    "label_moon_platform"
+  ],
+  "topic_tags": [
+    "岭南文化",
+    "民俗",
+    "宗教",
+    "吉祥图案",
+    "建筑装饰"
+  ],
+  "agreement_and_limits": {
+    "agreement": "可作为文化解释的研究视角，与具体装饰条目的馆方事实资料配合使用。",
+    "limits": "文化意蕴属于解释性结论，不能替代单件构件的考证；本卡引文卷期页码须通过目录或原刊复核后才可设为 reviewed。"
+  },
+  "integration_rule": "完成书目信息与题材—点位映射复核后，才可关联节点；只用于深度文化追问，不作为唯一事实证据。"
+}

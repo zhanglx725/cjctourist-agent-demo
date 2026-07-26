@@ -1,0 +1,42 @@
+{
+  "card_id": "research_006_sculptural_metaphor",
+  "title_zh": "陈家祠装饰雕塑的象征与谐音喻义",
+  "status": "reviewed",
+  "verified_at": "2026-07-26",
+  "source": {
+    "citation": "刘子川. (2011). 广州陈家祠建筑装饰雕塑作品的喻义手法. 艺术评论, No.92(07), 138-141. https://kns.cnki.net/kcms2/article/abstract?v=Jwx2WJw7wUGKOu8hoaXH6XRqXdZo9h40givC6C8JFEE-72OTnJ3GldIgTEhrZfv3TKbqoSf99vttpfmBdKSojvlpNHItsn3Sx5UEz2ij7JsYBBvukeanVJg1s5gdueze5vTVuwLMK7LkpjutERv_fvqCXg9EvrFOoJVEra_kCYBAvxwrKaf-vQIpnij1R49FHE1raVPy8mM=&uniplatform=NZKPT&language=CHS. 10.16364/j.cnki.cn11-4907/j.2011.07.035.",
+    "local_file": "data/chen_clan_academy/raw/research_papers/陈家祠文献/广州陈家祠建筑装饰雕塑作品的喻义手法.pdf",
+    "page_locator": "pp. 138-141",
+    "access_scope": "本地研究资料；卡片仅保存概括与引文定位，不复制论文全文。"
+  },
+  "research_question": "陈家祠的吉祥题材装饰主要如何借助形象、象征和谐音传达深层寓意？",
+  "author_position": "作者将相关雕塑的喻义方式概括为象征喻义与谐音喻义，并说明两种方式有时会并用；论文以金鱼、牡丹、瓜果、禽鸟等题材说明图像表层形象与吉祥含义之间的不同连接方式。",
+  "method_and_evidence": [
+    "按人物、动物、植物和器物等雕塑本体进行类型化讨论；",
+    "以具体装饰题材说明象征、谐音及两者兼用的表达方式；",
+    "从图像表意、汉字语音和民间工艺传承讨论其文化解释。"
+  ],
+  "guide_safe_takeaway": "面对吉祥图案，可先让游客观察“画面里有什么”，再说明“这件作品在该研究中如何被解读”。不要把谐音或象征解释说成唯一答案；对具体题材名称、位置和工艺，仍须由现有 RAG 交叉确认。",
+  "supported_questions": [
+    "陈家祠的吉祥图案为什么常常需要“猜意思”？",
+    "象征和谐音在建筑装饰中有什么区别？",
+    "为什么瓜果、鸟兽也能表达功名、富贵或多子等愿望？"
+  ],
+  "applicable_node_ids": [
+    "stop_front_courtyard_north",
+    "stop_front_courtyard_center",
+    "label_moon_platform"
+  ],
+  "topic_tags": [
+    "吉祥题材",
+    "象征",
+    "谐音",
+    "图像叙事",
+    "建筑装饰"
+  ],
+  "agreement_and_limits": {
+    "agreement": "为项目已收录的装饰题材提供可解释的研究框架。",
+    "limits": "具体图像的寓意可能存在多重解读；本卡不应替代馆方文字、构件题名或对个别作品的专门考证。"
+  },
+  "integration_rule": "完成题材—点位映射复核后，才可关联节点；适用于学术追问、深度讲解和观察任务，不作为普通事实问答的唯一证据。"
+}

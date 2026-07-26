@@ -1,0 +1,40 @@
+{
+  "card_id": "research_010_stone_carving_story",
+  "title_zh": "以“赵颜求寿”为例理解陈家祠石雕故事的当代阐释",
+  "status": "background",
+  "verified_at": "2026-07-26",
+  "source": {
+    "citation": "何晓盈. (2024). 陈家祠石雕故事插画设计, 广州大学]. https://kns.cnki.net/kcms2/article/abstract?v=Jwx2WJw7wUEMmB3lEylCwf7XAit3bnXRoIXEHeGG5HSnW5vBPqu8oH902aUu2MVbuiMSLB_T35iZ3zgxdm3WvTe5MHbCLQv0gpVk38MUJjXb8JAWA_aR2GX1V6jcw1JO_GBabGd2XfFPaFp4x-Y7cUTJC6CKB4J1p-s4Q1LtbLgfjCgnK5zd9wIuRbi137o4unaDhy6vFvrE_VIddG2UxA==&uniplatform=NZKPT&language=CHS. 10.27040/d.cnki.ggzdu.2024.000900.",
+    "local_file": "data/chen_clan_academy/raw/research_papers/陈家祠文献/陈家祠石雕故事插画设计.pdf",
+    "page_locator": "摘要页；全文共 82 页，石雕对象与故事细节页码待人工复核。",
+    "access_scope": "本地研究资料；卡片仅保存概括与引文定位，不复制论文全文。"
+  },
+  "research_question": "如何以具体石雕故事为线索，面向儿童和当代受众进行阐释与传播设计？",
+  "author_position": "论文聚焦“赵颜求寿”石雕故事，结合文献阅读、田野调查、案例分析、经验总结与问卷调查，探索以插画、AR 和新媒体方式帮助当代受众理解石雕故事与文化意义。",
+  "method_and_evidence": [
+    "文献阅读与田野调查；",
+    "以“赵颜求寿”石雕故事为单一案例；",
+    "案例分析、问卷调查与面向儿童的设计实践。"
+  ],
+  "guide_safe_takeaway": "本卡可作为“如何把石雕故事讲给儿童或首次到访者”的研究参考。实际讲解应先核验现场是否存在对应石雕、题名和位置，再按馆方信息讲述；AR 或插画方案不应表述为场馆现有服务。",
+  "supported_questions": [
+    "一块石雕的故事怎样讲得更容易理解？",
+    "如何把传统石雕故事转化为儿童友好的学习材料？",
+    "数字媒介能怎样帮助理解石雕，而不替代原作观察？"
+  ],
+  "applicable_node_ids": [
+    "label_moon_platform"
+  ],
+  "topic_tags": [
+    "石雕",
+    "赵颜求寿",
+    "儿童教育",
+    "插画",
+    "数字传播"
+  ],
+  "agreement_and_limits": {
+    "agreement": "提供了面向儿童的石雕故事阐释与传播研究路径。",
+    "limits": "论文的对象仅为特定故事，且主要是设计研究；不能据此推断场馆已部署 AR、插画或儿童课程。"
+  },
+  "integration_rule": "完成“赵颜求寿”构件的馆方事实与点位映射核验后，才可关联月台或其他节点；仅用于研学和深度传播问题。"
+}

@@ -1,0 +1,39 @@
+{
+  "card_id": "research_020_roof_sculpture_narrative",
+  "title_zh": "陶塑细读：把屋脊读成分段展开的戏曲与人物叙事",
+  "status": "background",
+  "verified_at": "2026-07-26",
+  "source": {
+    "citation": "徐士福. (2013). 广州陈家祠建筑装饰艺术的特色研究. 家具与室内装饰, No.176(10), 106-107. https://kns.cnki.net/kcms2/article/abstract?v=Jwx2WJw7wUHdQ9dz-HQbvI8CShm_oTOaxtbPM1F_PZ6jMwWJDvdVrvTJl7WcwIqS3QSMHf4g12HLJZ5R0EsUSYBTlNkDcaeRWX2C8TKpMCciLq3m3jaTNfkEmCkQONLS5H7x8XcKl0LrJy5ifVix1ncZnFcA35UL4dNf25dKvnTwOrvETmYLq9RTWuSUNGdi81ybcRaPF-w=&uniplatform=NZKPT&language=CHS. 10.16771/j.cnki.cn43-1247/ts.2013.10.034.",
+    "local_file": "data/chen_clan_academy/raw/research_papers/陈家祠文献/广州陈家祠建筑装饰艺术的特色研究.pdf",
+    "page_locator": "全文 2 页（PDF pp. 1-2）；具体陶塑段落待人工复核。",
+    "access_scope": "本地研究资料；卡片仅保存概括与引文定位，不复制论文全文。"
+  },
+  "research_question": "陈家祠屋脊陶塑如何通过人物、建筑背景、花件与边界构件，把高处装饰组织为可被远观的连续叙事？",
+  "author_position": "作者从陈家祠建筑装饰的地域性、世俗性与综合色彩出发，认为陶塑等高处装饰并不只是填满屋脊，而以人物场景、装饰框架和色彩层次共同构成强烈的视觉中心，呈现清末岭南民间装饰的繁复与开放。",
+  "method_and_evidence": [
+    "以陈家祠多类建筑装饰为案例，概括其地域文化、世俗审美与中西融合特征；",
+    "从屋脊装饰的题材、色彩和构图讨论高处雕塑的整体视觉效果；",
+    "将陶塑与灰塑、彩绘等装饰媒介并置，说明其在整体建筑形象中的位置。"
+  ],
+  "guide_safe_takeaway": "观察屋脊陶塑时，可以先不追逐人物姓名，而按“主体场景—衔接花件或框饰—两端收束”寻找层次；再看人物与建筑背景怎样形成前后景。它更像面向远处观看的一段立体叙事，而非单个孤立摆件。",
+  "supported_questions": [
+    "屋脊陶塑应该怎样分段观看？",
+    "为什么陶塑的人物后面还会出现楼阁、花件或边界构件？",
+    "屋脊的戏曲人物怎样与整座建筑的视觉中心相关？"
+  ],
+  "applicable_node_ids": [],
+  "applicable_scope": "whole_site",
+  "topic_tags": [
+    "陶塑",
+    "屋脊",
+    "戏曲叙事",
+    "构图层次",
+    "远观"
+  ],
+  "agreement_and_limits": {
+    "agreement": "与既有陶塑色彩卡形成互补：前者解释色彩，本文卡解释叙事构图与观看顺序。",
+    "limits": "本卡不为任一屋脊人物、戏曲段落或工坊题款作最终定名；具体题材、位置和年代须回查馆方图录与高清照片，且不得诱导游客仰拍时进入限制区域。"
+  },
+  "integration_rule": "完成书目信息、题材与点位复核后，仅用于 deep、研学或建筑装饰观察问题；不得替代文物标识或输出未经核验的故事名称。"
+}
