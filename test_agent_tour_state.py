@@ -57,11 +57,11 @@ class AgentTourStateTests(unittest.TestCase):
         self.assertNotIn("tour_state", result)
         self.assertEqual(before["visited_stop_ids"], [])
 
-    def test_new_route_request_keeps_direct_route_priority_after_tour_exists(self):
+    def test_new_route_request_collects_profile_before_later_route_replacement(self):
         initial = self._started()
         self.assertEqual(
             route_initial_request(_message_state("我有45分钟，帮我规划路线", initial)),
-            "direct_route",
+            "profile_collection",
         )
 
     def test_point_inventory_question_uses_tour_qa_after_tour_exists(self):

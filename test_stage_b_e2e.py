@@ -18,8 +18,10 @@ from agent_graph import (
     tour_qa_node,
 )
 from guide_program_planner import plan_stop_program
+from route_planner import plan_template
 from tour_qa import load_guide_cards
-from tour_interaction import handle_tour_event
+from tour_interaction import handle_tour_event, initialize_interaction
+from tour_state import start_tour
 
 
 RAG_PAYLOAD = json.dumps(
@@ -67,6 +69,12 @@ class StageBEndToEndTests(unittest.TestCase):
             allowed = {item["ornament_id"] for item in cards[node_id]["ornaments"]}
             self.assertTrue({item.ornament_id for item in program.selected_items}.issubset(allowed))
 
+    def test_thirty_minute_plaster_route_starts_with_front_courtyard_center(self):
+        started = self._started()
+        self.assertEqual(started["tour_state"]["remaining_stop_ids"][0], "stop_front_courtyard_center")
+        self.assertEqual(started["tour_interaction_state"]["pending_stop_id"], "stop_front_courtyard_center")
+        self.assertIn("灰塑", started["tour_state"]["interests"])
+
     def test_detail_budgets_interests_and_output_are_deterministic_without_route_changes(self):
         route_before = self._started()["tour_state"]["route_stop_ids"]
         programs = {
@@ -103,6 +111,100 @@ class StageBEndToEndTests(unittest.TestCase):
         self.assertEqual(explained["tour_state"]["visited_stop_ids"], [])
         completed = handle_tour_event(explained["tour_state"], explained["interaction_state"], "confirm_stop_complete")
         self.assertEqual(completed["tour_state"]["visited_stop_ids"], ["stop_front_courtyard_center"])
+
+    def test_front_courtyard_message_uses_safe_location_and_hides_internal_fields(self):
+        state = self._arrived_and_guided()
+        message = state["messages"][-1].content
+        program = state["active_stop_program"]
+        local_ids = {
+            item["ornament_id"]
+            for item in load_guide_cards()["stop_front_courtyard_center"]["ornaments"]
+        }
+        self.assertIn("前院中部", message)
+        self.assertTrue({item["ornament_id"] for item in program["selected_items"]}.issubset(local_ids))
+        self.assertTrue(any(item.get("observation_location") for item in program["selected_items"]))
+        self.assertIn("这是一处灰塑装饰", message)
+        for internal in ("审核位置", "类型：", "简介：", "planned_seconds", ".md"):
+            self.assertNotIn(internal, message)
+
+    def test_detail_uses_same_program_and_question_keeps_only_local_instances(self):
+        standard_state = self._arrived_and_guided()
+        standard_message = standard_state["messages"][-1].content
+        before_tour = deepcopy(standard_state["tour_state"])
+        before_interaction = deepcopy(standard_state["tour_interaction_state"])
+
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            rag.invoke.return_value = RAG_PAYLOAD
+            answer = tour_qa_node(_state("这里的灰塑有什么特点？", standard_state))
+        answer_state = {**standard_state, **answer}
+        self.assertEqual(answer_state["tour_state"], before_tour)
+        self.assertEqual(answer_state["tour_interaction_state"], before_interaction)
+        self.assertEqual(answer_state["tour_presentation"]["phase"], "explaining")
+        local_names = {
+            item["name"]
+            for item in load_guide_cards()["stop_front_courtyard_center"]["ornaments"]
+            if item["craft"] == "灰塑"
+        }
+        self.assertTrue(local_names.intersection({"独角狮", "福禄寿", "功名富贵", "松鹤延年"}))
+        self.assertNotIn("百鸟朝凤", answer_state["messages"][-1].content)
+
+        detail_event = handle_tour_event(
+            answer_state["tour_state"], answer_state["tour_interaction_state"], "request_stop_detail"
+        )
+        detailed_state = {
+            **answer_state,
+            "tour_state": detail_event["tour_state"],
+            "tour_interaction_state": detail_event["interaction_state"],
+            "last_tour_event": {"event": "request_stop_detail", "code": detail_event["code"]},
+        }
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            rag.invoke.return_value = RAG_PAYLOAD
+            detailed = stop_guidance_node(detailed_state)
+        self.assertNotEqual(standard_message, detailed["messages"][0].content)
+        self.assertIn("再看细一点", detailed["messages"][0].content)
+        self.assertEqual(detailed_state["tour_state"], before_tour)
+
+    def test_self_arrival_skip_replan_and_last_completion_keep_a1_contract(self):
+        tour = start_tour(plan_template("highlights_30"), interests=["灰塑"])
+        interaction = initialize_interaction(tour)
+        self_arrival = handle_tour_event(
+            tour, interaction, "arrive_at_stop", node_id="label_first_main_hall"
+        )
+        self.assertEqual(self_arrival["code"], "self_arrival")
+        self.assertEqual(self_arrival["tour_state"]["visited_stop_ids"], [])
+        self.assertEqual(self_arrival["tour_state"]["remaining_stop_ids"], tour["remaining_stop_ids"])
+
+        skipped = handle_tour_event(
+            self_arrival["tour_state"], self_arrival["interaction_state"], "skip_stop"
+        )
+        self.assertEqual(skipped["code"], "skipped")
+        self.assertTrue(skipped["tour_state"]["skipped_stop_ids"])
+        replanned = handle_tour_event(
+            skipped["tour_state"], skipped["interaction_state"], "replan_time", available_minutes=20
+        )
+        self.assertEqual(replanned["code"], "replanned")
+        self.assertFalse(
+            set(replanned["tour_state"]["visited_stop_ids"])
+            .intersection(replanned["tour_state"]["skipped_stop_ids"])
+        )
+
+        final_tour = start_tour(plan_template("highlights_30"))
+        final_interaction = initialize_interaction(final_tour)
+        for stop_id in list(final_tour["remaining_stop_ids"]):
+            arrived = handle_tour_event(final_tour, final_interaction, "arrive_at_stop", node_id=stop_id)
+            self.assertNotEqual(arrived["tour_state"]["route_status"], "completed")
+            explained = handle_tour_event(
+                arrived["tour_state"], arrived["interaction_state"], "explanation_finished"
+            )
+            final_tour = explained["tour_state"]
+            final_interaction = explained["interaction_state"]
+            if len(final_tour["remaining_stop_ids"]) == 1:
+                self.assertEqual(final_tour["route_status"], "touring")
+            completed = handle_tour_event(final_tour, final_interaction, "confirm_stop_complete")
+            final_tour = completed["tour_state"]
+            final_interaction = completed["interaction_state"]
+        self.assertEqual(final_tour["route_status"], "completed")
+        self.assertEqual(final_interaction["stop_phase"], "finished")
 
     def test_no_evidence_and_empty_future_card_interfaces_do_not_break_basic_guidance(self):
         state = self._started()

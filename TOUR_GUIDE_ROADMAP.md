@@ -130,10 +130,18 @@ interests              # 兴趣：灰塑、木雕、三国、建筑、摄影等
 detail_level           # short / standard / deep
 ```
 
-**后续可选字段（不在首版强制）：**
+**C5 明确参观偏好（中性默认、不在当前 C2 追问中强制）：**
 
 ```text
-visitor_type           # 首次来访 / 亲子 / 研学 / 工艺爱好 / 摄影爱好
+audience_mode          # standard / child_friendly / family / study / mixed_group
+knowledge_level        # general / enthusiast / professional
+explanation_style      # standard / story / technical / interactive / expert
+interaction_mode       # listen_only / normal / interactive_tasks
+```
+
+**其他后续可选接口：**
+
+```text
 language               # zh / en （多语言后续支持）
 photo_preference       # yes / no （是否主动需要拍照建议）
 accessibility_need     # 行动便利、视障等特殊需求
@@ -175,7 +183,8 @@ detail_level
 后续可选字段：
 
 ```text
-visitor_type, language, photo_preference, accessibility_need,
+audience_mode, knowledge_level, explanation_style, interaction_mode,
+language, photo_preference, accessibility_need,
 current_stop_id, visited_stop_ids, skipped_stop_ids
 ```
 
@@ -212,6 +221,10 @@ glossary_ids
 | 多语言术语表 | 外语导览开始前 |
 | 打卡点卡 | 主动拍照需求且现场规则审核后 |
 | 成就/寄语 | TourState 的真实记录足够完整后 |
+
+## 阶段 C：统一游客画像（C1/C2/C3/C5 已完成本机回归；C4 待 LangSmith 验证）
+
+C1 新增不可变 `VisitorProfile`，统一表示游客明确表达的时间、兴趣和讲解深度；C2 新增确定性文本提取与“时间 → 兴趣 → 深度”追问。项目负责人已完成 C1/C2/C3/C5 目标测试、相关回归与完整回归，结果均为 `OK`。C3 已将“画像收集完成”连接到确定性 `direct_route`：路线成功后将已验证画像复制为 TourState 快照，动态路线读取时间和兴趣，StopProgram 仅读取 TourState 的兴趣与深度。C4 已实现受控时间/兴趣/详略更新并通过本机回归，尚待 LangSmith 多轮验证；它不会自动重置路线或加入已访问、跳过点。
 
 ## 当前三人并行边界
 

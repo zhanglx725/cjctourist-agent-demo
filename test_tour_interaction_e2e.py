@@ -14,7 +14,13 @@ from unittest.mock import patch
 from langchain_core.messages import HumanMessage
 
 import agent_graph
-from agent_graph import clarification_node, direct_route_node, route_initial_request, tour_event_node
+from agent_graph import (
+    clarification_node,
+    direct_route_node,
+    profile_update_node,
+    route_initial_request,
+    tour_event_node,
+)
 from tour_interaction import handle_tour_event
 
 
@@ -54,6 +60,12 @@ class TourInteractionE2ETests(unittest.TestCase):
                 "tour_interaction_state": explained["interaction_state"],
             },
         )
+
+    def _agent_profile_update(self, state: dict, text: str) -> tuple[dict, dict]:
+        request = _message_state(text, state)
+        self.assertEqual(route_initial_request(request), "profile_update")
+        update = profile_update_node(request)
+        return _merge(state, update), update
 
     def test_planned_stop_lifecycle_requires_confirm_before_next_stop(self):
         state = self._started()
@@ -108,9 +120,10 @@ class TourInteractionE2ETests(unittest.TestCase):
         self.assertIn("stop_front_courtyard_center", state["tour_state"]["skipped_stop_ids"])
         self.assertNotIn("stop_front_courtyard_center", state["tour_state"]["visited_stop_ids"])
 
-        state, update = self._agent_event(state, "我只剩20分钟")
-        self.assertEqual(update["last_tour_intent"]["event_type"], "replan_time")
-        self.assertEqual(state["tour_presentation"]["code"], "replanned")
+        state, update = self._agent_profile_update(state, "我只剩20分钟")
+        self.assertEqual(update["last_profile_update"]["code"], "profile_replanned")
+        self.assertEqual(state["tour_presentation"]["code"], "profile_replanned")
+        self.assertEqual(state["tour_state"]["available_minutes"], 20)
         self.assertNotIn("stop_front_courtyard_center", state["tour_state"]["remaining_stop_ids"])
         self.assertNotIn("stop_front_courtyard_center", state["tour_state"]["visited_stop_ids"])
 

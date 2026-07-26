@@ -48,6 +48,11 @@ class AgentStopGuidanceTests(unittest.TestCase):
         self.assertEqual(state["tour_interaction_state"], before_interaction)
         self.assertEqual(update["tour_presentation"]["phase"], "explaining")
         self.assertIn("S10", update["messages"][0].content)
+        self.assertTrue(update["active_stop_program"]["guidance_policy"]["fact_evidence_required"])
+        self.assertEqual(
+            update["active_stop_program"]["guidance_policy"]["budget_cap_mode"],
+            "min_with_stop_budget",
+        )
 
     def test_request_detail_reaches_guidance_and_keeps_route_progress(self):
         state = self._arrived()
