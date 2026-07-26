@@ -10,10 +10,12 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from guide_program_planner import StopProgram, plan_stop_program
+from guide_program_planner import SelectedItem, StopProgram, plan_stop_program
 from guide_narration import compose_guide_narration
+from guidance_policy import GuidancePolicy, build_guidance_policy
 from tour_presenter import present_tour_state
 from tour_qa import load_guide_cards, parse_rag_payload
+from visitor_profile import VisitorProfileError, create_visitor_profile, profile_from_dict
 
 
 def content_budget_seconds_for_stop(node_id: str) -> int | None:
@@ -53,6 +55,7 @@ def _evidence_line(item: dict[str, Any]) -> str:
 def _program_from_state(
     tour_state: dict[str, Any],
     current_program: dict[str, Any] | None,
+    guidance_policy: GuidancePolicy,
 ) -> StopProgram | None:
     """Use an existing current-stop program only when it is still applicable."""
     # The serialized program is retained by Agent state for audit and UI use,
@@ -66,7 +69,82 @@ def _program_from_state(
         budget,
         interests=tour_state.get("interests", []),
         detail_level=tour_state.get("detail_level", "standard"),
+        guidance_policy=guidance_policy,
     )
+
+
+def reexpress_current_stop_guidance(
+    tour_state: dict[str, Any] | None,
+    interaction_state: dict[str, Any] | None,
+    current_program: dict[str, Any] | None,
+    evidence_by_item: dict[str, list[dict[str, Any]]] | None,
+    visitor_profile: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Re-render exactly the active program under a new C8 policy.
+
+    This intentionally performs no candidate selection and no RAG call.  It
+    preserves selected IDs, allocation and previously collected evidence; only
+    visitor-facing organisation changes after an explicit request.
+    """
+    if not _is_active_planned_stop(tour_state, interaction_state) or not current_program:
+        return {"ok": False, "message": "当前没有可按新方式重新讲解的已到达点位。"}
+    assert tour_state is not None and interaction_state is not None
+    if current_program.get("node_id") != tour_state.get("current_stop_id"):
+        return {"ok": False, "message": "当前讲解包与所在点位不一致，未重新组织讲解。"}
+    try:
+        policy = _guidance_policy_for_tour(tour_state, visitor_profile)
+        items = tuple(SelectedItem(**item) for item in current_program.get("selected_items", []))
+        program = StopProgram(
+            node_id=current_program["node_id"], display_name=current_program["display_name"],
+            budget_seconds=current_program["budget_seconds"], interests=tuple(current_program.get("interests", [])),
+            detail_level=current_program["detail_level"], selected_items=items,
+            candidate_count=current_program["candidate_count"],
+            budget_scope=current_program.get("budget_scope", "stop_explanation_content_only"),
+            allocated_content_seconds=current_program.get("allocated_content_seconds", 0),
+            unallocated_content_seconds=current_program.get("unallocated_content_seconds", 0),
+            selection_strategy=current_program.get("selection_strategy", "b2_relevance_diversity_budget"),
+            status=current_program.get("status", "ready"), guidance_policy=policy.to_dict(),
+        )
+    except (KeyError, TypeError, VisitorProfileError) as exc:
+        return {"ok": False, "message": f"当前讲解包无法安全重新组织：{exc}"}
+    values = evidence_by_item or {}
+    narration = compose_guide_narration(program, values, detailed=False)
+    message = narration.visitor_message + f"\n{_citation_text(narration.source_ids, policy)}"
+    return {
+        "ok": True, "message": message, "stop_program": program.to_dict(),
+        "evidence_by_item": values,
+        "evidence": [entry for entries in values.values() for entry in entries],
+        "guidance_policy": policy.to_dict(),
+        "presentation": {**present_tour_state(tour_state, interaction_state, message=message),
+                         "code": "stop_guidance_reexpressed", "ok": True},
+    }
+
+
+def _guidance_policy_for_tour(
+    tour_state: dict[str, Any], visitor_profile: dict[str, Any] | None
+) -> GuidancePolicy:
+    """Use the C5 profile when present, with a legacy TourState fallback.
+
+    The fallback is ephemeral compatibility only: it reconstructs C5 neutral
+    defaults from the already adopted TourState core fields and is never saved
+    as a second profile or used to modify tour progress.
+    """
+    if visitor_profile is not None:
+        return build_guidance_policy(profile_from_dict(visitor_profile))
+    return build_guidance_policy(create_visitor_profile(
+        available_minutes=tour_state["available_minutes"],
+        interests=tour_state.get("interests", []),
+        detail_level=tour_state.get("detail_level", "standard"),
+    ))
+
+
+def _citation_text(source_ids: tuple[str, ...], policy: GuidancePolicy) -> str:
+    ids = "、".join(source_ids) or "当前没有可引用的来源编号"
+    if policy.citation_detail == "detailed":
+        return f"参考资料编号：{ids}（本地知识快照）"
+    if policy.citation_detail == "standard":
+        return f"参考来源：{ids}"
+    return f"来源：{ids}"
 
 
 def build_stop_guidance(
@@ -76,6 +154,7 @@ def build_stop_guidance(
     *,
     current_program: dict[str, Any] | None = None,
     detailed: bool = False,
+    visitor_profile: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return sourced guidance for the active stop without mutating tour state."""
     presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
@@ -91,7 +170,20 @@ def build_stop_guidance(
         }
 
     assert tour_state is not None and interaction_state is not None
-    program = _program_from_state(tour_state, current_program)
+    try:
+        guidance_policy = _guidance_policy_for_tour(tour_state, visitor_profile)
+    except VisitorProfileError as exc:
+        message = f"当前导览偏好无效，无法安全生成个性化讲解：{exc}"
+        return {
+            "message": message,
+            "status": "invalid_profile",
+            "stop_program": None,
+            "evidence": [],
+            "rag_queries": [],
+            "guidance_policy": None,
+            "presentation": {**present_tour_state(tour_state, interaction_state), "message": message, "ok": False, "code": "guidance_invalid_profile"},
+        }
+    program = _program_from_state(tour_state, current_program, guidance_policy)
     if program is None:
         message = "当前点位缺少已审核的讲解内容预算或讲解包，无法安全生成本点讲解。"
         return {
@@ -100,6 +192,7 @@ def build_stop_guidance(
             "stop_program": None,
             "evidence": [],
             "rag_queries": [],
+            "guidance_policy": guidance_policy.to_dict(),
             "presentation": {**present_tour_state(tour_state, interaction_state), "message": message, "ok": False, "code": "guidance_program_unavailable"},
         }
 
@@ -111,6 +204,7 @@ def build_stop_guidance(
             "stop_program": program.to_dict(),
             "evidence": [],
             "rag_queries": [],
+            "guidance_policy": guidance_policy.to_dict(),
             "presentation": {**present_tour_state(tour_state, interaction_state), "message": message, "code": "guidance_no_candidates", "ok": True},
         }
 
@@ -128,8 +222,7 @@ def build_stop_guidance(
         evidence.extend(item_evidence)
         evidence_by_item[item.ornament_id] = item_evidence
     narration = compose_guide_narration(program, evidence_by_item, detailed=detailed)
-    source_text = "、".join(narration.source_ids) or "当前没有可引用的来源编号"
-    message = narration.visitor_message + f"\n来源：{source_text}。"
+    message = narration.visitor_message + f"\n{_citation_text(narration.source_ids, guidance_policy)}。"
     view = present_tour_state(tour_state, interaction_state, message=message)
     return {
         "message": message,
@@ -139,6 +232,7 @@ def build_stop_guidance(
         "evidence_by_item": evidence_by_item,
         "rag_queries": rag_queries,
         "source_ids": list(narration.source_ids),
+        "guidance_policy": guidance_policy.to_dict(),
         "narration": {
             "used_llm": narration.used_llm,
             "fallback_reason": narration.fallback_reason,

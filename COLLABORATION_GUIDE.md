@@ -235,3 +235,31 @@ python inspect_route_plan.py deep_dive_90
 - 运行 `build_node_guide_cards.py` 会把 `raw_location` 与映射审计字段重新生成到 `node_guide_cards_v1.json`；不要手工编辑 JSON 或 CSV。
 - `raw_location` 只能生成“请先看向【具体位置】……”式观察提示，不是导航指令；不得据此补充左右、高低、可达性、光线或遮挡等未审核现场事实。
 - 位置文本不得进入 StopProgram 评分或排序。若讲解包保留非兴趣工艺对象，必须使用 `role=工艺对照` 与非空 `comparison_reason`，以便展示层说明其对照目的。
+
+## C 阶段游客画像接口（C1/C2/C3/C5 已完成本机验证；C4 待 LangSmith 验证）
+
+- `visitor_profile.py` 是唯一的画像校验与归一化入口。活跃字段为 `available_minutes`、`interests`、`detail_level`；默认仅用于 C1 纯模型，不能被误称为游客明确表达。
+- `profile_dialogue.py` 只保存一个 `VisitorProfile` 与“哪些字段已明确解决”的收集元数据；不复制活跃字段，不写 TourState，不调用路线规划或 StopProgram。
+- C5 将旧的模糊 `visitor_type` 拆为四项明确的当次参观偏好：`audience_mode`、`knowledge_level`、`explanation_style`、`interaction_mode`。它们均为受限枚举、仅由用户选择/确认；默认值仅表示中性策略，不表示系统识别了游客身份。
+- `language`、`photo_preference`、`accessibility_need` 仍是可选接口。当前不得从对话推断、主动追问或参与评分；不得新增年龄、性别、收入、疾病或关系判断等敏感字段。
+- `visitor_type` 不再是新建或更新画像的合法字段；读取含它的历史会话快照时仅为兼容而丢弃，不映射为 `family`、`study` 等任何 C5 值。C5 全部数据仅在当前 LangGraph 会话状态中保存，尚不跨会话持久化。
+- C5 暂不改变路线、TourState 快照、StopProgram 或讲解生成；C6/C7 才可在明确验收后读取这些字段。
+- 项目负责人已完成 C5 目标测试与完整回归，结果均为 `OK`。C5 不需要真实模型调用；C4 的真实多轮 LangSmith 状态检查仍待完成。
+- C6 的唯一策略入口是 `guidance_policy.build_guidance_policy(profile)`。它只输出确定性 `GuidancePolicy`，不得读取知识卡、RAG、路线或 AgentState，更不得修改画像。C7 接入时必须遵守 `fact_evidence_required=True` 和 `budget_cap_mode=min_with_stop_budget`。
+- 项目负责人已完成 C6 目标测试与完整回归，结果均为 `OK`。当前不得绕过 C7 直接在 Prompt、Agent 或讲解文本中手写同类策略规则。
+- C7 只允许 `guide_program_evidence.build_stop_guidance()` 将 C6 策略传给 `plan_stop_program()` 与确定性讲解渲染。每次生成的策略副本保存在 `active_stop_program.guidance_policy` 供审计；它不是第二份画像，也不得写回或修改 TourState。知识卡开关目前仅审计输出，不触发读取。
+- 项目负责人已运行 C1/C2 目标测试及完整 226 项回归，结果均为 `OK`。C3 才可将已验证的画像显式复制为 TourState 的本次游览快照；C4 才处理游览中变更。
+- C3 中 `direct_route` 只读取已校验的 `visitor_profile`；路线成功初始化时调用 `start_tour(...)`，将同一份 `available_minutes`、`interests`、`detail_level` 固化为 TourState 快照。StopProgram 只能读取该快照，不能回读 `visitor_profile`。项目负责人已完成 C3 目标测试、路线/交互/讲解回归与完整回归，均为 `OK`。
+- 兼容旧的直接函数调用时，允许从原有文本提取结果构造一次性默认 `standard` 画像；它不增加第二套持久画像存储。画像或路线初始化失败时不得写入半份 `tour_state` 或 `active_route_plan`。
+- C4 的唯一更新适配层是 `profile_update.py`。它复用 C2 的提取规则和 C1 的不可变更新：时间变化先通过 `handle_tour_event(..., "replan_time")`，只有成功后才用 `apply_profile_snapshot()` 同步画像和 TourState；兴趣、详略只同步快照，绝不重置已访问、跳过、当前位置或路线顺序。
+- `profile_update_node` 是 Agent 的确定性入口。LLM、RAG、展示层与前端均不得直接写 `visitor_profile` 或 TourState。含到达/跳过/确认等控制操作与偏好更新的同一句输入必须澄清，不得部分执行。
+## C8 显式扩展偏好控制（待本机与 LangSmith 验证）
+
+- `extended_profile_control.py` 是扩展画像文本控制的唯一适配层；只能处理明确表达，输出结构化 patch 后复用 `visitor_profile.py` 校验。不要在 Agent、Prompt 或前端手写第二套规则。
+- 该控制层不修改路线、空间图、TourState、RAG evidence 或已审核卡片。删除会话偏好时只能清空 `visitor_profile` 与 `profile_collection`，不得清空正在执行的 TourState。
+- 显式重讲当前内容只能复用 `active_stop_program` 与 `active_guidance_evidence_by_item`，不得重新选物或补造检索事实。
+
+## C9 会话记忆边界（待本机与 LangSmith 验证）
+
+- `messages` 是对话上下文；`visitor_profile` 是当前会话偏好；`tour_state` 是实际游览进度；`active_route_plan` 和 `active_stop_program` 分别是路线与当前站编排。不要把这些字段写入新知识卡数据。
+- 本地 `MemorySaver` 仅按 `thread_id` 隔离会话内状态；它不是持久化数据库。服务重启和新 thread 均不承诺保留画像、路线、讲解包或检索证据。

@@ -120,6 +120,36 @@ def start_tour(
     }
 
 
+def apply_profile_snapshot(
+    state: dict[str, Any],
+    *,
+    available_minutes: int,
+    interests: list[str],
+    detail_level: str,
+) -> dict[str, Any]:
+    """Apply an already C1-validated C-stage preference snapshot immutably.
+
+    It never alters formal stops, visited/skipped records, current position or
+    route status.  Time replanning itself remains the responsibility of the
+    A1 `replan_time` adapter; C4 invokes this only after that operation has
+    succeeded, so profile and execution state stay atomic.
+    """
+    snapshot = _copy_state(state)
+    if isinstance(available_minutes, bool) or not isinstance(available_minutes, int):
+        raise TourStateError("画像快照的 available_minutes 必须是整数。")
+    if available_minutes <= 0:
+        raise TourStateError("画像快照的 available_minutes 必须大于 0。")
+    if not isinstance(interests, list) or not all(isinstance(item, str) for item in interests):
+        raise TourStateError("画像快照的 interests 必须是字符串列表。")
+    if detail_level not in VALID_DETAIL_LEVELS:
+        raise TourStateError("画像快照的 detail_level 无效。")
+    snapshot["available_minutes"] = available_minutes
+    snapshot["interests"] = list(interests)
+    snapshot["detail_level"] = detail_level
+    _validate_state(snapshot)
+    return snapshot
+
+
 def next_stop(state: dict[str, Any]) -> str | None:
     """Return the next formal, unvisited and unskipped guide stop in route order."""
     snapshot = _copy_state(state)

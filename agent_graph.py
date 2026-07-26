@@ -30,7 +30,11 @@ from tour_intent import classify_tour_intent
 from tour_presenter import present_clarification, present_tour_event, present_tour_state
 from tour_state import start_tour
 from tour_qa import answer_tour_question, is_point_inventory_request
-from guide_program_evidence import build_stop_guidance
+from guide_program_evidence import build_stop_guidance, reexpress_current_stop_guidance
+from profile_dialogue import collect_profile_input
+from profile_update import apply_profile_update, is_profile_update_request
+from extended_profile_control import apply_extended_profile_control, parse_extended_profile_control
+from visitor_profile import VisitorProfileError, create_visitor_profile, profile_from_dict
 MAX_TOOL_LOOPS = 3
 DEFAULT_DEEPSEEK_MAX_TOKENS = 450
 DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
@@ -57,6 +61,13 @@ class AgentState(TypedDict, total=False):
     last_tour_intent: dict[str, Any]
     last_tour_event: dict[str, Any]
     active_stop_program: dict[str, Any]
+    active_guidance_evidence_by_item: dict[str, list[dict[str, Any]]]
+    # C2 preferences are distinct from TourState's per-tour snapshot.  C3
+    # will explicitly copy a validated profile when a route is initialized.
+    visitor_profile: dict[str, Any]
+    profile_collection: dict[str, Any]
+    last_profile_update: dict[str, Any]
+    last_extended_profile_control: dict[str, Any]
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -249,39 +260,70 @@ def llm_think_node(state: AgentState) -> dict[str, Any]:
 def direct_route_node(state: AgentState) -> dict[str, Any]:
     """Plan and render a reviewed route without risking LLM route fabrication."""
     query = _latest_user_text(state)
-    minutes, interests = _route_request_from_text(query)
     started = time.perf_counter()
+    # C3 consumes the already validated C1/C2 profile.  The legacy fallback
+    # preserves safe direct calls used by existing scripts and tests; it does
+    # not create a second persistent profile store.
+    try:
+        if state.get("visitor_profile"):
+            profile = profile_from_dict(state["visitor_profile"])
+            profile_source = "visitor_profile"
+        else:
+            minutes, interests = _route_request_from_text(query)
+            profile = create_visitor_profile(
+                available_minutes=minutes, interests=interests, detail_level="standard"
+            )
+            profile_source = "legacy_text_fallback"
+    except VisitorProfileError as exc:
+        return {
+            "messages": [AIMessage(content=f"游客画像无效，无法开始路线：{exc}")],
+            "performance_metrics": _append_metric(
+                state, "direct_route", time.perf_counter() - started,
+                route_started=False, profile_error=True,
+            ),
+        }
+    minutes = profile.available_minutes
+    interests = list(profile.interests)
     # Exact 30/60/90-minute requests retain human-reviewed anchors.  Other
     # durations use A0-4b dynamic composition, already benchmarked in A0-5/6.
     is_anchor_duration = minutes in {30, 60, 90}
-    if is_anchor_duration:
-        plan = recommend_route(available_minutes=minutes, interests=interests)
-        route_id = plan.route_id
-        route_strategy = "anchor"
-        plan_data = {**plan.to_dict(), "route_strategy": route_strategy}
-        guide_stop_ids = tuple(plan.stop_ids[1:])
-        explanation_seconds = plan.estimated_explanation_seconds
-        observation_seconds = plan.estimated_observation_seconds
-        interaction_seconds = plan.estimated_interaction_seconds
-        total_seconds = plan.estimated_total_seconds or 0
-        walk_seconds = plan.estimated_walk_seconds or 0
-        exit_node_id = plan.exit_node_id
-        exit_return_seconds = plan.estimated_exit_return_seconds or 0
-    else:
-        plan = plan_dynamic_route(minutes, interests)
-        route_id = f"dynamic_{minutes}"
-        route_strategy = "dynamic"
-        plan_data = {**asdict(plan), "route_strategy": route_strategy}
-        guide_stop_ids = plan.stop_ids
-        explanation_seconds = plan.estimated_guide_seconds
-        observation_seconds = plan.estimated_observation_seconds
-        interaction_seconds = plan.estimated_interaction_seconds
-        total_seconds = plan.estimated_total_seconds
-        walk_seconds = plan.estimated_walk_seconds
-        exit_node_id = plan.exit_node_id
-        exit_return_seconds = plan.estimated_exit_return_seconds
+    try:
+        if is_anchor_duration:
+            plan = recommend_route(available_minutes=minutes, interests=interests)
+            route_id = plan.route_id
+            route_strategy = "anchor"
+            plan_data = {**plan.to_dict(), "route_strategy": route_strategy}
+            guide_stop_ids = tuple(plan.stop_ids[1:])
+            explanation_seconds = plan.estimated_explanation_seconds
+            observation_seconds = plan.estimated_observation_seconds
+            interaction_seconds = plan.estimated_interaction_seconds
+            total_seconds = plan.estimated_total_seconds or 0
+            walk_seconds = plan.estimated_walk_seconds or 0
+            exit_node_id = plan.exit_node_id
+            exit_return_seconds = plan.estimated_exit_return_seconds or 0
+        else:
+            plan = plan_dynamic_route(minutes, interests)
+            route_id = f"dynamic_{minutes}"
+            route_strategy = "dynamic"
+            plan_data = {**asdict(plan), "route_strategy": route_strategy}
+            guide_stop_ids = plan.stop_ids
+            explanation_seconds = plan.estimated_guide_seconds
+            observation_seconds = plan.estimated_observation_seconds
+            interaction_seconds = plan.estimated_interaction_seconds
+            total_seconds = plan.estimated_total_seconds
+            walk_seconds = plan.estimated_walk_seconds
+            exit_node_id = plan.exit_node_id
+            exit_return_seconds = plan.estimated_exit_return_seconds
+    except (ValueError, RuntimeError) as exc:
+        return {
+            "messages": [AIMessage(content=f"无法按当前画像生成审核路线：{exc}")],
+            "performance_metrics": _append_metric(
+                state, "direct_route", time.perf_counter() - started,
+                route_started=False, route_error=True,
+            ),
+        }
     catalog = _read_catalog(CATALOG_FILE)
-    tour = start_tour(plan, interests=interests, detail_level="standard")
+    tour = start_tour(plan, interests=interests, detail_level=profile.detail_level)
     interaction = initialize_interaction(tour)
     stop_lines = []
     for index, node_id in enumerate(guide_stop_ids, start=1):
@@ -315,6 +357,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         "tour_state": tour,
         "tour_interaction_state": interaction,
         "tour_presentation": presentation,
+        "visitor_profile": profile.to_dict(),
         "performance_metrics": _append_metric(
             state,
             "direct_route",
@@ -323,8 +366,151 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
             route_strategy=route_strategy,
             requested_minutes=minutes,
             interests=interests,
+            detail_level=profile.detail_level,
+            profile_source=profile_source,
         ),
     }
+
+
+def profile_collection_node(state: AgentState) -> dict[str, Any]:
+    """Collect explicit C2 preferences without starting or changing a tour."""
+    query = _latest_user_text(state)
+    decision = classify_tour_intent(
+        query, state.get("tour_state"), state.get("tour_interaction_state")
+    )
+    start_collection = decision.route_kind == "route_request" or should_direct_route(query)
+    started = time.perf_counter()
+    result = collect_profile_input(
+        state.get("profile_collection"), query, start_collection=start_collection,
+        base_profile=state.get("visitor_profile"),
+    )
+    if result is None:
+        # The router should only enter this node for a route request or an
+        # active non-question collection turn.  Keep an explicit safe reply
+        # in case a future routing rule violates that boundary.
+        message = "请先说明您想规划路线，或继续回答当前的导览偏好问题。"
+        return {
+            "messages": [AIMessage(content=message)],
+            "performance_metrics": _append_metric(
+                state, "profile_collection", time.perf_counter() - started,
+                status="ignored",
+            ),
+        }
+    payload = result.to_dict()
+    return {
+        "messages": [AIMessage(content=payload["message"])],
+        "visitor_profile": payload["visitor_profile"],
+        "profile_collection": payload["profile_collection"],
+        "performance_metrics": _append_metric(
+            state, "profile_collection", time.perf_counter() - started,
+            status=payload["status"], reason_code=payload["reason_code"],
+            resolved_fields=payload["profile_collection"]["resolved_fields"],
+        ),
+    }
+
+
+def profile_update_node(state: AgentState) -> dict[str, Any]:
+    """Apply a C4 preference update without allowing an LLM to write state."""
+    query = _latest_user_text(state)
+    started = time.perf_counter()
+    intent = classify_tour_intent(
+        query, state.get("tour_state"), state.get("tour_interaction_state")
+    )
+    # A control operation plus an update must be split into two turns.  This
+    # prevents, for example, "我到了月台，后面简单讲" from recording only the
+    # preference half of a multi-intent command.
+    if intent.route_kind == "tour_event" and intent.event_type != "replan_time":
+        message = "请先完成到达、跳过或确认等当前导览操作；调整后续偏好请单独发送。"
+        presentation = present_clarification(message, state.get("tour_interaction_state"))
+        return {
+            "messages": [AIMessage(content=message)],
+            "tour_presentation": presentation,
+            "last_profile_update": {"ok": False, "code": "multiple_intents"},
+            "performance_metrics": _append_metric(
+                state, "profile_update", time.perf_counter() - started,
+                ok=False, code="multiple_intents",
+            ),
+        }
+    if intent.route_kind == "clarification" and intent.reason_code == "multiple_intents":
+        presentation = present_clarification(intent.clarification_message or "请一次只调整一项导览操作。", state.get("tour_interaction_state"))
+        return {
+            "messages": [AIMessage(content=presentation["message"])],
+            "tour_presentation": presentation,
+            "last_profile_update": {"ok": False, "code": "multiple_intents"},
+            "performance_metrics": _append_metric(
+                state, "profile_update", time.perf_counter() - started,
+                ok=False, code="multiple_intents",
+            ),
+        }
+    result = apply_profile_update(
+        state.get("visitor_profile"), state.get("tour_state"),
+        state.get("tour_interaction_state"), query,
+    )
+    if result["ok"]:
+        presentation = present_tour_state(
+            result["tour_state"], result["interaction_state"], message=result["message"]
+        )
+        presentation = {**presentation, "code": result["code"], "ok": True}
+    else:
+        presentation = present_clarification(result["message"], result.get("interaction_state"))
+    updates: dict[str, Any] = {
+        "messages": [AIMessage(content=presentation["message"])],
+        "last_profile_update": {"ok": result["ok"], "code": result["code"]},
+        "tour_presentation": presentation,
+        "performance_metrics": _append_metric(
+            state, "profile_update", time.perf_counter() - started,
+            ok=result["ok"], code=result["code"],
+        ),
+    }
+    if result["ok"]:
+        updates["visitor_profile"] = result["visitor_profile"]
+        updates["tour_state"] = result["tour_state"]
+        updates["tour_interaction_state"] = result["interaction_state"]
+        plan = result["data"].get("plan")
+        if plan:
+            updates["active_route_plan"] = {**asdict(plan), "route_strategy": "replanned"}
+            updates["selected_route_id"] = plan.route_id
+    return updates
+
+
+def extended_profile_control_node(state: AgentState) -> dict[str, Any]:
+    """Apply only explicit C8 controls; it never writes TourState."""
+    started = time.perf_counter()
+    result = apply_extended_profile_control(state.get("visitor_profile"), _latest_user_text(state))
+    control = result["control"]
+    updates: dict[str, Any] = {
+        "messages": [AIMessage(content=result["message"])],
+        "last_extended_profile_control": {"ok": result["ok"], "kind": control.kind, "patch": control.patch},
+        "performance_metrics": _append_metric(state, "extended_profile_control", time.perf_counter() - started,
+                                                ok=result["ok"], kind=control.kind),
+    }
+    if not result["ok"]:
+        return updates
+    if control.kind == "delete":
+        updates["visitor_profile"] = None
+        updates["profile_collection"] = None
+        return updates
+    if control.kind != "view":
+        if control.reexpress_current:
+            rewritten = reexpress_current_stop_guidance(
+                state.get("tour_state"), state.get("tour_interaction_state"),
+                state.get("active_stop_program"), state.get("active_guidance_evidence_by_item"), result["profile"],
+            )
+            # Explicit re-expression is transactional: do not retain a new
+            # preference if the requested current-stop rendering is impossible.
+            if not rewritten["ok"]:
+                updates["messages"] = [AIMessage(content=rewritten["message"])]
+                updates["last_extended_profile_control"] = {"ok": False, "kind": control.kind, "code": "reexpress_unavailable"}
+                return updates
+            updates.update({
+                "visitor_profile": result["profile"], "active_stop_program": rewritten["stop_program"],
+                "active_guidance_evidence_by_item": rewritten["evidence_by_item"],
+                "retrieved_evidence": rewritten["evidence"], "tour_presentation": rewritten["presentation"],
+                "messages": [AIMessage(content=rewritten["message"], additional_kwargs={"stop_guidance": True, "reexpressed": True})],
+            })
+            return updates
+        updates["visitor_profile"] = result["profile"]
+    return updates
 
 
 def tour_event_node(state: AgentState) -> dict[str, Any]:
@@ -385,6 +571,7 @@ def stop_guidance_node(state: AgentState) -> dict[str, Any]:
         lambda retrieval_query: str(chen_clan_academy_rag_search.invoke({"query": retrieval_query})),
         current_program=state.get("active_stop_program"),
         detailed=last_event.get("event") == "request_stop_detail",
+        visitor_profile=state.get("visitor_profile"),
     )
     updates: dict[str, Any] = {
         "messages": [AIMessage(content=result["message"], additional_kwargs={"stop_guidance": True})],
@@ -401,6 +588,7 @@ def stop_guidance_node(state: AgentState) -> dict[str, Any]:
     }
     if result["stop_program"] is not None:
         updates["active_stop_program"] = result["stop_program"]
+        updates["active_guidance_evidence_by_item"] = result.get("evidence_by_item", {})
     # Deliberately do not return tour_state or tour_interaction_state.  The
     # A1 adapter remains the only mutation entry point.
     return updates
@@ -539,13 +727,30 @@ def route_initial_request(state: AgentState) -> str:
     decision = classify_tour_intent(
         text, state.get("tour_state"), state.get("tour_interaction_state")
     )
+    extended = parse_extended_profile_control(text)
+    # A physical tour event and a preference change are separate atomic turns;
+    # never let the preference half silently suppress arrival/skip semantics.
+    if extended.kind != "none" and decision.route_kind in {"tour_event", "clarification"}:
+        return "clarification"
+    if extended.kind != "none":
+        return "extended_profile_control"
     if decision.route_kind == "tour_event":
+        if is_profile_update_request(text):
+            return "profile_update"
         return "tour_event"
     if decision.route_kind == "clarification":
+        if is_profile_update_request(text):
+            return "profile_update"
         return "clarification"
-    # Starting a new route intentionally replaces the in-memory TourState.
+    if state.get("tour_state") and state.get("tour_interaction_state") and is_profile_update_request(text):
+        return "profile_update"
+    # C2 collects only explicit preferences before C3 later consumes them for
+    # route selection. Control events and factual questions retain priority.
+    profile_turn = collect_profile_input(state.get("profile_collection"), text)
+    if profile_turn is not None:
+        return "profile_collection"
     if decision.route_kind == "route_request" or should_direct_route(text):
-        return "direct_route"
+        return "profile_collection"
     if decision.route_kind == "rag_question" or should_direct_rag(text):
         # An explicit audited point inventory is structured data even before a
         # route starts. Other no-route facts retain the established RAG path.
@@ -553,6 +758,12 @@ def route_initial_request(state: AgentState) -> str:
             return "tour_qa"
         return "tour_qa" if state.get("tour_state") and state.get("tour_interaction_state") else "direct_rag"
     return "llm_think"
+
+
+def route_after_profile_collection(state: AgentState) -> str:
+    """Start a route only after C2 has produced a complete validated profile."""
+    collection = state.get("profile_collection") or {}
+    return "direct_route" if collection.get("status") == "ready" else END
 
 
 def route_after_tour_event(state: AgentState) -> str:
@@ -578,6 +789,9 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("direct_rag", direct_rag_node)
     workflow.add_node("tour_qa", tour_qa_node)
     workflow.add_node("direct_route", direct_route_node)
+    workflow.add_node("profile_collection", profile_collection_node)
+    workflow.add_node("profile_update", profile_update_node)
+    workflow.add_node("extended_profile_control", extended_profile_control_node)
     workflow.add_node("tour_event", tour_event_node)
     workflow.add_node("stop_guidance", stop_guidance_node)
     workflow.add_node("clarification", clarification_node)
@@ -585,13 +799,19 @@ def build_agent_graph(with_checkpointer: bool = True):
         START,
         route_initial_request,
         {
-            "direct_rag": "direct_rag", "tour_qa": "tour_qa", "direct_route": "direct_route", "tour_event": "tour_event",
+            "direct_rag": "direct_rag", "tour_qa": "tour_qa", "direct_route": "direct_route", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "tour_event": "tour_event",
             "clarification": "clarification", "llm_think": "llm_think",
         },
     )
     workflow.add_edge("direct_rag", "llm_think")
     workflow.add_edge("tour_qa", END)
     workflow.add_edge("direct_route", END)
+    workflow.add_conditional_edges(
+        "profile_collection", route_after_profile_collection,
+        {"direct_route": "direct_route", END: END},
+    )
+    workflow.add_edge("profile_update", END)
+    workflow.add_edge("extended_profile_control", END)
     workflow.add_conditional_edges("tour_event", route_after_tour_event, {"stop_guidance": "stop_guidance", END: END})
     workflow.add_edge("stop_guidance", END)
     workflow.add_edge("clarification", END)

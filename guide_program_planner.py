@@ -10,10 +10,12 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from guidance_policy import GuidancePolicy
 from tour_qa import load_guide_cards
 
 
 VALID_DETAIL_LEVELS = {"short", "standard", "deep"}
+POLICY_LENGTH_TO_DETAIL = {"short": "short", "standard": "standard", "detailed": "deep"}
 
 # All B2 policy numbers live here so that later calibration is auditable.
 STOP_PROGRAM_POLICY = {
@@ -95,6 +97,9 @@ class StopProgram:
     unallocated_content_seconds: int = 0
     selection_strategy: str = "b2_relevance_diversity_budget"
     status: str = "ready"
+    # Derived C6 policy for this program only; it is audit metadata, not a
+    # second profile source and not a route or factual-evidence input.
+    guidance_policy: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -139,6 +144,19 @@ def _target_count(budget_seconds: int, detail_level: str, candidate_count: int) 
     thresholds = STOP_PROGRAM_POLICY["budget"]["item_count_thresholds"][detail_level]
     desired = next(count for minimum, count in thresholds if budget_seconds >= minimum)
     return min(desired, candidate_count)
+
+
+def _coerce_guidance_policy(value: GuidancePolicy | dict[str, Any] | None) -> GuidancePolicy | None:
+    if value is None:
+        return None
+    if isinstance(value, GuidancePolicy):
+        return value
+    if isinstance(value, dict):
+        try:
+            return GuidancePolicy(**value)
+        except TypeError as exc:
+            raise GuideProgramError("guidance_policy 结构无效") from exc
+    raise GuideProgramError("guidance_policy 必须是 GuidancePolicy、字典或 None")
 
 
 def _select_diverse_candidates(
@@ -257,12 +275,18 @@ def plan_stop_program(
     budget_seconds: int,
     interests: list[str] | tuple[str, ...] | None = None,
     detail_level: str = "standard",
+    guidance_policy: GuidancePolicy | dict[str, Any] | None = None,
 ) -> StopProgram:
     """Build an auditable one-to-three-item program for one reviewed stop."""
     if not isinstance(budget_seconds, int) or budget_seconds <= 0:
         raise GuideProgramError("budget_seconds 必须为大于 0 的整数")
     if detail_level not in VALID_DETAIL_LEVELS:
         raise GuideProgramError("detail_level 必须为 short、standard 或 deep")
+    policy = _coerce_guidance_policy(guidance_policy)
+    allocation_detail = (
+        POLICY_LENGTH_TO_DETAIL[policy.explanation_length]
+        if policy is not None else detail_level
+    )
     card = load_guide_cards().get(node_id)
     if card is None:
         raise GuideProgramError("该 node_id 没有已审核点位讲解包")
@@ -282,11 +306,16 @@ def plan_stop_program(
             candidate_count=0,
             unallocated_content_seconds=budget_seconds,
             status="no_reviewed_candidates",
+            guidance_policy=policy.to_dict() if policy else None,
         )
 
-    count = _target_count(budget_seconds, detail_level, len(candidates))
+    count = _target_count(budget_seconds, allocation_detail, len(candidates))
+    if policy is not None:
+        # C7's only policy effect on selection count: it narrows, never
+        # expands, what B1/B2's reviewed candidates and stop budget allow.
+        count = min(count, policy.max_items_per_stop)
     selected = _select_diverse_candidates(candidates, normalised_interests, count)
-    allocated_seconds = _allocate_item_seconds(budget_seconds, detail_level, len(selected))
+    allocated_seconds = _allocate_item_seconds(budget_seconds, allocation_detail, len(selected))
     items = []
     for index, item in enumerate(selected):
         raw_location, observation_location, location_source = _location_metadata(
@@ -319,5 +348,10 @@ def plan_stop_program(
         candidate_count=len(candidates),
         allocated_content_seconds=used,
         unallocated_content_seconds=budget_seconds - used,
+        selection_strategy=(
+            "c7_policy_relevance_diversity_budget"
+            if policy is not None else "b2_relevance_diversity_budget"
+        ),
         status="brief_overview" if budget_seconds <= STOP_PROGRAM_POLICY["budget"]["brief_overview_max_seconds"] else "ready",
+        guidance_policy=policy.to_dict() if policy else None,
     )

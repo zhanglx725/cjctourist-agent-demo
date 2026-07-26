@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from guide_program_planner import StopProgram
+from guidance_policy import GuidancePolicy
 
 
 RAW_DUMP_MARKERS = (
@@ -44,12 +45,72 @@ def _source_ids(evidence_by_item: dict[str, list[dict[str, Any]]]) -> tuple[str,
 
 
 def _observation_prompt(
-    name: str, craft: str, observation_location: str | None, *, detailed: bool
+    name: str,
+    craft: str,
+    observation_location: str | None,
+    *,
+    detailed: bool,
+    policy: GuidancePolicy | None,
 ) -> str:
     where = f"在{observation_location}，" if observation_location else ""
+    if policy and policy.audience_mode == "child_friendly":
+        return f"{where}先找到{name}，看看它的轮廓和周围的装饰有什么不同。"
+    if policy and policy.audience_mode == "family":
+        return f"{where}大家可以一起找到{name}，再看看它和周围装饰有什么呼应。"
+    if policy and policy.audience_mode == "study":
+        return f"{where}观察目标是{name}的造型、细部层次及其与周围构件的关系。"
     if detailed:
         return f"{where}这是一处{craft}装饰。请把视线停在{name}的造型和细部层次上，再与周围构件作对照。"
     return f"{where}这是一处{craft}装饰。找到{name}后，留意它与周围构件的关系。"
+
+
+def _policy_from_program(program: StopProgram) -> GuidancePolicy | None:
+    if not program.guidance_policy:
+        return None
+    try:
+        return GuidancePolicy(**program.guidance_policy)
+    except TypeError:
+        # A malformed audit payload must never lead to invented narration;
+        # retain the established neutral deterministic B3 fallback.
+        return None
+
+
+def _opening(program: StopProgram, policy: GuidancePolicy | None, detailed: bool) -> str:
+    if policy is None:
+        return f"我们把{program.display_name}再看细一点：" if detailed else f"现在来到{program.display_name}，先抓住两个观察重点："
+    if policy.audience_mode == "child_friendly":
+        return f"现在来到{program.display_name}，我们用简单的观察任务认识这里："
+    if policy.audience_mode == "family":
+        return f"现在来到{program.display_name}，大家可以一起观察两个重点："
+    if policy.audience_mode == "study":
+        return f"现在来到{program.display_name}，本点先完成以下观察目标："
+    if policy.audience_mode == "mixed_group":
+        return f"现在来到{program.display_name}，先用通俗方式看两个重点："
+    if policy.narrative_mode == "story":
+        return f"现在来到{program.display_name}，我们从画面与题材的线索进入："
+    if policy.narrative_mode in {"technical", "expert"}:
+        return f"现在来到{program.display_name}，从工艺与构件关系看两个重点："
+    return f"我们把{program.display_name}再看细一点：" if detailed else f"现在来到{program.display_name}，先抓住两个观察重点："
+
+
+def _closing(policy: GuidancePolicy | None, detailed: bool) -> str:
+    if policy is None and detailed:
+        # Preserve B3's established neutral fallback for callers that have
+        # not yet supplied a C6 policy.
+        return "如果您愿意，可以把刚才看到的细节告诉我；讲解结束后再确认是否完成本点参观。"
+    if policy and policy.interaction_task_enabled:
+        if policy.audience_mode == "child_friendly":
+            return "小任务：在这两处装饰里选一处，说说你先注意到的一个形状或细节。"
+        if policy.audience_mode == "family":
+            return "可以一起选一处装饰，说说大家先注意到的同一个细节。"
+        if policy.audience_mode == "study":
+            return "思考任务：比较刚才的造型和周围构件，哪一处细部最能支持你的观察？"
+        return "观察任务：选一处刚才提到的装饰，指出最能体现其工艺特点的一个细部。"
+    if policy and policy.audience_mode == "mixed_group" and policy.optional_deepening_enabled:
+        return "如需更深入的工艺补充，我可以在不改变当前路线的前提下继续展开。"
+    if detailed:
+        return "讲解结束后，您可确认是否完成本点参观。"
+    return "您可先停留观察；需要展开细节可选择“再讲详细一点”。"
 
 
 def _deterministic_message(
@@ -58,11 +119,11 @@ def _deterministic_message(
     *,
     detailed: bool,
 ) -> str:
-    items = program.selected_items[:2] if not detailed else program.selected_items
-    if detailed:
-        lines = [f"我们把{program.display_name}再看细一点："]
-    else:
-        lines = [f"现在来到{program.display_name}，先抓住两个观察重点："]
+    policy = _policy_from_program(program)
+    # The program has already applied the C6 item cap plus the reviewed stop
+    # budget.  Narration must never silently add a third object.
+    items = program.selected_items
+    lines = [_opening(program, policy, detailed)]
     for index, item in enumerate(items, start=1):
         evidence = evidence_by_item.get(item.ornament_id, [])
         sentence_index = 1 if detailed else 0
@@ -70,7 +131,7 @@ def _deterministic_message(
         if fact is None and evidence:
             fact = _complete_sentence(str(evidence[0].get("content", "")), 0)
         lines.append(
-            f"{index}. {item.name}：{_observation_prompt(item.name, item.craft, item.observation_location, detailed=detailed)}"
+            f"{index}. {item.name}：{_observation_prompt(item.name, item.craft, item.observation_location, detailed=detailed, policy=policy)}"
         )
         if item.comparison_reason:
             lines.append(f"   这里特意选它作对照，{item.comparison_reason}。")
@@ -78,10 +139,7 @@ def _deterministic_message(
             lines.append(f"   {fact}")
         else:
             lines.append("   当前未检索到可引用的事实资料，不据名称扩写其寓意或故事，我们先以现场观察为主。")
-    if detailed:
-        lines.append("如果您愿意，可以把刚才看到的细节告诉我；讲解结束后再确认是否完成本点参观。")
-    else:
-        lines.append("您可先停留观察；需要展开细节可选择“再讲详细一点”。")
+    lines.append(_closing(policy, detailed))
     return "\n".join(lines)
 
 
@@ -89,6 +147,7 @@ def _llm_prompt(program: StopProgram, evidence_by_item: dict[str, list[dict[str,
     payload = {
         "point": program.display_name,
         "detail": "deep" if detailed else "standard",
+        "guidance_policy": program.guidance_policy,
         "objects": [
             {
                 "name": item.name,

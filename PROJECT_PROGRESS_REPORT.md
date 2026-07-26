@@ -861,3 +861,61 @@ glossary_ids
 2. 运行术语关联生成脚本，审阅 `term_stop_associations_v1.json` 的变更，再由人工确认可见性和表述范围。
 3. 运行 `test_glossary.py`、`test_term_stop_associations.py`、`test_glossary_retrieval.py`，并做“当前点 + 术语问题”的 A2 端到端问答验收。
 4. 只有取得可核查页码/摘录和结论边界后，才将参考文献升级为研究摘要卡，并按稳定 `card_id` 接入讲解编排。
+
+### 15. C1/C2 统一游客画像（已实现并完成本机回归）
+
+- C1 新增 `visitor_profile.py`：纯、不可变的 `VisitorProfile`，统一校验 20–120 分钟、兴趣归一化、`short/standard/deep` 讲解深度和稳定序列化。它没有导入 AgentState、TourState、路线或 StopProgram。
+- C2 新增 `profile_dialogue.py`：对路线请求按“时间 → 兴趣 → 深度”收集游客明确表达；“都可以/不确定”只解决当前正在追问的字段，采用透明中性默认，不推断兴趣或未来画像字段。
+- Agent 只新增 `visitor_profile` 和 `profile_collection`：前者是唯一画像值，后者只记录已解决字段；C2 不复制到 TourState、不启动路线，也不改变 StopProgram。普通 RAG、到达与 A1 操作优先于画像收集。
+- 项目负责人已运行 C1/C2 目标测试及完整 226 项回归，结果均为 `OK`。C3 才让路线和 StopProgram 从同一已验证画像读取字段。
+
+### 15.1 C3 画像快照接入路线与 StopProgram（已实现并完成本机回归）
+
+- `agent_graph.py` 的 `direct_route_node` 优先读取 C1/C2 已校验的 `visitor_profile`，不再在路线节点重新猜测时间、兴趣或讲解深度。完整输入“30分钟、喜欢灰塑、标准讲解、规划路线”会在同一图执行中经过 `profile_collection → direct_route`。
+- 路线成功后，`start_tour(plan, interests, detail_level)` 将画像中实际采用的 `available_minutes`、`interests`、`detail_level` 固化到 TourState；这份快照是游览执行期的唯一依据。
+- 现有 `guide_program_evidence._program_from_state()` 只读 TourState 的兴趣和详略等级，因此 StopProgram 不会在游览中因 `visitor_profile` 被修改而漂移。30/60/90 分钟仍优先使用人工审核锚点，兴趣可能只影响模板选择或站内选物；系统不会夸大为“每个锚点站序都会改变”。
+- 画像校验或路线生成失败时，`direct_route_node` 仅返回结构化错误与性能指标，不返回新的 `tour_state` 或 `active_route_plan`，避免半初始化状态。旧脚本式直接调用保留安全兼容：用原有文本提取结果一次性构造 `standard` 画像，但不新增第二个持久画像存储。
+- 新增 `test_agent_profile_route_integration.py`，覆盖画像—TourState 快照一致、动态 45 分钟灰塑选物、详略等级影响对象数、失败不留半状态、遗留无画像调用及编译图内同轮收集后启动路线。项目负责人已使用项目虚拟环境执行目标测试、路线/交互/讲解回归和完整回归，结果均为 `OK`。
+
+### 15.2 C4 游览中画像更新与受控重规划（已实现，待验证）
+
+- 新增 `profile_update.py`：它是游览中的唯一偏好更新适配层，复用 `profile_dialogue.extract_profile_patch()` 的同义表达规则和 C1 `update_visitor_profile()` 的不可变校验，不新建一套兴趣、时间或详略规则。
+- “只剩 N 分钟”先校验新画像；只有 A1 `handle_tour_event(..., "replan_time")` 成功后，才调用 `tour_state.apply_profile_snapshot()` 同时保存新的 VisitorProfile、TourState 时间/兴趣/详略快照和重规划结果。任何失败均返回原画像、原 TourState、原交互状态。
+- “接下来想多看木雕”“后面简单讲”“我想听深入一点”只同步后续 StopProgram 所读的 TourState 兴趣、详略字段，不改已访问、跳过、当前点、正式路线或确认状态。用户如明确另起一条路线，仍走既有路线初始化流程。
+- 新增 `test_profile_update.py`、`test_agent_profile_update.py`、`test_profile_update_e2e.py`，覆盖原子更新时间、选物变化、详略变化、冲突无部分写入、控制操作混合澄清、问答不回流进度与已跳过点不重加。待项目负责人执行完整回归与 LangSmith 多轮链路检查后再标记 C 阶段完成。
+
+### 15.3 C5 扩展游客画像契约（已实现并完成本机回归）
+
+- `VisitorProfile` 新增四项当次参观偏好：`audience_mode`（standard / child_friendly / family / study / mixed_group）、`knowledge_level`（general / enthusiast / professional）、`explanation_style`（standard / story / technical / interactive / expert）、`interaction_mode`（listen_only / normal / interactive_tasks）。
+- 四项均有中性默认值，支持旧画像缺失字段；默认不等于系统推断了用户身份。C5 当前只提供不可变校验、增量更新和稳定序列化，不主动追问、不从自然语言推断，也不读取年龄、性别、职业、收入、疾病或关系等敏感数据。
+- 旧 `visitor_type` 被废止：新建/更新时会被拒绝；读取包含该字段的旧快照时安全丢弃，而不是把它猜测映射为家庭、研学等模式。这样保留历史会话兼容，同时避免继续使用含义混杂的标签。
+- C5 不接入路线、TourState、StopProgram 或讲解生成，全部字段只在当前会话 AgentState 的 `visitor_profile` 中存在。C6/C7 才会在独立验收后决定哪些字段能够影响讲解表达和互动任务。
+- `test_visitor_profile.py` 与 `test_profile_dialogue.py` 增加合法值、非法值、不可变更新、稳定序列化、中性默认、旧画像兼容和“不因完整路线请求推断 C5 偏好”的覆盖。项目负责人已完成 C5 目标测试和完整回归，结果均为 `OK`。
+
+### 15.4 C6 VisitorProfile → GuidancePolicy（已实现并完成本机回归）
+
+- 新增 `guidance_policy.py`：`build_guidance_policy()` 是一个无副作用纯函数，输入经 C5 校验的 `VisitorProfile` 或序列化字典，输出冻结的 `GuidancePolicy`。它不导入 Agent、TourState、路线、StopProgram、RAG 或知识卡加载器。
+- 策略集中定义详略等级、受众模式、知识基础、表达风格和互动模式的映射。`detail_level` 决定 1/2/3 件上限、长度和展开深度；儿童/家庭/混合群体使用简单主讲解；混合群体保留可选深入补充；专业知识基础可以增加引用详细度，但不会把 short 自动变成 deep。
+- `listen_only` 关闭观察任务和主动提问，即使表达风格为 interactive。故事/技术/专家等 `narrative_mode` 只影响未来内容组织方式，不生成新事实。比较、研究扩展、术语解释字段仅是 D 阶段接口，当前不加载任何卡片。
+- 策略始终输出 `fact_evidence_required=True` 与 `budget_cap_mode=min_with_stop_budget`：未来 C7 必须取“策略对象上限”和已审核站点预算的较小值，且所有事实仍需 RAG evidence。
+- 新增 `test_guidance_policy.py` 覆盖默认、儿童故事互动、家庭、研学、混合群体、专业短讲、listen_only 冲突覆盖、未来知识卡接口、输入不可变和非法画像拒绝。项目负责人已完成 C6 目标测试和完整回归，结果均为 `OK`。
+
+### 15.5 C7 GuidancePolicy 接入点位编排与讲解（已实现，待本机与 LangSmith 验证）
+
+- `guide_program_evidence.build_stop_guidance()` 现从当前会话 `visitor_profile` 生成 C6 策略；旧会话没有该字段时，仅以 TourState 已采用的时间、兴趣、详略临时重建中性画像，不保存第二份画像。策略随本次 `StopProgram` 写入 `active_stop_program.guidance_policy`，可审计但不回写 TourState。
+- `plan_stop_program()` 新增可选 `guidance_policy` 参数。它先维持 B1/B2 的“审核点位候选 + 兴趣排序 + 实际站点预算”，再取 `min(B2预算可容纳对象数, policy.max_items_per_stop)`；分配秒数继续不超过 `budget_seconds`。策略无法添加文物、跨点选物、改变路线或占用步行时间。
+- 确定性讲解渲染读取 `vocabulary_level`、`narrative_mode`、`interaction_task_enabled`、`citation_detail` 和受众边界：儿童短句与一个观察任务、家庭共同观察、研学观察目标、专业技术表达、混合群体通俗主讲解与可选补充；`listen_only` 关闭一切主动任务。故事模式仅改变开场组织，不补写证据外剧情。
+- 同一组选中对象的 RAG evidence 与 `source_ids` 不因表达模式变化；来源只按 `citation_detail` 改变展示标签。`comparison_enabled`、`research_extension_enabled`、`term_explanation_enabled` 保留为审计接口，C7 不读取尚未接入的知识卡。
+- 新增 `test_guidance_policy_integration.py`，并扩展 Agent 点位讲解测试，覆盖默认、儿童故事互动、家庭、研学、专业精简、混合群体、listen_only、预算与候选边界、来源一致性、TourState 不变及策略审计保存。待项目负责人执行本机完整回归和 LangSmith 检查后标记验证完成。
+- **当前交互边界**：C5 只完成字段契约，未新增四项偏好的自然语言收集或 UI 选择器。因此真实聊天当前只会使用 C5 中性默认策略；儿童、家庭、研学、专业和互动变体已在离线测试中以显式 `visitor_profile` 注入验证。若要在真实 LangSmith 聊天中让游客选择这些变体，需单列后续“偏好显式选择/确认”任务，不能由 LLM 或文本猜测替代。
+## C8 扩展画像的显式选择与会话控制（已实现，待本机与 LangSmith 验证）
+
+- 新增 `extended_profile_control.py`：只识别明确偏好表达，先形成结构化 patch，再复用 `VisitorProfile` 的不可变校验与 `build_guidance_policy()`；LLM、RAG 与展示层均不直接写画像或策略。
+- 支持儿童、亲子、研学、专业/爱好者、故事/技术/互动/专家表达、只听不问、查看画像、恢复扩展中性默认和删除本次会话偏好。模糊的“我们/一起”等表达不会推断家庭、儿童或其他身份。
+- “恢复标准讲解”只重置四项扩展字段，不覆盖时间、兴趣和深度；“删除本次偏好”只清空 Agent 会话画像与收集草稿，保留 TourState 的路线与游览进度。
+- 游览中更新只影响后续 StopProgram/讲解；显式要求按新方式重讲当前内容时，仅复用当前选物和既有 evidence 重渲染，不重新选物、检索或改变进度。
+
+## C9 画像、会话记忆与编排端到端验收（待本机与 LangSmith 验证）
+
+- 新增离线验收覆盖画像→策略→路线快照→StopProgram 策略审计、风格切换不改游览进度、确认完成唯一写入 visited 以及模糊措辞不触发画像。
+- 当前命令行 Agent 使用 `MemorySaver + thread_id` 保存短期会话：同一 thread 可保留 messages、VisitorProfile、TourState、活动路线和当前讲解包；不同 thread 不共享这些状态。服务重启后不保证恢复，项目尚未实现数据库、跨会话长期画像或对话摘要。
