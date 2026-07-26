@@ -22,8 +22,10 @@
     "连廊在陈家祠中除了避雨，还承担什么空间作用？",
     "怎样从庭院和建筑高低关系理解岭南建筑的气候适应？"
   ],
-  "applicable_node_ids": [],
-  "applicable_scope": "whole_site",
+  "applicable_node_ids": [
+    "stop_front_courtyard_north",
+    "stop_rear_courtyard"
+  ],
   "topic_tags": [
     "内部空间",
     "庭院",

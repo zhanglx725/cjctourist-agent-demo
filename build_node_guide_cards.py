@@ -13,6 +13,7 @@ ROUTES_DIR = ROOT / "data" / "chen_clan_academy" / "routes"
 SPATIAL_DIR = ROOT / "data" / "chen_clan_academy" / "spatial"
 CATALOG_FILE = ROUTES_DIR / "route_stop_catalog_v1.csv"
 MAPPING_FILE = SPATIAL_DIR / "ornament_spatial_mapping_v1.csv"
+RESEARCH_CARD_MAPPING_FILE = ROUTES_DIR / "research_card_node_mapping_v1.json"
 OUTPUT_FILE = ROUTES_DIR / "node_guide_cards_v1.json"
 
 # The importer writes only human-reviewed rows. Keep this guard so a
@@ -25,9 +26,21 @@ def read_csv(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(handle))
 
 
+def read_research_card_mappings(path: Path = RESEARCH_CARD_MAPPING_FILE) -> dict[str, list[str]]:
+    """Read manually reviewed research-card associations by route-stop ID."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {
+        item["node_id"]: item["research_summary_card_ids"]
+        for item in data["node_mappings"]
+    }
+
+
 def build_cards(
-    catalog_rows: list[dict[str, str]], mapping_rows: list[dict[str, str]]
+    catalog_rows: list[dict[str, str]],
+    mapping_rows: list[dict[str, str]],
+    research_card_mappings: dict[str, list[str]] | None = None,
 ) -> dict[str, object]:
+    research_card_mappings = research_card_mappings or read_research_card_mappings()
     by_node: dict[str, list[dict[str, str]]] = defaultdict(list)
     for item in mapping_rows:
         if (
@@ -42,6 +55,7 @@ def build_cards(
             continue
         ornaments = sorted(by_node[stop["node_id"]], key=lambda item: item["ornament_id"])
         craft_counts = Counter(item["craft"] for item in ornaments)
+        research_card_ids = research_card_mappings.get(stop["node_id"], [])
         cards.append(
             {
                 "node_id": stop["node_id"],
@@ -69,13 +83,13 @@ def build_cards(
                     *[f"{item['ornament_name']} 是什么装饰" for item in ornaments],
                 ],
                 "extensions": {
-                    "research_summary_card_ids": [],
+                    "research_summary_card_ids": research_card_ids,
                     "comparison_card_ids": [],
                     "term_card_ids": [],
                     "photo_spot_card_ids": [],
                     "glossary_ids": [],
                     "route_effect": {
-                        "research_summary": "none",
+                        "research_summary": "available" if research_card_ids else "none",
                         "comparison": "none",
                         "term": "none",
                         "glossary": "none",
@@ -96,6 +110,7 @@ def build_cards(
         "source": {
             "catalog": str(CATALOG_FILE.relative_to(ROOT)).replace("\\", "/"),
             "ornament_mapping": str(MAPPING_FILE.relative_to(ROOT)).replace("\\", "/"),
+            "research_card_mapping": str(RESEARCH_CARD_MAPPING_FILE.relative_to(ROOT)).replace("\\", "/"),
         },
         "card_count": len(cards),
         "cards": cards,

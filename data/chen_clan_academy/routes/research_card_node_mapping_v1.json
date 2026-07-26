@@ -1,0 +1,64 @@
+{
+  "schema_version": "v1",
+  "reviewed_at": "2026-07-26",
+  "selection_rule": "Only cards whose research_cards status is reviewed may be mapped. Background cards remain outside the node guide package.",
+  "node_mappings": [
+    {
+      "node_id": "stop_front_courtyard_north",
+      "research_summary_card_ids": [
+        "research_003_ridge_pottery_colour",
+        "research_004_spatial_characteristics",
+        "research_006_sculptural_metaphor",
+        "research_008_grey_plaster_lions",
+        "research_013_courtyard_corridor_system",
+        "research_014_cold_lane_ventilation",
+        "research_017_grey_plaster_process_and_viewing"
+      ],
+      "selection_rationale": "对应屋脊陶塑、灰塑、连廊与前庭外立面的高密度工艺观察。"
+    },
+    {
+      "node_id": "stop_front_courtyard_center",
+      "research_summary_card_ids": [
+        "research_002_flagpole_inscriptions",
+        "research_004_spatial_characteristics",
+        "research_006_sculptural_metaphor",
+        "research_008_grey_plaster_lions",
+        "research_015_grid_spatial_layout",
+        "research_016_academy_ancestral_program",
+        "research_017_grey_plaster_process_and_viewing"
+      ],
+      "selection_rationale": "对应入口前庭、旗杆夹石、灰塑与中轴空间的深度讲解。"
+    },
+    {
+      "node_id": "label_moon_platform",
+      "research_summary_card_ids": [
+        "research_004_spatial_characteristics",
+        "research_006_sculptural_metaphor",
+        "research_015_grid_spatial_layout",
+        "research_016_academy_ancestral_program",
+        "research_018_woodcarving_screens_and_shrines",
+        "research_019_stone_platform_and_railings"
+      ],
+      "selection_rationale": "对应聚贤堂前月台的栏板、望柱、通花石雕与中部礼仪空间。"
+    },
+    {
+      "node_id": "stop_rear_courtyard",
+      "research_summary_card_ids": [
+        "research_013_courtyard_corridor_system",
+        "research_014_cold_lane_ventilation",
+        "research_015_grid_spatial_layout",
+        "research_016_academy_ancestral_program",
+        "research_017_grey_plaster_process_and_viewing",
+        "research_018_woodcarving_screens_and_shrines"
+      ],
+      "selection_rationale": "对应后部庭院、冷巷、厅堂序列与书院/祠堂复合功能。"
+    },
+    {
+      "node_id": "stop_rear_courtyard_west",
+      "research_summary_card_ids": [
+        "research_018_woodcarving_screens_and_shrines"
+      ],
+      "selection_rationale": "该点位的讲解焦点为历史人物故事与木石雕对照，适合木雕屏门细读。"
+    }
+  ]
+}

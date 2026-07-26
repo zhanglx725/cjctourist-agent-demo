@@ -22,8 +22,11 @@
     "青云巷和横向廊道怎样改变祠堂的空间体验？",
     "“网格式格局”在建筑研究中是什么意思？"
   ],
-  "applicable_node_ids": [],
-  "applicable_scope": "whole_site",
+  "applicable_node_ids": [
+    "stop_front_courtyard_center",
+    "label_moon_platform",
+    "stop_rear_courtyard"
+  ],
   "topic_tags": [
     "内部空间",
     "祠堂形制",

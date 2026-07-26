@@ -2,7 +2,8 @@
   "schema_version": "v1",
   "source": {
     "catalog": "data/chen_clan_academy/routes/route_stop_catalog_v1.csv",
-    "ornament_mapping": "data/chen_clan_academy/spatial/ornament_spatial_mapping_v1.csv"
+    "ornament_mapping": "data/chen_clan_academy/spatial/ornament_spatial_mapping_v1.csv",
+    "research_card_mapping": "data/chen_clan_academy/routes/research_card_node_mapping_v1.json"
   },
   "card_count": 12,
   "cards": [
@@ -163,13 +164,21 @@
         "瓜瓞连绵 是什么装饰"
       ],
       "extensions": {
-        "research_summary_card_ids": [],
+        "research_summary_card_ids": [
+          "research_003_ridge_pottery_colour",
+          "research_004_spatial_characteristics",
+          "research_006_sculptural_metaphor",
+          "research_008_grey_plaster_lions",
+          "research_013_courtyard_corridor_system",
+          "research_014_cold_lane_ventilation",
+          "research_017_grey_plaster_process_and_viewing"
+        ],
         "comparison_card_ids": [],
         "term_card_ids": [],
         "photo_spot_card_ids": [],
         "glossary_ids": [],
         "route_effect": {
-          "research_summary": "none",
+          "research_summary": "available",
           "comparison": "none",
           "term": "none",
           "glossary": "none",
@@ -182,27 +191,7 @@
         "craft_context": "07_ornament_crafts.md",
         "answer_rule": "最终事实讲解必须经现有 RAG 取证，不直接把本卡片当作事实正文。",
         "extension_rule": "扩展卡必须先建立独立、可追溯的数据源，再按 card_id 关联；空数组表示当前没有可用内容。"
-      },
-      "glossary_ids": [
-        "term_applique_modeling",
-        "term_carving_in_the_round",
-        "term_ceramic_clay",
-        "term_ceramic_sculpture",
-        "term_colored_glaze",
-        "term_eaves_corridor",
-        "term_granite",
-        "term_hand_modeling",
-        "term_lime",
-        "term_lime_plaster_relief",
-        "term_mold_making",
-        "term_openwork_carving",
-        "term_paper_fiber_lime_mortar",
-        "term_relief_carving",
-        "term_shiwan_ceramic_ridge",
-        "term_stone_carving",
-        "term_straw_fiber_lime_mortar",
-        "term_wood_carving"
-      ]
+      }
     },
     {
       "node_id": "stop_front_courtyard_center",
@@ -339,13 +328,21 @@
         "四郎探母 是什么装饰"
       ],
       "extensions": {
-        "research_summary_card_ids": [],
+        "research_summary_card_ids": [
+          "research_002_flagpole_inscriptions",
+          "research_004_spatial_characteristics",
+          "research_006_sculptural_metaphor",
+          "research_008_grey_plaster_lions",
+          "research_015_grid_spatial_layout",
+          "research_016_academy_ancestral_program",
+          "research_017_grey_plaster_process_and_viewing"
+        ],
         "comparison_card_ids": [],
         "term_card_ids": [],
         "photo_spot_card_ids": [],
         "glossary_ids": [],
         "route_effect": {
-          "research_summary": "none",
+          "research_summary": "available",
           "comparison": "none",
           "term": "none",
           "glossary": "none",
@@ -358,24 +355,7 @@
         "craft_context": "07_ornament_crafts.md",
         "answer_rule": "最终事实讲解必须经现有 RAG 取证，不直接把本卡片当作事实正文。",
         "extension_rule": "扩展卡必须先建立独立、可追溯的数据源，再按 card_id 关联；空数组表示当前没有可用内容。"
-      },
-      "glossary_ids": [
-        "term_applique_modeling",
-        "term_carving_in_the_round",
-        "term_ceramic_clay",
-        "term_ceramic_sculpture",
-        "term_colored_glaze",
-        "term_gable_wall",
-        "term_granite",
-        "term_hand_modeling",
-        "term_lime",
-        "term_lime_plaster_relief",
-        "term_mold_making",
-        "term_paper_fiber_lime_mortar",
-        "term_shiwan_ceramic_ridge",
-        "term_stone_carving",
-        "term_straw_fiber_lime_mortar"
-      ]
+      }
     },
     {
       "node_id": "stop_rear_courtyard",
@@ -510,13 +490,20 @@
         "夜宴桃李园 是什么装饰"
       ],
       "extensions": {
-        "research_summary_card_ids": [],
+        "research_summary_card_ids": [
+          "research_013_courtyard_corridor_system",
+          "research_014_cold_lane_ventilation",
+          "research_015_grid_spatial_layout",
+          "research_016_academy_ancestral_program",
+          "research_017_grey_plaster_process_and_viewing",
+          "research_018_woodcarving_screens_and_shrines"
+        ],
         "comparison_card_ids": [],
         "term_card_ids": [],
         "photo_spot_card_ids": [],
         "glossary_ids": [],
         "route_effect": {
-          "research_summary": "none",
+          "research_summary": "available",
           "comparison": "none",
           "term": "none",
           "glossary": "none",
@@ -529,17 +516,7 @@
         "craft_context": "07_ornament_crafts.md",
         "answer_rule": "最终事实讲解必须经现有 RAG 取证，不直接把本卡片当作事实正文。",
         "extension_rule": "扩展卡必须先建立独立、可追溯的数据源，再按 card_id 关联；空数组表示当前没有可用内容。"
-      },
-      "glossary_ids": [
-        "term_lime",
-        "term_lime_plaster_relief",
-        "term_openwork_carving",
-        "term_paper_fiber_lime_mortar",
-        "term_relief_carving",
-        "term_screen",
-        "term_straw_fiber_lime_mortar",
-        "term_wood_carving"
-      ]
+      }
     },
     {
       "node_id": "label_moon_platform",
@@ -669,13 +646,20 @@
         "三阳开泰 是什么装饰"
       ],
       "extensions": {
-        "research_summary_card_ids": [],
+        "research_summary_card_ids": [
+          "research_004_spatial_characteristics",
+          "research_006_sculptural_metaphor",
+          "research_015_grid_spatial_layout",
+          "research_016_academy_ancestral_program",
+          "research_018_woodcarving_screens_and_shrines",
+          "research_019_stone_platform_and_railings"
+        ],
         "comparison_card_ids": [],
         "term_card_ids": [],
         "photo_spot_card_ids": [],
         "glossary_ids": [],
         "route_effect": {
-          "research_summary": "none",
+          "research_summary": "available",
           "comparison": "none",
           "term": "none",
           "glossary": "none",
@@ -688,35 +672,7 @@
         "craft_context": "07_ornament_crafts.md",
         "answer_rule": "最终事实讲解必须经现有 RAG 取证，不直接把本卡片当作事实正文。",
         "extension_rule": "扩展卡必须先建立独立、可追溯的数据源，再按 card_id 关联；空数组表示当前没有可用内容。"
-      },
-      "glossary_ids": [
-        "term_applique_modeling",
-        "term_blue_brick",
-        "term_brick_carving",
-        "term_carving_in_the_round",
-        "term_cast_copper_and_iron",
-        "term_ceramic_clay",
-        "term_ceramic_sculpture",
-        "term_colored_glaze",
-        "term_granite",
-        "term_hand_modeling",
-        "term_high_relief",
-        "term_incised_carving",
-        "term_lime",
-        "term_lime_plaster_relief",
-        "term_low_relief",
-        "term_mold_making",
-        "term_openwork",
-        "term_openwork_carving",
-        "term_paper_fiber_lime_mortar",
-        "term_pierced_carving",
-        "term_relief_carving",
-        "term_shiwan_ceramic_ridge",
-        "term_stone_carving",
-        "term_straw_fiber_lime_mortar",
-        "term_water_polished_blue_brick",
-        "term_wood_carving"
-      ]
+      }
     },
     {
       "node_id": "stop_rear_west_courtyard",
@@ -852,29 +808,7 @@
         "craft_context": "07_ornament_crafts.md",
         "answer_rule": "最终事实讲解必须经现有 RAG 取证，不直接把本卡片当作事实正文。",
         "extension_rule": "扩展卡必须先建立独立、可追溯的数据源，再按 card_id 关联；空数组表示当前没有可用内容。"
-      },
-      "glossary_ids": [
-        "term_blue_brick",
-        "term_brick_carving",
-        "term_carving_in_the_round",
-        "term_cast_copper_and_iron",
-        "term_granite",
-        "term_high_relief",
-        "term_incised_carving",
-        "term_lime",
-        "term_lime_plaster_relief",
-        "term_low_relief",
-        "term_openwork",
-        "term_openwork_carving",
-        "term_paper_fiber_lime_mortar",
-        "term_pierced_carving",
-        "term_relief_carving",
-        "term_screen",
-        "term_stone_carving",
-        "term_straw_fiber_lime_mortar",
-        "term_water_polished_blue_brick",
-        "term_wood_carving"
-      ]
+      }
     },
     {
       "node_id": "stop_front_east_courtyard",
@@ -1008,26 +942,7 @@
         "craft_context": "07_ornament_crafts.md",
         "answer_rule": "最终事实讲解必须经现有 RAG 取证，不直接把本卡片当作事实正文。",
         "extension_rule": "扩展卡必须先建立独立、可追溯的数据源，再按 card_id 关联；空数组表示当前没有可用内容。"
-      },
-      "glossary_ids": [
-        "term_blue_brick",
-        "term_brick_carving",
-        "term_carving_in_the_round",
-        "term_cast_copper_and_iron",
-        "term_eaves_corridor",
-        "term_granite",
-        "term_high_relief",
-        "term_incised_carving",
-        "term_lime",
-        "term_lime_plaster_relief",
-        "term_low_relief",
-        "term_openwork",
-        "term_paper_fiber_lime_mortar",
-        "term_pierced_carving",
-        "term_stone_carving",
-        "term_straw_fiber_lime_mortar",
-        "term_water_polished_blue_brick"
-      ]
+      }
     },
     {
       "node_id": "stop_rear_east_courtyard_inner",
@@ -1140,16 +1055,7 @@
         "craft_context": "07_ornament_crafts.md",
         "answer_rule": "最终事实讲解必须经现有 RAG 取证，不直接把本卡片当作事实正文。",
         "extension_rule": "扩展卡必须先建立独立、可追溯的数据源，再按 card_id 关联；空数组表示当前没有可用内容。"
-      },
-      "glossary_ids": [
-        "term_lime",
-        "term_lime_plaster_relief",
-        "term_openwork_carving",
-        "term_paper_fiber_lime_mortar",
-        "term_relief_carving",
-        "term_straw_fiber_lime_mortar",
-        "term_wood_carving"
-      ]
+      }
     },
     {
       "node_id": "stop_front_courtyard_east",
@@ -1253,29 +1159,7 @@
         "craft_context": "07_ornament_crafts.md",
         "answer_rule": "最终事实讲解必须经现有 RAG 取证，不直接把本卡片当作事实正文。",
         "extension_rule": "扩展卡必须先建立独立、可追溯的数据源，再按 card_id 关联；空数组表示当前没有可用内容。"
-      },
-      "glossary_ids": [
-        "term_applique_modeling",
-        "term_blue_brick",
-        "term_brick_carving",
-        "term_cast_copper_and_iron",
-        "term_ceramic_clay",
-        "term_ceramic_sculpture",
-        "term_colored_glaze",
-        "term_hand_modeling",
-        "term_high_relief",
-        "term_incised_carving",
-        "term_lime",
-        "term_lime_plaster_relief",
-        "term_low_relief",
-        "term_mold_making",
-        "term_openwork",
-        "term_paper_fiber_lime_mortar",
-        "term_pierced_carving",
-        "term_shiwan_ceramic_ridge",
-        "term_straw_fiber_lime_mortar",
-        "term_water_polished_blue_brick"
-      ]
+      }
     },
     {
       "node_id": "stop_front_west_courtyard",
@@ -1378,17 +1262,7 @@
         "craft_context": "07_ornament_crafts.md",
         "answer_rule": "最终事实讲解必须经现有 RAG 取证，不直接把本卡片当作事实正文。",
         "extension_rule": "扩展卡必须先建立独立、可追溯的数据源，再按 card_id 关联；空数组表示当前没有可用内容。"
-      },
-      "glossary_ids": [
-        "term_carving_in_the_round",
-        "term_eaves_corridor",
-        "term_granite",
-        "term_lime",
-        "term_lime_plaster_relief",
-        "term_paper_fiber_lime_mortar",
-        "term_stone_carving",
-        "term_straw_fiber_lime_mortar"
-      ]
+      }
     },
     {
       "node_id": "stop_front_courtyard_west_inner",
@@ -1483,29 +1357,7 @@
         "craft_context": "07_ornament_crafts.md",
         "answer_rule": "最终事实讲解必须经现有 RAG 取证，不直接把本卡片当作事实正文。",
         "extension_rule": "扩展卡必须先建立独立、可追溯的数据源，再按 card_id 关联；空数组表示当前没有可用内容。"
-      },
-      "glossary_ids": [
-        "term_applique_modeling",
-        "term_blue_brick",
-        "term_brick_carving",
-        "term_cast_copper_and_iron",
-        "term_ceramic_clay",
-        "term_ceramic_sculpture",
-        "term_colored_glaze",
-        "term_hand_modeling",
-        "term_high_relief",
-        "term_incised_carving",
-        "term_lime",
-        "term_lime_plaster_relief",
-        "term_low_relief",
-        "term_mold_making",
-        "term_openwork",
-        "term_paper_fiber_lime_mortar",
-        "term_pierced_carving",
-        "term_shiwan_ceramic_ridge",
-        "term_straw_fiber_lime_mortar",
-        "term_water_polished_blue_brick"
-      ]
+      }
     },
     {
       "node_id": "stop_rear_courtyard_east",
@@ -1599,24 +1451,7 @@
         "craft_context": "07_ornament_crafts.md",
         "answer_rule": "最终事实讲解必须经现有 RAG 取证，不直接把本卡片当作事实正文。",
         "extension_rule": "扩展卡必须先建立独立、可追溯的数据源，再按 card_id 关联；空数组表示当前没有可用内容。"
-      },
-      "glossary_ids": [
-        "term_applique_modeling",
-        "term_carving_in_the_round",
-        "term_ceramic_clay",
-        "term_ceramic_sculpture",
-        "term_colored_glaze",
-        "term_eaves_corridor",
-        "term_granite",
-        "term_hand_modeling",
-        "term_lime",
-        "term_lime_plaster_relief",
-        "term_mold_making",
-        "term_paper_fiber_lime_mortar",
-        "term_shiwan_ceramic_ridge",
-        "term_stone_carving",
-        "term_straw_fiber_lime_mortar"
-      ]
+      }
     },
     {
       "node_id": "stop_rear_courtyard_west",
@@ -1680,13 +1515,15 @@
         "宝鸭穿莲 是什么装饰"
       ],
       "extensions": {
-        "research_summary_card_ids": [],
+        "research_summary_card_ids": [
+          "research_018_woodcarving_screens_and_shrines"
+        ],
         "comparison_card_ids": [],
         "term_card_ids": [],
         "photo_spot_card_ids": [],
         "glossary_ids": [],
         "route_effect": {
-          "research_summary": "none",
+          "research_summary": "available",
           "comparison": "none",
           "term": "none",
           "glossary": "none",
@@ -1699,16 +1536,7 @@
         "craft_context": "07_ornament_crafts.md",
         "answer_rule": "最终事实讲解必须经现有 RAG 取证，不直接把本卡片当作事实正文。",
         "extension_rule": "扩展卡必须先建立独立、可追溯的数据源，再按 card_id 关联；空数组表示当前没有可用内容。"
-      },
-      "glossary_ids": [
-        "term_carving_in_the_round",
-        "term_granite",
-        "term_openwork_carving",
-        "term_relief_carving",
-        "term_screen",
-        "term_stone_carving",
-        "term_wood_carving"
-      ]
+      }
     }
   ]
 }

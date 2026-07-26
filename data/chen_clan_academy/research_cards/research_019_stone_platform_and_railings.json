@@ -22,8 +22,9 @@
     "石狮与岭南果实为什么会一起出现在望柱头？",
     "怎样在不触碰文物的前提下细读石雕栏板？"
   ],
-  "applicable_node_ids": [],
-  "applicable_scope": "whole_site",
+  "applicable_node_ids": [
+    "label_moon_platform"
+  ],
   "topic_tags": [
     "石雕",
     "聚贤堂",

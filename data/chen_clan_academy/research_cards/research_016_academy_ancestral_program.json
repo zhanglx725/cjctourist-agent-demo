@@ -22,8 +22,11 @@
     "祭祀建筑与书院功能怎样共同影响内部布局？",
     "研究者怎样从营建档案理解一座建筑群的空间功能？"
   ],
-  "applicable_node_ids": [],
-  "applicable_scope": "whole_site",
+  "applicable_node_ids": [
+    "stop_front_courtyard_center",
+    "label_moon_platform",
+    "stop_rear_courtyard"
+  ],
   "topic_tags": [
     "内部空间",
     "陈氏书院",

@@ -22,8 +22,11 @@
     "灰塑和陶塑在材料与观看位置上有什么不同？",
     "讲解灰塑时应先看画面，还是先看它所在的建筑部位？"
   ],
-  "applicable_node_ids": [],
-  "applicable_scope": "whole_site",
+  "applicable_node_ids": [
+    "stop_front_courtyard_north",
+    "stop_front_courtyard_center",
+    "stop_rear_courtyard"
+  ],
   "topic_tags": [
     "灰塑",
     "制作工艺",

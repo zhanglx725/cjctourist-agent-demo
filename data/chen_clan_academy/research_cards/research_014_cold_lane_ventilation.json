@@ -22,8 +22,10 @@
     "研究者怎样验证冷巷与自然通风有关？",
     "为什么冷巷的开口和尺度会影响相邻室内空间？"
   ],
-  "applicable_node_ids": [],
-  "applicable_scope": "whole_site",
+  "applicable_node_ids": [
+    "stop_front_courtyard_north",
+    "stop_rear_courtyard"
+  ],
   "topic_tags": [
     "内部空间",
     "青云巷",

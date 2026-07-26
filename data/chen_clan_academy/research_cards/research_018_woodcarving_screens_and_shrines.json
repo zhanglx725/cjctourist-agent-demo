@@ -22,8 +22,11 @@
     "木雕屏门怎样同时起分隔空间和组织视线的作用？",
     "神龛上的木雕与梁架上的木雕，观看重点有什么不同？"
   ],
-  "applicable_node_ids": [],
-  "applicable_scope": "whole_site",
+  "applicable_node_ids": [
+    "label_moon_platform",
+    "stop_rear_courtyard",
+    "stop_rear_courtyard_west"
+  ],
   "topic_tags": [
     "木雕",
     "屏门",
