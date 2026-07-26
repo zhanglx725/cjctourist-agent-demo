@@ -80,6 +80,19 @@ TourState 首版字段固定为 `selected_route_id`、`route_stop_ids`、`curren
 
 A1-1 已由项目 `.venv\Scripts\python.exe` 完成本地 62 项回归测试并全部通过。后续修改交互适配层、TourState、导航、重规划或 Agent 游览节点时，至少应复跑 `test_tour_state.py`、`test_tour_interaction.py`、`test_tour_navigation.py`、`test_replanning.py`、`test_agent_tour_state.py` 及路线回归测试。
 
+## A1-2 文本导游意图路由（已实现并验证）
+
+| 文件 | 职责 | 边界 |
+| --- | --- | --- |
+| `tour_intent.py` | 纯确定性识别：将高置信、单一目的的游客文本转换为 `TourIntentDecision`；只从 `marker_inventory_v0.csv` 解析稳定 `node_id`；同名、多点、未知点和多意图一律澄清。 | 不修改 TourState，不调用 LLM/RAG，不修改空间、路线或知识卡数据。 |
+| `test_tour_intent.py` | 覆盖到达、自主到达、事实/导航问句、目的表达、跳过、时间、结束、歧义、多意图、非法事件和伪造 ID。 | 不依赖 DeepSeek 网络。 |
+| `agent_graph.py` 的 `tour_event` / `clarification` | 前者只将决策交给 `handle_tour_event()`；后者只回复澄清且不返回 TourState 更新。 | 此层不得直接修改 `current_stop_id`、`visited_stop_ids`、`pending_stop_id`、`stop_phase`。 |
+| `test_agent_tour_state.py` | 验证 Agent 优先级与适配层是唯一运行期状态写入口。 | 修改 A1-2 路由后必须复跑。 |
+
+优先级固定为：**明确导游事件 → `tour_intent` → `handle_tour_event`；新路线 → `direct_route`；事实/导航问句 → `direct_rag`；开放对话 → `llm_think`；歧义/多意图 → `clarification` 且状态不变。**
+
+项目负责人已使用 `.venv` 完成 A1-2 核心 38 项测试与完整 90 项回归，结果均为 `OK`。后续修改 `tour_intent.py`、A1 事件路由或 Agent 事件节点时，至少复跑 `test_tour_intent.py`、`test_agent_tour_state.py` 与 A1-1 的交互/导航/重规划回归。
+
 人工填写 `route_review_results_v1.csv` 时：`manual_status` 只能填 `approved`、`revise` 或 `rejected`；其余四个判断列填 `yes`、`no` 或 `needs_site_check`。只填写人工列，不改自动生成的路径、时间、点位和边字段。
 
 动态路线 A0 的开发顺序固定为：候选过滤 → 点位评分 → 时间预算组合 → 评估集 → Agent 接入。论文卡、比较卡尚未参与 A0 评分；后续只可通过已审核 `card_id` 增加可解释加分项。

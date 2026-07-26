@@ -17,7 +17,8 @@
 | TourState：下一站、跳过、有限重规划、结束 | **A 阶段已实现并验证** |
 | A1-0 交互事件契约 | **已冻结** |
 | A1-1 统一交互适配层 | **已实现并验证** |
-| 按钮导游、文本“确认完成”识别 | **仅保留契约，待 A1-2/A1-3** |
+| A1-2 文本“确认完成”与导游控制语句识别 | **已实现并验证（核心 38 项；完整回归 90 项）** |
+| A1-3 按钮导游与连续导游回复 | **仅保留契约，待实现** |
 | 游览中 RAG 问答后恢复导游 | **未来 A2** |
 | 论文摘要卡、比较卡、术语卡、打卡点卡 | **建设中，尚未接入** |
 
@@ -270,6 +271,92 @@ confirm_stop_complete → 唯一写入 visited 的事件
 状态：current=首进正厅；last_arrival_kind=self_arrival；visited 不增加；remaining 顺序不变
 ```
 
-## 10. 后续实施报告附加规范
+## 11. A1-2：文本导游意图识别与安全路由（已实现并验证）
+
+### 11.1 本任务解决的用户问题与执行流程
+
+游客会说“我到月台了”“下一站去哪”“我只剩 20 分钟”，而不是调用函数。A1-2 在这些文本到达状态层之前，先把它们压缩为可测试的结构化决策。
+
+```text
+游客文本
+  → classify_tour_intent()
+  → TourIntentDecision(route_kind, event_type, arguments, confidence, reason_code)
+  ├─ tour_event → handle_tour_event() → 新 TourState / 交互状态
+  ├─ route_request → direct_route
+  ├─ rag_question → direct_rag → 基于证据回答
+  ├─ clarification → 只澄清，状态不变
+  └─ other → llm_think
+```
+
+### 11.2 核心文件、字段与方案取舍
+
+| 文件/对象 | 真实职责 |
+| --- | --- |
+| `tour_intent.py: TourIntentDecision` | 承载路由类型、事件名、参数、置信度、原因码与澄清标记。 |
+| `resolve_reviewed_node()` | 仅读取审核节点表；同名、多点、未知名称均不猜测。 |
+| `validate_event_suggestion()` | 校验事件白名单、分钟参数和稳定 ID；为未来可选的 schema 化 LLM 同义表达保留接口。 |
+| `route_initial_request()` | 固定事件 → 路线 → RAG → LLM → 澄清的路由优先级。 |
+| `tour_event_node()` | 只调用 `handle_tour_event()` 并使用其返回快照；没有直接状态写入。 |
+| `clarification_node()` | 只输出澄清回复。 |
+
+我们没有采用“让 LLM 直接写 TourState JSON”或“按相近名称猜节点”。`visited_stop_ids` 将服务于后续成就与寄语，错误事实记录比多问一句更危险。未来模型即使识别同义句，也只能建议固定 schema，仍须经过 `validate_event_suggestion()` 与 `handle_tour_event()` 双重校验。
+
+### 11.3 易误判输入与安全规则
+
+| 输入 | 正确结果 | 原因 |
+| --- | --- | --- |
+| “月台有什么？” | `rag_question` | 内容提问，不是到达。 |
+| “我想去月台看看” | `clarification` | 目的表达不能写入当前位置。 |
+| “讲完了，去下一站” | `confirm_stop_complete` | 先确认当前站，不允许 next 绕过确认。 |
+| “我到月台了，顺便讲讲月台石雕” | `clarification` | 多意图不部分执行。 |
+| “我到首进正厅了” | `arrive_at_stop` | 合法非 pending 到达由 A1-1 记录为 `self_arrival`。 |
+
+### 11.4 至少三个关键测试及其防错意义
+
+1. `test_fact_question_with_node_is_not_arrival` 防止事实问题污染当前位置或已访问记录。
+2. `test_self_arrival_can_resolve_non_route_spatial_node` 防止收窄冻结的 `self_arrival` 能力，同时不改变正式路线顺序。
+3. `test_multi_intent_arrival_plus_question_is_rejected` 防止复合输入偷偷执行其中一部分。
+4. `test_text_confirmation_is_only_path_that_marks_visit_complete` 防止到达、问答或 next 误写 `visited_stop_ids`。
+5. `test_fake_node_suggestion_is_rejected_before_execution` 防止解析器或未来模型虚构 `node_id`。
+
+### 11.5 对现有模块的影响、边界和状态声明
+
+- **已实现并验证**：纯分类器、结构化路由、统一适配层执行、澄清不改状态、Agent 集成测试；核心 38 项与完整 90 项本机回归均通过。
+- **不受影响**：审核空间边、稳定 node ID、路线模板、动态路线算法、RAG 证据规则与知识卡数据。
+- **仅保留接口**：`validate_event_suggestion()`；当前 A1-2 不调用真实 LLM。
+- **未来规划**：A1-3 按钮/连续导游，A2 问答后恢复导游，阶段 B 点位讲解编排器。
+- **风险**：规则首版未覆盖的同义表达会澄清而不冒险执行；这是有意的安全优先取舍。
+
+### 11.6 一分钟答辩讲稿
+
+> A1-2 解决的是游客自然语言如何安全控制导览的问题。我们没有让大模型直接写入游览状态，而是先用纯规则把文本转成包含事件、审核节点 ID、参数和原因码的结构化决策。只有“我到月台了”这种高置信单一命令会进入到达事件；“月台有什么”仍然进入 RAG；“我到月台了，顺便讲石雕”则先澄清，不做部分执行。所有状态变化仍只通过 A1-1 的 `handle_tour_event`，它会校验事件、节点、阶段和幂等性。这样路线、知识问答与游览记录分层管理，后续成就和寄语可以基于可信的真实记录。
+
+### 11.7 面试追问与参考回答
+
+1. **为什么不直接使用 function calling？** 可以作为建议层，但不能代替事件、节点和状态阶段的确定性校验。
+2. **为什么 next 不自动完成当前站？** 到达或问路不证明游客已听完、观察完或拍完照。
+3. **如何处理同名节点？** 返回 `ambiguous_node_name` 并要求补充方位，不猜稳定 ID。
+4. **为什么不顺序执行多意图？** 部分执行难审计，且会混淆 RAG 与状态变更；组合编排留给后续阶段。
+5. **规则会不会太死？** 首版用澄清换取状态安全；将来可加 schema 约束模型识别，但不放松适配层。
+6. **如何证明没有绕过适配层？** Agent 集成测试 mock 并断言 `handle_tour_event` 被调用，事件节点不直接赋值状态字段。
+
+### 11.8 现场演示
+
+```text
+前置：30 分钟路线，pending=前院中部，phase=navigating，visited=[]
+输入：我到前院中部了
+识别：tour_event / arrive_at_stop(stop_front_courtyard_center)
+结果：phase=explaining；visited 仍为 []
+
+输入：讲完了，去下一站
+识别：tour_event / confirm_stop_complete
+结果：前院中部进入 visited；pending 更新为月台；phase=navigating
+
+输入：月台有什么？
+识别：rag_question
+结果：进入现有 RAG；TourState 不变（A2 的答后恢复导游尚未实现）
+```
+
+## 12. 后续实施报告附加规范
 
 每个 A1/A2 子任务完成时，实施报告末尾必须基于真实代码与测试结果说明：用户问题、前后流程、文件/函数/字段、方案取舍、LLM 状态边界、至少三个测试、模块影响、风险、1 分钟讲稿、至少 5 个追问、演示示例，以及“已验证/待验证/接口/未来”状态。若发生规划—实现冲突，还必须记录冲突、最终语义、依据和软件工程原则。

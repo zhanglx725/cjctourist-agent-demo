@@ -745,6 +745,15 @@ glossary_ids
 
 现有 TourState 首版中“到达即计入已访问”的行为与连续导游记录语义不完全一致。契约已明确：从 A1-1 起改为“到达 → 讲解/等待确认 → `confirm_stop_complete()` 才计入 `visited_stop_ids`”；本 A1-0 阶段不改运行代码，因此已通过的 A 阶段测试仍保持有效。
 
+### A1-2 文本导游意图路由（已实现并验证）
+
+项目负责人已使用项目 `.venv` 执行本轮验证：A1-2 核心文本识别与 Agent 集成共 38 项通过；完整回归共 90 项通过。因此 A1-2 可以表述为“已实现并完成当前回归验证”。
+
+- `tour_intent.py` 新增纯结构化 `TourIntentDecision`、审核节点解析、歧义/多意图澄清，以及供未来 schema 化 LLM 建议使用的事件/参数验证器；
+- `agent_graph.py` 路由固定为：导游事件优先，其次新路线、RAG、开放对话或澄清；
+- `tour_event` 只调用 `tour_interaction.handle_tour_event()` 并采纳其返回快照；`clarification` 不输出 TourState 更新；
+- 已新增 `test_tour_intent.py`、更新 Agent 路由集成测试；当前 38 项核心测试和 90 项完整回归均为 `OK`。
+
 ### 13.7 A1-1 统一交互事件适配层
 
 - 新增 `tour_interaction.py`：所有游览事件经 `handle_tour_event()` 进入，返回冻结契约规定的 `ok`、`event`、`code`、`message`、TourState、交互状态、`data` 与 `idempotent` 响应包。

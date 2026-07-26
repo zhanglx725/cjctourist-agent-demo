@@ -36,6 +36,22 @@ stop_phase                   # navigating / explaining / awaiting_confirmation
 
 A1-0 已冻结 `TOUR_INTERACTION_CONTRACT.md`，A1-1 已建立 `tour_interaction.py` 作为唯一公开事件适配入口；交互字段不写入 TourState。现已统一为“到达不等于完成”，只有 `confirm_stop_complete()` 才能把正式讲解点写入 `visited_stop_ids`。不同交互模式最终只调用相同的确定性适配事件。
 
+### A1-2：文本导游意图识别与安全路由（已实现并验证）
+
+`tour_intent.py` 会在任何状态写入前先产生可审计的结构化决策：
+
+```text
+“我到月台了” → arrive_at_stop(label_moon_platform)
+“讲完了，去下一站” → confirm_stop_complete
+“我只剩 20 分钟” → replan_time(20)
+“月台有什么？” → RAG 问题，不改游览状态
+“我到月台了，顺便讲讲石雕” → 多意图澄清，不部分执行
+```
+
+识别在 A1-2 是确定性的，不调用 LLM。点位仅从已审核的 `marker_inventory_v0.csv` 解析；合法但非 `pending_stop_id` 的到达仍交由 A1-1 记录为 `self_arrival`，不改变正式路线顺序。A1-3 才增加按钮与连续导游操作面板，A2 才实现游览中 RAG 问答后恢复导游上下文。
+
+已在项目 `.venv` 完成核心 38 项文本/Agent 路由测试，以及完整 90 项回归，均通过。
+
 ## 游览中问答与继续导游（A2，后续）
 
 游客在任何点位都可以插入问题，例如“灰塑是什么”“这幅三国故事讲什么”。处理流程应为：
