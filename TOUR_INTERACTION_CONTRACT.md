@@ -11,7 +11,7 @@
   - `stop_phase`：`navigating`、`explaining`、`awaiting_confirmation`、`finished`。
 - **只有确定性事件处理器**可以调用 `tour_state.py` 并修改 `TourState`。
 - LLM 只能给出事件建议（例如 `suggested_event="arrive_at_stop"`）；A1-2 的受控路由须验证参数后才可分发事件。LLM 不得写入 `visited_stop_ids`、`current_stop_id`、`remaining_stop_ids` 等状态字段。
-- A1-0 不调用 RAG。`request_stop_detail()` 只返回可展开讲解的占位响应；A2 才接入 RAG，且 RAG 问答不得改变 TourState。
+- A1-0 不调用 RAG。`request_stop_detail()` 的状态语义始终是无副作用；B3 可在适配器成功后使用当前 StopProgram 和既有 RAG 返回展开讲解，但不得改变 TourState。
 
 ## 2. 状态语义与现有实现的兼容调整
 
@@ -94,7 +94,7 @@ explaining → explanation_finished → awaiting_confirmation
 | `skip_stop(node_id \| current_stop_id)` | 路线已初始化、未结束；目标为未完成的正式讲解点。省略参数时优先当前待完成点，否则 pending 点。 | 目标从 `remaining_stop_ids` 移到 `skipped_stop_ids`；若跳过当前/待到达点，刷新下一 `pending_stop_id`，回到 `navigating`。 | `skipped`；下一站导航。 | `route_not_initialized`、`tour_finished`、`invalid_node_id`、`stop_not_in_route`。 |
 | `replan_time(available_minutes)` | 路线已初始化、未结束、正整数分钟。 | 仅由现有确定性重规划器改写未完成部分；保留 visited/skipped；刷新 pending，进入 `navigating`。 | `replanned`；剩余路线与时间拆分。 | `route_not_initialized`、`tour_finished`、`invalid_minutes`。 |
 | `finish_tour()` | 路线已初始化；已结束时允许重复。 | 调用确定性结束逻辑；交互阶段设为 `finished`。 | `tour_finished`；真实游览汇总。 | `route_not_initialized`。 |
-| `request_stop_detail()` | 路线已初始化、未结束，且当前处于 `explaining` 或 `awaiting_confirmation`。 | 不改 TourState；保持当前 phase。 | `detail_placeholder`；说明 A1 尚未接 RAG。 | `route_not_initialized`、`tour_finished`、`invalid_phase`。 |
+| `request_stop_detail()` | 路线已初始化、未结束，且当前处于 `explaining` 或 `awaiting_confirmation`。 | 不改 TourState；保持当前 phase。 | `detail_requested`；B3 可在事件后展开当前 StopProgram 的有来源讲解。 | `route_not_initialized`、`tour_finished`、`invalid_phase`。 |
 | `confirm_stop_complete()` | 路线已初始化、未结束、`current_stop_id == pending_stop_id` 且 phase 为 `explaining` 或 `awaiting_confirmation`。 | 此时才将当前正式点写入 `visited_stop_ids`，移出 remaining，刷新 pending；有下一站则 `navigating`，否则 `finished`。 | `stop_completed`；下一站导航或完成汇总。 | `route_not_initialized`、`tour_finished`、`invalid_phase`、`not_current_stop`。 |
 
 ### “到达非路线点”的规则

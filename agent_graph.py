@@ -30,6 +30,7 @@ from tour_intent import classify_tour_intent
 from tour_presenter import present_clarification, present_tour_event, present_tour_state
 from tour_state import start_tour
 from tour_qa import answer_tour_question, is_point_inventory_request
+from guide_program_evidence import build_stop_guidance
 MAX_TOOL_LOOPS = 3
 DEFAULT_DEEPSEEK_MAX_TOKENS = 450
 DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
@@ -54,6 +55,8 @@ class AgentState(TypedDict, total=False):
     tour_interaction_state: dict[str, Any]
     tour_presentation: dict[str, Any]
     last_tour_intent: dict[str, Any]
+    last_tour_event: dict[str, Any]
+    active_stop_program: dict[str, Any]
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -346,6 +349,11 @@ def tour_event_node(state: AgentState) -> dict[str, Any]:
     updates: dict[str, Any] = {
         "messages": [AIMessage(content=presentation["message"])],
         "last_tour_intent": decision.to_dict(),
+        "last_tour_event": {
+            "event": result["event"],
+            "code": result["code"],
+            "ok": result["ok"],
+        },
         "tour_presentation": presentation,
         "performance_metrics": _append_metric(
             state,
@@ -364,6 +372,37 @@ def tour_event_node(state: AgentState) -> dict[str, Any]:
     if plan:
         updates["active_route_plan"] = {**asdict(plan), "route_strategy": "replanned"}
         updates["selected_route_id"] = plan.route_id
+    return updates
+
+
+def stop_guidance_node(state: AgentState) -> dict[str, Any]:
+    """Generate sourced current-stop guidance without advancing TourState."""
+    started = time.perf_counter()
+    last_event = state.get("last_tour_event", {})
+    result = build_stop_guidance(
+        state.get("tour_state"),
+        state.get("tour_interaction_state"),
+        lambda retrieval_query: str(chen_clan_academy_rag_search.invoke({"query": retrieval_query})),
+        current_program=state.get("active_stop_program"),
+        detailed=last_event.get("event") == "request_stop_detail",
+    )
+    updates: dict[str, Any] = {
+        "messages": [AIMessage(content=result["message"], additional_kwargs={"stop_guidance": True})],
+        "retrieved_evidence": result["evidence"],
+        "tour_presentation": result["presentation"],
+        "performance_metrics": _append_metric(
+            state,
+            "stop_guidance",
+            time.perf_counter() - started,
+            status=result["status"],
+            evidence_count=len(result["evidence"]),
+            selected_item_count=len((result.get("stop_program") or {}).get("selected_items", [])),
+        ),
+    }
+    if result["stop_program"] is not None:
+        updates["active_stop_program"] = result["stop_program"]
+    # Deliberately do not return tour_state or tour_interaction_state.  The
+    # A1 adapter remains the only mutation entry point.
     return updates
 
 
@@ -516,6 +555,17 @@ def route_initial_request(state: AgentState) -> str:
     return "llm_think"
 
 
+def route_after_tour_event(state: AgentState) -> str:
+    """Send only successful arrival/detail events into B3 evidence guidance."""
+    event = state.get("last_tour_event", {})
+    if event.get("ok") and (
+        (event.get("event") == "arrive_at_stop" and event.get("code") == "arrived")
+        or (event.get("event") == "request_stop_detail" and event.get("code") == "detail_requested")
+    ):
+        return "stop_guidance"
+    return END
+
+
 def build_agent_graph(with_checkpointer: bool = True):
     """Compile the graph for CLI chat or LangGraph Studio.
 
@@ -529,6 +579,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("tour_qa", tour_qa_node)
     workflow.add_node("direct_route", direct_route_node)
     workflow.add_node("tour_event", tour_event_node)
+    workflow.add_node("stop_guidance", stop_guidance_node)
     workflow.add_node("clarification", clarification_node)
     workflow.add_conditional_edges(
         START,
@@ -541,7 +592,8 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_edge("direct_rag", "llm_think")
     workflow.add_edge("tour_qa", END)
     workflow.add_edge("direct_route", END)
-    workflow.add_edge("tour_event", END)
+    workflow.add_conditional_edges("tour_event", route_after_tour_event, {"stop_guidance": "stop_guidance", END: END})
+    workflow.add_edge("stop_guidance", END)
     workflow.add_edge("clarification", END)
     workflow.add_conditional_edges("llm_think", route_after_llm, {"rag_tool": "rag_tool", END: END})
     workflow.add_edge("rag_tool", "llm_think")

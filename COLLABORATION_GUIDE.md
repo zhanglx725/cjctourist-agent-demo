@@ -147,6 +147,18 @@ A1-1 已由项目 `.venv\Scripts\python.exe` 完成本地 62 项回归测试并�
 
 项目负责人已于本机运行完整回归：166 项、1.740 秒、结果均为 `OK`。
 
+## B3 StopProgram 取证与 Agent 点位讲解（已实现并验证）
+
+| 文件 | 职责 | 边界 |
+|---|---|---|
+| `guide_program_evidence.py` | 读取本站内容预算，调用 B1/B2 生成 StopProgram，并按每件对象的 `rag_query_hints` 调用既有 RAG；仅以返回 evidence 编排讲解。 | 不新建索引，不改路线、空间图、知识卡或 TourState。 |
+| `agent_graph.py: stop_guidance_node` | 在计划内到达、或 `request_stop_detail` 成功后触发 B3；保存审计用 `active_stop_program` 和展示结果。 | 不返回 `tour_state` / `tour_interaction_state` 更新。 |
+| `test_guide_program_evidence.py` / `test_agent_stop_guidance.py` | 覆盖取证、无证据、异常、自主到达拒绝、Agent 路由与详情展开。 | 使用 mock RAG，不访问网络。 |
+
+`request_stop_detail` 的状态语义保持无副作用，返回码由 `detail_placeholder` 更新为 `detail_requested`：适配器成功后才由 B3 产生展开讲解。`explanation_finished` 仍须由游客或 UI 显式触发，B3 绝不自动完成站点。
+
+项目负责人已完成完整 173 项本机回归，耗时 1.775 秒，结果均为 `OK`。
+
 人工填写 `route_review_results_v1.csv` 时：`manual_status` 只能填 `approved`、`revise` 或 `rejected`；其余四个判断列填 `yes`、`no` 或 `needs_site_check`。只填写人工列，不改自动生成的路径、时间、点位和边字段。
 
 动态路线 A0 的开发顺序固定为：候选过滤 → 点位评分 → 时间预算组合 → 评估集 → Agent 接入。论文卡、比较卡尚未参与 A0 评分；后续只可通过已审核 `card_id` 增加可解释加分项。

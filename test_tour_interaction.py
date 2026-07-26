@@ -96,10 +96,10 @@ class TourInteractionTests(unittest.TestCase):
         self.assertIn("stop_front_courtyard_center", result["tour_state"]["skipped_stop_ids"])
         self.assertNotIn("stop_front_courtyard_center", result["tour_state"]["visited_stop_ids"])
 
-    def test_detail_placeholder_does_not_change_tour_state(self):
+    def test_detail_request_does_not_change_tour_state(self):
         arrived = self._arrive_first()
         result = handle_tour_event(arrived["tour_state"], arrived["interaction_state"], "request_stop_detail")
-        self.assertEqual(result["code"], "detail_placeholder")
+        self.assertEqual(result["code"], "detail_requested")
         self.assertEqual(result["tour_state"], arrived["tour_state"])
         self.assertEqual(result["interaction_state"], arrived["interaction_state"])
 

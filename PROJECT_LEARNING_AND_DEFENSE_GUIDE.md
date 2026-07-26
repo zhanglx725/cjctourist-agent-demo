@@ -691,6 +691,57 @@ LLM、RAG、TourState 和路线均不参与 B2：它们既不能选择候选，�
 
 现场演示：输入 `label_moon_platform, 150 秒, interests=["石雕"], detail_level="standard"`；输出只含月台审核对象，最多两件，`allocated_content_seconds <= 150`、`budget_scope=stop_explanation_content_only`，并附每件的 `rag_query_hints`。路线节点、步行时间和 TourState 前后不变。
 
-## 17. 后续实施报告附加规范
+## 17. B3：StopProgram 取证与 Agent 点位讲解（已实现并验证）
+
+### 17.1 用户问题、流程与模块边界
+
+此前系统虽然能选出本站代表文物，却不能把“选物”安全地变成导游词。B3 建立了受控链路：
+
+```text
+计划内到达正式站点
+→ StopProgram（只决定讲哪些对象）
+→ 每件对象的 rag_query_hints 调用既有 RAG
+→ 仅依据 evidence 输出讲解与来源
+→ 仍停留 explaining
+→ 用户/UI 显式 explanation_finished
+→ awaiting_confirmation → confirm_stop_complete
+```
+
+| 真实文件 / 函数 | 责任 |
+| --- | --- |
+| `guide_program_evidence.py: build_stop_guidance()` | B3 纯编排入口；校验当前是计划内已到达站点，生成 StopProgram、逐项调用注入的现有 RAG、处理无证据与异常。 |
+| `agent_graph.py: stop_guidance_node` | Agent 图中的确定性节点；仅更新消息、证据、展示协议和审计用 `active_stop_program`。 |
+| `tour_interaction.py: request_stop_detail` | 仍只处理无副作用生命周期事件；B3 在事件成功后展开讲解。 |
+
+我们没有让 LLM 写导游词后再“补来源”，也没有将全部点位文物塞入一次模糊检索。StopProgram 先约束对象，RAG 再为每项提供证据；没有 evidence 时明确降级。LLM 没有任何 TourState 写入口，`visited_stop_ids` 仍只能经过 `handle_tour_event() → confirm_stop_complete` 改变。
+
+### 17.2 测试、影响、演示与答辩
+
+关键测试包括：
+
+1. **计划内到达取证**：确认每件选中对象都有对应查询，消息包含文档和 `source_ids`，而 TourState 快照不变。
+2. **无证据/异常**：确认输出“未检索到可引用事实”，而不是按对象名称补充故事。
+3. **自主到达**：确认合法 `self_arrival` 不会被误当作正式站点讲解。
+4. **Agent 接线与详情**：确认到达和“再讲详细一点”才进入 `stop_guidance`，详情后仍未完成站点。
+
+- **已实现并验证**：B3 编排层、Agent 节点、无副作用详情事件迁移和离线 mock 测试；项目负责人已完成完整 173 项本机回归，耗时 1.775 秒，结果为 `OK`。
+- **保持不变**：路线、步行预算、空间边、A1 状态语义、A2 插入问答、基础 RAG 索引。
+- **未接入**：论文卡、比较卡、术语卡、打卡点卡、LLM 长篇讲稿、真实前端与现场定位。
+
+一分钟答辩讲稿：
+
+> B3 把“选什么讲”和“事实依据是什么”分成两层。B1/B2 只在人工审核过的本点文物中选一到三件，并分配本站讲解内容预算；B3 再按每件对象的查询提示调用已有混合 RAG。最终讲解只引用返回的 evidence，检索不到就明确说明资料不足，而不从文物名称推测故事。这个节点只更新展示和审计数据，不更新游览进度；游客必须显式结束讲解并确认完成，才会改变 visited 记录。因此我们同时保证了个性化、可追溯性和导游状态的可靠性。
+
+可能追问：
+
+1. **为何每件对象单独检索？** StopProgram 已缩小到 1–3 件，逐项查询更可审计，也避免一个宽泛结果支撑多件文物。
+2. **RAG 无证据怎么办？** 保留已审核“对象在此点”的关联，但不把它升级为文化事实；回复资料不足。
+3. **为什么不自动结束讲解？** 讲解播放结束与游客完成观赏不同，A1 契约要求由显式事件分开处理。
+4. **`request_stop_detail` 会不会重复写状态？** 不会，它是幂等、无副作用请求；B3 只复用同一确定性 StopProgram。
+5. **如何接入论文卡？** 后续只在已审核的 `card_id` 插槽中按意图定向增强，不改变基础 RAG 或空间网络。
+
+现场演示：游客到达前院中部后，系统生成该点的 StopProgram，再检索选中对象并展示 `08_ornament_items.md / S11` 等来源；状态仍为 `explaining`、`visited_stop_ids=[]`。游客点击“本点讲解结束”后才进入 `awaiting_confirmation`，点击“讲完了，去下一站”后才写入 visited。
+
+## 18. 后续实施报告附加规范
 
 每个 A1/A2 子任务完成时，实施报告末尾必须基于真实代码与测试结果说明：用户问题、前后流程、文件/函数/字段、方案取舍、LLM 状态边界、至少三个测试、模块影响、风险、1 分钟讲稿、至少 5 个追问、演示示例，以及“已验证/待验证/接口/未来”状态。若发生规划—实现冲突，还必须记录冲突、最终语义、依据和软件工程原则。

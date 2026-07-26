@@ -801,3 +801,11 @@ glossary_ids
 - 预算低时安全降级为一个“简短概览”；`standard` 和 `deep` 只在达到集中阈值时扩展至 2 或 3 件。`allocated_content_seconds + unallocated_content_seconds = budget_seconds`，并保证已分配时间不超预算。
 - 新增 `test_guide_program_budget.py`，覆盖预算边界、兴趣优先、相关性接近时的多样性、稳定排序和所有详略等级的超时保护。B2 不改变路线、空间图、审核讲解包或任何知识卡。
 - 项目负责人已完成完整 166 项本机回归，耗时 1.740 秒，结果为 `OK`。
+
+### 13.12 B3 StopProgram 取证与 Agent 点位讲解（已实现并验证）
+
+- 新增 `guide_program_evidence.py`：只在游客已计划内到达当前正式站点时，读取本站已审核内容预算，调用 B1/B2 生成 StopProgram，并按选中对象的 `rag_query_hints` 复用既有 RAG；空间关联只决定对象，工艺、寓意和故事解释只来自返回 evidence。
+- `agent_graph.py` 新增确定性 `stop_guidance` 节点。计划内到达与 `request_stop_detail` 成功后进入该节点；该节点只写 `active_stop_program`、证据、消息和展示协议，不写 TourState 或交互状态。
+- 无 evidence、RAG 格式异常或调用异常时，明确说明资料不足，并拒绝按文物名称补造事实。自主到达不被当作正式站点讲解。
+- `request_stop_detail` 仍是无副作用事件；其返回码更新为 `detail_requested`，之后可使用当前 StopProgram 输出展开讲解。`explanation_finished`、确认完成和 visited 语义均保持 A1 冻结契约。
+- 项目负责人已完成完整 173 项本机回归，耗时 1.775 秒，结果为 `OK`。

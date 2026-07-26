@@ -144,7 +144,7 @@ class TourInteractionE2ETests(unittest.TestCase):
             self.assertEqual(state["tour_state"], before_tour)
             self.assertEqual(state["tour_interaction_state"], before_interaction)
 
-    def test_detail_placeholder_and_repeated_events_are_side_effect_safe(self):
+    def test_detail_request_and_repeated_events_are_side_effect_safe(self):
         state = self._started()
         state, _ = self._agent_event(state, "我到前院中部了")
         before_tour = deepcopy(state["tour_state"])
@@ -152,7 +152,7 @@ class TourInteractionE2ETests(unittest.TestCase):
         detail = handle_tour_event(
             state["tour_state"], state["tour_interaction_state"], "request_stop_detail"
         )
-        self.assertEqual(detail["code"], "detail_placeholder")
+        self.assertEqual(detail["code"], "detail_requested")
         self.assertEqual(detail["tour_state"], before_tour)
         self.assertEqual(detail["interaction_state"], before_interaction)
 

@@ -320,8 +320,8 @@ def _request_detail(tour_state: dict[str, Any], interaction_state: dict[str, Any
     if interaction_state["stop_phase"] not in {"explaining", "awaiting_confirmation"}:
         return _rejection("request_stop_detail", "invalid_phase", "请先到达当前正式讲解点后再展开讲解。", tour_state, interaction_state)
     return _result(
-        ok=True, event="request_stop_detail", code="detail_placeholder",
-        message="该点的可展开讲解将在后续 A2 RAG 编排阶段接入；当前不改变游览记录。",
+        ok=True, event="request_stop_detail", code="detail_requested",
+        message="已请求展开当前点讲解；该请求不会改变游览记录。",
         tour_state=tour_state, interaction_state=interaction_state, idempotent=True,
     )
 
