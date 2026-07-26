@@ -15,7 +15,10 @@ from typing import Any, Callable
 from guide_program_planner import StopProgram
 
 
-RAW_DUMP_MARKERS = (".md", "source_ids", "title_path", "核心观察", "计划约", "知识块")
+RAW_DUMP_MARKERS = (
+    ".md", "source_ids", "title_path", "核心观察", "计划约", "知识块",
+    "审核位置", "类型：", "简介：",
+)
 
 
 @dataclass(frozen=True)
@@ -43,10 +46,10 @@ def _source_ids(evidence_by_item: dict[str, list[dict[str, Any]]]) -> tuple[str,
 def _observation_prompt(
     name: str, craft: str, observation_location: str | None, *, detailed: bool
 ) -> str:
-    where = f"请先看向{observation_location}，" if observation_location else ""
+    where = f"在{observation_location}，" if observation_location else ""
     if detailed:
-        return f"{where}再把视线停在{name}的造型和细部层次上，再与周围{craft}构件作对照。"
-    return f"{where}找到{name}后，留意它与周围构件的关系。"
+        return f"{where}这是一处{craft}装饰。请把视线停在{name}的造型和细部层次上，再与周围构件作对照。"
+    return f"{where}这是一处{craft}装饰。找到{name}后，留意它与周围构件的关系。"
 
 
 def _deterministic_message(
@@ -69,6 +72,8 @@ def _deterministic_message(
         lines.append(
             f"{index}. {item.name}：{_observation_prompt(item.name, item.craft, item.observation_location, detailed=detailed)}"
         )
+        if item.comparison_reason:
+            lines.append(f"   这里特意选它作对照，{item.comparison_reason}。")
         if fact:
             lines.append(f"   {fact}")
         else:

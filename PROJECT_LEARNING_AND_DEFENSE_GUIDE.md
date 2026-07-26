@@ -800,6 +800,10 @@ StopProgram + evidence_by_item
 
 演示：到达月台后，结构化状态保留月台 StopProgram、每件对象的 evidence 和 `S10/S11`；游客界面只显示“现在来到月台”、观察提示与简短事实。点击“再讲详细一点”后，文本改为“我们把月台再看细一点”，TourState 的 visited 列表仍为空。
 
+## B3 最后一次表达优化（待本机验证）
+
+StopProgram 保留位置、角色、预算和对照原因作为审计数据，但游客界面只呈现自然导游语言。我们明确将位置元数据排除在 `_interest_score()` 和排序函数之外，防止“位置文字较长或较具体”意外影响选物。灰塑兴趣下先选灰塑；非灰塑只有在它能帮助比较不同工艺时才作为对照对象出现，并由 `comparison_reason` 解释其价值。
+
 ## B3.1 优化：审核位置提示（待本机验证）
 
 该优化解决“选中的文物虽然属于当前点，但导游只会说找到它”的问题。位置不是由模型猜测：讲解包保留审核映射中的 `raw_location`、`final_node_id`、`mapping_decision` 和 `mapping_source`；StopProgram 再做当前节点一致性校验，才生成 `observation_location`。游客文本采用固定顺序：对象名称 → 审核位置 → 观察细节 → RAG 事实。位置数据不证明文化含义，也不改变路线或访问进度。

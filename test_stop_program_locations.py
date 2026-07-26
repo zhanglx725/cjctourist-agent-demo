@@ -38,13 +38,13 @@ class StopProgramLocationTests(unittest.TestCase):
             program = plan_stop_program("test_stop", 120, detail_level="short")
         item = program.selected_items[0]
         self.assertEqual(item.raw_location, "建筑山墙垂脊前沿")
-        self.assertEqual(item.observation_location, "审核位置“建筑山墙垂脊前沿”")
+        self.assertEqual(item.observation_location, "建筑山墙垂脊前沿")
         self.assertEqual(item.location_source, "ornament_spatial_mapping_v1")
         narration = compose_guide_narration(
             program,
             {item.ornament_id: [{"source_ids": ["S10"], "content": "灰塑是岭南建筑常见的装饰艺术。"}]},
         )
-        self.assertIn("请先看向审核位置“建筑山墙垂脊前沿”", narration.visitor_message)
+        self.assertIn("在建筑山墙垂脊前沿，这是一处灰塑装饰", narration.visitor_message)
         self.assertNotIn("ornament_spatial_mapping_v1", narration.visitor_message)
         self.assertNotIn("raw_location", narration.visitor_message)
 

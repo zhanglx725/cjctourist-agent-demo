@@ -233,4 +233,5 @@ python inspect_route_plan.py deep_dive_90
 
 - `ornament_spatial_mapping_v1.csv` 是文物—点位位置关联的审核来源；只有 `mapping_decision=change/add_node` 且 `final_node_id` 一致的数据，才能进入点位讲解包和现场观察提示。
 - 运行 `build_node_guide_cards.py` 会把 `raw_location` 与映射审计字段重新生成到 `node_guide_cards_v1.json`；不要手工编辑 JSON 或 CSV。
-- `raw_location` 只能生成“请先看向审核位置……”式观察提示，不是导航指令；不得据此补充左右、高低、可达性、光线或遮挡等未审核现场事实。
+- `raw_location` 只能生成“请先看向【具体位置】……”式观察提示，不是导航指令；不得据此补充左右、高低、可达性、光线或遮挡等未审核现场事实。
+- 位置文本不得进入 StopProgram 评分或排序。若讲解包保留非兴趣工艺对象，必须使用 `role=工艺对照` 与非空 `comparison_reason`，以便展示层说明其对照目的。

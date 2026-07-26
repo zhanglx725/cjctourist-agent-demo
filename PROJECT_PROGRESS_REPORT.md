@@ -822,6 +822,10 @@ glossary_ids
 - B4 不新增业务能力、不变更路线、空间边、知识卡或 RAG 索引；其目的仅是证明 B1/B2/B3 与 A1/A2 能形成受控闭环。
 - 本机回归通过后，必须在 LangSmith 核对真实链路中的 `tour_event → stop_guidance → tour_qa → tour_event`、RAG evidence、StopProgram 内容预算及 TourState 的 `visited_stop_ids` 仅在确认完成后改变。
 
+#### 13.14.2 B3 最后一次表达优化（待本机验证）
+
+游客文本不再出现“审核位置”“类型：”“简介：”等数据标签。`raw_location` 仍只读地生成观察提示，不进入候选评分、排序、路线或时间预算。灰塑兴趣下，灰塑对象优先作为核心观察；若预算允许且只保留一件非灰塑对象，则该项以 `工艺对照` 角色及 `comparison_reason` 记录，并在游客文本中说明对照目的。
+
 #### 13.14.1 B3.1 优化：审核位置提示（待本机验证）
 
 在确定性讲解层加入“对象在哪里看”的可追溯提示。生成链为：已审核 `ornament_spatial_mapping_v1.csv` → `build_node_guide_cards.py` → `node_guide_cards_v1.json` → `SelectedItem.observation_location` → 游客讲解。只有 `mapping_decision=change/add_node` 且 `final_node_id` 与当前 StopProgram 节点相同的对象可携带位置；空值或仅等于点位名的粗粒度描述回退为通用观察提示。该字段不参与路线、时间预算、TourState 或导航。

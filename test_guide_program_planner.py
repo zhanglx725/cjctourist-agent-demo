@@ -26,10 +26,13 @@ class GuideProgramPlannerTests(unittest.TestCase):
         self.assertTrue(all(not item.research_summary_card_ids for item in program.selected_items))
 
     def test_same_input_has_identical_stable_program(self):
+        # The 30-minute highlights route reserves this approved stop's
+        # four-minute content budget; repeated planning must be byte-stable.
         first = plan_stop_program("stop_front_courtyard_center", 240, ["灰塑"], "standard")
         second = plan_stop_program("stop_front_courtyard_center", 240, ["灰塑"], "standard")
         self.assertEqual(first.to_dict(), second.to_dict())
-        self.assertEqual([item.role for item in first.selected_items], ["核心观察", "工艺或题材对照"])
+        self.assertEqual([item.role for item in first.selected_items], ["核心观察", "补充观察"])
+        self.assertTrue(all(item.craft == "灰塑" for item in first.selected_items))
 
     def test_detail_level_and_budget_limit_selection_to_one_to_three_items(self):
         short = plan_stop_program("label_moon_platform", 300, detail_level="short")
@@ -78,6 +81,43 @@ class GuideProgramPlannerTests(unittest.TestCase):
         self.assertEqual(program.status, "no_reviewed_candidates")
         self.assertEqual(program.selected_items, ())
         self.assertEqual(program.candidate_count, 0)
+
+    def test_non_interest_craft_requires_a_comparison_role_and_reason(self):
+        cards = {
+            "test_stop": {
+                "node_id": "test_stop", "display_name": "测试点",
+                "ornaments": [
+                    {"ornament_id": "orn_plaster", "name": "灰塑甲", "craft": "灰塑"},
+                    {"ornament_id": "orn_stone", "name": "石雕乙", "craft": "石雕"},
+                ],
+                "rag_queries": ["灰塑甲 是什么装饰", "石雕乙 是什么装饰"],
+            }
+        }
+        with patch("guide_program_planner.load_guide_cards", return_value=cards):
+            program = plan_stop_program("test_stop", 240, interests=["灰塑"], detail_level="standard")
+        self.assertEqual(program.selected_items[0].craft, "灰塑")
+        contrast = program.selected_items[1]
+        self.assertEqual(contrast.role, "工艺对照")
+        self.assertIsNotNone(contrast.comparison_reason)
+
+    def test_location_text_never_changes_candidate_selection_or_order(self):
+        base = {
+            "node_id": "test_stop", "display_name": "测试点", "rag_queries": [],
+            "ornaments": [
+                {"ornament_id": "orn_001", "name": "灰塑甲", "craft": "灰塑", "raw_location": "屋脊"},
+                {"ornament_id": "orn_002", "name": "灰塑乙", "craft": "灰塑", "raw_location": "墙面"},
+            ],
+        }
+        changed = deepcopy(base)
+        changed["ornaments"][0]["raw_location"] = "完全不同但同样已审核的位置描述"
+        with patch("guide_program_planner.load_guide_cards", return_value={"test_stop": base}):
+            first = plan_stop_program("test_stop", 240, interests=["灰塑"], detail_level="standard")
+        with patch("guide_program_planner.load_guide_cards", return_value={"test_stop": changed}):
+            second = plan_stop_program("test_stop", 240, interests=["灰塑"], detail_level="standard")
+        self.assertEqual(
+            [item.ornament_id for item in first.selected_items],
+            [item.ornament_id for item in second.selected_items],
+        )
 
 
 if __name__ == "__main__":

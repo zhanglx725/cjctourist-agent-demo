@@ -68,6 +68,9 @@ class SelectedItem:
     raw_location: str | None = None
     observation_location: str | None = None
     location_source: str | None = None
+    # Present only when this item is deliberately retained to contrast the
+    # primary object's craft or treatment; never inferred from raw_location.
+    comparison_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -195,10 +198,24 @@ def _rag_hints(card: dict[str, Any], ornament: dict[str, str]) -> tuple[str, ...
     return matched or (f"{name} 是什么装饰",)
 
 
-def _role(index: int, budget_seconds: int) -> str:
+def _role(index: int, budget_seconds: int, selected: list[dict[str, str]]) -> str:
     if budget_seconds <= STOP_PROGRAM_POLICY["budget"]["brief_overview_max_seconds"]:
         return "简短概览"
-    return ("核心观察", "工艺或题材对照", "延伸观察")[index]
+    if index == 0:
+        return "核心观察"
+    if index == 1 and selected[index]["craft"] != selected[0]["craft"]:
+        return "工艺对照"
+    return "补充观察" if index == 1 else "延伸观察"
+
+
+def _comparison_reason(index: int, selected: list[dict[str, str]]) -> str | None:
+    """Explain a non-primary craft without changing its selection score."""
+    if index and selected[index]["craft"] != selected[0]["craft"]:
+        return (
+            f"与核心对象的{selected[0]['craft']}作工艺对照，"
+            f"帮助观察两类材料和构件处理的差异"
+        )
+    return None
 
 
 def _selection_reason(ornament: dict[str, str], interests: tuple[str, ...], index: int) -> str:
@@ -231,7 +248,8 @@ def _location_metadata(
     )
     if not approved or _is_coarse_location(raw_location, display_name):
         return None, None, None
-    return raw_location, f"审核位置“{raw_location}”", "ornament_spatial_mapping_v1"
+    # The visitor sees the reviewed wording itself, without internal labels.
+    return raw_location, raw_location, "ornament_spatial_mapping_v1"
 
 
 def plan_stop_program(
@@ -279,13 +297,14 @@ def plan_stop_program(
                 ornament_id=item["ornament_id"],
                 name=item["name"],
                 craft=item["craft"],
-                role=_role(index, budget_seconds),
+                role=_role(index, budget_seconds, selected),
                 planned_seconds=allocated_seconds[index],
                 selection_reason=_selection_reason(item, normalised_interests, index),
                 rag_query_hints=_rag_hints(card, item),
                 raw_location=raw_location,
                 observation_location=observation_location,
                 location_source=location_source,
+                comparison_reason=_comparison_reason(index, selected),
             )
         )
     items = tuple(items)
