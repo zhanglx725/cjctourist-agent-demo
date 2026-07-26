@@ -37,6 +37,20 @@ def _load_catalog(path: Path = CATALOG_FILE) -> dict[str, dict[str, str]]:
         return {row["node_id"]: row for row in csv.DictReader(handle)}
 
 
+def resolve_route_stop_from_text(user_text: str) -> str | None:
+    """Resolve an unambiguous formal guide-stop name mentioned by a visitor."""
+    matches = [
+        (row["stop_name"], node_id)
+        for node_id, row in _load_catalog().items()
+        if row["stop_name"] and row["stop_name"] in user_text
+    ]
+    if not matches:
+        return None
+    # Longest name wins, so “前院中部” is not shadowed by any shorter alias.
+    matches.sort(key=lambda item: len(item[0]), reverse=True)
+    return matches[0][1]
+
+
 def next_stop_navigation(state: dict[str, Any]) -> NextStopNavigation | None:
     """Return reviewed walking guidance to the next formal remaining stop.
 

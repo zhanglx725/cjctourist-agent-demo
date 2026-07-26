@@ -61,6 +61,8 @@
 | `replanning.py` | 有限重规划器 | 仅处理跳过点与剩余时间变化；保留真实已访问记录，从当前点继续，排除跳过点。 | 不引入新讲解点、不调用 LLM；论文/比较卡不参与选点。 |
 | `route_planner.py: plan_from_current_position()` | 从当前位置的剩余路线规划 | 依据原路线顺序和时间预算裁剪剩余点，先删 optional、再删低优先级 core，并保留回前院出口区的路径。 | 只使用已审核边与讲解点目录。 |
 | `test_replanning.py` | 有限重规划测试 | 验证跳过点排除、20 分钟缩短路线、入口回退和已访问点不回流。 | 修改重规划规则后必须运行。 |
+| `agent_graph.py` 的 TourState 节点 | TourState LangGraph 接入 | `direct_route` 初始化状态；`arrive_at_stop`、`next_stop`、`skip_stop`、`replan_time`、`finish_tour` 全部为确定性节点并在同一 thread 内保留状态。 | 不允许 LLM 直接写 `tour_state`；当前点的详细事实讲解仍留待下一阶段 RAG 编排器。 |
+| `test_agent_tour_state.py` | TourState Agent 路由测试 | 验证路线初始化、到达、下一站、跳过、改时间和结束均路由至确定性节点。 | 修改 Agent 意图关键词或节点状态写入后必须运行。 |
 
 TourState 首版字段固定为 `selected_route_id`、`route_stop_ids`、`current_stop_id`、`visited_stop_ids`、`skipped_stop_ids`、`remaining_stop_ids`、`started_at`、`available_minutes`、`remaining_minutes`、`interests`、`detail_level`、`route_status`。`last_arrival_kind` 和 `completion_reason` 为可选审计字段。
 

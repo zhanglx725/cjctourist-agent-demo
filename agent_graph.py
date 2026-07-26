@@ -21,6 +21,13 @@ from dotenv import load_dotenv
 from rag_retrieval import ChenClanHybridRetriever
 from route_planner import CATALOG_FILE, recommend_route, _read_catalog
 from dynamic_route_planner import plan_dynamic_route
+from replanning import replan_after_skip, replan_remaining_time
+from tour_navigation import (
+    format_next_stop_navigation,
+    next_stop_navigation,
+    resolve_route_stop_from_text,
+)
+from tour_state import TourStateError, arrive_at_stop, finish_tour, next_stop, start_tour
 MAX_TOOL_LOOPS = 3
 DEFAULT_DEEPSEEK_MAX_TOKENS = 450
 DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
@@ -41,6 +48,7 @@ class AgentState(TypedDict, total=False):
     performance_metrics: list[dict[str, Any]]
     selected_route_id: str
     active_route_plan: dict[str, Any]
+    tour_state: dict[str, Any]
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -118,6 +126,28 @@ def _route_request_from_text(user_text: str) -> tuple[int, list[str]]:
         if term in user_text
     ]
     return minutes, interests
+
+
+def _remaining_minutes_from_text(user_text: str) -> int | None:
+    match = re.search(r"(?:只剩|还剩|剩余)\s*(\d{1,3})\s*分钟", user_text)
+    return int(match.group(1)) if match else None
+
+
+def _tour_intent(user_text: str, tour_state: dict[str, Any] | None) -> str | None:
+    """Recognise only the first phase-A tour commands without an LLM."""
+    if not tour_state:
+        return None
+    if any(term in user_text for term in ("路线结束", "游览结束", "结束游览", "结束了")):
+        return "finish_tour"
+    if _remaining_minutes_from_text(user_text) is not None:
+        return "replan_time"
+    if any(term in user_text for term in ("跳过", "不去")):
+        return "skip_stop"
+    if any(term in user_text for term in ("下一站", "接下来去哪", "然后去哪")):
+        return "next_stop"
+    if any(term in user_text for term in ("我到", "到达", "我在")) and resolve_route_stop_from_text(user_text):
+        return "arrive_at_stop"
+    return None
 
 
 def _latest_user_text(state: AgentState) -> str:
@@ -265,6 +295,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         exit_node_id = plan.exit_node_id
         exit_return_seconds = plan.estimated_exit_return_seconds
     catalog = _read_catalog(CATALOG_FILE)
+    tour = start_tour(plan, interests=interests, detail_level="standard")
     stop_lines = []
     for index, node_id in enumerate(guide_stop_ids, start=1):
         card = catalog[node_id]
@@ -285,12 +316,15 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         f"互动 {interaction_seconds // 60} 分钟和步行约 {walk_seconds} 秒。\n"
         f"结束后将沿已审核路径回到前院出口区（{exit_node_id}），已预留约 {exit_return_seconds} 秒。\n\n"
         "提示：步行时间基于官网地图与已审核路线估算，现场通行、驻足和开放情况请以馆方安排为准。"
+        "\n\n"
+        + format_next_stop_navigation(next_stop_navigation(tour))
     )
     marker = AIMessage(content=message, additional_kwargs={"direct_route_plan": True})
     return {
         "messages": [marker],
         "selected_route_id": route_id,
         "active_route_plan": plan_data,
+        "tour_state": tour,
         "performance_metrics": _append_metric(
             state,
             "direct_route",
@@ -300,6 +334,133 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
             requested_minutes=minutes,
             interests=interests,
         ),
+    }
+
+
+def _tour_not_started_response(state: AgentState, node: str) -> dict[str, Any]:
+    return {
+        "messages": [AIMessage(content="请先告诉我您的可用时间和兴趣，我会先为您建立游览路线。")],
+        "performance_metrics": _append_metric(state, node, 0.0, tour_state_available=False),
+    }
+
+
+def arrive_at_stop_node(state: AgentState) -> dict[str, Any]:
+    """Record a deterministic arrival; point-specific RAG comes in a later phase."""
+    tour = state.get("tour_state")
+    if not tour:
+        return _tour_not_started_response(state, "arrive_at_stop")
+    started = time.perf_counter()
+    query = _latest_user_text(state)
+    node_id = resolve_route_stop_from_text(query)
+    if not node_id:
+        return {
+            "messages": [AIMessage(content="我还无法确定您到达的是哪个正式讲解点，请说出例如“我到月台了”。")],
+            "performance_metrics": _append_metric(state, "arrive_at_stop", time.perf_counter() - started, resolved=False),
+        }
+    expected = next_stop(tour)
+    try:
+        updated = arrive_at_stop(tour, node_id)
+    except TourStateError as exc:
+        return {
+            "messages": [AIMessage(content=f"无法记录当前点位：{exc}")],
+            "performance_metrics": _append_metric(state, "arrive_at_stop", time.perf_counter() - started, resolved=True, updated=False),
+        }
+    catalog = _read_catalog(CATALOG_FILE)
+    card = catalog.get(node_id, {})
+    sequence_note = "" if node_id == expected else "您是自主到达此点；原路线顺序已保留，如需调整可告诉我剩余时间。\n"
+    message = (
+        f"已记录：您已到达 {card.get('stop_name', node_id)}。\n"
+        + sequence_note
+        + (f"本点讲解焦点：{card.get('guide_focus', '该点的具体讲解内容待后续 RAG 编排。')}\n" if card else "")
+        + format_next_stop_navigation(next_stop_navigation(updated))
+    )
+    return {
+        "messages": [AIMessage(content=message)],
+        "tour_state": updated,
+        "performance_metrics": _append_metric(state, "arrive_at_stop", time.perf_counter() - started, resolved=True, out_of_sequence=node_id != expected),
+    }
+
+
+def next_stop_node(state: AgentState) -> dict[str, Any]:
+    tour = state.get("tour_state")
+    if not tour:
+        return _tour_not_started_response(state, "next_stop")
+    started = time.perf_counter()
+    return {
+        "messages": [AIMessage(content=format_next_stop_navigation(next_stop_navigation(tour)))],
+        "performance_metrics": _append_metric(state, "next_stop", time.perf_counter() - started),
+    }
+
+
+def skip_stop_node(state: AgentState) -> dict[str, Any]:
+    tour = state.get("tour_state")
+    if not tour:
+        return _tour_not_started_response(state, "skip_stop")
+    started = time.perf_counter()
+    explicit_stop = resolve_route_stop_from_text(_latest_user_text(state))
+    try:
+        result = replan_after_skip(tour, explicit_stop)
+    except (TourStateError, ValueError) as exc:
+        return {
+            "messages": [AIMessage(content=f"无法跳过该点：{exc}")],
+            "performance_metrics": _append_metric(state, "skip_stop", time.perf_counter() - started, updated=False),
+        }
+    skipped = result.tour_state["skipped_stop_ids"][-1]
+    return {
+        "messages": [AIMessage(content=f"已跳过 {skipped}，已按当前位置更新剩余路线。\n" + format_next_stop_navigation(next_stop_navigation(result.tour_state)))],
+        "tour_state": result.tour_state,
+        "active_route_plan": {**asdict(result.plan), "route_strategy": "replanned"},
+        "selected_route_id": result.plan.route_id,
+        "performance_metrics": _append_metric(state, "skip_stop", time.perf_counter() - started, skipped_stop_id=skipped),
+    }
+
+
+def replan_time_node(state: AgentState) -> dict[str, Any]:
+    tour = state.get("tour_state")
+    if not tour:
+        return _tour_not_started_response(state, "replan_time")
+    started = time.perf_counter()
+    minutes = _remaining_minutes_from_text(_latest_user_text(state))
+    if minutes is None:
+        return _tour_not_started_response(state, "replan_time")
+    try:
+        result = replan_remaining_time(tour, minutes)
+    except (TourStateError, ValueError) as exc:
+        return {
+            "messages": [AIMessage(content=f"无法按该剩余时间重规划：{exc}")],
+            "performance_metrics": _append_metric(state, "replan_time", time.perf_counter() - started, updated=False),
+        }
+    message = (
+        f"已按剩余 {minutes} 分钟更新路线，保留 {len(result.plan.stop_ids)} 个正式讲解点，"
+        f"预计总时长 {round((result.plan.estimated_total_seconds or 0) / 60)} 分钟。\n"
+        + format_next_stop_navigation(next_stop_navigation(result.tour_state))
+    )
+    return {
+        "messages": [AIMessage(content=message)],
+        "tour_state": result.tour_state,
+        "active_route_plan": {**asdict(result.plan), "route_strategy": "replanned"},
+        "selected_route_id": result.plan.route_id,
+        "performance_metrics": _append_metric(state, "replan_time", time.perf_counter() - started, remaining_minutes=minutes),
+    }
+
+
+def finish_tour_node(state: AgentState) -> dict[str, Any]:
+    tour = state.get("tour_state")
+    if not tour:
+        return _tour_not_started_response(state, "finish_tour")
+    started = time.perf_counter()
+    updated = finish_tour(tour)
+    message = (
+        "本次游览已结束。"
+        f"已完成讲解点 {len(updated['visited_stop_ids'])} 个，"
+        f"跳过 {len(updated['skipped_stop_ids'])} 个，"
+        f"未完成 {len(updated['remaining_stop_ids'])} 个。"
+        "该记录将作为后续游览寄语与成就统计的事实基础。"
+    )
+    return {
+        "messages": [AIMessage(content=message)],
+        "tour_state": updated,
+        "performance_metrics": _append_metric(state, "finish_tour", time.perf_counter() - started),
     }
 
 
@@ -383,6 +544,10 @@ def route_after_llm(state: AgentState) -> str:
 def route_initial_request(state: AgentState) -> str:
     """Use direct retrieval only for an unambiguous fresh visitor question."""
     text = _latest_user_text(state)
+    intent = _tour_intent(text, state.get("tour_state"))
+    if intent:
+        return intent
+    # Starting a new route intentionally replaces the in-memory TourState.
     if should_direct_route(text):
         return "direct_route"
     return "direct_rag" if should_direct_rag(text) else "llm_think"
@@ -399,13 +564,27 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("rag_tool", rag_tool_node)
     workflow.add_node("direct_rag", direct_rag_node)
     workflow.add_node("direct_route", direct_route_node)
+    workflow.add_node("arrive_at_stop", arrive_at_stop_node)
+    workflow.add_node("next_stop", next_stop_node)
+    workflow.add_node("skip_stop", skip_stop_node)
+    workflow.add_node("replan_time", replan_time_node)
+    workflow.add_node("finish_tour", finish_tour_node)
     workflow.add_conditional_edges(
         START,
         route_initial_request,
-        {"direct_rag": "direct_rag", "direct_route": "direct_route", "llm_think": "llm_think"},
+        {
+            "direct_rag": "direct_rag", "direct_route": "direct_route", "arrive_at_stop": "arrive_at_stop",
+            "next_stop": "next_stop", "skip_stop": "skip_stop", "replan_time": "replan_time",
+            "finish_tour": "finish_tour", "llm_think": "llm_think",
+        },
     )
     workflow.add_edge("direct_rag", "llm_think")
     workflow.add_edge("direct_route", END)
+    workflow.add_edge("arrive_at_stop", END)
+    workflow.add_edge("next_stop", END)
+    workflow.add_edge("skip_stop", END)
+    workflow.add_edge("replan_time", END)
+    workflow.add_edge("finish_tour", END)
     workflow.add_conditional_edges("llm_think", route_after_llm, {"rag_tool": "rag_tool", END: END})
     workflow.add_edge("rag_tool", "llm_think")
     return workflow.compile(checkpointer=MemorySaver()) if with_checkpointer else workflow.compile()
