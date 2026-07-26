@@ -44,6 +44,17 @@ class AgentProfileTests(unittest.TestCase):
         self.assertIn("讲解停留顺序", result["messages"][0].content)
         self.assertEqual(result["selected_route_id"], "highlights_30")
 
+    def test_non_anchor_duration_uses_dynamic_route_after_a0_review(self):
+        result = direct_route_node(
+            {"messages": [HumanMessage(content="我有45分钟，想看灰塑，帮我规划路线")], "performance_metrics": []}
+        )
+        self.assertEqual(result["selected_route_id"], "dynamic_45")
+        self.assertEqual(result["active_route_plan"]["route_strategy"], "dynamic")
+        self.assertEqual(
+            result["active_route_plan"]["full_path_node_ids"][-1],
+            "stop_front_courtyard_center",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

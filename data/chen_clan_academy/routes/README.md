@@ -11,6 +11,12 @@
 | `route_templates_v1.json` | 人工认可的路线叙事骨架 | 数据契约已建立，尚未启用模板 |
 | `route_policy_v1.json` | 预算、超时、折返、边状态等全局规划规则 | 首版默认策略 |
 | `route_evaluation_cases_v1.json` | 路线规划器的离线验收用例 | 骨架待补充 |
+| `dynamic_route_policy_v1.json` | 任意时长动态组合的规则、权重、体验时间与边界 | A0-4b 已完成；只允许使用已审核讲解点和空间边 |
+| `dynamic_route_planner.py`（项目根目录） | 动态路线组合器 | 使用束搜索选择下一站，并以 2-opt 减少局部折返；输出完整路径和步行/讲解/观察/互动时间拆分 |
+| `inspect_dynamic_route.py`（项目根目录） | 动态路线命令行预览器 | 人工核验任意时长、兴趣和排除点条件下的路线结果 |
+| `route_benchmark_cases_v1.json` | 动态路线与人工锚点的基准用例集 | 固定 30/60/90 对照与 45/75 动态路线的验收场景 |
+| `route_benchmark.py`（项目根目录） | 锚点基准评估器 | 输出动态/锚点的预算、关键点覆盖、兴趣得分与推荐策略，供 A0-6 人工审核 |
+| `route_review.py`（项目根目录） | A0-6 审核报告生成器 | 输出含自动检查与人工审核字段的 `route_review_results_v1.json` |
 
 ## 关键边界
 

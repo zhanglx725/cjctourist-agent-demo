@@ -1,0 +1,486 @@
+{
+  "schema_version": "v1",
+  "status": "pending_human_review",
+  "instructions": "Only edit manual_review fields after reviewing against the official map or on site. Do not change node IDs in this file.",
+  "records": [
+    {
+      "case_id": "anchor_30_architecture",
+      "requested_minutes": 30,
+      "interests": [
+        "建筑装饰"
+      ],
+      "recommended_strategy": "anchor",
+      "selection_reason_codes": [
+        "reviewed_anchor_fallback",
+        "dynamic_misses_anchor_key_stop"
+      ],
+      "chosen_route_source": "anchor:highlights_30",
+      "guide_stop_ids": [
+        "stop_front_courtyard_center",
+        "label_moon_platform",
+        "stop_front_east_courtyard"
+      ],
+      "guide_stop_names": [
+        "前院中部",
+        "月台",
+        "前东庭"
+      ],
+      "full_path_node_ids": [
+        "entrance_main_outside",
+        "stop_front_courtyard_center",
+        "label_first_main_hall",
+        "label_moon_platform",
+        "stop_front_courtyard_north",
+        "stop_front_east_courtyard",
+        "label_first_east_hall",
+        "label_first_main_hall",
+        "stop_front_courtyard_center"
+      ],
+      "edge_ids": [
+        "edge_001",
+        "edge_002",
+        "edge_003",
+        "edge_026",
+        "edge_045",
+        "edge_036",
+        "edge_022",
+        "edge_002"
+      ],
+      "time_seconds": {
+        "estimated_total": 1760,
+        "allowed_upper_bound": 1980,
+        "within_budget": true,
+        "budget_utilization": 0.889
+      },
+      "automatic_checks": {
+        "all_guide_stops_are_reviewed_and_ornament_rich": true,
+        "repeated_guide_stop_ids": [],
+        "repeated_edge_ids": [
+          "edge_002"
+        ],
+        "theme_repeat_candidates": [
+          "吉祥题材",
+          "灰塑",
+          "石雕",
+          "陶塑"
+        ],
+        "anchor_key_stop_coverage": 0.5,
+        "dynamic_anchor_stop_overlap": 0.5,
+        "path_returns_to_front_courtyard_exit_area": true
+      },
+      "manual_review": {
+        "status": "pending",
+        "guide_value": "pending",
+        "walking_order_natural": "pending",
+        "meaningless_backtracking": "pending",
+        "theme_repetition_acceptable": "pending",
+        "time_budget_feels_realistic": "pending",
+        "reviewer": "",
+        "reviewed_at": "",
+        "notes": ""
+      }
+    },
+    {
+      "case_id": "anchor_60_crafts_stories",
+      "requested_minutes": 60,
+      "interests": [
+        "工艺",
+        "故事"
+      ],
+      "recommended_strategy": "anchor",
+      "selection_reason_codes": [
+        "reviewed_anchor_fallback",
+        "dynamic_misses_anchor_key_stop"
+      ],
+      "chosen_route_source": "anchor:crafts_60",
+      "guide_stop_ids": [
+        "stop_front_courtyard_center",
+        "stop_front_courtyard_north",
+        "stop_front_west_courtyard",
+        "stop_rear_west_courtyard",
+        "stop_rear_courtyard"
+      ],
+      "guide_stop_names": [
+        "前院中部",
+        "前庭",
+        "前西庭",
+        "后西庭",
+        "后庭"
+      ],
+      "full_path_node_ids": [
+        "entrance_main_outside",
+        "stop_front_courtyard_center",
+        "label_first_main_hall",
+        "label_moon_platform",
+        "stop_front_courtyard_north",
+        "stop_front_west_courtyard",
+        "label_middle_west_hall",
+        "stop_rear_west_courtyard",
+        "label_rear_west_hall",
+        "stop_rear_courtyard_west",
+        "stop_rear_courtyard",
+        "label_rear_main_hall",
+        "stop_juxian_hall",
+        "label_moon_platform",
+        "label_first_main_hall",
+        "stop_front_courtyard_center"
+      ],
+      "edge_ids": [
+        "edge_001",
+        "edge_002",
+        "edge_003",
+        "edge_026",
+        "edge_044",
+        "edge_042",
+        "edge_047",
+        "edge_030",
+        "edge_027",
+        "edge_040",
+        "edge_028",
+        "edge_005",
+        "edge_004",
+        "edge_003",
+        "edge_002"
+      ],
+      "time_seconds": {
+        "estimated_total": 3640,
+        "allowed_upper_bound": 3960,
+        "within_budget": true,
+        "budget_utilization": 0.919
+      },
+      "automatic_checks": {
+        "all_guide_stops_are_reviewed_and_ornament_rich": true,
+        "repeated_guide_stop_ids": [],
+        "repeated_edge_ids": [
+          "edge_002",
+          "edge_003"
+        ],
+        "theme_repeat_candidates": [
+          "吉祥题材",
+          "木雕",
+          "灰塑",
+          "石雕",
+          "陶塑"
+        ],
+        "anchor_key_stop_coverage": 0.5,
+        "dynamic_anchor_stop_overlap": 0.667,
+        "path_returns_to_front_courtyard_exit_area": true
+      },
+      "manual_review": {
+        "status": "pending",
+        "guide_value": "pending",
+        "walking_order_natural": "pending",
+        "meaningless_backtracking": "pending",
+        "theme_repetition_acceptable": "pending",
+        "time_budget_feels_realistic": "pending",
+        "reviewer": "",
+        "reviewed_at": "",
+        "notes": ""
+      }
+    },
+    {
+      "case_id": "anchor_90_deep_dive",
+      "requested_minutes": 90,
+      "interests": [
+        "深度",
+        "工艺"
+      ],
+      "recommended_strategy": "anchor",
+      "selection_reason_codes": [
+        "reviewed_anchor_fallback",
+        "dynamic_misses_anchor_key_stop"
+      ],
+      "chosen_route_source": "anchor:deep_dive_90",
+      "guide_stop_ids": [
+        "stop_front_courtyard_center",
+        "label_moon_platform",
+        "stop_front_east_courtyard",
+        "stop_rear_east_courtyard_inner",
+        "stop_rear_courtyard",
+        "stop_rear_west_courtyard"
+      ],
+      "guide_stop_names": [
+        "前院中部",
+        "月台",
+        "前东庭",
+        "后东庭",
+        "后庭",
+        "后西庭"
+      ],
+      "full_path_node_ids": [
+        "entrance_main_outside",
+        "stop_front_courtyard_center",
+        "label_first_main_hall",
+        "label_moon_platform",
+        "stop_front_courtyard_north",
+        "stop_front_east_courtyard",
+        "label_middle_east_hall",
+        "stop_rear_east_courtyard_inner",
+        "stop_rear_courtyard_east",
+        "stop_rear_courtyard",
+        "stop_rear_courtyard_west",
+        "label_rear_west_hall",
+        "stop_rear_west_courtyard",
+        "label_middle_west_hall",
+        "stop_front_west_courtyard",
+        "label_first_west_hall",
+        "label_first_main_hall",
+        "stop_front_courtyard_center"
+      ],
+      "edge_ids": [
+        "edge_001",
+        "edge_002",
+        "edge_003",
+        "edge_026",
+        "edge_045",
+        "edge_048",
+        "edge_051",
+        "edge_049",
+        "edge_041",
+        "edge_040",
+        "edge_027",
+        "edge_030",
+        "edge_047",
+        "edge_042",
+        "edge_037",
+        "edge_021",
+        "edge_002"
+      ],
+      "time_seconds": {
+        "estimated_total": 5425,
+        "allowed_upper_bound": 5940,
+        "within_budget": true,
+        "budget_utilization": 0.913
+      },
+      "automatic_checks": {
+        "all_guide_stops_are_reviewed_and_ornament_rich": true,
+        "repeated_guide_stop_ids": [],
+        "repeated_edge_ids": [
+          "edge_002"
+        ],
+        "theme_repeat_candidates": [
+          "吉祥题材",
+          "木雕",
+          "灰塑",
+          "石雕",
+          "陶塑"
+        ],
+        "anchor_key_stop_coverage": 0.667,
+        "dynamic_anchor_stop_overlap": 0.625,
+        "path_returns_to_front_courtyard_exit_area": true
+      },
+      "manual_review": {
+        "status": "pending",
+        "guide_value": "pending",
+        "walking_order_natural": "pending",
+        "meaningless_backtracking": "pending",
+        "theme_repetition_acceptable": "pending",
+        "time_budget_feels_realistic": "pending",
+        "reviewer": "",
+        "reviewed_at": "",
+        "notes": ""
+      }
+    },
+    {
+      "case_id": "dynamic_45_plaster",
+      "requested_minutes": 45,
+      "interests": [
+        "灰塑"
+      ],
+      "recommended_strategy": "dynamic",
+      "selection_reason_codes": [
+        "non_anchor_duration",
+        "dynamic_within_budget"
+      ],
+      "chosen_route_source": "dynamic",
+      "guide_stop_ids": [
+        "stop_front_courtyard_center",
+        "stop_front_courtyard_north",
+        "stop_rear_west_courtyard",
+        "stop_rear_courtyard"
+      ],
+      "guide_stop_names": [
+        "前院中部",
+        "前庭",
+        "后西庭",
+        "后庭"
+      ],
+      "full_path_node_ids": [
+        "entrance_main_outside",
+        "stop_front_courtyard_center",
+        "label_first_main_hall",
+        "label_moon_platform",
+        "stop_front_courtyard_north",
+        "stop_front_west_courtyard",
+        "label_middle_west_hall",
+        "stop_rear_west_courtyard",
+        "label_rear_west_hall",
+        "stop_rear_courtyard_west",
+        "stop_rear_courtyard",
+        "label_rear_main_hall",
+        "stop_juxian_hall",
+        "label_moon_platform",
+        "label_first_main_hall",
+        "stop_front_courtyard_center"
+      ],
+      "edge_ids": [
+        "edge_001",
+        "edge_002",
+        "edge_003",
+        "edge_026",
+        "edge_044",
+        "edge_042",
+        "edge_047",
+        "edge_030",
+        "edge_027",
+        "edge_040",
+        "edge_028",
+        "edge_005",
+        "edge_004",
+        "edge_003",
+        "edge_002"
+      ],
+      "time_seconds": {
+        "estimated_total": 2680,
+        "allowed_upper_bound": 2970,
+        "within_budget": true,
+        "budget_utilization": 0.902
+      },
+      "automatic_checks": {
+        "all_guide_stops_are_reviewed_and_ornament_rich": true,
+        "repeated_guide_stop_ids": [],
+        "repeated_edge_ids": [
+          "edge_002",
+          "edge_003"
+        ],
+        "theme_repeat_candidates": [
+          "吉祥题材",
+          "木雕",
+          "灰塑",
+          "石雕",
+          "陶塑"
+        ],
+        "anchor_key_stop_coverage": null,
+        "dynamic_anchor_stop_overlap": null,
+        "path_returns_to_front_courtyard_exit_area": true
+      },
+      "manual_review": {
+        "status": "pending",
+        "guide_value": "pending",
+        "walking_order_natural": "pending",
+        "meaningless_backtracking": "pending",
+        "theme_repetition_acceptable": "pending",
+        "time_budget_feels_realistic": "pending",
+        "reviewer": "",
+        "reviewed_at": "",
+        "notes": ""
+      }
+    },
+    {
+      "case_id": "dynamic_75_crafts",
+      "requested_minutes": 75,
+      "interests": [
+        "工艺"
+      ],
+      "recommended_strategy": "dynamic",
+      "selection_reason_codes": [
+        "non_anchor_duration",
+        "dynamic_within_budget"
+      ],
+      "chosen_route_source": "dynamic",
+      "guide_stop_ids": [
+        "stop_front_courtyard_center",
+        "stop_front_east_courtyard",
+        "stop_front_courtyard_north",
+        "stop_rear_west_courtyard",
+        "stop_rear_courtyard",
+        "stop_rear_east_courtyard_inner"
+      ],
+      "guide_stop_names": [
+        "前院中部",
+        "前东庭",
+        "前庭",
+        "后西庭",
+        "后庭",
+        "后东庭"
+      ],
+      "full_path_node_ids": [
+        "entrance_main_outside",
+        "stop_front_courtyard_center",
+        "label_first_main_hall",
+        "label_first_east_hall",
+        "stop_front_east_courtyard",
+        "stop_front_courtyard_north",
+        "stop_front_west_courtyard",
+        "label_middle_west_hall",
+        "stop_rear_west_courtyard",
+        "label_rear_west_hall",
+        "stop_rear_courtyard_west",
+        "stop_rear_courtyard",
+        "stop_rear_courtyard_east",
+        "stop_rear_east_courtyard_inner",
+        "label_middle_east_hall",
+        "stop_front_east_courtyard",
+        "label_first_east_hall",
+        "label_first_main_hall",
+        "stop_front_courtyard_center"
+      ],
+      "edge_ids": [
+        "edge_001",
+        "edge_002",
+        "edge_022",
+        "edge_036",
+        "edge_045",
+        "edge_044",
+        "edge_042",
+        "edge_047",
+        "edge_030",
+        "edge_027",
+        "edge_040",
+        "edge_041",
+        "edge_049",
+        "edge_051",
+        "edge_048",
+        "edge_036",
+        "edge_022",
+        "edge_002"
+      ],
+      "time_seconds": {
+        "estimated_total": 3910,
+        "allowed_upper_bound": 4950,
+        "within_budget": true,
+        "budget_utilization": 0.79
+      },
+      "automatic_checks": {
+        "all_guide_stops_are_reviewed_and_ornament_rich": true,
+        "repeated_guide_stop_ids": [],
+        "repeated_edge_ids": [
+          "edge_002",
+          "edge_022",
+          "edge_036"
+        ],
+        "theme_repeat_candidates": [
+          "吉祥题材",
+          "木雕",
+          "灰塑",
+          "石雕",
+          "陶塑"
+        ],
+        "anchor_key_stop_coverage": null,
+        "dynamic_anchor_stop_overlap": null,
+        "path_returns_to_front_courtyard_exit_area": true
+      },
+      "manual_review": {
+        "status": "pending",
+        "guide_value": "pending",
+        "walking_order_natural": "pending",
+        "meaningless_backtracking": "pending",
+        "theme_repetition_acceptable": "pending",
+        "time_budget_feels_realistic": "pending",
+        "reviewer": "",
+        "reviewed_at": "",
+        "notes": ""
+      }
+    }
+  ]
+}

@@ -11,6 +11,8 @@ class RoutePlannerTests(unittest.TestCase):
             self.assertGreater(len(plan.full_path_node_ids), len(plan.stop_ids))
             self.assertGreater(len(plan.edge_ids), 0)
             self.assertIsNotNone(plan.estimated_walk_seconds)
+            self.assertEqual(plan.full_path_node_ids[-1], "stop_front_courtyard_center")
+            self.assertIsNotNone(plan.estimated_exit_return_seconds)
 
     def test_each_template_uses_only_one_front_axis_stop(self):
         front_axis = {"stop_front_courtyard_north", "label_moon_platform"}

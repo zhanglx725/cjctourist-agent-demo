@@ -1,0 +1,62 @@
+{
+  "schema_version": "v1",
+  "status": "draft_for_dynamic_route_planning",
+  "scope": "Dynamic composition for reviewed guide stops only; it does not replace reviewed anchor routes.",
+  "duration_policy": {
+    "minimum_minutes": 20,
+    "maximum_minutes": 120,
+    "maximum_overrun_ratio": 0.1,
+    "maximum_stops_by_duration": {
+      "20": 2,
+      "30": 3,
+      "45": 4,
+      "60": 5,
+      "75": 6,
+      "90": 7,
+      "120": 8
+    },
+    "anchor_template_minutes": [30, 60, 90],
+    "anchor_template_rule": "Use reviewed anchor routes for exact anchor durations without exclusions; other durations may be dynamically composed."
+  },
+  "candidate_policy": {
+    "required_review_status": "approved",
+    "allowed_route_roles": ["core", "optional"],
+    "minimum_mapped_ornament_count": 4,
+    "exclude_entry_context": true,
+    "use_existing_stop_group_policy": true,
+    "require_reviewed_path": true
+  },
+  "scoring_policy": {
+    "mapped_ornament_weight": 10,
+    "mapped_craft_weight": 4,
+    "core_role_bonus": 30,
+    "optional_role_bonus": 0,
+    "interest_match_bonus": 70,
+    "representative_item_match_bonus": 15,
+    "craft_interest_per_type_bonus": 10,
+    "same_theme_penalty": 12,
+    "detour_penalty_per_second": 0.2,
+    "time_fit_bonus": 20,
+    "notes": "Cultural density is primary; visitor interest, craft diversity, detour cost and time continuity also affect selection."
+  },
+  "route_quality_policy": {
+    "minimum_core_stops": 2,
+    "allow_repeated_transit_nodes": true,
+    "allow_repeated_guide_stops": false,
+    "allow_unreachable_candidates": false,
+    "beam_width": 24,
+    "output_origin": "dynamic_composed_v1",
+    "must_show_time_basis_warning": true
+  },
+  "experience_budget_per_stop_seconds": {
+    "guide": 300,
+    "observation": 180,
+    "interaction": 120,
+    "notes": "Each guide stop reserves guide, observation and interaction time; routes are not walking-only."
+  },
+  "exit_policy": {
+    "default_exit_node_id": "stop_front_courtyard_center",
+    "require_return_to_exit_area": true,
+    "notes": "The exit is in the front courtyard. Include reviewed return walking time after the final guide stop."
+  }
+}

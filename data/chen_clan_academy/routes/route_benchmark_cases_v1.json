@@ -1,0 +1,47 @@
+{
+  "schema_version": "v1",
+  "status": "draft_for_human_review",
+  "purpose": "Compare dynamic route composition with reviewed anchor routes before Agent integration.",
+  "cases": [
+    {
+      "case_id": "anchor_30_architecture",
+      "available_minutes": 30,
+      "interests": ["建筑装饰"],
+      "anchor_route_id": "highlights_30",
+      "anchor_key_stop_ids": ["label_moon_platform", "stop_front_east_courtyard"],
+      "expected_strategy": "anchor"
+    },
+    {
+      "case_id": "anchor_60_crafts_stories",
+      "available_minutes": 60,
+      "interests": ["工艺", "故事"],
+      "anchor_route_id": "crafts_60",
+      "anchor_key_stop_ids": ["stop_front_west_courtyard", "stop_rear_west_courtyard"],
+      "expected_strategy": "anchor"
+    },
+    {
+      "case_id": "anchor_90_deep_dive",
+      "available_minutes": 90,
+      "interests": ["深度", "工艺"],
+      "anchor_route_id": "deep_dive_90",
+      "anchor_key_stop_ids": ["label_moon_platform", "stop_rear_east_courtyard_inner", "stop_rear_west_courtyard"],
+      "expected_strategy": "anchor"
+    },
+    {
+      "case_id": "dynamic_45_plaster",
+      "available_minutes": 45,
+      "interests": ["灰塑"],
+      "anchor_route_id": null,
+      "anchor_key_stop_ids": [],
+      "expected_strategy": "dynamic"
+    },
+    {
+      "case_id": "dynamic_75_crafts",
+      "available_minutes": 75,
+      "interests": ["工艺"],
+      "anchor_route_id": null,
+      "anchor_key_stop_ids": [],
+      "expected_strategy": "dynamic"
+    }
+  ]
+}

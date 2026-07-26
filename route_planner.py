@@ -41,11 +41,13 @@ class RoutePlan:
     route_id: str
     display_name: str
     target_minutes: int
+    exit_node_id: str
     stop_ids: tuple[str, ...]
     full_path_node_ids: tuple[str, ...]
     edge_ids: tuple[str, ...]
     segments: tuple[RouteSegment, ...]
     estimated_walk_seconds: int | None
+    estimated_exit_return_seconds: int | None
     estimated_explanation_seconds: int
     estimated_observation_seconds: int
     estimated_interaction_seconds: int
@@ -126,6 +128,9 @@ def plan_template(route_id: str) -> RoutePlan:
 
     graph = _filtered_graph(policy)
     stop_ids = tuple(template["stop_order"])
+    exit_node_id = policy.get("exit_policy", {}).get("default_exit_node_id")
+    if not exit_node_id or exit_node_id not in graph:
+        raise RoutePlanningError("路线出口区域未配置或不在已审核空间图中。")
     if len(stop_ids) < 2:
         raise RoutePlanningError(f"路线 {route_id} 至少需要起点和一个讲解停留站")
 
@@ -151,6 +156,29 @@ def plan_template(route_id: str) -> RoutePlan:
         full_path.extend(spatial.node_ids if not full_path else spatial.node_ids[1:])
         edge_ids.extend(spatial.edge_ids)
         bases.extend(spatial.walk_time_basis)
+
+    # Return to the front-courtyard exit area after the final guide stop.  This
+    # is transit only: it never turns the exit node into a repeated explanation.
+    exit_return_seconds: int | None = 0
+    if stop_ids[-1] != exit_node_id:
+        try:
+            exit_spatial = shortest_route(stop_ids[-1], exit_node_id, graph=graph)
+        except SpatialGraphError as exc:
+            raise RoutePlanningError(f"路线 {route_id} 无法回到前院出口区：{exc}") from exc
+        segments.append(
+            RouteSegment(
+                from_stop_id=stop_ids[-1],
+                to_stop_id=exit_node_id,
+                node_ids=exit_spatial.node_ids,
+                edge_ids=exit_spatial.edge_ids,
+                estimated_walk_seconds=exit_spatial.estimated_walk_seconds,
+                walk_time_basis=exit_spatial.walk_time_basis,
+            )
+        )
+        full_path.extend(exit_spatial.node_ids[1:])
+        edge_ids.extend(exit_spatial.edge_ids)
+        bases.extend(exit_spatial.walk_time_basis)
+        exit_return_seconds = exit_spatial.estimated_walk_seconds
 
     guide_stop_ids = tuple(
         node_id
@@ -191,6 +219,7 @@ def plan_template(route_id: str) -> RoutePlan:
     overrun_limit = 1 + float(policy["time_policy"]["maximum_overrun_ratio"])
     within_budget = total_seconds <= budget_seconds * overrun_limit if total_seconds is not None else None
     warnings = [templates["rules"]["time_warning"], policy["time_policy"]["time_warning"]]
+    warnings.append("完整路径已包含回到前院出口区的步行时间；出口开放情况仍需以现场为准。")
     if not within_budget:
         warnings.append("当前模板预计超过目标时长；后续需由规划器删减可选站或调整讲解时长。")
 
@@ -198,11 +227,13 @@ def plan_template(route_id: str) -> RoutePlan:
         route_id=route_id,
         display_name=template["display_name"],
         target_minutes=int(template["target_minutes"]),
+        exit_node_id=exit_node_id,
         stop_ids=stop_ids,
         full_path_node_ids=tuple(full_path),
         edge_ids=tuple(edge_ids),
         segments=tuple(segments),
         estimated_walk_seconds=total_walk,
+        estimated_exit_return_seconds=exit_return_seconds,
         estimated_explanation_seconds=explanation_seconds,
         estimated_observation_seconds=observation_seconds,
         estimated_interaction_seconds=interaction_seconds,

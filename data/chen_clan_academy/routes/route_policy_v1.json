@@ -28,5 +28,10 @@
     "exclude_visited_stops": true,
     "exclude_skipped_stops": true,
     "allow_current_stop_as_start": true
+  },
+  "exit_policy": {
+    "default_exit_node_id": "stop_front_courtyard_center",
+    "require_return_to_exit_area": true,
+    "notes": "Return to the front-courtyard exit area is part of the full route, but not a repeated guide stop."
   }
 }

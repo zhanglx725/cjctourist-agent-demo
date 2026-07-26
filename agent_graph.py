@@ -6,6 +6,7 @@ import os
 import json
 import time
 import re
+from dataclasses import asdict
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -19,6 +20,7 @@ from typing_extensions import TypedDict
 from dotenv import load_dotenv
 from rag_retrieval import ChenClanHybridRetriever
 from route_planner import CATALOG_FILE, recommend_route, _read_catalog
+from dynamic_route_planner import plan_dynamic_route
 MAX_TOOL_LOOPS = 3
 DEFAULT_DEEPSEEK_MAX_TOKENS = 450
 DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
@@ -97,11 +99,14 @@ def should_direct_rag(user_text: str) -> bool:
 def should_direct_route(user_text: str) -> bool:
     """Route requests are deterministic and need no LLM tool-selection turn."""
     route_terms = ("路线", "规划", "怎么逛", "游览", "参观顺序", "半小时", "一小时", "90分钟")
-    return any(term in user_text for term in route_terms)
+    return any(term in user_text for term in route_terms) or bool(re.search(r"\d+\s*分钟", user_text))
 
 
 def _route_request_from_text(user_text: str) -> tuple[int, list[str]]:
-    if re.search(r"90\s*分钟|一小时半|1\.5\s*小时", user_text):
+    explicit_minutes = re.search(r"(\d{1,3})\s*分钟", user_text)
+    if explicit_minutes:
+        minutes = max(20, min(120, int(explicit_minutes.group(1))))
+    elif re.search(r"90\s*分钟|一小时半|1\.5\s*小时", user_text):
         minutes = 90
     elif re.search(r"60\s*分钟|一小时", user_text):
         minutes = 60
@@ -109,7 +114,7 @@ def _route_request_from_text(user_text: str) -> tuple[int, list[str]]:
         minutes = 30
     interests = [
         term
-        for term in ("灰塑", "木雕", "石雕", "陶塑", "三国", "故事", "吉祥", "工艺")
+        for term in ("灰塑", "木雕", "石雕", "陶塑", "三国", "故事", "吉祥", "工艺", "建筑装饰", "深度")
         if term in user_text
     ]
     return minutes, interests
@@ -230,40 +235,68 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
     query = _latest_user_text(state)
     minutes, interests = _route_request_from_text(query)
     started = time.perf_counter()
-    plan = recommend_route(available_minutes=minutes, interests=interests)
-    plan_data = plan.to_dict()
+    # Exact 30/60/90-minute requests retain human-reviewed anchors.  Other
+    # durations use A0-4b dynamic composition, already benchmarked in A0-5/6.
+    is_anchor_duration = minutes in {30, 60, 90}
+    if is_anchor_duration:
+        plan = recommend_route(available_minutes=minutes, interests=interests)
+        route_id = plan.route_id
+        route_strategy = "anchor"
+        plan_data = {**plan.to_dict(), "route_strategy": route_strategy}
+        guide_stop_ids = tuple(plan.stop_ids[1:])
+        explanation_seconds = plan.estimated_explanation_seconds
+        observation_seconds = plan.estimated_observation_seconds
+        interaction_seconds = plan.estimated_interaction_seconds
+        total_seconds = plan.estimated_total_seconds or 0
+        walk_seconds = plan.estimated_walk_seconds or 0
+        exit_node_id = plan.exit_node_id
+        exit_return_seconds = plan.estimated_exit_return_seconds or 0
+    else:
+        plan = plan_dynamic_route(minutes, interests)
+        route_id = f"dynamic_{minutes}"
+        route_strategy = "dynamic"
+        plan_data = {**asdict(plan), "route_strategy": route_strategy}
+        guide_stop_ids = plan.stop_ids
+        explanation_seconds = plan.estimated_guide_seconds
+        observation_seconds = plan.estimated_observation_seconds
+        interaction_seconds = plan.estimated_interaction_seconds
+        total_seconds = plan.estimated_total_seconds
+        walk_seconds = plan.estimated_walk_seconds
+        exit_node_id = plan.exit_node_id
+        exit_return_seconds = plan.estimated_exit_return_seconds
     catalog = _read_catalog(CATALOG_FILE)
     stop_lines = []
-    for index, node_id in enumerate(plan.stop_ids[1:], start=1):
+    for index, node_id in enumerate(guide_stop_ids, start=1):
         card = catalog[node_id]
         stop_lines.append(
             f"{index}. {card['stop_name']}：{card['guide_focus']}"
         )
-    total_minutes = (plan.estimated_total_seconds or 0) / 60
+    total_minutes = total_seconds / 60
     message = (
-        f"为您推荐“{plan.display_name}”。预计总时长约 {total_minutes:.0f} 分钟"
-        f"（目标 {plan.target_minutes} 分钟）。\n\n"
+        f"为您推荐“{getattr(plan, 'display_name', f'{minutes}分钟动态讲解线')}”。预计总时长约 {total_minutes:.0f} 分钟"
+        f"（可用时间 {minutes} 分钟；策略：{'人工审核锚点' if route_strategy == 'anchor' else '动态组合'}）。\n\n"
         "讲解停留顺序：\n"
         + "\n".join(stop_lines)
         + "\n\n"
         f"路线会经过 {len(plan.full_path_node_ids)} 个已审核空间节点、"
         f"使用 {len(plan.edge_ids)} 条已审核双向边。"
-        f"时间包含讲解 {plan.estimated_explanation_seconds // 60} 分钟、"
-        f"观察 {plan.estimated_observation_seconds // 60} 分钟、"
-        f"互动 {plan.estimated_interaction_seconds // 60} 分钟和步行约 "
-        f"{plan.estimated_walk_seconds} 秒。\n\n"
+        f"时间包含讲解 {explanation_seconds // 60} 分钟、"
+        f"观察 {observation_seconds // 60} 分钟、"
+        f"互动 {interaction_seconds // 60} 分钟和步行约 {walk_seconds} 秒。\n"
+        f"结束后将沿已审核路径回到前院出口区（{exit_node_id}），已预留约 {exit_return_seconds} 秒。\n\n"
         "提示：步行时间基于官网地图与已审核路线估算，现场通行、驻足和开放情况请以馆方安排为准。"
     )
     marker = AIMessage(content=message, additional_kwargs={"direct_route_plan": True})
     return {
         "messages": [marker],
-        "selected_route_id": plan.route_id,
+        "selected_route_id": route_id,
         "active_route_plan": plan_data,
         "performance_metrics": _append_metric(
             state,
             "direct_route",
             time.perf_counter() - started,
-            route_id=plan.route_id,
+            route_id=route_id,
+            route_strategy=route_strategy,
             requested_minutes=minutes,
             interests=interests,
         ),

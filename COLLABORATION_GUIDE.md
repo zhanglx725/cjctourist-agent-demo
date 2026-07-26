@@ -24,9 +24,46 @@
 | `routes/route_stop_catalog_v1.csv` | 路线讲解点目录 | 可讲解点的文物数量、工艺数量、主题、讲解焦点和路线资格。 |
 | `routes/route_templates_v1.json` | 路线骨架表 | 30/60/90 分钟路线的停留顺序、主题、可选点和体验预算。 |
 | `routes/route_policy_v1.json` | 路线规则表 | 可用边状态、前庭/月台互斥、时间缓冲和重规划规则。 |
+| `routes/dynamic_route_policy_v1.json` | 动态路线规则表 | 任意时长组合的时长边界、候选门槛、评分权重和人工锚点路线回退规则。 |
 | `routes/node_guide_cards_v1.json` | 点位讲解包 | 路线站的文物列表、工艺分布、RAG 查询提示与扩展卡接口。 |
 | `research_cards/` | 学术研究摘要卡库 | 建议按“论文一张卡”建设，供深度讲解引用。 |
 | `comparison_cards/` | 建筑比较卡库 | 建议按“一个对比问题一张卡”建设，供比较问答和深度路线使用。 |
+
+## 动态路线模块（A0）
+
+| 文件 | 中文名 | 当前功能 | 维护边界 |
+| --- | --- | --- | --- |
+| `dynamic_route_planner.py` | 动态路线组合器 | 从路线讲解点目录中筛选已审核、至少 4 件文物、可达且未被排除的候选点；按文物密度、工艺多样性、兴趣、主题重复评分，并以“内容价值－到下一站绕路成本”的束搜索选点；再以单点局部替换和 2-opt 消除局部折返。输出完整路径、边、讲解/观察/互动/步行时间拆分。 | 只能使用 `route_stop_catalog_v1.csv` 和已审核空间边；不要让 LLM 自行虚构通路或修改点位事实。 |
+| `test_dynamic_route_policy.py` | 动态路线规则测试 | 验证时长范围、锚点路线保留和候选门槛。 | 修改 `dynamic_route_policy_v1.json` 后必须运行。 |
+| `test_dynamic_route_planner.py` | 动态路线组合测试 | 验证候选数量、可达性、排除点、前庭/月台互斥、兴趣得分，以及 45 分钟动态路线的时间上限、完整路径与三国故事偏好。 | 修改空间图、路线点目录或动态评分逻辑后必须运行。 |
+| `inspect_dynamic_route.py` | 动态路线人工预览器 | 输入时长、兴趣词与可选排除点，展示中文讲解点、完整节点路径、边 ID、时间拆分及每站可解释得分。 | 仅用于审核和调参，不直接修改任何空间数据。 |
+| `route_benchmark.py` | 锚点路线基准评估器 | 同时生成动态路线与 30/60/90 人工锚点路线，比较预算、关键停留点覆盖、兴趣得分与站点重合度，给出 `anchor` 或 `dynamic` 建议策略。 | 仅用于 A0-5/A0-6 评估；尚未接入 `agent_graph.py`。 |
+| `routes/route_benchmark_cases_v1.json` | 路线基准用例集 | 固定 30、60、90 分钟锚点对照及 45、75 分钟动态组合用例；每个用例的关键人工点必须可追溯。 | 修改路线模板或动态选点规则后必须复跑。 |
+| `test_route_benchmark.py` | 路线基准回归测试 | 验证动态路线预算、锚点回退和非锚点时长保持动态组合。 | A0-5 的最低自动验收。 |
+| `route_review.py` | A0-6 人工审核报告生成器 | 把基准结果转为可审核记录：自动检查预算、重复讲解点、重复边、主题重复候选；保留人工判断字段。 | 只可填写生成文件中的 `manual_review` 字段；不得修改 `node_id` 或边 ID。 |
+| `routes/route_review_results_v1.json` / `.csv` | A0-6 人工审核结果表 | 每个基准用例一条记录；JSON 保留完整可追溯数据，CSV 可直接用 Excel 填写讲解价值、顺序、折返、主题重复和时间真实性。 | 由 `route_review.py` 生成；重新生成前先提交或备份已填写的人工结论。 |
+| `test_route_review.py` | A0-6 审核交接测试 | 验证每个基准用例都有待审核项，并且关键自动约束可见。 | 修改评估字段时必须运行。 |
+
+`inspect_dynamic_route.py --exclude <node_id>` 的含义是“不要把此点作为讲解停留点”；它**不是**封路，因为路线仍可经由该已审核节点通行。若将来需要表达临时封闭，应另建“禁用通行边/节点”的空间状态接口，不能复用此参数。
+
+路线的出口区统一为 `stop_front_courtyard_center`（前院中部）。它是完整路径的终点，但回程只算通行时间，**不**作为重复讲解停留点；动态路线选点和人工锚点路线的时间预算均已包含这段回程。
+
+`agent_graph.py` 的 `direct_route` 现已接入 A0：精确 30/60/90 分钟请求优先使用人工审核锚点，45/75 等非锚点时长调用动态路线组合器。两类请求均不让 LLM 自行选点或虚构通路。
+
+## TourState 阶段 A
+
+| 文件 | 中文名 | 当前功能 | 维护边界 |
+| --- | --- | --- | --- |
+| `tour_state.py` | 游览会话状态纯函数 | 初始化路线会话、记录到达、查询下一站、跳过站点和结束游览；所有点位均校验 `marker_inventory_v0.csv`，输入状态不被原地修改。 | 当前只保存会话内存；不得在这里调用 LLM、RAG、重规划器或修改空间图。 |
+| `test_tour_state.py` | 游览会话状态测试 | 验证初始化、到达、下一站、跳过、重复到达、完成与未知点位拒绝。 | 修改状态字段或转移规则后必须运行。 |
+| `tour_navigation.py` | 下一站确定性导航器 | 从 TourState 找到下一个剩余讲解点，调用已审核空间图输出节点、边、步行时间与该点 `guide_focus`。 | 不修改 TourState；不调用 LLM、RAG 或重规划器。 |
+| `test_tour_navigation.py` | 下一站导航测试 | 验证入口起步、到达后推进、跳过点排除、可达路径和完成路线后的空下一站。 | 修改空间图、讲解点目录或导航输出后必须运行。 |
+
+TourState 首版字段固定为 `selected_route_id`、`route_stop_ids`、`current_stop_id`、`visited_stop_ids`、`skipped_stop_ids`、`remaining_stop_ids`、`started_at`、`available_minutes`、`remaining_minutes`、`interests`、`detail_level`、`route_status`。`last_arrival_kind` 和 `completion_reason` 为可选审计字段。
+
+人工填写 `route_review_results_v1.csv` 时：`manual_status` 只能填 `approved`、`revise` 或 `rejected`；其余四个判断列填 `yes`、`no` 或 `needs_site_check`。只填写人工列，不改自动生成的路径、时间、点位和边字段。
+
+动态路线 A0 的开发顺序固定为：候选过滤 → 点位评分 → 时间预算组合 → 评估集 → Agent 接入。论文卡、比较卡尚未参与 A0 评分；后续只可通过已审核 `card_id` 增加可解释加分项。
 
 ## 新卡片统一接入规则
 

@@ -1,0 +1,6 @@
+﻿case_id,requested_minutes,interests,recommended_strategy,chosen_route_source,guide_stop_names,estimated_total_seconds,allowed_upper_bound_seconds,within_budget,repeated_guide_stop_ids,repeated_edge_ids,theme_repeat_candidates,anchor_key_stop_coverage,dynamic_anchor_stop_overlap,manual_status,guide_value,walking_order_natural,meaningless_backtracking,theme_repetition_acceptable,time_budget_feels_realistic,reviewer,reviewed_at,notes
+anchor_30_architecture,30,建筑装饰,anchor,anchor:highlights_30,前院中部 → 月台 → 前东庭,1760,1980,True,,edge_002,吉祥题材;灰塑;石雕;陶塑,0.5,0.5,pending,pending,pending,pending,pending,pending,,,
+anchor_60_crafts_stories,60,工艺;故事,anchor,anchor:crafts_60,前院中部 → 前庭 → 前西庭 → 后西庭 → 后庭,3640,3960,True,,edge_002;edge_003,吉祥题材;木雕;灰塑;石雕;陶塑,0.5,0.667,pending,pending,pending,pending,pending,pending,,,
+anchor_90_deep_dive,90,深度;工艺,anchor,anchor:deep_dive_90,前院中部 → 月台 → 前东庭 → 后东庭 → 后庭 → 后西庭,5425,5940,True,,edge_002,吉祥题材;木雕;灰塑;石雕;陶塑,0.667,0.625,pending,pending,pending,pending,pending,pending,,,
+dynamic_45_plaster,45,灰塑,dynamic,dynamic,前院中部 → 前庭 → 后西庭 → 后庭,2680,2970,True,,edge_002;edge_003,吉祥题材;木雕;灰塑;石雕;陶塑,,,pending,pending,pending,pending,pending,pending,,,
+dynamic_75_crafts,75,工艺,dynamic,dynamic,前院中部 → 前东庭 → 前庭 → 后西庭 → 后庭 → 后东庭,3910,4950,True,,edge_002;edge_022;edge_036,吉祥题材;木雕;灰塑;石雕;陶塑,,,pending,pending,pending,pending,pending,pending,,,
