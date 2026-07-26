@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from guide_program_planner import StopProgram, plan_stop_program
+from guide_narration import compose_guide_narration
 from tour_presenter import present_tour_state
 from tour_qa import load_guide_cards, parse_rag_payload
 
@@ -113,9 +114,9 @@ def build_stop_guidance(
             "presentation": {**present_tour_state(tour_state, interaction_state), "message": message, "code": "guidance_no_candidates", "ok": True},
         }
 
-    sections: list[str] = [f"现在来到{program.display_name}。本点将重点观察以下 {len(program.selected_items)} 项已审核对象："]
     evidence: list[dict[str, Any]] = []
     rag_queries: list[str] = []
+    evidence_by_item: dict[str, list[dict[str, Any]]] = {}
     for item in program.selected_items:
         query = item.rag_query_hints[0]
         rag_queries.append(query)
@@ -125,25 +126,23 @@ def build_stop_guidance(
             payload = {"evidence": [], "error": f"本地知识检索暂时不可用：{exc}"}
         item_evidence = [entry for entry in payload.get("evidence", []) if isinstance(entry, dict)]
         evidence.extend(item_evidence)
-        heading = f"- {item.name}（{item.craft}；{item.role}；计划约 {item.planned_seconds} 秒）"
-        if item_evidence:
-            sections.append(f"{heading}：{_evidence_line(item_evidence[0])}")
-        else:
-            # The name/craft association is reviewed point metadata, not a
-            # cultural fact.  State the limitation instead of filling it in.
-            sections.append(f"{heading}：当前本地知识库未检索到可引用的事实资料，本次不据名称扩写其寓意或故事。")
-
-    if detailed:
-        sections.append("这是在既有 StopProgram 基础上的展开讲解；路线进度与已访问记录均未改变。")
-    else:
-        sections.append("讲解结束后，请根据现场观赏情况选择“本点讲解结束”，再确认是否完成本点参观。")
-    message = "\n".join(sections)
+        evidence_by_item[item.ornament_id] = item_evidence
+    narration = compose_guide_narration(program, evidence_by_item, detailed=detailed)
+    source_text = "、".join(narration.source_ids) or "当前没有可引用的来源编号"
+    message = narration.visitor_message + f"\n来源：{source_text}。"
     view = present_tour_state(tour_state, interaction_state, message=message)
     return {
         "message": message,
         "status": "guided" if evidence else "guided_without_evidence",
         "stop_program": program.to_dict(),
         "evidence": evidence,
+        "evidence_by_item": evidence_by_item,
         "rag_queries": rag_queries,
+        "source_ids": list(narration.source_ids),
+        "narration": {
+            "used_llm": narration.used_llm,
+            "fallback_reason": narration.fallback_reason,
+            "detailed": detailed,
+        },
         "presentation": {**view, "code": "stop_guidance", "ok": True, "evidence_count": len(evidence)},
     }

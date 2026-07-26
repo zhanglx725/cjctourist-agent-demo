@@ -20,6 +20,9 @@ from tour_presenter import present_tour_state
 
 GUIDE_CARDS_FILE = Path("data/chen_clan_academy/routes/node_guide_cards_v1.json")
 MARKERS_FILE = Path("data/chen_clan_academy/spatial/marker_inventory_v0.csv")
+DEICTIC_POINT_TERMS = ("这里", "此处", "眼前", "当前点", "当前站", "本点")
+CRAFT_TERMS = ("石雕", "灰塑", "木雕", "砖雕", "陶塑", "铜铁铸")
+FEATURE_TERMS = ("特点", "特征", "工艺", "怎么做", "有什么")
 
 
 @lru_cache(maxsize=1)
@@ -80,7 +83,7 @@ def resolve_point_context(user_query: str, tour_state: dict[str, Any] | None) ->
         }, None
     if resolution.reason_code in {"ambiguous_node_name", "multiple_node_mentions"}:
         return None, resolution.reason_code
-    if any(token in user_query for token in ("这里", "当前点", "当前站", "本点")):
+    if any(token in user_query for token in DEICTIC_POINT_TERMS):
         context = current_stop_context(tour_state)
         return (context, None) if context else (None, "current_point_unavailable")
     # A location-like noun plus an inventory question should not be guessed.
@@ -154,11 +157,10 @@ def format_point_inventory(
 def build_tour_qa_query(user_query: str, tour_state: dict[str, Any] | None) -> tuple[str, dict[str, Any] | None]:
     """Augment one factual question with the active position's reviewed hints."""
     context, _ = resolve_point_context(user_query, tour_state)
-    context = context or current_stop_context(tour_state)
     if not context:
         return user_query, None
     card = context.get("card") or {}
-    detail_craft = next((craft for craft in ("石雕", "灰塑", "木雕", "砖雕", "陶塑", "铜铁铸") if craft in user_query), None)
+    detail_craft = next((craft for craft in CRAFT_TERMS if craft in user_query), None)
     candidate_items = card.get("ornaments", [])
     if detail_craft:
         candidate_items = [item for item in candidate_items if detail_craft in item.get("craft", "")]
@@ -227,6 +229,115 @@ def format_tour_qa_answer(
         "evidence": evidence,
         "point_context": context,
         "presentation": presentation,
+        "mode": "rag",
+    }
+
+
+def _current_point_craft_feature_request(user_query: str) -> str | None:
+    """Return the named craft only for deictic current-point feature questions."""
+    if not any(term in user_query for term in DEICTIC_POINT_TERMS):
+        return None
+    if not any(term in user_query for term in FEATURE_TERMS):
+        return None
+    return next((craft for craft in CRAFT_TERMS if craft in user_query), None)
+
+
+def _matches_ornament_evidence(item: dict[str, Any], ornament_name: str) -> bool:
+    """Do not present a global RAG result as an on-site instance by accident."""
+    title = " ".join(item.get("title_path") or [])
+    content = str(item.get("content") or "")
+    return ornament_name in title or ornament_name in content
+
+
+def _fact_summary(item: dict[str, Any]) -> str:
+    """Use a compact evidence-derived sentence rather than dumping a chunk."""
+    content = " ".join(str(item.get("content") or "").split())
+    first_sentence = next((part.strip() for part in content.replace("！", "。").replace("？", "。").split("。") if part.strip()), content)
+    source_ids = "、".join(item.get("source_ids") or []) or "未标注来源编号"
+    document = item.get("document") or "未标注文档"
+    return f"{first_sentence}（{document}；{source_ids}）"
+
+
+def answer_current_point_craft_features(
+    user_query: str,
+    craft: str,
+    tour_state: dict[str, Any],
+    interaction_state: dict[str, Any] | None,
+    rag_search: Callable[[str], str],
+) -> dict[str, Any]:
+    """Give a point-bounded craft explanation plus evidence-backed craft facts.
+
+    The point card proves only the reviewed ornament-to-node association.  The
+    RAG calls prove explanatory facts.  This distinction prevents global
+    examples from being described as objects immediately in front of a visitor.
+    """
+    context = current_stop_context(tour_state)
+    presentation = present_tour_state(tour_state, interaction_state) if interaction_state else None
+    if not context or not context.get("card"):
+        message = "当前没有可用的已审核点位讲解包，无法把“这里”安全限定为具体现场实例。"
+        return {"message": message, "evidence": [], "point_context": context, "presentation": presentation, "mode": "current_craft_unavailable", "retrieval_query": None}
+
+    local_items = [
+        item for item in context["card"].get("ornaments", [])
+        if craft in str(item.get("craft") or "") and item.get("name")
+    ]
+    if not local_items:
+        message = (
+            f"您当前位于{context['name']}。该点的已审核关联清单中没有{craft}，"
+            "因此我不会把全馆其他位置的同类装饰当作您眼前的实例。"
+        )
+        if presentation:
+            presentation = {**presentation, "message": message, "code": "current_craft_absent", "ok": True, "evidence_count": 0}
+        return {"message": message, "evidence": [], "point_context": context, "presentation": presentation, "mode": "current_craft_absent", "retrieval_query": None}
+
+    rag_queries = [f"{craft} 是什么 有什么特点"]
+    rag_queries.extend(f"{item['name']} {craft} 特点" for item in local_items)
+    payloads: list[dict[str, Any]] = []
+    for query in rag_queries:
+        try:
+            payloads.append(parse_rag_payload(rag_search(query)))
+        except Exception as exc:
+            payloads.append({"evidence": [], "error": f"本地知识检索暂时不可用：{exc}"})
+
+    craft_evidence = [item for item in payloads[0].get("evidence", []) if isinstance(item, dict)]
+    retrieval_errors = [str(payload.get("error")) for payload in payloads if payload.get("error")]
+    instance_evidence: dict[str, list[dict[str, Any]]] = {}
+    for local, payload in zip(local_items, payloads[1:]):
+        instance_evidence[local["name"]] = [
+            item for item in payload.get("evidence", [])
+            if isinstance(item, dict) and _matches_ornament_evidence(item, local["name"])
+        ]
+    evidence = [*craft_evidence]
+    evidence.extend(item for values in instance_evidence.values() for item in values)
+
+    sections = [f"您现在位于{context['name']}。这里的{craft}可以从“工艺特点”和“眼前实例”两层看："]
+    if craft_evidence:
+        sections.append(f"- 工艺特点：{_fact_summary(craft_evidence[0])}")
+    else:
+        availability = "本地知识检索暂时不可用；" if retrieval_errors else ""
+        sections.append(f"- 工艺特点：{availability}资料不足；本地知识库暂未检索到足以概括{craft}特点的可引用资料。")
+    sections.append("- 本点已审核关联的实例：" + "、".join(item["name"] for item in local_items) + "。")
+    sourced_instances = []
+    for local in local_items:
+        matches = instance_evidence[local["name"]]
+        if matches:
+            sourced_instances.append(f"  - {local['name']}：{_fact_summary(matches[0])}")
+    if sourced_instances:
+        sections.extend(sourced_instances)
+    else:
+        sections.append("- 上述实例的现场关联已经审核；但当前检索未找到可逐件引用的解释，因此不据名称补造寓意或故事。")
+    sections.append("您可以继续查看本点讲解、结束讲解，或在下方选择其他导览操作；本次问答未改变路线进度。")
+    message = "\n".join(sections)
+    if presentation:
+        presentation = {**presentation, "message": message, "code": "current_point_craft_features", "ok": True, "evidence_count": len(evidence)}
+    return {
+        "message": message,
+        "evidence": evidence,
+        "point_context": context,
+        "presentation": presentation,
+        "mode": "current_point_craft_features",
+        "retrieval_query": rag_queries,
+        "local_ornaments": [{"ornament_id": item.get("ornament_id"), "name": item["name"], "craft": item.get("craft")} for item in local_items],
     }
 
 
@@ -239,6 +350,11 @@ def answer_tour_question(
     """Use one injected existing RAG callable and leave both state snapshots untouched."""
     if is_point_inventory_request(user_query, tour_state):
         return {**format_point_inventory(user_query, tour_state, interaction_state), "retrieval_query": None, "evidence": []}
+    current_craft = _current_point_craft_feature_request(user_query)
+    if current_craft and tour_state:
+        return answer_current_point_craft_features(
+            user_query, current_craft, tour_state, interaction_state, rag_search
+        )
     retrieval_query, context = build_tour_qa_query(user_query, tour_state)
     try:
         payload = parse_rag_payload(rag_search(retrieval_query))

@@ -30,6 +30,12 @@ class NodeGuideCardTests(unittest.TestCase):
         self.assertEqual(extensions["photo_spot_card_ids"], [])
         self.assertEqual(extensions["route_effect"]["photo_spot"], "disabled_until_reviewed")
 
+    def test_cards_keep_mapping_audit_fields_for_location_hints(self):
+        item = self.by_id["label_moon_platform"]["ornaments"][0]
+        self.assertEqual(item["final_node_id"], "label_moon_platform")
+        self.assertIn(item["mapping_decision"], {"change", "add_node"})
+        self.assertTrue(item["mapping_source"].startswith("manual_review_"))
+
 
 if __name__ == "__main__":
     unittest.main()

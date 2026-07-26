@@ -61,7 +61,7 @@ class AgentStopGuidanceTests(unittest.TestCase):
             rag.invoke.return_value = PAYLOAD
             detailed = stop_guidance_node(continued)
         self.assertEqual(detailed_event["tour_state"]["visited_stop_ids"], [])
-        self.assertIn("展开讲解", detailed["messages"][0].content)
+        self.assertIn("再看细一点", detailed["messages"][0].content)
 
 
 if __name__ == "__main__":

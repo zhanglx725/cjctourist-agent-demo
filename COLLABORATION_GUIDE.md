@@ -123,6 +123,10 @@ A1-1 已由项目 `.venv\Scripts\python.exe` 完成本地 62 项回归测试并�
 
 `agent_graph.py: tour_qa_node` 复用 `chen_clan_academy_rag_search` 处理解释性事实问答；明确点位清单即使无活动路线也可确定性读取已审核讲解包。它不返回 `tour_state` 或 `tour_interaction_state` 更新。A2 不接入论文、比较、术语或打卡卡，也不实现点位讲解编排器。
 
+### A2 当前点工艺特点修复（待本机验证）
+
+“这里/此处/眼前 + 工艺 + 特点”必须走 `tour_qa.answer_current_point_craft_features()`：先由 `current_stop_id` 读取当前卡片的同工艺审核实例，再分别检索工艺总述和每个实例；仅名称命中实例的 evidence 才能作为该实例解释。没有该工艺时返回 `current_craft_absent`，不调用全库 RAG 补造现场实例。全馆问题（如“陈家祠灰塑有什么特点”）不带指代词，保持基础 RAG。此分支仍不返回 TourState 更新。
+
 项目负责人已完成 A2 相关 106 项回归和完整 155 项本机回归，结果均为 `OK`。后续修改点位讲解包读取、`tour_qa.py` 或 Agent RAG 路由时，至少复跑 `test_tour_qa.py`、`test_agent_tour_qa.py`、`test_agent_tour_state.py`、`test_agent_rag.py`、A1 E2E 与 RAG/路线回归。
 
 ## B1 点位讲解编排器基础（已实现并验证）
@@ -158,6 +162,23 @@ A1-1 已由项目 `.venv\Scripts\python.exe` 完成本地 62 项回归测试并�
 `request_stop_detail` 的状态语义保持无副作用，返回码由 `detail_placeholder` 更新为 `detail_requested`：适配器成功后才由 B3 产生展开讲解。`explanation_finished` 仍须由游客或 UI 显式触发，B3 绝不自动完成站点。
 
 项目负责人已完成完整 173 项本机回归，耗时 1.775 秒，结果均为 `OK`。
+
+### B3.1 游客讲解渲染（待本机验证）
+
+| 文件 | 职责 | 边界 |
+|---|---|---|
+| `guide_narration.py` | 将审核 StopProgram 与逐件 RAG evidence 渲染为游客讲解；内部调度字段和完整 evidence 保留在结构化结果。 | 默认确定性输出；可选 narrator 只接收审核对象与 evidence，不合规输出回退。 |
+| `test_guide_narration.py` | 验证不泄漏路径/内部字段、详讲不同于标准讲解、无截断句和 LLM 回退。 | 不调用真实 LLM。 |
+
+游客文本只显示简洁 `source_ids`，不显示文件路径、原始 chunk、角色或计划秒数；`guide_program_evidence.py` 仍返回完整 `evidence`、`evidence_by_item`、StopProgram 和来源 ID 供审计、LangSmith 与后续 UI 使用。
+
+## B4 阶段 B 端到端验收（待本机与 LangSmith 验证）
+
+| 文件 | 职责 | 边界 |
+|---|---|---|
+| `test_stage_b_e2e.py` | 离线串联路线初始化、到达、StopProgram、B3 取证、A2 插入问答、恢复讲解、显式结束讲解和确认完成。 | 使用 mock RAG；不调用真实模型、网络或前端。 |
+
+验收要求：选物不得越出本点审核清单；所有详略等级的分配不超本站内容预算；兴趣只改变 StopProgram 优先级、不改变路线；无 evidence 与空的未来知识卡接口仍可安全完成基础导览。B4 通过本机回归后，仍须在 LangSmith 核对真实节点顺序和状态边界。
 
 人工填写 `route_review_results_v1.csv` 时：`manual_status` 只能填 `approved`、`revise` 或 `rejected`；其余四个判断列填 `yes`、`no` 或 `needs_site_check`。只填写人工列，不改自动生成的路径、时间、点位和边字段。
 
@@ -207,3 +228,9 @@ python inspect_route_plan.py deep_dive_90
 ```
 
 路线 v1 已能输出 30/60/90 分钟的确定性路线；下一阶段是记录已访问点、当前点位讲解、跳过点和重规划。
+
+## 已审核位置提示（B3.1）
+
+- `ornament_spatial_mapping_v1.csv` 是文物—点位位置关联的审核来源；只有 `mapping_decision=change/add_node` 且 `final_node_id` 一致的数据，才能进入点位讲解包和现场观察提示。
+- 运行 `build_node_guide_cards.py` 会把 `raw_location` 与映射审计字段重新生成到 `node_guide_cards_v1.json`；不要手工编辑 JSON 或 CSV。
+- `raw_location` 只能生成“请先看向审核位置……”式观察提示，不是导航指令；不得据此补充左右、高低、可达性、光线或遮挡等未审核现场事实。

@@ -8,7 +8,7 @@ import unittest
 
 from route_planner import plan_template
 from tour_interaction import handle_tour_event, initialize_interaction
-from tour_qa import answer_tour_question, build_tour_qa_query
+from tour_qa import answer_tour_question, build_tour_qa_query, load_guide_cards
 from tour_state import start_tour
 
 
@@ -34,12 +34,21 @@ class TourQaTests(unittest.TestCase):
     def _success_search(query: str) -> str:
         return json.dumps({"query": query, "evidence": [EVIDENCE]}, ensure_ascii=False)
 
-    def test_current_point_detail_question_is_a_retrieval_hint_and_cites_evidence(self):
+    def test_current_point_detail_question_uses_local_craft_instances_and_cites_evidence(self):
+        calls = []
+        def local_search(query):
+            calls.append(query)
+            if query.startswith("石雕 是什么"):
+                return json.dumps({"evidence": [EVIDENCE]}, ensure_ascii=False)
+            return json.dumps({"evidence": [EVIDENCE]}, ensure_ascii=False)
         result = answer_tour_question(
-            "这里的石雕有什么特点？", self.tour, self.interaction, self._success_search
+            "这里的石雕有什么特点？", self.tour, self.interaction, local_search
         )
-        self.assertIn("前院中部", result["retrieval_query"])
-        self.assertIn("石狮子", result["retrieval_query"])
+        self.assertEqual(result["mode"], "current_point_craft_features")
+        self.assertGreaterEqual(len(calls), 2)
+        self.assertTrue(all("石雕" in query for query in calls))
+        self.assertTrue(result["local_ornaments"])
+        self.assertTrue(all(item["craft"] == "石雕" for item in result["local_ornaments"]))
         self.assertIn("08_ornament_items.md", result["message"])
         self.assertIn("S11", result["message"])
         self.assertEqual(result["presentation"]["phase"], "explaining")
@@ -67,7 +76,39 @@ class TourQaTests(unittest.TestCase):
         result = answer_tour_question(
             "陈家祠什么时候建成？", self.tour, self.interaction, self._success_search
         )
-        self.assertIn("用户问题：陈家祠什么时候建成？", result["retrieval_query"])
+        self.assertEqual(result["retrieval_query"], "陈家祠什么时候建成？")
+        self.assertEqual(result["evidence"], [EVIDENCE])
+
+    def test_same_deictic_craft_question_changes_local_examples_by_current_node(self):
+        moon_tour = start_tour(plan_template("highlights_30"))
+        moon_interaction = initialize_interaction(moon_tour)
+        moon = handle_tour_event(moon_tour, moon_interaction, "arrive_at_stop", node_id="label_moon_platform")
+        first = answer_tour_question("这里的灰塑有什么特点？", self.tour, self.interaction, self._success_search)
+        second = answer_tour_question("这里的灰塑有什么特点？", moon["tour_state"], moon["interaction_state"], self._success_search)
+        self.assertNotEqual(
+            {item["ornament_id"] for item in first["local_ornaments"]},
+            {item["ornament_id"] for item in second["local_ornaments"]},
+        )
+        cards = load_guide_cards()
+        for result in (first, second):
+            allowed = {item["ornament_id"] for item in cards[result["point_context"]["node_id"]]["ornaments"]}
+            self.assertTrue({item["ornament_id"] for item in result["local_ornaments"]}.issubset(allowed))
+
+    def test_current_point_without_craft_does_not_use_global_instances(self):
+        base = start_tour(plan_template("highlights_30"))
+        interaction = initialize_interaction(base)
+        self_arrival = handle_tour_event(base, interaction, "arrive_at_stop", node_id="stop_rear_courtyard_west")
+        result = answer_tour_question(
+            "这里的灰塑有什么特点？", self_arrival["tour_state"], self_arrival["interaction_state"],
+            lambda _: self.fail("no local craft must not call RAG"),
+        )
+        self.assertEqual(result["mode"], "current_craft_absent")
+        self.assertIn("没有灰塑", result["message"])
+
+    def test_museum_wide_craft_question_keeps_base_rag_behavior(self):
+        result = answer_tour_question("陈家祠灰塑有什么特点？", self.tour, self.interaction, self._success_search)
+        self.assertEqual(result["mode"], "rag")
+        self.assertEqual(result["retrieval_query"], "陈家祠灰塑有什么特点？")
         self.assertEqual(result["evidence"], [EVIDENCE])
 
     def test_question_never_mutates_tour_or_interaction_state(self):

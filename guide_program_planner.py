@@ -64,6 +64,10 @@ class SelectedItem:
     # Future card interfaces remain explicit but intentionally unused in B2.
     research_summary_card_ids: tuple[str, ...] = ()
     comparison_card_ids: tuple[str, ...] = ()
+    # Audited display hint only; never used as navigation or fact evidence.
+    raw_location: str | None = None
+    observation_location: str | None = None
+    location_source: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -205,6 +209,31 @@ def _selection_reason(ornament: dict[str, str], interests: tuple[str, ...], inde
     return "按已审核候选的相关性与稳定 ID 顺序选取核心对象"
 
 
+def _is_coarse_location(raw_location: str, display_name: str) -> bool:
+    """Whether a location adds no safe observation detail beyond the stop."""
+    normalized = raw_location.strip()
+    return not normalized or normalized in {display_name, "本点", "当前点", "此处", "这里"}
+
+
+def _location_metadata(
+    ornament: dict[str, Any], node_id: str, display_name: str
+) -> tuple[str | None, str | None, str | None]:
+    """Return a safe hint only when the reviewed mapping proves this node.
+
+    No direction, height, reachability, visibility or other spatial fact is
+    inferred from the raw reviewer wording.
+    """
+    raw_location = str(ornament.get("raw_location", "")).strip()
+    approved = (
+        ornament.get("final_node_id") == node_id
+        and ornament.get("mapping_decision") in {"change", "add_node"}
+        and ornament.get("mapping_source")
+    )
+    if not approved or _is_coarse_location(raw_location, display_name):
+        return None, None, None
+    return raw_location, f"审核位置“{raw_location}”", "ornament_spatial_mapping_v1"
+
+
 def plan_stop_program(
     node_id: str,
     budget_seconds: int,
@@ -240,18 +269,26 @@ def plan_stop_program(
     count = _target_count(budget_seconds, detail_level, len(candidates))
     selected = _select_diverse_candidates(candidates, normalised_interests, count)
     allocated_seconds = _allocate_item_seconds(budget_seconds, detail_level, len(selected))
-    items = tuple(
-        SelectedItem(
-            ornament_id=item["ornament_id"],
-            name=item["name"],
-            craft=item["craft"],
-            role=_role(index, budget_seconds),
-            planned_seconds=allocated_seconds[index],
-            selection_reason=_selection_reason(item, normalised_interests, index),
-            rag_query_hints=_rag_hints(card, item),
+    items = []
+    for index, item in enumerate(selected):
+        raw_location, observation_location, location_source = _location_metadata(
+            item, node_id, card.get("display_name", node_id)
         )
-        for index, item in enumerate(selected)
-    )
+        items.append(
+            SelectedItem(
+                ornament_id=item["ornament_id"],
+                name=item["name"],
+                craft=item["craft"],
+                role=_role(index, budget_seconds),
+                planned_seconds=allocated_seconds[index],
+                selection_reason=_selection_reason(item, normalised_interests, index),
+                rag_query_hints=_rag_hints(card, item),
+                raw_location=raw_location,
+                observation_location=observation_location,
+                location_source=location_source,
+            )
+        )
+    items = tuple(items)
     used = sum(item.planned_seconds for item in items)
     return StopProgram(
         node_id=node_id,

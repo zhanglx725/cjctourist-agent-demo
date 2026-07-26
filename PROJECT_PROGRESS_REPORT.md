@@ -786,6 +786,12 @@ glossary_ids
 - 新增纯 mock 单元测试和 Agent 集成测试，覆盖当前/明确点清单、RAG 解释、未知点、缺包、状态不变和异常；本轮不接入论文、比较、术语或打卡卡，不实现阶段 B 讲解编排。
 - 项目负责人已完成 A2 相关 106 项回归和完整 155 项本机回归，结果均为 `OK`。
 
+#### A2 当前点工艺特点输出修复（待本机验证）
+
+- LangSmith 实测发现原 `tour_qa` 是最终输出节点而非中间 evidence；它在“这里的灰塑有什么特点”中直出全库灰塑块，不能证明条目属于当前点。
+- 现新增当前点工艺特点分支：指代表达强制读取 `current_stop_id`，先确定本点同工艺审核实例，再检索工艺总述及逐件实例；实例 evidence 必须命中实例名称，否则只保留其审核关联、不生成解释。
+- 最终输出改为导游式“工艺特点 + 本点实例 + 证据来源 + 继续导览操作”，不再原样倾倒 chunk；无本点工艺时安全说明，不从全馆补充现场实例。问答前后 TourState 仍完全不变。
+
 ### 13.10 B1 点位讲解编排器基础（已实现并验证）
 
 - 新增 `guide_program_planner.py`：对已审核 `node_id` 读取 `node_guide_cards_v1.json`，在当前点候选文物中确定性选择 1–3 件，输出可审计 `StopProgram`。
@@ -809,3 +815,19 @@ glossary_ids
 - 无 evidence、RAG 格式异常或调用异常时，明确说明资料不足，并拒绝按文物名称补造事实。自主到达不被当作正式站点讲解。
 - `request_stop_detail` 仍是无副作用事件；其返回码更新为 `detail_requested`，之后可使用当前 StopProgram 输出展开讲解。`explanation_finished`、确认完成和 visited 语义均保持 A1 冻结契约。
 - 项目负责人已完成完整 173 项本机回归，耗时 1.775 秒，结果为 `OK`。
+
+### 13.13 B4 阶段 B 端到端验收（待本机与 LangSmith 验证）
+
+- 新增 `test_stage_b_e2e.py`，离线覆盖：本站审核候选边界、short/standard/deep 的数量与内容预算、兴趣排序的可复现性、到达后 StopProgram 取证、A2 插入问答和恢复 `explaining`、无证据安全降级、空的研究/比较卡接口不阻塞基础讲解，以及最后的显式确认完成。
+- B4 不新增业务能力、不变更路线、空间边、知识卡或 RAG 索引；其目的仅是证明 B1/B2/B3 与 A1/A2 能形成受控闭环。
+- 本机回归通过后，必须在 LangSmith 核对真实链路中的 `tour_event → stop_guidance → tour_qa → tour_event`、RAG evidence、StopProgram 内容预算及 TourState 的 `visited_stop_ids` 仅在确认完成后改变。
+
+#### 13.14.1 B3.1 优化：审核位置提示（待本机验证）
+
+在确定性讲解层加入“对象在哪里看”的可追溯提示。生成链为：已审核 `ornament_spatial_mapping_v1.csv` → `build_node_guide_cards.py` → `node_guide_cards_v1.json` → `SelectedItem.observation_location` → 游客讲解。只有 `mapping_decision=change/add_node` 且 `final_node_id` 与当前 StopProgram 节点相同的对象可携带位置；空值或仅等于点位名的粗粒度描述回退为通用观察提示。该字段不参与路线、时间预算、TourState 或导航。
+
+### 13.14 B3.1 游客导游讲解渲染（待本机验证）
+
+- 新增 `guide_narration.py`，把 B3 的 StopProgram 与逐件 RAG evidence 转为游客可读的当前点开场、1–2 个重点对象、观察提示、简短事实、来源编号和下一步操作。
+- `guide_program_evidence.py` 继续保留 `StopProgram`、角色、计划秒数、完整 evidence、逐件 evidence 与 `source_ids` 作为结构化审计数据；游客消息不展示文件路径、原始 chunk、内部角色或时间字段，也不以截断半句作为事实。
+- `request_stop_detail` 使用同一 StopProgram 生成不同的“再看细一点”讲解，不写 TourState；当前 Agent 默认采用确定性渲染。可选 LLM narrator 仅接收审核对象和 RAG evidence，若调用失败或输出疑似原始 dump 则回退确定性文本。

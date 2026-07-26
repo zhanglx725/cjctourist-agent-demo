@@ -50,13 +50,15 @@ class AgentTourQaTests(unittest.TestCase):
         with patch("agent_graph.chen_clan_academy_rag_search") as rag:
             rag.invoke.return_value = FAKE_PAYLOAD
             update = tour_qa_node(request)
-        rag.invoke.assert_called_once()
+        self.assertGreaterEqual(rag.invoke.call_count, 2)
         self.assertNotIn("tour_state", update)
         self.assertNotIn("tour_interaction_state", update)
         self.assertEqual(state["tour_state"], before_tour)
         self.assertEqual(state["tour_interaction_state"], before_interaction)
         self.assertEqual(update["tour_presentation"]["phase"], "explaining")
         self.assertIn("S11", update["messages"][0].content)
+        self.assertIn("工艺特点", update["messages"][0].content)
+        self.assertNotIn("根据本地知识库检索到的资料：", update["messages"][0].content)
 
     def test_explicit_point_inventory_routes_to_tour_qa_without_active_route(self):
         request = _message_state("月台有哪些装饰？")

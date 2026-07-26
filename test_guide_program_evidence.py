@@ -39,8 +39,9 @@ class GuideProgramEvidenceTests(unittest.TestCase):
         self.assertEqual(result["status"], "guided")
         self.assertEqual(result["stop_program"]["node_id"], "stop_front_courtyard_center")
         self.assertEqual(len(result["rag_queries"]), len(result["stop_program"]["selected_items"]))
-        self.assertIn("08_ornament_items.md", result["message"])
         self.assertIn("S11", result["message"])
+        self.assertNotIn("08_ornament_items.md", result["message"])
+        self.assertIn("08_ornament_items.md", [item["document"] for item in result["evidence"]])
         self.assertEqual(result["presentation"]["phase"], "explaining")
         self.assertEqual(self.tour, before_tour)
         self.assertEqual(self.interaction, before_interaction)
@@ -57,7 +58,7 @@ class GuideProgramEvidenceTests(unittest.TestCase):
             self.tour, self.interaction, self._rag, current_program=first["stop_program"], detailed=True
         )
         self.assertEqual(first["stop_program"], detailed["stop_program"])
-        self.assertIn("展开讲解", detailed["message"])
+        self.assertIn("再看细一点", detailed["message"])
         self.assertEqual(detailed["presentation"]["phase"], "explaining")
 
     def test_self_arrival_cannot_be_used_as_a_formal_stop_explanation(self):

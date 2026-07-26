@@ -15,6 +15,10 @@ CATALOG_FILE = ROUTES_DIR / "route_stop_catalog_v1.csv"
 MAPPING_FILE = SPATIAL_DIR / "ornament_spatial_mapping_v1.csv"
 OUTPUT_FILE = ROUTES_DIR / "node_guide_cards_v1.json"
 
+# The importer writes only human-reviewed rows. Keep this guard so a
+# hand-edited/stale mapping cannot silently become a guide-card association.
+REVIEWED_MAPPING_DECISIONS = {"change", "add_node"}
+
 
 def read_csv(path: Path) -> list[dict[str, str]]:
     with path.open(encoding="utf-8-sig", newline="") as handle:
@@ -26,7 +30,11 @@ def build_cards(
 ) -> dict[str, object]:
     by_node: dict[str, list[dict[str, str]]] = defaultdict(list)
     for item in mapping_rows:
-        by_node[item["final_node_id"]].append(item)
+        if (
+            item.get("final_node_id")
+            and item.get("mapping_decision") in REVIEWED_MAPPING_DECISIONS
+        ):
+            by_node[item["final_node_id"]].append(item)
 
     cards: list[dict[str, object]] = []
     for stop in catalog_rows:
@@ -50,6 +58,9 @@ def build_cards(
                         "name": item["ornament_name"],
                         "craft": item["craft"],
                         "raw_location": item["raw_location"],
+                        "final_node_id": item["final_node_id"],
+                        "mapping_decision": item["mapping_decision"],
+                        "mapping_source": item["mapping_source"],
                     }
                     for item in ornaments
                 ],

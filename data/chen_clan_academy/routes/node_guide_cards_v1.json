@@ -32,79 +32,118 @@
           "ornament_id": "orn_011",
           "name": "公孙玩乐",
           "craft": "灰塑",
-          "raw_location": "前东连廊西面"
+          "raw_location": "前东连廊西面",
+          "final_node_id": "stop_front_courtyard_north",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_014",
           "name": "寒江关",
           "craft": "灰塑",
-          "raw_location": "前西连廊东面"
+          "raw_location": "前西连廊东面",
+          "final_node_id": "stop_front_courtyard_north",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_027",
           "name": "夜游赤壁",
           "craft": "灰塑",
-          "raw_location": "前西连廊东面"
+          "raw_location": "前西连廊东面",
+          "final_node_id": "stop_front_courtyard_north",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_032",
           "name": "博古图、五福捧寿",
           "craft": "木雕",
-          "raw_location": "首进中路"
+          "raw_location": "首进中路",
+          "final_node_id": "stop_front_courtyard_north",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_036",
           "name": "福",
           "craft": "木雕",
-          "raw_location": "首进中路"
+          "raw_location": "首进中路",
+          "final_node_id": "stop_front_courtyard_north",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_037",
           "name": "福",
           "craft": "木雕",
-          "raw_location": "首进中路"
+          "raw_location": "首进中路",
+          "final_node_id": "stop_front_courtyard_north",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_051",
           "name": "踏雪寻梅",
           "craft": "木雕",
-          "raw_location": "首进中路"
+          "raw_location": "首进中路",
+          "final_node_id": "stop_front_courtyard_north",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_052",
           "name": "踏雪寻梅",
           "craft": "木雕",
-          "raw_location": "首进中路"
+          "raw_location": "首进中路",
+          "final_node_id": "stop_front_courtyard_north",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_060",
           "name": "渔樵耕读",
           "craft": "木雕",
-          "raw_location": "首进中路"
+          "raw_location": "首进中路",
+          "final_node_id": "stop_front_courtyard_north",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_061",
           "name": "渔舟唱晚",
           "craft": "木雕",
-          "raw_location": "首进中路"
+          "raw_location": "首进中路",
+          "final_node_id": "stop_front_courtyard_north",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_074",
           "name": "踏雪寻梅",
           "craft": "石雕",
-          "raw_location": "首进西路北面"
+          "raw_location": "首进西路北面",
+          "final_node_id": "stop_front_courtyard_north",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_081",
           "name": "鳌鱼",
           "craft": "螭吻、鸱吻）（陶塑",
-          "raw_location": "中进聚贤堂南面"
+          "raw_location": "中进聚贤堂南面",
+          "final_node_id": "stop_front_courtyard_north",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_085",
           "name": "瓜瓞连绵",
           "craft": "陶塑",
-          "raw_location": "中进聚贤堂南面"
+          "raw_location": "中进聚贤堂南面",
+          "final_node_id": "stop_front_courtyard_north",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         }
       ],
       "rag_queries": [
@@ -169,67 +208,100 @@
           "ornament_id": "orn_005",
           "name": "独角狮",
           "craft": "灰塑",
-          "raw_location": "建筑山墙垂脊前沿"
+          "raw_location": "建筑山墙垂脊前沿",
+          "final_node_id": "stop_front_courtyard_center",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_008",
           "name": "福禄寿",
           "craft": "灰塑",
-          "raw_location": "建筑墙体装饰位"
+          "raw_location": "建筑墙体装饰位",
+          "final_node_id": "stop_front_courtyard_center",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_012",
           "name": "功名富贵",
           "craft": "灰塑",
-          "raw_location": "建筑墙体装饰位"
+          "raw_location": "建筑墙体装饰位",
+          "final_node_id": "stop_front_courtyard_center",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_022",
           "name": "松鹤延年",
           "craft": "灰塑",
-          "raw_location": "首进中路北面"
+          "raw_location": "首进中路北面",
+          "final_node_id": "stop_front_courtyard_center",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_069",
           "name": "金蟾吐瑞气",
           "craft": "石雕",
-          "raw_location": "首进正门"
+          "raw_location": "首进正门",
+          "final_node_id": "stop_front_courtyard_center",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_072",
           "name": "石狮子",
           "craft": "石雕",
-          "raw_location": "首进正门"
+          "raw_location": "首进正门",
+          "final_node_id": "stop_front_courtyard_center",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_077",
           "name": "一路连科",
           "craft": "石雕",
-          "raw_location": "首进正门"
+          "raw_location": "首进正门",
+          "final_node_id": "stop_front_courtyard_center",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_080",
           "name": "状元及第",
           "craft": "石雕",
-          "raw_location": "首进正门南面"
+          "raw_location": "首进正门南面",
+          "final_node_id": "stop_front_courtyard_center",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_083",
           "name": "凤凰牡丹",
           "craft": "凤穿牡丹）（陶塑",
-          "raw_location": "首进中路南面"
+          "raw_location": "首进中路南面",
+          "final_node_id": "stop_front_courtyard_center",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_087",
           "name": "六郎罪子",
           "craft": "陶塑",
-          "raw_location": "首进中路南面"
+          "raw_location": "首进中路南面",
+          "final_node_id": "stop_front_courtyard_center",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_090",
           "name": "四郎探母",
           "craft": "陶塑",
-          "raw_location": "首进中路南面"
+          "raw_location": "首进中路南面",
+          "final_node_id": "stop_front_courtyard_center",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         }
       ],
       "rag_queries": [
@@ -290,67 +362,100 @@
           "ornament_id": "orn_007",
           "name": "风尘三侠",
           "craft": "灰塑",
-          "raw_location": "后进中路南面"
+          "raw_location": "后进中路南面",
+          "final_node_id": "stop_rear_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_010",
           "name": "福在眼前",
           "craft": "灰塑",
-          "raw_location": "后进中路南面"
+          "raw_location": "后进中路南面",
+          "final_node_id": "stop_rear_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_038",
           "name": "郭子仪祝寿",
           "craft": "木雕",
-          "raw_location": "中进聚贤堂屏风"
+          "raw_location": "中进聚贤堂屏风",
+          "final_node_id": "stop_rear_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_044",
           "name": "六国大封相",
           "craft": "木雕",
-          "raw_location": "中进聚贤堂屏风"
+          "raw_location": "中进聚贤堂屏风",
+          "final_node_id": "stop_rear_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_045",
           "name": "龙王八仙朝玉帝",
           "craft": "木雕",
-          "raw_location": "中进聚贤堂屏风"
+          "raw_location": "中进聚贤堂屏风",
+          "final_node_id": "stop_rear_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_047",
           "name": "荣归故里",
           "craft": "木雕",
-          "raw_location": "中进聚贤堂屏风"
+          "raw_location": "中进聚贤堂屏风",
+          "final_node_id": "stop_rear_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_053",
           "name": "太白退蕃书",
           "craft": "木雕",
-          "raw_location": "中进聚贤堂屏风"
+          "raw_location": "中进聚贤堂屏风",
+          "final_node_id": "stop_rear_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_054",
           "name": "太平有象",
           "craft": "梁架驼墩）（木雕",
-          "raw_location": "中进聚贤堂南面（梁架驼墩）"
+          "raw_location": "中进聚贤堂南面（梁架驼墩）",
+          "final_node_id": "stop_rear_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_055",
           "name": "渭水访贤",
           "craft": "木雕",
-          "raw_location": "中进聚贤堂屏风"
+          "raw_location": "中进聚贤堂屏风",
+          "final_node_id": "stop_rear_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_056",
           "name": "西天取经",
           "craft": "木雕",
-          "raw_location": "首进正门西面"
+          "raw_location": "首进正门西面",
+          "final_node_id": "stop_rear_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_059",
           "name": "夜宴桃李园",
           "craft": "木雕",
-          "raw_location": "中进聚贤堂屏风"
+          "raw_location": "中进聚贤堂屏风",
+          "final_node_id": "stop_rear_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         }
       ],
       "rag_queries": [
@@ -416,61 +521,91 @@
           "ornament_id": "orn_026",
           "name": "杏林春燕",
           "craft": "灰塑",
-          "raw_location": "首进东路南面"
+          "raw_location": "首进东路南面",
+          "final_node_id": "label_moon_platform",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_041",
           "name": "截江夺阿斗",
           "craft": "木雕",
-          "raw_location": "中进聚贤堂南面（檐板）"
+          "raw_location": "中进聚贤堂南面（檐板）",
+          "final_node_id": "label_moon_platform",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_078",
           "name": "引福归堂",
           "craft": "石雕",
-          "raw_location": "首进中路北面"
+          "raw_location": "首进中路北面",
+          "final_node_id": "label_moon_platform",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_089",
           "name": "书字换鹅",
           "craft": "陶塑",
-          "raw_location": "首进中路北面"
+          "raw_location": "首进中路北面",
+          "final_node_id": "label_moon_platform",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_091",
           "name": "武王伐纣",
           "craft": "陶塑",
-          "raw_location": "首进中路东侧"
+          "raw_location": "首进中路东侧",
+          "final_node_id": "label_moon_platform",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_092",
           "name": "薛平贵勇降烈马",
           "craft": "陶塑",
-          "raw_location": "首进中路西侧"
+          "raw_location": "首进中路西侧",
+          "final_node_id": "label_moon_platform",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_093",
           "name": "子孙万代",
           "craft": "福禄久长）（陶塑",
-          "raw_location": "中进聚贤堂南面"
+          "raw_location": "中进聚贤堂南面",
+          "final_node_id": "label_moon_platform",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_095",
           "name": "姜子牙拜相",
           "craft": "砖雕&铜铁铸&壁画",
-          "raw_location": "中进聚贤堂南面"
+          "raw_location": "中进聚贤堂南面",
+          "final_node_id": "label_moon_platform",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_099",
           "name": "麒麟玉书凤凰图",
           "craft": "砖雕&铜铁铸&壁画",
-          "raw_location": "月台正面"
+          "raw_location": "月台正面",
+          "final_node_id": "label_moon_platform",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_100",
           "name": "三阳开泰",
           "craft": "砖雕&铜铁铸&壁画",
-          "raw_location": "月台东西两侧"
+          "raw_location": "月台东西两侧",
+          "final_node_id": "label_moon_platform",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         }
       ],
       "rag_queries": [
@@ -532,55 +667,82 @@
           "ornament_id": "orn_003",
           "name": "宝相花",
           "craft": "灰塑",
-          "raw_location": "后西厢庑廊"
+          "raw_location": "后西厢庑廊",
+          "final_node_id": "stop_rear_west_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_034",
           "name": "赤壁之战",
           "craft": "木雕",
-          "raw_location": "中进聚贤堂屏风"
+          "raw_location": "中进聚贤堂屏风",
+          "final_node_id": "stop_rear_west_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_049",
           "name": "三顾茅庐",
           "craft": "木雕",
-          "raw_location": "中进西路屏风"
+          "raw_location": "中进西路屏风",
+          "final_node_id": "stop_rear_west_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_050",
           "name": "三英战吕布",
           "craft": "木雕",
-          "raw_location": "中进聚贤堂屏风"
+          "raw_location": "中进聚贤堂屏风",
+          "final_node_id": "stop_rear_west_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_063",
           "name": "长坂坡救阿斗",
           "craft": "木雕",
-          "raw_location": "中进西路屏风"
+          "raw_location": "中进西路屏风",
+          "final_node_id": "stop_rear_west_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_076",
           "name": "天下文明",
           "craft": "石雕",
-          "raw_location": "后进西路南面"
+          "raw_location": "后进西路南面",
+          "final_node_id": "stop_rear_west_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_079",
           "name": "壮士斗牛",
           "craft": "石雕",
-          "raw_location": "后进西路南面"
+          "raw_location": "后进西路南面",
+          "final_node_id": "stop_rear_west_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_101",
           "name": "天姬送子",
           "craft": "砖雕&铜铁铸&壁画",
-          "raw_location": "后进中路南面"
+          "raw_location": "后进中路南面",
+          "final_node_id": "stop_rear_west_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_102",
           "name": "完璧归赵",
           "craft": "砖雕&铜铁铸&壁画",
-          "raw_location": "后进西路南面"
+          "raw_location": "后进西路南面",
+          "final_node_id": "stop_rear_west_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         }
       ],
       "rag_queries": [
@@ -639,55 +801,82 @@
           "ornament_id": "orn_009",
           "name": "福运连绵",
           "craft": "灰塑",
-          "raw_location": "中进东路正面"
+          "raw_location": "中进东路正面",
+          "final_node_id": "stop_front_east_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_021",
           "name": "狮子戏球",
           "craft": "灰塑",
-          "raw_location": "前东连廊"
+          "raw_location": "前东连廊",
+          "final_node_id": "stop_front_east_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_025",
           "name": "五福捧寿",
           "craft": "灰塑",
-          "raw_location": "前东连廊东面"
+          "raw_location": "前东连廊东面",
+          "final_node_id": "stop_front_east_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_028",
           "name": "一品当朝",
           "craft": "灰塑",
-          "raw_location": "中进东路南面"
+          "raw_location": "中进东路南面",
+          "final_node_id": "stop_front_east_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_029",
           "name": "张松看孟德新书",
           "craft": "灰塑",
-          "raw_location": "前东连廊东面"
+          "raw_location": "前东连廊东面",
+          "final_node_id": "stop_front_east_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_065",
           "name": "吹箫引凤",
           "craft": "石雕",
-          "raw_location": "中进东路南面"
+          "raw_location": "中进东路南面",
+          "final_node_id": "stop_front_east_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_068",
           "name": "画龙点睛",
           "craft": "石雕",
-          "raw_location": "中进东路南面"
+          "raw_location": "中进东路南面",
+          "final_node_id": "stop_front_east_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_070",
           "name": "麻姑献寿",
           "craft": "石雕",
-          "raw_location": "中进东路南面"
+          "raw_location": "中进东路南面",
+          "final_node_id": "stop_front_east_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_105",
           "name": "小天使",
           "craft": "砖雕&铜铁铸&壁画",
-          "raw_location": "首进东路北面"
+          "raw_location": "首进东路北面",
+          "final_node_id": "stop_front_east_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         }
       ],
       "rag_queries": [
@@ -745,43 +934,64 @@
           "ornament_id": "orn_004",
           "name": "蝙蝠",
           "craft": "灰塑",
-          "raw_location": "中进东路北面"
+          "raw_location": "中进东路北面",
+          "final_node_id": "stop_rear_east_courtyard_inner",
+          "mapping_decision": "add_node",
+          "mapping_source": "manual_review_registered_add_node"
         },
         {
           "ornament_id": "orn_015",
           "name": "九如图",
           "craft": "灰塑",
-          "raw_location": "中进东路北面"
+          "raw_location": "中进东路北面",
+          "final_node_id": "stop_rear_east_courtyard_inner",
+          "mapping_decision": "add_node",
+          "mapping_source": "manual_review_registered_add_node"
         },
         {
           "ornament_id": "orn_020",
           "name": "日月神",
           "craft": "灰塑",
-          "raw_location": "后进东路南面"
+          "raw_location": "后进东路南面",
+          "final_node_id": "stop_rear_east_courtyard_inner",
+          "mapping_decision": "add_node",
+          "mapping_source": "manual_review_registered_add_node"
         },
         {
           "ornament_id": "orn_042",
           "name": "枯井救柴进",
           "craft": "木雕",
-          "raw_location": "中进东路"
+          "raw_location": "中进东路",
+          "final_node_id": "stop_rear_east_courtyard_inner",
+          "mapping_decision": "add_node",
+          "mapping_source": "manual_review_registered_add_node"
         },
         {
           "ornament_id": "orn_046",
           "name": "拳打镇关西",
           "craft": "木雕",
-          "raw_location": "中进东路"
+          "raw_location": "中进东路",
+          "final_node_id": "stop_rear_east_courtyard_inner",
+          "mapping_decision": "add_node",
+          "mapping_source": "manual_review_registered_add_node"
         },
         {
           "ornament_id": "orn_048",
           "name": "三打祝家庄",
           "craft": "木雕",
-          "raw_location": "中进东路"
+          "raw_location": "中进东路",
+          "final_node_id": "stop_rear_east_courtyard_inner",
+          "mapping_decision": "add_node",
+          "mapping_source": "manual_review_registered_add_node"
         },
         {
           "ornament_id": "orn_058",
           "name": "血染鸳鸯楼",
           "craft": "木雕",
-          "raw_location": "中进东路"
+          "raw_location": "中进东路",
+          "final_node_id": "stop_rear_east_courtyard_inner",
+          "mapping_decision": "add_node",
+          "mapping_source": "manual_review_registered_add_node"
         }
       ],
       "rag_queries": [
@@ -838,37 +1048,55 @@
           "ornament_id": "orn_002",
           "name": "百子千孙",
           "craft": "灰塑",
-          "raw_location": "首进东路南面"
+          "raw_location": "首进东路南面",
+          "final_node_id": "stop_front_courtyard_east",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_016",
           "name": "刘伶醉酒",
           "craft": "灰塑",
-          "raw_location": "前东斋南面"
+          "raw_location": "前东斋南面",
+          "final_node_id": "stop_front_courtyard_east",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_084",
           "name": "凤诏",
           "craft": "陶塑",
-          "raw_location": "首进中路南面"
+          "raw_location": "首进中路南面",
+          "final_node_id": "stop_front_courtyard_east",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_094",
           "name": "和合二仙",
           "craft": "砖雕&铜铁铸&壁画",
-          "raw_location": "德表门廊"
+          "raw_location": "德表门廊",
+          "final_node_id": "stop_front_courtyard_east",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_097",
           "name": "刘庆伏“狼驹”",
           "craft": "砖雕&铜铁铸&壁画",
-          "raw_location": "通用砖雕题材"
+          "raw_location": "通用砖雕题材",
+          "final_node_id": "stop_front_courtyard_east",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_104",
           "name": "五伦全图",
           "craft": "砖雕&铜铁铸&壁画",
-          "raw_location": "通用砖雕题材"
+          "raw_location": "通用砖雕题材",
+          "final_node_id": "stop_front_courtyard_east",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         }
       ],
       "rag_queries": [
@@ -923,37 +1151,55 @@
           "ornament_id": "orn_001",
           "name": "百鸟朝凤",
           "craft": "灰塑",
-          "raw_location": "首进西路北面"
+          "raw_location": "首进西路北面",
+          "final_node_id": "stop_front_west_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_017",
           "name": "路路顺利",
           "craft": "灰塑",
-          "raw_location": "中进西路南面"
+          "raw_location": "中进西路南面",
+          "final_node_id": "stop_front_west_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_019",
           "name": "齐眉贺寿",
           "craft": "灰塑",
-          "raw_location": "首进西路北面"
+          "raw_location": "首进西路北面",
+          "final_node_id": "stop_front_west_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_031",
           "name": "竹林七贤",
           "craft": "灰塑",
-          "raw_location": "前西连廊西面"
+          "raw_location": "前西连廊西面",
+          "final_node_id": "stop_front_west_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_073",
           "name": "苏武牧羊",
           "craft": "石雕",
-          "raw_location": "首进西路北面"
+          "raw_location": "首进西路北面",
+          "final_node_id": "stop_front_west_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_075",
           "name": "太平有象",
           "craft": "石雕",
-          "raw_location": "首进西路北面"
+          "raw_location": "首进西路北面",
+          "final_node_id": "stop_front_west_courtyard",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         }
       ],
       "rag_queries": [
@@ -1010,31 +1256,46 @@
           "ornament_id": "orn_006",
           "name": "独占鳌头",
           "craft": "灰塑",
-          "raw_location": "昌妫廊门南面"
+          "raw_location": "昌妫廊门南面",
+          "final_node_id": "stop_front_courtyard_west_inner",
+          "mapping_decision": "add_node",
+          "mapping_source": "manual_review_registered_add_node"
         },
         {
           "ornament_id": "orn_024",
           "name": "桃园结义",
           "craft": "灰塑",
-          "raw_location": "昌妫廊门南面"
+          "raw_location": "昌妫廊门南面",
+          "final_node_id": "stop_front_courtyard_west_inner",
+          "mapping_decision": "add_node",
+          "mapping_source": "manual_review_registered_add_node"
         },
         {
           "ornament_id": "orn_088",
           "name": "三多图",
           "craft": "陶塑",
-          "raw_location": "首进西路南面"
+          "raw_location": "首进西路南面",
+          "final_node_id": "stop_front_courtyard_west_inner",
+          "mapping_decision": "add_node",
+          "mapping_source": "manual_review_registered_add_node"
         },
         {
           "ornament_id": "orn_096",
           "name": "梁山聚义",
           "craft": "砖雕&铜铁铸&壁画",
-          "raw_location": "首进西路外墙"
+          "raw_location": "首进西路外墙",
+          "final_node_id": "stop_front_courtyard_west_inner",
+          "mapping_decision": "add_node",
+          "mapping_source": "manual_review_registered_add_node"
         },
         {
           "ornament_id": "orn_103",
           "name": "梧桐柳杏凤群图",
           "craft": "砖雕&铜铁铸&壁画",
-          "raw_location": "通用砖雕题材"
+          "raw_location": "通用砖雕题材",
+          "final_node_id": "stop_front_courtyard_west_inner",
+          "mapping_decision": "add_node",
+          "mapping_source": "manual_review_registered_add_node"
         }
       ],
       "rag_queries": [
@@ -1089,31 +1350,46 @@
           "ornament_id": "orn_018",
           "name": "琶洲砥柱",
           "craft": "灰塑",
-          "raw_location": "后东连廊西面"
+          "raw_location": "后东连廊西面",
+          "final_node_id": "stop_rear_courtyard_east",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_023",
           "name": "太师少师",
           "craft": "灰塑",
-          "raw_location": "后东连廊"
+          "raw_location": "后东连廊",
+          "final_node_id": "stop_rear_courtyard_east",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_066",
           "name": "风云际会",
           "craft": "石雕",
-          "raw_location": "后进中路南面"
+          "raw_location": "后进中路南面",
+          "final_node_id": "stop_rear_courtyard_east",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_071",
           "name": "狮子滚绣球",
           "craft": "石雕",
-          "raw_location": "后进东路南面"
+          "raw_location": "后进东路南面",
+          "final_node_id": "stop_rear_courtyard_east",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_082",
           "name": "博古图",
           "craft": "陶塑",
-          "raw_location": "后进东路南面"
+          "raw_location": "后进东路南面",
+          "final_node_id": "stop_rear_courtyard_east",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         }
       ],
       "rag_queries": [
@@ -1167,25 +1443,37 @@
           "ornament_id": "orn_039",
           "name": "黄飞虎反五关",
           "craft": "木雕",
-          "raw_location": "中进聚贤堂屏风"
+          "raw_location": "中进聚贤堂屏风",
+          "final_node_id": "stop_rear_courtyard_west",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_057",
           "name": "薛仁贵大战盖苏文",
           "craft": "木雕",
-          "raw_location": "中进聚贤堂屏风"
+          "raw_location": "中进聚贤堂屏风",
+          "final_node_id": "stop_rear_courtyard_west",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_062",
           "name": "岳飞大破金兵",
           "craft": "木雕",
-          "raw_location": "中进聚贤堂屏风"
+          "raw_location": "中进聚贤堂屏风",
+          "final_node_id": "stop_rear_courtyard_west",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         },
         {
           "ornament_id": "orn_064",
           "name": "宝鸭穿莲",
           "craft": "石雕",
-          "raw_location": "后进中路南面"
+          "raw_location": "后进中路南面",
+          "final_node_id": "stop_rear_courtyard_west",
+          "mapping_decision": "change",
+          "mapping_source": "manual_review_existing_node"
         }
       ],
       "rag_queries": [
