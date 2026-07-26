@@ -51,18 +51,22 @@ def resolve_route_stop_from_text(user_text: str) -> str | None:
     return matches[0][1]
 
 
-def next_stop_navigation(state: dict[str, Any]) -> NextStopNavigation | None:
+def next_stop_navigation(
+    state: dict[str, Any], target_stop_id: str | None = None
+) -> NextStopNavigation | None:
     """Return reviewed walking guidance to the next formal remaining stop.
 
     ``None`` means there are no remaining guide stops.  It is not an error,
     because completed tours should naturally have no next destination.
     """
     try:
-        target_id = next_stop(state)
+        target_id = target_stop_id if target_stop_id is not None else next_stop(state)
     except TourStateError as exc:
         raise TourNavigationError(f"TourState 无法导航：{exc}") from exc
     if target_id is None:
         return None
+    if target_id not in state["remaining_stop_ids"]:
+        raise TourNavigationError("下一讲解点必须是当前路线中尚未完成的正式讲解点。")
     source_id = state["current_stop_id"] or ENTRY_NODE_ID
     graph = build_spatial_graph()
     if source_id not in graph:

@@ -20,6 +20,7 @@ def replan_remaining_time(state: dict[str, Any], remaining_minutes: int) -> Repl
     """Replan only the unvisited, unskipped remainder from the real current node."""
     remaining_ids = list(state.get("remaining_stop_ids", []))
     current = state.get("current_stop_id")
+    current_is_unconfirmed_stop = current in remaining_ids
     route_order = list(state.get("route_stop_ids", []))
     # If the visitor is already at a formal stop, do not send them backward to
     # an earlier unvisited stop.  Continue with the original route suffix.
@@ -38,6 +39,9 @@ def replan_remaining_time(state: dict[str, Any], remaining_minutes: int) -> Repl
         list(plan.stop_ids),
         remaining_minutes,
         selected_route_id=plan.route_id,
+        # A1 keeps an arrived-but-unconfirmed stop in remaining state.  It is
+        # not a new planner candidate and therefore cannot be duplicated.
+        preserve_current_stop=current_is_unconfirmed_stop,
     )
     return ReplanResult(updated, plan, "remaining_time_changed")
 

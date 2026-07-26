@@ -3,6 +3,8 @@
 本文件面向当前三人协作。目标是让不同知识库可以独立建设，并通过稳定 ID
 接入同一 Agent；不要直接修改彼此模块的事实内容或空间主键。
 
+项目整体学习与答辩材料见 `PROJECT_LEARNING_AND_DEFENSE_GUIDE.md`；`PROJECT_PROGRESS_REPORT.md` 仅记录进度与真实状态。自 A1 起，每个子任务的实施报告末尾必须附带基于真实代码与测试结果的“项目学习与答辩说明”，并明确区分已验证、待验证、接口与未来规划。
+
 ## 当前模块与负责人边界
 
 | 模块 | 当前状态 | 主要文件 | 可由协作者新增的内容 | 不应直接修改的内容 |
@@ -55,7 +57,9 @@
 | 文件 | 中文名 | 当前功能 | 维护边界 |
 | --- | --- | --- | --- |
 | `tour_state.py` | 游览会话状态纯函数 | 初始化路线会话、记录到达、查询下一站、跳过站点和结束游览；所有点位均校验 `marker_inventory_v0.csv`，输入状态不被原地修改。 | 当前只保存会话内存；不得在这里调用 LLM、RAG、重规划器或修改空间图。 |
-| `test_tour_state.py` | 游览会话状态测试 | 验证初始化、到达、下一站、跳过、重复到达、完成与未知点位拒绝。 | 修改状态字段或转移规则后必须运行。 |
+| `tour_interaction.py` | A1 统一导游交互适配层 | 唯一公开事件入口；按 `TOUR_INTERACTION_CONTRACT.md` 处理到达、下一站、跳过、改时间、结束、展开讲解占位与确认完成，返回统一结构化响应。 | 不调用 LLM、RAG 或 UI；不得修改空间/路线/知识卡数据。`visited_stop_ids` 只能在 `confirm_stop_complete` 写入。 |
+| `test_tour_state.py` | 游览会话状态测试 | 验证初始化、无副作用下一站、跳过、全部跳过后的结束和显式结束；到达/确认语义由交互适配层测试。 | 修改状态字段或转移规则后必须运行。 |
+| `test_tour_interaction.py` | A1 交互契约测试 | 验证计划内到达、自主到达、确认完成、幂等、结构化拒绝、跳过、重规划保留当前点和结束。 | 修改事件、错误码、交互状态或返回包后必须运行。 |
 | `tour_navigation.py` | 下一站确定性导航器 | 从 TourState 找到下一个剩余讲解点，调用已审核空间图输出节点、边、步行时间与该点 `guide_focus`。 | 不修改 TourState；不调用 LLM、RAG 或重规划器。 |
 | `test_tour_navigation.py` | 下一站导航测试 | 验证入口起步、到达后推进、跳过点排除、可达路径和完成路线后的空下一站。 | 修改空间图、讲解点目录或导航输出后必须运行。 |
 | `replanning.py` | 有限重规划器 | 仅处理跳过点与剩余时间变化；保留真实已访问记录，从当前点继续，排除跳过点。 | 不引入新讲解点、不调用 LLM；论文/比较卡不参与选点。 |
@@ -72,7 +76,9 @@ TourState 首版字段固定为 `selected_route_id`、`route_stop_ids`、`curren
 
 `TOUR_INTERACTION_CONTRACT.md` 是 A1-0 已冻结的唯一事件与状态契约。A1-1 的 `tour_interaction.py`、A1-2 的 `agent_graph.py` 文本路由、A1-3 的按钮/连续导游响应都必须引用它，不得各自定义事件名称、错误码或状态写入规则。
 
-关键兼容调整：现有 A 阶段首版的 `arrive_at_stop()` 会直接记为已访问；A1-1 起统一改为“到达 → explaining → `confirm_stop_complete()` 后才写入 `visited_stop_ids`”。空间主键、路线事实字段和旧路线数据不变。A1-0 只冻结契约，尚未改变现有运行逻辑。
+关键兼容调整：A1-1 已废止旧的“到达即已访问”语义。现在统一为“到达 → `explaining` → `confirm_stop_complete()` 后才写入 `visited_stop_ids`”；合法但非 `pending_stop_id` 的到达按冻结契约记录为 `self_arrival`，不改变正式路线顺序。空间主键、路线事实字段和旧路线数据不变。
+
+A1-1 已由项目 `.venv\Scripts\python.exe` 完成本地 62 项回归测试并全部通过。后续修改交互适配层、TourState、导航、重规划或 Agent 游览节点时，至少应复跑 `test_tour_state.py`、`test_tour_interaction.py`、`test_tour_navigation.py`、`test_replanning.py`、`test_agent_tour_state.py` 及路线回归测试。
 
 人工填写 `route_review_results_v1.csv` 时：`manual_status` 只能填 `approved`、`revise` 或 `rejected`；其余四个判断列填 `yes`、`no` 或 `needs_site_check`。只填写人工列，不改自动生成的路径、时间、点位和边字段。
 

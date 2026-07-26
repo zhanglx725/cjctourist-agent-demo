@@ -8,7 +8,7 @@
 
 路线规划目前只决定“去哪里、怎么走、停留预算”。它尚未决定每站具体讲哪几件文物、讲多久、如何按游客类型组织叙事。
 
-## 导游交互模式（A1，后续）
+## 导游交互模式（A1，进行中）
 
 默认产品不应要求游客记住“我到月台了”这类提示词。TourState 将支持以下入口，底层都调用相同的确定性状态函数：
 
@@ -34,7 +34,7 @@ tour_mode                    # chat / button_guided / continuous
 stop_phase                   # navigating / explaining / awaiting_confirmation
 ```
 
-但此层暂不需在 TourState 纯函数中实现；只需确保 `arrive_at_stop` 等原子函数幂等且不产生副作用。不同交互模式最终只是调用这些确定函数的不同方式。
+A1-0 已冻结 `TOUR_INTERACTION_CONTRACT.md`，A1-1 已建立 `tour_interaction.py` 作为唯一公开事件适配入口；交互字段不写入 TourState。现已统一为“到达不等于完成”，只有 `confirm_stop_complete()` 才能把正式讲解点写入 `visited_stop_ids`。不同交互模式最终只调用相同的确定性适配事件。
 
 ## 游览中问答与继续导游（A2，后续）
 

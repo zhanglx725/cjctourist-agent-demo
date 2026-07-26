@@ -1,9 +1,9 @@
-"""Unit tests for TourState phase-A pure transitions."""
+"""Unit tests for TourState route facts, excluding A1 interaction events."""
 
 import unittest
 
 from route_planner import plan_template
-from tour_state import TourStateError, arrive_at_stop, finish_tour, next_stop, skip_stop, start_tour
+from tour_state import finish_tour, next_stop, skip_stop, start_tour
 
 
 class TourStateTests(unittest.TestCase):
@@ -21,41 +21,32 @@ class TourStateTests(unittest.TestCase):
         )
         self.assertNotIn("entrance_main_outside", state["route_stop_ids"])
 
-    def test_arrival_updates_current_and_visit_once_then_next_is_moon_platform(self):
+    def test_next_stop_reads_first_remaining_without_changing_state(self):
         state = start_tour(self.plan)
-        arrived = arrive_at_stop(state, "stop_front_courtyard_center")
-        repeated = arrive_at_stop(arrived, "stop_front_courtyard_center")
-        self.assertEqual(repeated["current_stop_id"], "stop_front_courtyard_center")
-        self.assertEqual(repeated["visited_stop_ids"], ["stop_front_courtyard_center"])
-        self.assertEqual(next_stop(repeated), "label_moon_platform")
+        self.assertEqual(next_stop(state), "stop_front_courtyard_center")
         self.assertEqual(state["visited_stop_ids"], [])
+        self.assertEqual(len(state["remaining_stop_ids"]), 3)
 
-    def test_skip_next_stop_changes_recommendation(self):
-        state = arrive_at_stop(start_tour(self.plan), "stop_front_courtyard_center")
-        skipped = skip_stop(state)
-        self.assertEqual(skipped["skipped_stop_ids"], ["label_moon_platform"])
-        self.assertEqual(next_stop(skipped), "stop_front_east_courtyard")
-        self.assertFalse(set(skipped["visited_stop_ids"]).intersection(skipped["skipped_stop_ids"]))
-
-    def test_all_processed_stops_complete_the_route(self):
+    def test_skip_moves_only_remaining_stop_to_skipped(self):
         state = start_tour(self.plan)
-        state = arrive_at_stop(state, "stop_front_courtyard_center")
-        state = arrive_at_stop(state, "label_moon_platform")
-        state = arrive_at_stop(state, "stop_front_east_courtyard")
-        self.assertEqual(state["route_status"], "completed")
-        self.assertEqual(state["remaining_stop_ids"], [])
-        self.assertIsNone(next_stop(state))
+        skipped = skip_stop(state)
+        self.assertEqual(skipped["skipped_stop_ids"], ["stop_front_courtyard_center"])
+        self.assertEqual(skipped["visited_stop_ids"], [])
+        self.assertEqual(next_stop(skipped), "label_moon_platform")
 
-    def test_unknown_marker_is_rejected(self):
-        with self.assertRaises(TourStateError):
-            arrive_at_stop(start_tour(self.plan), "not_a_real_node")
+    def test_skipping_all_stops_completes_route_without_false_visits(self):
+        state = start_tour(self.plan)
+        while state["remaining_stop_ids"]:
+            state = skip_stop(state)
+        self.assertEqual(state["route_status"], "completed")
+        self.assertEqual(state["visited_stop_ids"], [])
+        self.assertEqual(len(state["skipped_stop_ids"]), 3)
 
     def test_explicit_finish_preserves_actual_progress(self):
-        state = arrive_at_stop(start_tour(self.plan), "stop_front_courtyard_center")
-        finished = finish_tour(state)
+        finished = finish_tour(start_tour(self.plan))
         self.assertEqual(finished["route_status"], "completed")
         self.assertEqual(finished["completion_reason"], "visitor_finished_early")
-        self.assertEqual(finished["visited_stop_ids"], ["stop_front_courtyard_center"])
+        self.assertEqual(finished["visited_stop_ids"], [])
 
 
 if __name__ == "__main__":

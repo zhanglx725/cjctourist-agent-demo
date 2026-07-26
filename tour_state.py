@@ -126,24 +126,38 @@ def next_stop(state: dict[str, Any]) -> str | None:
     return snapshot["remaining_stop_ids"][0] if snapshot["remaining_stop_ids"] else None
 
 
-def arrive_at_stop(state: dict[str, Any], node_id: str) -> dict[str, Any]:
-    """Record a planned or self-directed arrival without duplicate visit counts."""
+def _record_arrival(
+    state: dict[str, Any], node_id: str, arrival_kind: str
+) -> dict[str, Any]:
+    """Record location only; A1 completion is handled by the interaction layer.
+
+    This is deliberately private.  ``tour_interaction.py`` is the public event
+    adapter and decides whether an arrival is planned or self-directed.  An
+    arrival must never be treated as a completed explanation.
+    """
     snapshot = _copy_state(state)
     if node_id not in known_node_ids():
         raise TourStateError(f"未知点位：{node_id}")
     snapshot["current_stop_id"] = node_id
-    if node_id in snapshot["route_stop_ids"]:
-        # A real arrival overrides an earlier skip, preserving the invariant
-        # that a stop belongs to exactly one of visited/skipped/remaining.
-        if node_id in snapshot["skipped_stop_ids"]:
-            snapshot["skipped_stop_ids"].remove(node_id)
-        if node_id not in snapshot["visited_stop_ids"]:
-            snapshot["visited_stop_ids"].append(node_id)
-        if node_id in snapshot["remaining_stop_ids"]:
-            snapshot["remaining_stop_ids"].remove(node_id)
-        snapshot["last_arrival_kind"] = "planned_stop"
-    else:
-        snapshot["last_arrival_kind"] = "self_arrival"
+    snapshot["last_arrival_kind"] = arrival_kind
+    if snapshot["route_status"] == "not_started":
+        snapshot["route_status"] = "touring"
+    _validate_state(snapshot)
+    return snapshot
+
+
+def _complete_current_stop(state: dict[str, Any], node_id: str) -> dict[str, Any]:
+    """Move one explicitly confirmed formal stop from remaining to visited.
+
+    This private primitive intentionally has no UI/LLM behavior.  The adapter
+    has already verified the current station, pending station and interaction
+    phase before it calls this function.
+    """
+    snapshot = _copy_state(state)
+    if node_id not in snapshot["remaining_stop_ids"]:
+        raise TourStateError("只能确认当前路线中尚未完成的正式讲解点。")
+    snapshot["remaining_stop_ids"].remove(node_id)
+    snapshot["visited_stop_ids"].append(node_id)
     snapshot["route_status"] = "completed" if not snapshot["remaining_stop_ids"] else "touring"
     _validate_state(snapshot)
     return snapshot
@@ -179,6 +193,7 @@ def apply_replanned_route(
     remaining_stop_ids: list[str],
     remaining_minutes: int,
     selected_route_id: str | None = None,
+    preserve_current_stop: bool = False,
 ) -> dict[str, Any]:
     """Replace only the unfinished portion after deterministic replanning."""
     snapshot = _copy_state(state)
@@ -191,18 +206,30 @@ def apply_replanned_route(
     if forbidden.intersection(remaining_stop_ids):
         raise TourStateError("重规划不能重新加入已访问或已跳过的点位。")
     old_remaining = list(snapshot["remaining_stop_ids"])
+    current = snapshot["current_stop_id"]
+    preserved_current = (
+        current
+        if preserve_current_stop and current is not None and current in old_remaining
+        else None
+    )
+    effective_remaining = [
+        *([preserved_current] if preserved_current else []),
+        *[node_id for node_id in remaining_stop_ids if node_id != preserved_current],
+    ]
+    if len(effective_remaining) != len(set(effective_remaining)):
+        raise TourStateError("重规划后的剩余讲解点不能重复。")
     snapshot["replanned_out_stop_ids"] = [
-        node_id for node_id in old_remaining if node_id not in remaining_stop_ids
+        node_id for node_id in old_remaining if node_id not in effective_remaining
     ]
     snapshot["route_stop_ids"] = [
         *snapshot["visited_stop_ids"],
         *snapshot["skipped_stop_ids"],
-        *remaining_stop_ids,
+        *effective_remaining,
     ]
-    snapshot["remaining_stop_ids"] = list(remaining_stop_ids)
+    snapshot["remaining_stop_ids"] = effective_remaining
     snapshot["remaining_minutes"] = int(remaining_minutes)
     if selected_route_id:
         snapshot["selected_route_id"] = selected_route_id
-    snapshot["route_status"] = "completed" if not remaining_stop_ids else "touring"
+    snapshot["route_status"] = "completed" if not effective_remaining else "touring"
     _validate_state(snapshot)
     return snapshot

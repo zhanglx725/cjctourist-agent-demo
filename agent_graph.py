@@ -21,13 +21,13 @@ from dotenv import load_dotenv
 from rag_retrieval import ChenClanHybridRetriever
 from route_planner import CATALOG_FILE, recommend_route, _read_catalog
 from dynamic_route_planner import plan_dynamic_route
-from replanning import replan_after_skip, replan_remaining_time
 from tour_navigation import (
     format_next_stop_navigation,
     next_stop_navigation,
     resolve_route_stop_from_text,
 )
-from tour_state import TourStateError, arrive_at_stop, finish_tour, next_stop, start_tour
+from tour_interaction import handle_tour_event, initialize_interaction
+from tour_state import start_tour
 MAX_TOOL_LOOPS = 3
 DEFAULT_DEEPSEEK_MAX_TOKENS = 450
 DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
@@ -49,6 +49,7 @@ class AgentState(TypedDict, total=False):
     selected_route_id: str
     active_route_plan: dict[str, Any]
     tour_state: dict[str, Any]
+    tour_interaction_state: dict[str, Any]
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -296,6 +297,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         exit_return_seconds = plan.estimated_exit_return_seconds
     catalog = _read_catalog(CATALOG_FILE)
     tour = start_tour(plan, interests=interests, detail_level="standard")
+    interaction = initialize_interaction(tour)
     stop_lines = []
     for index, node_id in enumerate(guide_stop_ids, start=1):
         card = catalog[node_id]
@@ -325,6 +327,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         "selected_route_id": route_id,
         "active_route_plan": plan_data,
         "tour_state": tour,
+        "tour_interaction_state": interaction,
         "performance_metrics": _append_metric(
             state,
             "direct_route",
@@ -345,7 +348,7 @@ def _tour_not_started_response(state: AgentState, node: str) -> dict[str, Any]:
 
 
 def arrive_at_stop_node(state: AgentState) -> dict[str, Any]:
-    """Record a deterministic arrival; point-specific RAG comes in a later phase."""
+    """Adapt a resolved arrival through the frozen A1 interaction contract."""
     tour = state.get("tour_state")
     if not tour:
         return _tour_not_started_response(state, "arrive_at_stop")
@@ -357,27 +360,40 @@ def arrive_at_stop_node(state: AgentState) -> dict[str, Any]:
             "messages": [AIMessage(content="我还无法确定您到达的是哪个正式讲解点，请说出例如“我到月台了”。")],
             "performance_metrics": _append_metric(state, "arrive_at_stop", time.perf_counter() - started, resolved=False),
         }
-    expected = next_stop(tour)
-    try:
-        updated = arrive_at_stop(tour, node_id)
-    except TourStateError as exc:
+    result = handle_tour_event(
+        tour,
+        state.get("tour_interaction_state"),
+        "arrive_at_stop",
+        node_id=node_id,
+    )
+    if not result["ok"]:
         return {
-            "messages": [AIMessage(content=f"无法记录当前点位：{exc}")],
+            "messages": [AIMessage(content=result["message"])],
             "performance_metrics": _append_metric(state, "arrive_at_stop", time.perf_counter() - started, resolved=True, updated=False),
         }
     catalog = _read_catalog(CATALOG_FILE)
     card = catalog.get(node_id, {})
-    sequence_note = "" if node_id == expected else "您是自主到达此点；原路线顺序已保留，如需调整可告诉我剩余时间。\n"
-    message = (
-        f"已记录：您已到达 {card.get('stop_name', node_id)}。\n"
-        + sequence_note
-        + (f"本点讲解焦点：{card.get('guide_focus', '该点的具体讲解内容待后续 RAG 编排。')}\n" if card else "")
-        + format_next_stop_navigation(next_stop_navigation(updated))
-    )
+    if result["code"] == "arrived":
+        message = (
+            f"已记录：您已到达 {card.get('stop_name', node_id)}。\n"
+            + (f"本点讲解焦点：{card.get('guide_focus', '该点的具体讲解内容待后续 RAG 编排。')}\n" if card else "")
+            + "讲解结束后请明确确认完成；确认前不会计入已访问记录。"
+        )
+    else:
+        navigation = result["data"].get("navigation")
+        message = result["message"] + ("\n" + format_next_stop_navigation(navigation) if navigation else "")
     return {
         "messages": [AIMessage(content=message)],
-        "tour_state": updated,
-        "performance_metrics": _append_metric(state, "arrive_at_stop", time.perf_counter() - started, resolved=True, out_of_sequence=node_id != expected),
+        "tour_state": result["tour_state"],
+        "tour_interaction_state": result["interaction_state"],
+        "performance_metrics": _append_metric(
+            state,
+            "arrive_at_stop",
+            time.perf_counter() - started,
+            resolved=True,
+            arrival_code=result["code"],
+            idempotent=result["idempotent"],
+        ),
     }
 
 
@@ -386,9 +402,13 @@ def next_stop_node(state: AgentState) -> dict[str, Any]:
     if not tour:
         return _tour_not_started_response(state, "next_stop")
     started = time.perf_counter()
+    result = handle_tour_event(tour, state.get("tour_interaction_state"), "next_stop")
+    navigation = result["data"].get("navigation")
     return {
-        "messages": [AIMessage(content=format_next_stop_navigation(next_stop_navigation(tour)))],
-        "performance_metrics": _append_metric(state, "next_stop", time.perf_counter() - started),
+        "messages": [AIMessage(content=result["message"] + ("\n" + format_next_stop_navigation(navigation) if navigation else ""))],
+        "tour_state": result["tour_state"],
+        "tour_interaction_state": result["interaction_state"],
+        "performance_metrics": _append_metric(state, "next_stop", time.perf_counter() - started, ok=result["ok"]),
     }
 
 
@@ -398,19 +418,25 @@ def skip_stop_node(state: AgentState) -> dict[str, Any]:
         return _tour_not_started_response(state, "skip_stop")
     started = time.perf_counter()
     explicit_stop = resolve_route_stop_from_text(_latest_user_text(state))
-    try:
-        result = replan_after_skip(tour, explicit_stop)
-    except (TourStateError, ValueError) as exc:
+    result = handle_tour_event(
+        tour,
+        state.get("tour_interaction_state"),
+        "skip_stop",
+        node_id=explicit_stop,
+    )
+    if not result["ok"]:
         return {
-            "messages": [AIMessage(content=f"无法跳过该点：{exc}")],
+            "messages": [AIMessage(content=result["message"])],
             "performance_metrics": _append_metric(state, "skip_stop", time.perf_counter() - started, updated=False),
         }
-    skipped = result.tour_state["skipped_stop_ids"][-1]
+    skipped = result["tour_state"]["skipped_stop_ids"][-1] if result["tour_state"]["skipped_stop_ids"] else None
+    plan = result["data"].get("plan")
+    navigation = result["data"].get("navigation")
     return {
-        "messages": [AIMessage(content=f"已跳过 {skipped}，已按当前位置更新剩余路线。\n" + format_next_stop_navigation(next_stop_navigation(result.tour_state)))],
-        "tour_state": result.tour_state,
-        "active_route_plan": {**asdict(result.plan), "route_strategy": "replanned"},
-        "selected_route_id": result.plan.route_id,
+        "messages": [AIMessage(content=result["message"] + ("\n" + format_next_stop_navigation(navigation) if navigation else ""))],
+        "tour_state": result["tour_state"],
+        "tour_interaction_state": result["interaction_state"],
+        **({"active_route_plan": {**asdict(plan), "route_strategy": "replanned"}, "selected_route_id": plan.route_id} if plan else {}),
         "performance_metrics": _append_metric(state, "skip_stop", time.perf_counter() - started, skipped_stop_id=skipped),
     }
 
@@ -423,23 +449,29 @@ def replan_time_node(state: AgentState) -> dict[str, Any]:
     minutes = _remaining_minutes_from_text(_latest_user_text(state))
     if minutes is None:
         return _tour_not_started_response(state, "replan_time")
-    try:
-        result = replan_remaining_time(tour, minutes)
-    except (TourStateError, ValueError) as exc:
+    result = handle_tour_event(
+        tour,
+        state.get("tour_interaction_state"),
+        "replan_time",
+        available_minutes=minutes,
+    )
+    if not result["ok"]:
         return {
-            "messages": [AIMessage(content=f"无法按该剩余时间重规划：{exc}")],
+            "messages": [AIMessage(content=result["message"])],
             "performance_metrics": _append_metric(state, "replan_time", time.perf_counter() - started, updated=False),
         }
+    plan = result["data"].get("plan")
+    navigation = result["data"].get("navigation")
     message = (
-        f"已按剩余 {minutes} 分钟更新路线，保留 {len(result.plan.stop_ids)} 个正式讲解点，"
-        f"预计总时长 {round((result.plan.estimated_total_seconds or 0) / 60)} 分钟。\n"
-        + format_next_stop_navigation(next_stop_navigation(result.tour_state))
+        f"已按剩余 {minutes} 分钟更新路线，保留 {len(plan.stop_ids) if plan else 0} 个正式讲解点，"
+        f"预计总时长 {round(((plan.estimated_total_seconds if plan else 0) or 0) / 60)} 分钟。\n"
+        + (format_next_stop_navigation(navigation) if navigation else result["message"])
     )
     return {
         "messages": [AIMessage(content=message)],
-        "tour_state": result.tour_state,
-        "active_route_plan": {**asdict(result.plan), "route_strategy": "replanned"},
-        "selected_route_id": result.plan.route_id,
+        "tour_state": result["tour_state"],
+        "tour_interaction_state": result["interaction_state"],
+        **({"active_route_plan": {**asdict(plan), "route_strategy": "replanned"}, "selected_route_id": plan.route_id} if plan else {}),
         "performance_metrics": _append_metric(state, "replan_time", time.perf_counter() - started, remaining_minutes=minutes),
     }
 
@@ -449,7 +481,13 @@ def finish_tour_node(state: AgentState) -> dict[str, Any]:
     if not tour:
         return _tour_not_started_response(state, "finish_tour")
     started = time.perf_counter()
-    updated = finish_tour(tour)
+    result = handle_tour_event(tour, state.get("tour_interaction_state"), "finish_tour")
+    if not result["ok"]:
+        return {
+            "messages": [AIMessage(content=result["message"])],
+            "performance_metrics": _append_metric(state, "finish_tour", time.perf_counter() - started, updated=False),
+        }
+    updated = result["tour_state"]
     message = (
         "本次游览已结束。"
         f"已完成讲解点 {len(updated['visited_stop_ids'])} 个，"
@@ -460,6 +498,7 @@ def finish_tour_node(state: AgentState) -> dict[str, Any]:
     return {
         "messages": [AIMessage(content=message)],
         "tour_state": updated,
+        "tour_interaction_state": result["interaction_state"],
         "performance_metrics": _append_metric(state, "finish_tour", time.perf_counter() - started),
     }
 
