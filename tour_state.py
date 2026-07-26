@@ -172,3 +172,37 @@ def finish_tour(state: dict[str, Any]) -> dict[str, Any]:
         "all_stops_processed" if not snapshot["remaining_stop_ids"] else "visitor_finished_early"
     )
     return snapshot
+
+
+def apply_replanned_route(
+    state: dict[str, Any],
+    remaining_stop_ids: list[str],
+    remaining_minutes: int,
+    selected_route_id: str | None = None,
+) -> dict[str, Any]:
+    """Replace only the unfinished portion after deterministic replanning."""
+    snapshot = _copy_state(state)
+    if remaining_minutes <= 0:
+        raise TourStateError("剩余时间必须大于 0。")
+    unknown = set(remaining_stop_ids).difference(known_node_ids())
+    if unknown:
+        raise TourStateError(f"重规划含未知点位：{', '.join(sorted(unknown))}")
+    forbidden = set(snapshot["visited_stop_ids"]).union(snapshot["skipped_stop_ids"])
+    if forbidden.intersection(remaining_stop_ids):
+        raise TourStateError("重规划不能重新加入已访问或已跳过的点位。")
+    old_remaining = list(snapshot["remaining_stop_ids"])
+    snapshot["replanned_out_stop_ids"] = [
+        node_id for node_id in old_remaining if node_id not in remaining_stop_ids
+    ]
+    snapshot["route_stop_ids"] = [
+        *snapshot["visited_stop_ids"],
+        *snapshot["skipped_stop_ids"],
+        *remaining_stop_ids,
+    ]
+    snapshot["remaining_stop_ids"] = list(remaining_stop_ids)
+    snapshot["remaining_minutes"] = int(remaining_minutes)
+    if selected_route_id:
+        snapshot["selected_route_id"] = selected_route_id
+    snapshot["route_status"] = "completed" if not remaining_stop_ids else "touring"
+    _validate_state(snapshot)
+    return snapshot

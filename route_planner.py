@@ -63,6 +63,28 @@ class RoutePlan:
         return data
 
 
+@dataclass(frozen=True)
+class RemainingRoutePlan:
+    """A shortened route from the visitor's actual current position."""
+
+    route_id: str
+    start_node_id: str
+    exit_node_id: str
+    stop_ids: tuple[str, ...]
+    dropped_stop_ids: tuple[str, ...]
+    full_path_node_ids: tuple[str, ...]
+    edge_ids: tuple[str, ...]
+    estimated_walk_seconds: int | None
+    estimated_explanation_seconds: int
+    estimated_observation_seconds: int
+    estimated_interaction_seconds: int
+    estimated_buffer_seconds: int
+    estimated_total_seconds: int | None
+    allowed_total_seconds: int
+    within_time_budget: bool | None
+    warning: str
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise RoutePlanningError(f"路线数据文件不存在：{path}")
@@ -263,3 +285,121 @@ def recommend_route(available_minutes: int | None = None, interests: list[str] |
         return overlap, -difference
 
     return max(candidates, key=rank)[1]
+
+
+def _remaining_route_estimate(
+    graph: Any,
+    start_node_id: str,
+    stop_ids: list[str],
+    exit_node_id: str,
+    catalog: dict[str, dict[str, str]],
+    observation_each: int,
+    interaction_each: int,
+    buffer_each: int,
+) -> tuple[tuple[str, ...], tuple[str, ...], int | None, int, int, int, int, int | None]:
+    """Build a path and complete time budget for a fixed ordered stop list."""
+    current = start_node_id
+    full_path = [current]
+    edge_ids: list[str] = []
+    walk_values: list[int | None] = []
+    for target in [*stop_ids, exit_node_id]:
+        if target == current:
+            continue
+        spatial = shortest_route(current, target, graph=graph)
+        full_path.extend(spatial.node_ids[1:])
+        edge_ids.extend(spatial.edge_ids)
+        walk_values.append(spatial.estimated_walk_seconds)
+        current = target
+    walk = sum(walk_values) if all(value is not None for value in walk_values) else None
+    explanation = sum(int(catalog[node_id]["recommended_visit_minutes"]) * 60 for node_id in stop_ids)
+    observation = len(stop_ids) * observation_each
+    interaction = len(stop_ids) * interaction_each
+    buffer = len(stop_ids) * buffer_each
+    total = walk + explanation + observation + interaction + buffer if walk is not None else None
+    return tuple(full_path), tuple(edge_ids), walk, explanation, observation, interaction, buffer, total
+
+
+def plan_from_current_position(
+    current_stop_id: str | None,
+    remaining_minutes: int,
+    excluded_stop_ids: list[str] | None,
+    preferred_route_id: str,
+    candidate_stop_ids: list[str] | None = None,
+) -> RemainingRoutePlan:
+    """Shorten a reviewed route from the current position without inventing stops.
+
+    ``candidate_stop_ids`` is used by TourState to preserve its real unfinished
+    route order (including a prior dynamic route).  When omitted, the planner
+    takes the remaining suffix of the preferred reviewed template.
+    """
+    if remaining_minutes <= 0:
+        raise RoutePlanningError("剩余时间必须大于 0。")
+    templates = _read_json(TEMPLATES_FILE)
+    policy = _read_json(POLICY_FILE)
+    catalog = _read_catalog()
+    graph = _filtered_graph(policy)
+    start = current_stop_id or templates["rules"]["start_node_id"]
+    if start not in graph:
+        raise RoutePlanningError(f"当前起点不在已审核空间图中：{start}")
+    exit_node_id = policy["exit_policy"]["default_exit_node_id"]
+    excluded = set(excluded_stop_ids or [])
+    template = next((item for item in templates["templates"] if item["route_id"] == preferred_route_id), None)
+    if candidate_stop_ids is None:
+        if template is None:
+            raise RoutePlanningError("动态路线重规划必须提供 TourState 的剩余点顺序。")
+        ordered = [node for node in template["stop_order"] if node != templates["rules"]["start_node_id"]]
+        if start in ordered:
+            ordered = ordered[ordered.index(start) + 1 :]
+    else:
+        ordered = list(candidate_stop_ids)
+    ordered = [node for node in ordered if node not in excluded and node != start]
+    unknown = set(ordered).difference(catalog)
+    if unknown:
+        raise RoutePlanningError(f"重规划点不在讲解点目录中：{', '.join(sorted(unknown))}")
+    experience = template.get("experience_budget", {}) if template else {}
+    observation_each = int(experience.get("observation_seconds_per_stop", 180))
+    interaction_each = int(experience.get("interaction_seconds_per_stop", 120))
+    buffer_each = int(policy["time_policy"]["per_stop_buffer_seconds"])
+    allowed = round(remaining_minutes * 60 * (1 + float(policy["time_policy"]["maximum_overrun_ratio"])))
+
+    kept = list(ordered)
+    dropped: list[str] = []
+    priority_rank = {"low": 0, "medium": 1, "high": 2}
+    while kept:
+        *_, total = _remaining_route_estimate(
+            graph, start, kept, exit_node_id, catalog, observation_each, interaction_each, buffer_each
+        )
+        if total is not None and total <= allowed:
+            break
+        # Remove optional points first.  Among equivalent roles/priority, drop
+        # the later stop to retain the original route narrative as long as possible.
+        removable = sorted(
+            enumerate(kept),
+            key=lambda item: (
+                0 if catalog[item[1]]["route_role"] == "optional" else 1,
+                priority_rank.get(catalog[item[1]]["priority"], 0),
+                -item[0],
+            ),
+        )[0][0]
+        dropped.append(kept.pop(removable))
+    path, edges, walk, explanation, observation, interaction, buffer, total = _remaining_route_estimate(
+        graph, start, kept, exit_node_id, catalog, observation_each, interaction_each, buffer_each
+    )
+    return RemainingRoutePlan(
+        route_id=f"{preferred_route_id}_replanned",
+        start_node_id=start,
+        exit_node_id=exit_node_id,
+        stop_ids=tuple(kept),
+        dropped_stop_ids=tuple(dropped),
+        full_path_node_ids=path,
+        edge_ids=edges,
+        estimated_walk_seconds=walk,
+        estimated_explanation_seconds=explanation,
+        estimated_observation_seconds=observation,
+        estimated_interaction_seconds=interaction,
+        estimated_buffer_seconds=buffer,
+        estimated_total_seconds=total,
+        allowed_total_seconds=allowed,
+        within_time_budget=total <= allowed if total is not None else None,
+        warning="剩余路线保留原顺序并包含回前院出口区的步行时间；时间为地图估算，待现场复核。",
+    )

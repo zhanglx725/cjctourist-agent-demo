@@ -58,6 +58,9 @@
 | `test_tour_state.py` | 游览会话状态测试 | 验证初始化、到达、下一站、跳过、重复到达、完成与未知点位拒绝。 | 修改状态字段或转移规则后必须运行。 |
 | `tour_navigation.py` | 下一站确定性导航器 | 从 TourState 找到下一个剩余讲解点，调用已审核空间图输出节点、边、步行时间与该点 `guide_focus`。 | 不修改 TourState；不调用 LLM、RAG 或重规划器。 |
 | `test_tour_navigation.py` | 下一站导航测试 | 验证入口起步、到达后推进、跳过点排除、可达路径和完成路线后的空下一站。 | 修改空间图、讲解点目录或导航输出后必须运行。 |
+| `replanning.py` | 有限重规划器 | 仅处理跳过点与剩余时间变化；保留真实已访问记录，从当前点继续，排除跳过点。 | 不引入新讲解点、不调用 LLM；论文/比较卡不参与选点。 |
+| `route_planner.py: plan_from_current_position()` | 从当前位置的剩余路线规划 | 依据原路线顺序和时间预算裁剪剩余点，先删 optional、再删低优先级 core，并保留回前院出口区的路径。 | 只使用已审核边与讲解点目录。 |
+| `test_replanning.py` | 有限重规划测试 | 验证跳过点排除、20 分钟缩短路线、入口回退和已访问点不回流。 | 修改重规划规则后必须运行。 |
 
 TourState 首版字段固定为 `selected_route_id`、`route_stop_ids`、`current_stop_id`、`visited_stop_ids`、`skipped_stop_ids`、`remaining_stop_ids`、`started_at`、`available_minutes`、`remaining_minutes`、`interests`、`detail_level`、`route_status`。`last_arrival_kind` 和 `completion_reason` 为可选审计字段。
 
