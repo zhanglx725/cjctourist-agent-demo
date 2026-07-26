@@ -23,7 +23,8 @@ MARKERS_FILE = Path("data/chen_clan_academy/spatial/marker_inventory_v0.csv")
 
 
 @lru_cache(maxsize=1)
-def _guide_cards() -> dict[str, dict[str, Any]]:
+def load_guide_cards() -> dict[str, dict[str, Any]]:
+    """Load reviewed point guide cards for A2 and later guide-program stages."""
     with GUIDE_CARDS_FILE.open(encoding="utf-8") as handle:
         return {card["node_id"]: card for card in json.load(handle)["cards"]}
 
@@ -43,7 +44,7 @@ def current_stop_context(tour_state: dict[str, Any] | None) -> dict[str, Any] | 
     if not tour_state or not tour_state.get("current_stop_id"):
         return None
     node_id = tour_state["current_stop_id"]
-    card = _guide_cards().get(node_id, {})
+    card = load_guide_cards().get(node_id, {})
     catalog = _read_catalog(CATALOG_FILE).get(node_id, {})
     name = card.get("display_name") or catalog.get("stop_name") or _marker_names().get(node_id, node_id)
     return {
@@ -68,7 +69,7 @@ def resolve_point_context(user_query: str, tour_state: dict[str, Any] | None) ->
     resolution = resolve_reviewed_node(user_query)
     if resolution.node_id:
         node_id = resolution.node_id
-        card = _guide_cards().get(node_id, {})
+        card = load_guide_cards().get(node_id, {})
         catalog = _read_catalog(CATALOG_FILE).get(node_id, {})
         return {
             "node_id": node_id,

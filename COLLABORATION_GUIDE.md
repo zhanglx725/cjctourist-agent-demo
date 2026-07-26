@@ -125,6 +125,17 @@ A1-1 已由项目 `.venv\Scripts\python.exe` 完成本地 62 项回归测试并�
 
 项目负责人已完成 A2 相关 106 项回归和完整 155 项本机回归，结果均为 `OK`。后续修改点位讲解包读取、`tour_qa.py` 或 Agent RAG 路由时，至少复跑 `test_tour_qa.py`、`test_agent_tour_qa.py`、`test_agent_tour_state.py`、`test_agent_rag.py`、A1 E2E 与 RAG/路线回归。
 
+## B1 点位讲解编排器基础（已实现并验证）
+
+| 文件 | 职责 | 边界 |
+| --- | --- | --- |
+| `guide_program_planner.py` | 根据审核 `node_id`、预算、兴趣和详略等级确定性产出 `StopProgram`，每件对象带角色、秒数、理由和 `rag_query_hints`。 | 不调用 RAG/LLM，不写 TourState，不改变路线；研究/比较卡字段固定为空。 |
+| `test_guide_program_planner.py` | 验证候选合法性、稳定性、兴趣排序、1–3 件限制、未知点、空候选与输入校验。 | 使用讲解包或 mock 卡片，不修改原始数据。 |
+
+`tour_qa.load_guide_cards()` 已提升为可复用只读加载函数，供 A2 和 B 阶段使用。B1 的 `planned_seconds` 是预算的可审计基础分配；观察、互动、内容多样性和更细时间优化属于 B2。
+
+项目负责人已完成 B1 相关 112 项回归和完整 161 项本机回归，结果均为 `OK`。后续修改编排器或讲解包加载接口时，至少复跑 `test_guide_program_planner.py`、A2 测试、路线测试与完整回归。
+
 人工填写 `route_review_results_v1.csv` 时：`manual_status` 只能填 `approved`、`revise` 或 `rejected`；其余四个判断列填 `yes`、`no` 或 `needs_site_check`。只填写人工列，不改自动生成的路径、时间、点位和边字段。
 
 动态路线 A0 的开发顺序固定为：候选过滤 → 点位评分 → 时间预算组合 → 评估集 → Agent 接入。论文卡、比较卡尚未参与 A0 评分；后续只可通过已审核 `card_id` 增加可解释加分项。
