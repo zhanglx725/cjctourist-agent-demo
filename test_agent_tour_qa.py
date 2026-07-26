@@ -1,0 +1,91 @@
+"""Offline Agent integration tests for A2 route selection and state safety."""
+
+from __future__ import annotations
+
+import json
+import unittest
+from copy import deepcopy
+from unittest.mock import patch
+
+from langchain_core.messages import HumanMessage
+
+import agent_graph
+from agent_graph import direct_route_node, route_initial_request, tour_event_node, tour_qa_node
+
+
+FAKE_PAYLOAD = json.dumps(
+    {
+        "evidence": [
+            {
+                "document": "08_ornament_items.md",
+                "title_path": ["陈家祠建筑装饰条目知识库", "独角狮"],
+                "source_ids": ["S11"],
+                "content": "独角狮为建筑装饰题材。",
+            }
+        ]
+    },
+    ensure_ascii=False,
+)
+
+
+def _message_state(text: str, initial: dict | None = None) -> dict:
+    state = dict(initial or {})
+    state["messages"] = [HumanMessage(content=text)]
+    state["performance_metrics"] = []
+    return state
+
+
+class AgentTourQaTests(unittest.TestCase):
+    def _arrived_tour(self) -> dict:
+        started = direct_route_node(_message_state("我有30分钟，帮我规划路线"))
+        arrival = tour_event_node(_message_state("我到前院中部了", started))
+        return {**started, **arrival}
+
+    def test_active_tour_detail_question_routes_to_tour_qa_without_state_change(self):
+        state = self._arrived_tour()
+        request = _message_state("这里的石雕有什么特点？", state)
+        before_tour = deepcopy(state["tour_state"])
+        before_interaction = deepcopy(state["tour_interaction_state"])
+        self.assertEqual(route_initial_request(request), "tour_qa")
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            rag.invoke.return_value = FAKE_PAYLOAD
+            update = tour_qa_node(request)
+        rag.invoke.assert_called_once()
+        self.assertNotIn("tour_state", update)
+        self.assertNotIn("tour_interaction_state", update)
+        self.assertEqual(state["tour_state"], before_tour)
+        self.assertEqual(state["tour_interaction_state"], before_interaction)
+        self.assertEqual(update["tour_presentation"]["phase"], "explaining")
+        self.assertIn("S11", update["messages"][0].content)
+
+    def test_explicit_point_inventory_routes_to_tour_qa_without_active_route(self):
+        request = _message_state("月台有哪些装饰？")
+        self.assertEqual(route_initial_request(request), "tour_qa")
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            update = tour_qa_node(request)
+        rag.invoke.assert_not_called()
+        self.assertIn("月台", update["messages"][0].content)
+        self.assertIn("杏林春燕", update["messages"][0].content)
+
+    def test_explicit_point_inventory_uses_tour_qa_without_active_route(self):
+        request = _message_state("月台有什么？")
+        self.assertEqual(route_initial_request(request), "tour_qa")
+
+    def test_arrival_text_remains_event_not_rag(self):
+        state = self._arrived_tour()
+        self.assertEqual(route_initial_request(_message_state("我到月台了", state)), "tour_event")
+
+    def test_answered_question_does_not_block_later_a1_event(self):
+        state = self._arrived_tour()
+        request = _message_state("前院中部有什么？", state)
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            rag.invoke.return_value = FAKE_PAYLOAD
+            qa_update = tour_qa_node(request)
+        continued = {**state, **qa_update}
+        event_update = tour_event_node(_message_state("讲完了，去下一站", continued))
+        self.assertEqual(event_update["last_tour_intent"]["event_type"], "confirm_stop_complete")
+        self.assertEqual(event_update["tour_state"]["visited_stop_ids"], ["stop_front_courtyard_center"])
+
+
+if __name__ == "__main__":
+    unittest.main()

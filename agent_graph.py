@@ -29,6 +29,7 @@ from tour_interaction import handle_tour_event, initialize_interaction
 from tour_intent import classify_tour_intent
 from tour_presenter import present_clarification, present_tour_event, present_tour_state
 from tour_state import start_tour
+from tour_qa import answer_tour_question, is_point_inventory_request
 MAX_TOOL_LOOPS = 3
 DEFAULT_DEEPSEEK_MAX_TOKENS = 450
 DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
@@ -415,6 +416,39 @@ def direct_rag_node(state: AgentState) -> dict[str, Any]:
     }
 
 
+def tour_qa_node(state: AgentState) -> dict[str, Any]:
+    """Answer a factual question with active-tour context but no state mutation.
+
+    Retrieval still uses the existing ``chen_clan_academy_rag_search`` tool.
+    ``tour_qa`` only supplies reviewed point metadata as a query hint and restores
+    the A1 action protocol after evidence is returned.
+    """
+    query = _latest_user_text(state)
+    started = time.perf_counter()
+    result = answer_tour_question(
+        query,
+        state.get("tour_state"),
+        state.get("tour_interaction_state"),
+        lambda retrieval_query: str(chen_clan_academy_rag_search.invoke({"query": retrieval_query})),
+    )
+    updates: dict[str, Any] = {
+        "messages": [AIMessage(content=result["message"], additional_kwargs={"tour_qa_answer": True})],
+        "retrieved_evidence": result["evidence"],
+        "performance_metrics": _append_metric(
+            state,
+            "tour_qa",
+            time.perf_counter() - started,
+            evidence_count=len(result["evidence"]),
+            current_stop_id=(result.get("point_context") or {}).get("node_id"),
+        ),
+    }
+    # The presenter is UI data, not a state transition.  Deliberately do not
+    # return tour_state or tour_interaction_state here.
+    if result["presentation"] is not None:
+        updates["tour_presentation"] = result["presentation"]
+    return updates
+
+
 def rag_tool_node(state: AgentState) -> dict[str, Any]:
     """Execute the tool calls requested by the latest model response."""
     last = state["messages"][-1]
@@ -474,7 +508,11 @@ def route_initial_request(state: AgentState) -> str:
     if decision.route_kind == "route_request" or should_direct_route(text):
         return "direct_route"
     if decision.route_kind == "rag_question" or should_direct_rag(text):
-        return "direct_rag"
+        # An explicit audited point inventory is structured data even before a
+        # route starts. Other no-route facts retain the established RAG path.
+        if is_point_inventory_request(text, state.get("tour_state")):
+            return "tour_qa"
+        return "tour_qa" if state.get("tour_state") and state.get("tour_interaction_state") else "direct_rag"
     return "llm_think"
 
 
@@ -488,6 +526,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("llm_think", llm_think_node)
     workflow.add_node("rag_tool", rag_tool_node)
     workflow.add_node("direct_rag", direct_rag_node)
+    workflow.add_node("tour_qa", tour_qa_node)
     workflow.add_node("direct_route", direct_route_node)
     workflow.add_node("tour_event", tour_event_node)
     workflow.add_node("clarification", clarification_node)
@@ -495,11 +534,12 @@ def build_agent_graph(with_checkpointer: bool = True):
         START,
         route_initial_request,
         {
-            "direct_rag": "direct_rag", "direct_route": "direct_route", "tour_event": "tour_event",
+            "direct_rag": "direct_rag", "tour_qa": "tour_qa", "direct_route": "direct_route", "tour_event": "tour_event",
             "clarification": "clarification", "llm_think": "llm_think",
         },
     )
     workflow.add_edge("direct_rag", "llm_think")
+    workflow.add_edge("tour_qa", END)
     workflow.add_edge("direct_route", END)
     workflow.add_edge("tour_event", END)
     workflow.add_edge("clarification", END)

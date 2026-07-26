@@ -64,9 +64,9 @@ class AgentTourStateTests(unittest.TestCase):
             "direct_route",
         )
 
-    def test_fact_question_keeps_direct_rag_priority_after_tour_exists(self):
+    def test_point_inventory_question_uses_tour_qa_after_tour_exists(self):
         initial = self._started()
-        self.assertEqual(route_initial_request(_message_state("月台有什么？", initial)), "direct_rag")
+        self.assertEqual(route_initial_request(_message_state("月台有什么？", initial)), "tour_qa")
 
     def test_open_conversation_keeps_llm_path(self):
         self.assertEqual(route_initial_request(_message_state("你好")), "llm_think")

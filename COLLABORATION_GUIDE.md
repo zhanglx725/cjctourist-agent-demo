@@ -113,6 +113,18 @@ A1-1 已由项目 `.venv\Scripts\python.exe` 完成本地 62 项回归测试并�
 
 该测试覆盖计划内到达、`explanation_finished`、确认完成、最后一站、自主到达、跳过后重规划、歧义/多意图/未知点位拒绝、详情占位和幂等性。项目负责人已完成完整 141 项本机回归，结果均为 `OK`；A1 因此正式完成。A2 的游览中 RAG 问答与导游恢复仍未开始。
 
+## A2 游览中 RAG 问答与上下文恢复（已实现并验证）
+
+| 文件 | 职责 | 边界 |
+| --- | --- | --- |
+| `tour_qa.py` | 对“当前点/明确点有什么”确定性读取讲解包清单；对工艺、寓意、故事等解释性问题用点位提示调用既有 RAG，随后恢复 A1-3 展示协议。 | 讲解包只证明已审核“文物—点位关联”；文化和工艺解释仍只能来自 RAG evidence。不得修改 TourState。 |
+| `test_tour_qa.py` | 验证当前/明确点位清单、点位文物讲解、一般事实、`self_arrival`、无活动路线、无证据、缺包、未知点与检索异常。 | 只使用 mock/注入函数，不调用真实模型或网络。 |
+| `test_agent_tour_qa.py` | 验证活动路线走 `tour_qa`、无路线仍走 `direct_rag`、到达仍走事件、问答后可继续 A1。 | 不改路线数据、空间边或知识卡。 |
+
+`agent_graph.py: tour_qa_node` 复用 `chen_clan_academy_rag_search` 处理解释性事实问答；明确点位清单即使无活动路线也可确定性读取已审核讲解包。它不返回 `tour_state` 或 `tour_interaction_state` 更新。A2 不接入论文、比较、术语或打卡卡，也不实现点位讲解编排器。
+
+项目负责人已完成 A2 相关 106 项回归和完整 155 项本机回归，结果均为 `OK`。后续修改点位讲解包读取、`tour_qa.py` 或 Agent RAG 路由时，至少复跑 `test_tour_qa.py`、`test_agent_tour_qa.py`、`test_agent_tour_state.py`、`test_agent_rag.py`、A1 E2E 与 RAG/路线回归。
+
 人工填写 `route_review_results_v1.csv` 时：`manual_status` 只能填 `approved`、`revise` 或 `rejected`；其余四个判断列填 `yes`、`no` 或 `needs_site_check`。只填写人工列，不改自动生成的路径、时间、点位和边字段。
 
 动态路线 A0 的开发顺序固定为：候选过滤 → 点位评分 → 时间预算组合 → 评估集 → Agent 接入。论文卡、比较卡尚未参与 A0 评分；后续只可通过已审核 `card_id` 增加可解释加分项。
