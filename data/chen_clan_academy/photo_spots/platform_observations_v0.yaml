@@ -1,5 +1,85 @@
 version: v0
 observations:
+  - observation_id: xhs_20260726_morning_photo_time
+    platform: xiaohongshu
+    supplied_title_zh: 陈家祠出片攻略！快收藏起来~
+    short_link: http://xhslink.cn/o/KWPlG7A7FK
+    user_supplied_caption_fragment_zh: 建议拍照时间：上午10点前，人少且光线佳
+    possible_subjects:
+      - 拍照时间
+      - 茶艺室前
+      - 中西展厅门
+      - 聚贤堂
+      - 月台
+      - 后花园
+      - 木雕屏门
+      - 大门对联
+    linked_photo_spot_ids:
+      - photo_architecture_moon_platform
+      - photo_architecture_corridor_perspective
+      - photo_portrait_entrance_layers
+    observation_type: user_supplied_platform_reference
+    verification_status: partial_content_received_needs_node_mapping
+    user_supplied_shot_list_zh:
+      - 茶艺室前。
+      - 茶艺室旁中西展厅，以展厅门为背景。
+      - 聚贤堂枫溪瓷展柜。
+      - 聚贤堂前，以月台石栏杆为前景的长焦构图。
+      - 聚贤堂前，走下月台，以石栏板为背景。
+      - 月台与后花园。
+      - 聚贤堂正对面的木雕屏门。
+      - 大门对联处。
+      - 馆内桌椅。
+      - 后花园，以绿叶为前景的长焦构图。
+    verified_facts_zh:
+      - 用户提供的帖子文字建议在上午10点前拍摄，并列出十处画面参考；拼图可见建筑屋脊、门窗、石栏板、灰砖墙与绿叶前景等构图方向。
+    visual_observations_from_user_images_zh:
+      - 人像可采用侧身或半转身、视线朝向屋脊的方式，让彩色屋脊装饰处于画面上方。
+      - 可在有红灯笼的廊下利用柱列与屋顶线条拍摄自然行走画面；该画面只能作为构图灵感，具体廊道尚未定位。
+      - 可把石栏板、绿叶或灰砖墙作为前景/背景组织近景人像；截图未能证明这些元素分别对应哪一处现有 node_id。
+      - 截图含有绿色窗格、室内桌椅和人物靠近栏板的画面；其具体展厅、设施属性与拍摄许可仍未确认。
+    unverified_items_zh:
+      - “人少且光线佳”是否适用于不同季节、天气、开放时段和人流状况。
+      - 茶艺室、中西展厅、枫溪瓷展柜、馆内桌椅等点位在当前空间图中的准确 node_id，以及是否允许拍摄。
+      - 展柜、室内桌椅和各展厅的拍摄规则，及是否允许使用长焦镜头。
+      - 各机位在当天开放区域、客流和安全条件下是否可用。
+    adoption_rule_zh: >-
+      可将“上午10点前”作为来源明确、附条件的候选时间窗口，不写成固定最佳时间；涉及展柜、室内陈设与具体展厅的点位，须完成 node_id 映射并核验馆方拍摄规则后，才可生成正式打卡点卡。
+
+  - observation_id: xhs_20260726_seven_crafts_photo
+    platform: xiaohongshu
+    supplied_title_zh: 10元看遍岭南七绝！陈家祠封神机位📸
+    short_link: http://xhslink.cn/o/2VVzA0GP1IL
+    possible_subjects: [岭南七绝, 建筑装饰, 摄影机位]
+    linked_photo_spot_ids: [photo_craft_ornament_route]
+    observation_type: user_supplied_platform_reference
+    verification_status: needs_screenshot_or_post_text
+    verified_facts_zh:
+      - 项目已有“七类工艺”观察卡，可作为该帖可能涉及的内容框架。
+    unverified_items_zh:
+      - 帖子所称“封神机位”的具体位置、画面方向和人物姿势。
+      - 标题中的票价是否仍适用；票价不进入打卡点卡，须由实时官方信息核验。
+      - 该帖子是否代表稳定的热门趋势。
+    adoption_rule_zh: >-
+      收到截图或完整图文后，才将具体机位映射到已审核 node_id，并创建或启用相应姿势模板；
+      不得用“封神”“必拍”替代现场安全与馆方拍摄规定。
+  - observation_id: xhs_20260726_rainy_day_photo
+    platform: xiaohongshu
+    supplied_title_zh: 来了广州 下雨也要拍！陈家祠还是非常值得一逛的！
+    short_link: http://xhslink.cn/o/8A3FjzCdV8Y
+    possible_subjects: [雨天, 建筑空间, 陈家祠]
+    linked_photo_spot_ids: []
+    observation_type: user_supplied_platform_reference
+    verification_status: needs_screenshot_or_post_text
+    verified_facts_zh:
+      - 该帖标题可作为“游客对雨天陈家祠拍摄感兴趣”的灵感线索。
+    unverified_items_zh:
+      - 帖子的实际取景点、人物姿势、构图和拍摄时的降雨强度。
+      - 馆内外当日允许拍摄的区域、地面湿滑状况和是否影响通行。
+      - 该帖子是否代表稳定的热门趋势。
+    adoption_rule_zh: >-
+      在收到截图或完整图文前，不创建雨天正式打卡点卡，也不建议游客“下雨也要拍”；
+      即使后续采用，也须以现场天气、开放区域、地面安全和馆方规定为前提。
   - observation_id: xhs_20260726_small_deity_ao_fish
     platform: xiaohongshu
     supplied_title_zh: 来陈家祠找网红小神仙~附位置
@@ -18,3 +98,29 @@ observations:
       - 该帖子是否代表稳定的热门趋势。
     adoption_rule_zh: >-
       在收到图2截图或完整图文前，不新增 ornament_pose_reference，也不向游客表述“网红”或推荐模仿动作。
+
+  - observation_id: xhs_20260726_roof_ridge_crafts
+    platform: xiaohongshu
+    supplied_title_zh: 广州旅游｜陈家祠：屋脊藏神仙，人工天不如
+    observation_type: user_supplied_platform_reference
+    verification_status: visual_content_received_facts_need_source_check
+    possible_subjects:
+      - 屋脊陶塑
+      - 建筑木雕
+      - 聚贤堂
+      - 展陈器物
+      - 工艺细节摄影
+    linked_photo_spot_ids:
+      - photo_architecture_roof_ridge
+      - photo_juxian_hall_screen_door
+      - photo_craft_ornament_route
+    visual_observations_from_user_images_zh:
+      - 屋脊可分别采用广角远景、斜向仰拍、正面平视和局部特写，突出人物、瑞兽、山墙轮廓与色彩层次。
+      - 木雕可采用“整体空间—屏门/构件局部—单幅故事细节”的三层拍法；避免将深色木雕拍成无层次的黑块。
+      - 厅堂正面可利用匾额、供桌、屏门和座椅形成轴线对称的室内全景；是否允许人物、三脚架或长时间停留须现场确认。
+      - 展柜内工艺品适合做单件细节观察，但截图不能证明展品名称、展厅位置、展期或拍摄许可。
+    user_supplied_claims_needing_evidence_zh:
+      - 建造年代、集资范围、七种工艺、文物保护等级与博物馆身份，应以项目既有馆方或政府来源为准。
+      - “郭沫若题语”、具体纹样题材、历史用途及文学性描写，不因平台文字自动进入导游事实库。
+    adoption_rule_zh: >-
+      可把截图中的构图方法作为卡片的“平台视觉参考”；屋脊、木雕与厅堂的实体对象仍须使用已审核的点位和 RAG 证据。展柜与室内陈设只有在确认展厅、展品和拍摄规则后，才生成正式打卡卡。

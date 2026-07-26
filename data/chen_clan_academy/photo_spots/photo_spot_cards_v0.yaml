@@ -39,10 +39,11 @@ cards:
     themes: [architecture_signature, craft_detail, openwork]
     pose_template_ids: [pose_side_detail_gaze, pose_detail_observation]
     cultural_prompt_zh: 用栏板、望柱与通花装饰表现陈家祠的构件细节；适合回答“建筑工艺怎么被看见”。
-    recommended_capture_zh: 建议以局部细节、重复纹样和空间层次为拍摄主题；具体镜位、人物是否可进入画面须现场确认。
+    recommended_capture_zh: 建议以局部细节、重复纹样和空间层次为拍摄主题；可尝试以石栏杆或石栏板作前景、以聚贤堂方向作远景的压缩构图。具体镜位、人物是否可进入画面、是否允许使用长焦设备均须现场确认。
     popularity_status: editorial_recommended
     review_status: draft_manual_review
     evidence_refs: [S11]
+    platform_observation_ids: [xhs_20260726_morning_photo_time]
     boundaries_zh: 仅在开放区域、许可拍摄的前提下取景；不得倚靠栏板、翻越设施或使用闪光灯。
 
   - photo_spot_id: photo_architecture_front_facade
@@ -51,7 +52,7 @@ cards:
     target_ornaments: [石狮子, 功名富贵, 松鹤延年]
     target_groups: [young_adults, friends, first_time_visitors]
     themes: [architecture_signature, axial_symmetry, entrance_hall, first_visit]
-    pose_template_ids: [pose_centered_entrance]
+    pose_template_ids: [pose_centered_entrance, pose_half_turn_roof_gaze]
     cultural_prompt_zh: 可把入口前庭的中轴、门厅层次和石雕、灰塑作为“我在陈家祠”的识别元素，而不是只拍建筑外观。
     recommended_capture_zh: 可尝试以中轴对称和门厅层次作为画面组织；人物合影位置、可否使用三脚架和现场人流条件待审核。
     popularity_status: editorial_recommended
@@ -65,13 +66,13 @@ cards:
     target_ornaments: [鳌鱼, 瓜瓞绵绵]
     target_groups: [young_adults, friends, photography_enthusiasts]
     themes: [architecture_signature, roof_ridge, ceramic_sculpture, grey_plaster]
-    pose_template_ids: [pose_side_detail_gaze]
+    pose_template_ids: [pose_side_detail_gaze, pose_half_turn_roof_gaze]
     cultural_prompt_zh: 适合从远景观察屋脊轮廓、陶塑与灰塑如何共同构成建筑顶部的视觉层次。
-    recommended_capture_zh: 建议把屋脊作为主体，保留必要的建筑轮廓作尺度参照；可否获得无遮挡视线、最佳拍摄时段待现场确认。
+    recommended_capture_zh: 建议把屋脊作为主体，保留必要的建筑轮廓作尺度参照；可依次尝试远景交代屋顶轮廓、斜向仰拍突出脊饰层次、局部特写记录人物与瑞兽细节。可否获得无遮挡视线、最佳拍摄时段待现场确认。
     popularity_status: editorial_recommended
     review_status: draft_manual_review
     evidence_refs: [S11]
-    platform_observation_ids: [xhs_20260726_small_deity_ao_fish]
+    platform_observation_ids: [xhs_20260726_small_deity_ao_fish, xhs_20260726_morning_photo_time, xhs_20260726_roof_ridge_crafts]
     boundaries_zh: 不为取景进入限制区域、跨越围栏或占用狭窄通道；风雨或施工期间以现场管理要求为准。
 
   - photo_spot_id: photo_architecture_corridor_perspective
@@ -80,12 +81,13 @@ cards:
     target_ornaments: []
     target_groups: [young_adults, friends, photography_enthusiasts]
     themes: [architecture_signature, corridor_perspective, framing_view, spatial_layer]
-    pose_template_ids: [pose_walkaway_corridor]
+    pose_template_ids: [pose_walkaway_corridor, pose_corridor_walk_toward_camera]
     cultural_prompt_zh: 可从连廊、院落和青云巷的连续关系中寻找透视线与“框景”，把注意力放在空间节奏而非单一摆拍。
     recommended_capture_zh: 以廊柱、门洞或墙体形成的重复线条组织画面；可拍区域、逆光情况、是否允许停留取景待现场确认。
     popularity_status: editorial_recommended
     review_status: draft_manual_review
     evidence_refs: [S11, CMPREF_LUO_2006]
+    platform_observation_ids: [xhs_20260726_morning_photo_time]
     boundaries_zh: 连廊和通道优先保障通行；不得长时间架设设备、引导他人停留或拍摄到不愿入镜的游客。
 
   - photo_spot_id: photo_portrait_entrance_layers
@@ -142,4 +144,36 @@ cards:
     popularity_status: editorial_recommended
     review_status: draft_manual_review
     evidence_refs: [S11]
+    platform_observation_ids: [xhs_20260726_morning_photo_time]
+    platform_observation_ids: [xhs_20260726_seven_crafts_photo, xhs_20260726_roof_ridge_crafts]
     boundaries_zh: 工艺名称、材质和制作方法须由术语卡与 RAG 证据核实；不建议为拍摄而使用补光或贴近脆弱构件。
+
+  - photo_spot_id: photo_juxian_hall_screen_door
+    title_zh: 聚贤堂屏门：木雕框景与人物留影
+    node_id: stop_juxian_hall
+    target_ornaments: [木雕屏门]
+    target_groups: [young_adults, friends, art_enthusiasts]
+    themes: [woodcarving, framing_view, portrait_memory, craft_detail]
+    pose_template_ids: [pose_side_detail_gaze, pose_detail_observation]
+    cultural_prompt_zh: 可从屏门既分隔空间、又组织视线的作用切入，让人物与木雕的层次关系成为画面主题；重点是观察而非把构件当作摆拍道具。
+    recommended_capture_zh: 用户提供的参考将聚贤堂正对面的木雕屏门作为背景；可按“厅堂整体—屏门局部—单幅故事细节”组织画面，也可拍摄人物与屏门的远距离同框。实际站位、屏门可见性、室内拍摄规定和是否可使用长焦设备均须现场确认。
+    popularity_status: editorial_recommended
+    review_status: draft_manual_review
+    evidence_refs: [S11]
+    platform_observation_ids: [xhs_20260726_morning_photo_time, xhs_20260726_roof_ridge_crafts]
+    boundaries_zh: 不得触摸、倚靠或遮挡屏门；如该区域属于展厅或人流通道，应以馆方管理和其他游客参观优先。
+
+  - photo_spot_id: photo_rear_garden_foliage_frame
+    title_zh: 后花园绿叶前景：庭园层次与静景人像
+    node_id: label_rear_garden
+    target_ornaments: []
+    target_groups: [solo_travelers, couples, friends, photography_enthusiasts]
+    themes: [garden_view, foliage_frame, portrait_memory, spatial_layer]
+    pose_template_ids: [pose_side_detail_gaze, pose_walkaway_corridor]
+    cultural_prompt_zh: 可用前景绿叶、人物和院落背景组织远近层次，记录从礼制建筑走向庭园空间后的节奏变化。
+    recommended_capture_zh: 用户提供的参考建议以后花园绿叶作前景、以长焦压缩景深；可将其作为构图灵感。植物状态、可站立区域、是否适合使用长焦及当天光线均须现场确认。
+    popularity_status: editorial_recommended
+    review_status: draft_manual_review
+    evidence_refs: [S11]
+    platform_observation_ids: [xhs_20260726_morning_photo_time]
+    boundaries_zh: 不进入绿化带、不攀折植物、不占用游路；不得为取景踩踏、移动或触碰植物和设施。

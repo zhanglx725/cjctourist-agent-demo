@@ -47,3 +47,21 @@ templates:
     instruction_zh: 仅在现场照片已确认某一人物装饰的动作、并明确不涉及宗教祭祀或不雅戏仿时，可在安全距离外做轻量、尊重的动作呼应。
     trend_status: disabled_until_visual_review
     safety_boundary_zh: 不模仿神像、祭祀对象或具有冒犯风险的姿态；不触摸、攀附或遮挡装饰，未经视觉审核不得推荐。
+
+  - pose_template_id: pose_half_turn_roof_gaze
+    title_zh: 半转身仰望屋脊
+    pose_kind: editorial_pose_template
+    suitable_groups: [solo_travelers, couples, friends, photography_enthusiasts]
+    instruction_zh: 人物站在开放通行区，身体略偏离镜头，视线投向屋脊或檐口；让建筑上部装饰占画面上方，人物作为尺度和视线引导。
+    trend_status: editorial_recommended_from_visual_reference
+    source_observation_ids: [xhs_20260726_morning_photo_time]
+    safety_boundary_zh: 不倚靠石雕、栏杆或柱子；不为仰拍走入限制区域，也不长时间停在通道中央。
+
+  - pose_template_id: pose_corridor_walk_toward_camera
+    title_zh: 廊下自然行走
+    pose_kind: editorial_pose_template
+    suitable_groups: [solo_travelers, couples, friends]
+    instruction_zh: 在不妨碍通行的情况下，以缓慢自然的步伐穿过廊下，让灯笼、柱列或屋顶线条形成中轴和纵深；可看向前方，不必刻意摆姿。
+    trend_status: editorial_recommended_from_visual_reference
+    source_observation_ids: [xhs_20260726_morning_photo_time]
+    safety_boundary_zh: 只在允许停留和拍摄的开放廊道使用；有人流时放弃拍摄，不逆行、不占道、不使用补光或大型器材。
