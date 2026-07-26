@@ -18,7 +18,10 @@ class GuideProgramPlannerTests(unittest.TestCase):
         self.assertGreaterEqual(len(program.selected_items), 1)
         self.assertLessEqual(len(program.selected_items), 3)
         self.assertTrue({item.ornament_id for item in program.selected_items}.issubset(approved_ids))
-        self.assertEqual(sum(item.planned_seconds for item in program.selected_items), 300)
+        self.assertLessEqual(sum(item.planned_seconds for item in program.selected_items), 300)
+        self.assertEqual(program.budget_scope, "stop_explanation_content_only")
+        self.assertEqual(program.allocated_content_seconds, sum(item.planned_seconds for item in program.selected_items))
+        self.assertEqual(program.allocated_content_seconds + program.unallocated_content_seconds, 300)
         self.assertTrue(all(item.rag_query_hints for item in program.selected_items))
         self.assertTrue(all(not item.research_summary_card_ids for item in program.selected_items))
 
@@ -26,7 +29,7 @@ class GuideProgramPlannerTests(unittest.TestCase):
         first = plan_stop_program("stop_front_courtyard_center", 240, ["灰塑"], "standard")
         second = plan_stop_program("stop_front_courtyard_center", 240, ["灰塑"], "standard")
         self.assertEqual(first.to_dict(), second.to_dict())
-        self.assertEqual([item.role for item in first.selected_items], ["核心观察", "工艺对照"])
+        self.assertEqual([item.role for item in first.selected_items], ["核心观察", "工艺或题材对照"])
 
     def test_detail_level_and_budget_limit_selection_to_one_to_three_items(self):
         short = plan_stop_program("label_moon_platform", 300, detail_level="short")

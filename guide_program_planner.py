@@ -1,7 +1,8 @@
-"""B1 deterministic candidate selection for one approved guide-stop program.
+"""Deterministic StopProgram planning for reviewed guide-stop ornaments.
 
-This module only decides *which* reviewed ornaments are worth covering at a
-stop.  It does not route visitors, call RAG/LLMs, or write TourState.
+The planner consumes only the content/explanation budget allocated to one
+route stop.  It never consumes walking time, changes a route, calls an LLM or
+writes TourState.
 """
 
 from __future__ import annotations
@@ -13,8 +14,38 @@ from tour_qa import load_guide_cards
 
 
 VALID_DETAIL_LEVELS = {"short", "standard", "deep"}
-DETAIL_ITEM_LIMITS = {"short": 1, "standard": 2, "deep": 3}
-MIN_ITEM_SECONDS = 45
+
+# All B2 policy numbers live here so that later calibration is auditable.
+STOP_PROGRAM_POLICY = {
+    "budget": {
+        "brief_overview_max_seconds": 60,
+        "item_count_thresholds": {
+            "short": ((0, 1),),
+            "standard": ((150, 2), (0, 1)),
+            "deep": ((270, 3), (150, 2), (0, 1)),
+        },
+        "target_item_seconds": {
+            "short": (90,),
+            "standard": (120, 90),
+            "deep": (120, 90, 75),
+        },
+    },
+    "interest": {
+        "direct_match": 100,
+        "three_kingdoms_story": 80,
+        "story": 50,
+        "auspicious": 50,
+    },
+    "diversity": {
+        # Diversity only decides between candidates with close relevance.
+        "relevance_window": 30,
+        "new_craft_bonus": 20,
+        "new_theme_bonus": 15,
+    },
+}
+
+STORY_MARKERS = ("三顾", "三英", "桃园", "赤壁", "孟德", "阿斗", "刘备", "关羽", "张飞", "梁山", "水浒")
+AUSPICIOUS_MARKERS = ("福", "寿", "禄", "瑞", "科", "状元", "凤", "麒麟", "吉")
 
 
 class GuideProgramError(ValueError):
@@ -30,7 +61,7 @@ class SelectedItem:
     planned_seconds: int
     selection_reason: str
     rag_query_hints: tuple[str, ...]
-    # B1 keeps the future card interface visible but intentionally empty.
+    # Future card interfaces remain explicit but intentionally unused in B2.
     research_summary_card_ids: tuple[str, ...] = ()
     comparison_card_ids: tuple[str, ...] = ()
 
@@ -51,7 +82,11 @@ class StopProgram:
     detail_level: str
     selected_items: tuple[SelectedItem, ...]
     candidate_count: int
-    selection_strategy: str = "b1_deterministic_interest_then_stable_id"
+    # The two fields make it explicit that this is not route or walking time.
+    budget_scope: str = "stop_explanation_content_only"
+    allocated_content_seconds: int = 0
+    unallocated_content_seconds: int = 0
+    selection_strategy: str = "b2_relevance_diversity_budget"
     status: str = "ready"
 
     def to_dict(self) -> dict[str, Any]:
@@ -66,30 +101,88 @@ def _normalise_interests(interests: list[str] | tuple[str, ...] | None) -> tuple
     return tuple(sorted({str(item).strip() for item in (interests or []) if str(item).strip()}))
 
 
+def _theme(ornament: dict[str, str]) -> str:
+    name = ornament.get("name", "")
+    if any(marker in name for marker in STORY_MARKERS):
+        return "story"
+    if any(marker in name for marker in AUSPICIOUS_MARKERS):
+        return "auspicious"
+    return f"craft:{ornament.get('craft', '')}"
+
+
 def _interest_score(ornament: dict[str, str], interests: tuple[str, ...]) -> int:
-    """Small transparent B1 score; B2 will add richer diversity/time policy."""
+    """Transparent relevance score; it cannot introduce unreviewed objects."""
     name = ornament.get("name", "")
     craft = ornament.get("craft", "")
+    policy = STOP_PROGRAM_POLICY["interest"]
     score = 0
-    story_markers = ("三顾", "三英", "桃园", "赤壁", "孟德", "阿斗", "刘备", "关羽", "张飞")
-    auspicious_markers = ("福", "寿", "禄", "瑞", "科", "状元", "凤", "麒麟", "吉")
     for interest in interests:
         if interest and (interest in craft or interest in name):
-            score += 100
-        if interest == "三国" and any(marker in name for marker in story_markers):
-            score += 80
-        if interest in {"故事", "人物故事"} and any(marker in name for marker in story_markers):
-            score += 50
-        if interest in {"吉祥", "吉祥题材"} and any(marker in name for marker in auspicious_markers):
-            score += 50
+            score += policy["direct_match"]
+        if interest == "三国" and any(marker in name for marker in STORY_MARKERS[:9]):
+            score += policy["three_kingdoms_story"]
+        if interest in {"故事", "人物故事"} and any(marker in name for marker in STORY_MARKERS):
+            score += policy["story"]
+        if interest in {"吉祥", "吉祥题材"} and any(marker in name for marker in AUSPICIOUS_MARKERS):
+            score += policy["auspicious"]
     return score
 
 
 def _target_count(budget_seconds: int, detail_level: str, candidate_count: int) -> int:
-    # B1 only reserves a feasible coarse amount. B2 will later optimize the
-    # per-item allocation and observation/interaction portions of the stop.
-    budget_limit = max(1, budget_seconds // MIN_ITEM_SECONDS)
-    return min(DETAIL_ITEM_LIMITS[detail_level], budget_limit, candidate_count)
+    thresholds = STOP_PROGRAM_POLICY["budget"]["item_count_thresholds"][detail_level]
+    desired = next(count for minimum, count in thresholds if budget_seconds >= minimum)
+    return min(desired, candidate_count)
+
+
+def _select_diverse_candidates(
+    candidates: list[dict[str, str]], interests: tuple[str, ...], count: int
+) -> list[dict[str, str]]:
+    """Select relevance first, then diversify only inside a close-score window."""
+    remaining = sorted(candidates, key=lambda item: (-_interest_score(item, interests), item["ornament_id"]))
+    selected: list[dict[str, str]] = []
+    seen_crafts: set[str] = set()
+    seen_themes: set[str] = set()
+    diversity = STOP_PROGRAM_POLICY["diversity"]
+
+    while remaining and len(selected) < count:
+        best_relevance = _interest_score(remaining[0], interests)
+        close = [
+            item for item in remaining
+            if best_relevance - _interest_score(item, interests) <= diversity["relevance_window"]
+        ]
+
+        def ranking_key(item: dict[str, str]) -> tuple[int, int, str]:
+            relevance = _interest_score(item, interests)
+            diversity_bonus = 0
+            if item["craft"] not in seen_crafts:
+                diversity_bonus += diversity["new_craft_bonus"]
+            if _theme(item) not in seen_themes:
+                diversity_bonus += diversity["new_theme_bonus"]
+            return (-(relevance + diversity_bonus), -relevance, item["ornament_id"])
+
+        chosen = min(close, key=ranking_key)
+        selected.append(chosen)
+        seen_crafts.add(chosen["craft"])
+        seen_themes.add(_theme(chosen))
+        remaining.remove(chosen)
+    return selected
+
+
+def _allocate_item_seconds(budget_seconds: int, detail_level: str, count: int) -> tuple[int, ...]:
+    """Allocate explanation seconds only; never exceeds the supplied budget."""
+    if budget_seconds <= STOP_PROGRAM_POLICY["budget"]["brief_overview_max_seconds"]:
+        return (budget_seconds,)
+    targets = STOP_PROGRAM_POLICY["budget"]["target_item_seconds"][detail_level][:count]
+    target_total = sum(targets)
+    if budget_seconds >= target_total:
+        return tuple(targets)
+
+    # Deterministic proportional downscaling when a valid item count has less
+    # than its preferred teaching duration.  Remainders go by stable order.
+    base = [(budget_seconds * target) // target_total for target in targets]
+    for index in range(budget_seconds - sum(base)):
+        base[index % count] += 1
+    return tuple(base)
 
 
 def _rag_hints(card: dict[str, Any], ornament: dict[str, str]) -> tuple[str, ...]:
@@ -98,8 +191,18 @@ def _rag_hints(card: dict[str, Any], ornament: dict[str, str]) -> tuple[str, ...
     return matched or (f"{name} 是什么装饰",)
 
 
-def _role(index: int) -> str:
-    return ("核心观察", "工艺对照", "延伸观察")[index]
+def _role(index: int, budget_seconds: int) -> str:
+    if budget_seconds <= STOP_PROGRAM_POLICY["budget"]["brief_overview_max_seconds"]:
+        return "简短概览"
+    return ("核心观察", "工艺或题材对照", "延伸观察")[index]
+
+
+def _selection_reason(ornament: dict[str, str], interests: tuple[str, ...], index: int) -> str:
+    if _interest_score(ornament, interests) > 0:
+        return f"匹配游客兴趣：{'、'.join(interests)}"
+    if index:
+        return "在相关性接近的已审核候选中，优先补充不同工艺或题材"
+    return "按已审核候选的相关性与稳定 ID 顺序选取核心对象"
 
 
 def plan_stop_program(
@@ -108,7 +211,7 @@ def plan_stop_program(
     interests: list[str] | tuple[str, ...] | None = None,
     detail_level: str = "standard",
 ) -> StopProgram:
-    """Select one to three reviewed ornaments deterministically for a stop."""
+    """Build an auditable one-to-three-item program for one reviewed stop."""
     if not isinstance(budget_seconds, int) or budget_seconds <= 0:
         raise GuideProgramError("budget_seconds 必须为大于 0 的整数")
     if detail_level not in VALID_DETAIL_LEVELS:
@@ -130,31 +233,26 @@ def plan_stop_program(
             detail_level=detail_level,
             selected_items=(),
             candidate_count=0,
+            unallocated_content_seconds=budget_seconds,
             status="no_reviewed_candidates",
         )
-    ranked = sorted(
-        candidates,
-        key=lambda item: (-_interest_score(item, normalised_interests), item["ornament_id"]),
-    )
-    count = _target_count(budget_seconds, detail_level, len(ranked))
-    selected = ranked[:count]
-    base_seconds, remainder = divmod(budget_seconds, count)
+
+    count = _target_count(budget_seconds, detail_level, len(candidates))
+    selected = _select_diverse_candidates(candidates, normalised_interests, count)
+    allocated_seconds = _allocate_item_seconds(budget_seconds, detail_level, len(selected))
     items = tuple(
         SelectedItem(
             ornament_id=item["ornament_id"],
             name=item["name"],
             craft=item["craft"],
-            role=_role(index),
-            planned_seconds=base_seconds + (1 if index < remainder else 0),
-            selection_reason=(
-                "匹配游客兴趣：" + "、".join(normalised_interests)
-                if _interest_score(item, normalised_interests) > 0
-                else "按已审核候选的稳定 ID 顺序选取代表对象"
-            ),
+            role=_role(index, budget_seconds),
+            planned_seconds=allocated_seconds[index],
+            selection_reason=_selection_reason(item, normalised_interests, index),
             rag_query_hints=_rag_hints(card, item),
         )
         for index, item in enumerate(selected)
     )
+    used = sum(item.planned_seconds for item in items)
     return StopProgram(
         node_id=node_id,
         display_name=card.get("display_name", node_id),
@@ -163,4 +261,7 @@ def plan_stop_program(
         detail_level=detail_level,
         selected_items=items,
         candidate_count=len(candidates),
+        allocated_content_seconds=used,
+        unallocated_content_seconds=budget_seconds - used,
+        status="brief_overview" if budget_seconds <= STOP_PROGRAM_POLICY["budget"]["brief_overview_max_seconds"] else "ready",
     )

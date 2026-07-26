@@ -793,3 +793,11 @@ glossary_ids
 - 首版排序为“兴趣匹配分数降序 → `ornament_id` 升序”，相同输入必得相同结果；时间先在已选对象间基础分配。B2 再处理内容多样性、观察/互动时长和更精细预算。
 - 不连接 Agent、不调用 RAG/LLM、不改路线或 TourState；未知点与空候选返回结构化安全结果。
 - 项目负责人已完成 B1 相关 112 项回归和完整 161 项本机回归，结果均为 `OK`。
+
+### 13.11 B2 StopProgram 时间预算与内容排序（已实现并验证）
+
+- `guide_program_planner.py` 将全部可调数字集中到 `STOP_PROGRAM_POLICY`：详略等级的对象数量阈值、推荐单项讲解时长、兴趣权重，以及“相关性接近时”的工艺/题材多样性加分。
+- `budget_seconds` 被明确标记为 `stop_explanation_content_only`：B2 只为本站已选对象分配讲解内容时间，绝不读取或占用空间网络中的步行时间。
+- 预算低时安全降级为一个“简短概览”；`standard` 和 `deep` 只在达到集中阈值时扩展至 2 或 3 件。`allocated_content_seconds + unallocated_content_seconds = budget_seconds`，并保证已分配时间不超预算。
+- 新增 `test_guide_program_budget.py`，覆盖预算边界、兴趣优先、相关性接近时的多样性、稳定排序和所有详略等级的超时保护。B2 不改变路线、空间图、审核讲解包或任何知识卡。
+- 项目负责人已完成完整 166 项本机回归，耗时 1.740 秒，结果为 `OK`。

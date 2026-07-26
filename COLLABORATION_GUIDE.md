@@ -136,6 +136,17 @@ A1-1 已由项目 `.venv\Scripts\python.exe` 完成本地 62 项回归测试并�
 
 项目负责人已完成 B1 相关 112 项回归和完整 161 项本机回归，结果均为 `OK`。后续修改编排器或讲解包加载接口时，至少复跑 `test_guide_program_planner.py`、A2 测试、路线测试与完整回归。
 
+## B2 StopProgram 时间预算与内容排序（已实现并验证）
+
+| 文件 | 协作职责 | 边界 |
+|---|---|---|
+| `guide_program_planner.py` | `STOP_PROGRAM_POLICY` 集中配置讲解内容预算阈值、兴趣权重与多样性规则；按已审核候选生成 B2 StopProgram。 | `budget_seconds` 仅是单站讲解内容预算，不读取、不扣减步行时间，不改路线、空间图或知识卡。 |
+| `test_guide_program_budget.py` | 覆盖预算边界、兴趣优先、多样性、稳定输出和超时保护。 | 离线 mock 测试，不调用 LLM/RAG。 |
+
+`StopProgram` 新增 `budget_scope`、`allocated_content_seconds`、`unallocated_content_seconds`，用于审计时间：三者明确区分站内讲解内容时间与路线步行时间。后续 B3 只能用已选对象的 `rag_query_hints` 取证；不得扩大候选来源。
+
+项目负责人已于本机运行完整回归：166 项、1.740 秒、结果均为 `OK`。
+
 人工填写 `route_review_results_v1.csv` 时：`manual_status` 只能填 `approved`、`revise` 或 `rejected`；其余四个判断列填 `yes`、`no` 或 `needs_site_check`。只填写人工列，不改自动生成的路径、时间、点位和边字段。
 
 动态路线 A0 的开发顺序固定为：候选过滤 → 点位评分 → 时间预算组合 → 评估集 → Agent 接入。论文卡、比较卡尚未参与 A0 评分；后续只可通过已审核 `card_id` 增加可解释加分项。
