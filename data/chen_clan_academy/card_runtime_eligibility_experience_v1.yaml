@@ -1,0 +1,303 @@
+schema_version: v1
+scope: >-
+  D0-E 体验卡运行资格审计。此清单只关闭或限制体验卡运行资格；不接入 Agent，
+  不修改路线、空间图、TourState、VisitorProfile、StopProgram 或 RAG。
+default_when_record_missing: disabled
+review_basis:
+  - 打卡卡 review_status 为 draft_manual_review 时不可输出。
+  - 平台观察仅为内部线索，不能直接进入游客回答。
+  - 姿势模板必须依附已启用且审核通过的打卡卡；disabled_until_visual_review 姿势始终禁用。
+records:
+  - card_id: photo_family_five_blessings
+    card_type: photo_spot_card
+    runtime_status: disabled
+    location_verification_status: partial
+    safety_verification_status: partial
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 原卡为 draft_manual_review，未完成现场审核。
+      - 虽有现有节点和装饰名称映射，人物站位、可合影范围、客流与拍摄许可未核验。
+
+  - card_id: photo_family_hundred_sons
+    card_type: photo_spot_card
+    runtime_status: disabled
+    location_verification_status: partial
+    safety_verification_status: partial
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 原卡为 draft_manual_review，未完成现场审核。
+      - 亲子停留位置、儿童安全和构件可见性须现场复核。
+
+  - card_id: photo_architecture_moon_platform
+    card_type: photo_spot_card
+    runtime_status: disabled
+    location_verification_status: partial
+    safety_verification_status: partial
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 原卡为 draft_manual_review，未完成现场审核。
+      - 石栏板前景、长焦使用、人物位置、开放状态和拍摄许可未核验。
+
+  - card_id: photo_architecture_front_facade
+    card_type: photo_spot_card
+    runtime_status: disabled
+    location_verification_status: partial
+    safety_verification_status: partial
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 原卡为 draft_manual_review，未完成现场审核。
+      - 门厅前的停留空间、客流、入口管理和设备规则未核验。
+
+  - card_id: photo_architecture_roof_ridge
+    card_type: photo_spot_card
+    runtime_status: disabled
+    location_verification_status: partial
+    safety_verification_status: partial
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 原卡为 draft_manual_review，未完成现场审核。
+      - 鳌鱼可映射；瓜瓞绵绵未精确映射到审核对象，且最佳视线、光线与可拍范围未核验。
+
+  - card_id: photo_architecture_corridor_perspective
+    card_type: photo_spot_card
+    runtime_status: disabled
+    location_verification_status: partial
+    safety_verification_status: partial
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 原卡为 draft_manual_review，未完成现场审核。
+      - 卡片没有对象 ID；具体廊道、停留位置、通行与拍摄许可未核验。
+
+  - card_id: photo_portrait_entrance_layers
+    card_type: photo_spot_card
+    runtime_status: disabled
+    location_verification_status: partial
+    safety_verification_status: partial
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 原卡为 draft_manual_review，未完成现场审核。
+      - 人像拍摄位置、光线、客流和入口管理未核验。
+
+  - card_id: photo_solo_corridor_frame
+    card_type: photo_spot_card
+    runtime_status: disabled
+    location_verification_status: partial
+    safety_verification_status: partial
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 原卡为 draft_manual_review，未完成现场审核。
+      - 卡片没有对象 ID；具体框景位置、停留安全和通行条件未核验。
+
+  - card_id: photo_story_three_kingdoms
+    card_type: photo_spot_card
+    runtime_status: disabled
+    location_verification_status: partial
+    safety_verification_status: pending
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 原卡为 draft_manual_review，未完成现场审核。
+      - 引用了 disabled_until_visual_review 姿势模板，不能输出。
+      - 近拍许可、故事构件可见性与人物姿势均须现场和视觉复核。
+
+  - card_id: photo_craft_ornament_route
+    card_type: photo_spot_card
+    runtime_status: disabled
+    location_verification_status: partial
+    safety_verification_status: partial
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 原卡为 draft_manual_review，未完成现场审核。
+      - 灰塑、木雕、石雕、陶塑是工艺类别，不是可唯一映射的对象 ID；具体观察对象和拍摄许可未核验。
+
+  - card_id: photo_juxian_hall_screen_door
+    card_type: photo_spot_card
+    runtime_status: disabled
+    location_verification_status: partial
+    safety_verification_status: pending
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 原卡为 draft_manual_review，未完成现场审核。
+      - 木雕屏门未以该名称精确映射到审核对象 ID；室内拍摄、停留和设备规则未核验。
+
+  - card_id: photo_rear_garden_foliage_frame
+    card_type: photo_spot_card
+    runtime_status: disabled
+    location_verification_status: partial
+    safety_verification_status: partial
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 原卡为 draft_manual_review，未完成现场审核。
+      - 没有对象 ID；绿叶前景位置、植物状态、游路边界和拍摄条件未核验。
+
+  - card_id: pose_centered_entrance
+    card_type: pose_template
+    runtime_status: disabled
+    location_verification_status: pending
+    safety_verification_status: partial
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 即使安全边界已写入，也不得脱离已审核且启用的打卡卡独立输出。
+
+  - card_id: pose_side_detail_gaze
+    card_type: pose_template
+    runtime_status: disabled
+    location_verification_status: pending
+    safety_verification_status: partial
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 即使安全边界已写入，也不得脱离已审核且启用的打卡卡独立输出。
+
+  - card_id: pose_walkaway_corridor
+    card_type: pose_template
+    runtime_status: disabled
+    location_verification_status: pending
+    safety_verification_status: partial
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 即使安全边界已写入，也不得脱离已审核且启用的打卡卡独立输出。
+
+  - card_id: pose_parent_child_observation
+    card_type: pose_template
+    runtime_status: disabled
+    location_verification_status: pending
+    safety_verification_status: partial
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 即使安全边界已写入，也不得脱离已审核且启用的打卡卡独立输出。
+
+  - card_id: pose_detail_observation
+    card_type: pose_template
+    runtime_status: disabled
+    location_verification_status: pending
+    safety_verification_status: partial
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 即使安全边界已写入，也不得脱离已审核且启用的打卡卡独立输出。
+
+  - card_id: pose_ornament_reference_pending
+    card_type: pose_template
+    runtime_status: disabled
+    location_verification_status: pending
+    safety_verification_status: pending
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 原模板 trend_status 为 disabled_until_visual_review，必须保持禁用。
+      - 未确认装饰人物身份、动作、宗教/冒犯风险或现场可实施性。
+
+  - card_id: pose_half_turn_roof_gaze
+    card_type: pose_template
+    runtime_status: disabled
+    location_verification_status: pending
+    safety_verification_status: partial
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 即使安全边界已写入，也不得脱离已审核且启用的打卡卡独立输出。
+
+  - card_id: pose_corridor_walk_toward_camera
+    card_type: pose_template
+    runtime_status: disabled
+    location_verification_status: pending
+    safety_verification_status: partial
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 即使安全边界已写入，也不得脱离已审核且启用的打卡卡独立输出。
+
+  - card_id: xhs_20260726_morning_photo_time
+    card_type: platform_observation
+    runtime_status: disabled
+    location_verification_status: pending
+    safety_verification_status: pending
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 平台观察仅作内部线索，不能直接进入游客回答。
+      - 上午10点前、人少、光线佳及各机位均未完成季节、天气、客流、开放和许可核验。
+
+  - card_id: xhs_20260726_seven_crafts_photo
+    card_type: platform_observation
+    runtime_status: disabled
+    location_verification_status: pending
+    safety_verification_status: pending
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 平台观察仅作内部线索，不能直接进入游客回答。
+      - 标题中的票价、封神机位和热度不能作为事实或推荐依据。
+
+  - card_id: xhs_20260726_rainy_day_photo
+    card_type: platform_observation
+    runtime_status: disabled
+    location_verification_status: pending
+    safety_verification_status: pending
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 平台观察仅作内部线索，不能直接进入游客回答。
+      - 雨天机位、湿滑风险、开放区域和拍摄许可未核验。
+
+  - card_id: xhs_20260726_small_deity_ao_fish
+    card_type: platform_observation
+    runtime_status: disabled
+    location_verification_status: partial
+    safety_verification_status: pending
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 平台观察仅作内部线索，不能直接进入游客回答。
+      - 鳌鱼存在本地映射，但“小神仙”、具体机位和模仿动作未确认。
+
+  - card_id: xhs_20260726_roof_ridge_crafts
+    card_type: platform_observation
+    runtime_status: disabled
+    location_verification_status: partial
+    safety_verification_status: pending
+    allowed_scenarios: []
+    reviewer: null
+    reviewed_at: null
+    limitations:
+      - 平台观察仅作内部线索，不能直接进入游客回答。
+      - 屋脊、木雕和厅堂构图可作编辑灵感；具体对象、展厅、展品和拍摄许可未核验。
