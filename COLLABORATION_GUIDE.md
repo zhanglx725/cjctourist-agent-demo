@@ -66,6 +66,8 @@
 
 TourState 首版字段固定为 `selected_route_id`、`route_stop_ids`、`current_stop_id`、`visited_stop_ids`、`skipped_stop_ids`、`remaining_stop_ids`、`started_at`、`available_minutes`、`remaining_minutes`、`interests`、`detail_level`、`route_status`。`last_arrival_kind` 和 `completion_reason` 为可选审计字段。
 
+后续导游交互、游览中 RAG 问答、讲解编排器、用户画像与知识卡接入的阶段边界见 `TOUR_GUIDE_ROADMAP.md`。任何新增论文卡、比较卡、术语卡或打卡点卡都不得绕过该文档和本文件中既定的 `card_id` / `node_id` 规则。
+
 人工填写 `route_review_results_v1.csv` 时：`manual_status` 只能填 `approved`、`revise` 或 `rejected`；其余四个判断列填 `yes`、`no` 或 `needs_site_check`。只填写人工列，不改自动生成的路径、时间、点位和边字段。
 
 动态路线 A0 的开发顺序固定为：候选过滤 → 点位评分 → 时间预算组合 → 评估集 → Agent 接入。论文卡、比较卡尚未参与 A0 评分；后续只可通过已审核 `card_id` 增加可解释加分项。

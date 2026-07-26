@@ -732,3 +732,7 @@ glossary_ids
 - 已完成确定性下一站导航：从当前位置以已审核空间边计算路径、步行时间和 `guide_focus`。
 - 已完成有限重规划：仅处理跳过点和剩余时间变化；保留原路线后续顺序，不重新加入访问/跳过点，预算不足时按 optional、低优先级 core 的顺序删减。
 - 已接入 LangGraph：`direct_route` 初始化状态；`arrive_at_stop`、`next_stop`、`skip_stop`、`replan_time`、`finish_tour` 为确定性节点。当前点的详细事实讲解尚未接 RAG，留待下一阶段讲解编排器。
+
+### 13.5 后续路线图
+
+详见 `TOUR_GUIDE_ROADMAP.md`：后续将先补按钮/连续导游交互与“游览中 RAG 问答后恢复导游”，再建设 `StopProgram` 讲解编排器、最小用户画像和按 `card_id` 接入的研究/比较/术语/打卡知识卡。
