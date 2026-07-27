@@ -945,10 +945,23 @@ glossary_ids
 - 比较意图在 `tour_qa` 内先于 D3 与 D2 处理。明确研究比较、或画像为研学/专业的明确比较，才可使用一张主比较卡；回答固定包含比较范围、维度、相同点、差异、限制及“相关研究”归因。
 - 两个对象都命中优先于主题/维度/单对象命中；同分按稳定卡 ID 排序。对象不明确的“它们有什么区别”只澄清，不让模型猜测前文对象；当前点从不被当作比较对象必然可见的证据。
 - `on_site_observation_prompt` 仅以“观察建议”呈现。D4 不输出卡片 ID、状态、路径或分数，也不修改 TourState、StopProgram、路线或 VisitorProfile。
-## D5-B 打卡卡运行资格严格校验与安全门控（已实现，待本机验证）
+## D5-B 打卡卡轻量编辑推荐门控（已实现，待本机验证）
 
-- 新增 `photo_spot_validation.py`：该模块仅验证打卡卡能否在未来 D6 被调用，不推荐、不生成游客文案，也不接入 `tour_qa`、StopProgram 或主动讲解。
-- 一张卡须同时满足：D1 的 `runtime_status=enabled`，位置/安全/内容/来源四项均为 `verified`，存在审核人和审核日期，没有 `blocking_issues`，且原卡人工状态为 `approved`。缺任一项均失败关闭。
-- 校验还会核对审核空间 `node_id`、姿势模板、平台观察引用、证据引用以及对象—点位关联。平台观察只可作为内部审计引用，永远不能成为游客内容或“热门”证据；`editorial_recommended` 也不能支持热门表述。
-- 当前体验资格清单中的 12 张打卡卡、8 个姿势模板和 5 条平台观察均可加载，但打卡卡仍全部禁用：D5-A 人工审核字段尚未齐全，且姿势模板也未开放。因此当前 D6 预留返回为 `{ "available": false, "reason": "no_reviewed_photo_spot" }`，不会用草稿内容降级回答。
-- 新增 `test_photo_spot_validation.py`，覆盖全量解析、严格正向路径、审核字段缺失、阻塞问题、姿势禁用、断裂引用、平台不可游客可见，以及对 TourState/VisitorProfile/StopProgram 的无副作用约束。D5-B 完成只表示门控底座完成，不表示打卡游客功能已开放。
+- `runtime_status=enabled` 在体验资格清单中表示“项目编辑选择的候选”，不等同于馆方推荐、现场审核、热门机位或实时可拍。`partial/pending` 审核字段保留原样，不能被伪造为 `verified`。
+- 新版 `photo_spot_validation.py` 只拒绝结构性不安全或不可用数据：节点不存在、姿势/平台/证据引用断裂、姿势为禁用状态、卡片或姿势缺少安全边界、对象—点位关联不成立或文件损坏。通过者返回 `availability_tier=editorial_candidate`，并固定携带“以现场开放、客流、光线、标识和工作人员要求为准”的提示。
+- D1 仍登记打卡卡、姿势和平台观察，但通用 `query_registered_cards()` 永不返回这三类体验资产。未来 D6 只能经 `query_available_photo_spots()` 在明确拍照意图下读取候选；姿势仅随选中的打卡卡间接返回，平台观察永远不进入游客内容。
+- 专用查询不直接返回混合的 `recommended_capture_zh`，因此不会把“最佳角度”“热门”或未经复核的现场条件原样传给游客。`editorial_recommended` 的唯一允许表述是“项目编辑建议”。D5-B 不改 `tour_qa`、StopProgram、路线、TourState 或 VisitorProfile。
+
+## D6 打卡点与拍照建议接入 Tour QA（已实现，待本机验证）
+
+- 新增 `photo_spot_runtime.py`：用确定性关键词识别拍照、打卡、构图、合影、自拍等明确请求，并只调用 D5-B 的专用候选接口。D6 不调用 LLM、不建立新 RAG、不读取平台观察，也不将 `recommended_capture_zh` 原样输出。
+- `tour_qa` 内的优先级为 D6 拍照 → D4 比较 → D3 研究 → D2 术语 → 原有点位/RAG；但顶层到达、跳过、确认、画像更新和路线控制仍优先。拍照与“加入路线/改路线”同句时只澄清，不部分执行。
+- 推荐最多三处，优先当前节点、再优先当前路线剩余节点、最后按明确主题/同行需求和稳定 ID 排序；同一节点不重复。家庭、个人、合影等当前句需求只影响本轮排序，绝不写回 VisitorProfile。
+- 输出只包含编辑候选的点位标题、确定性构图关注方向、一个间接安全姿势、边界与固定现场提示。禁止“热门、最佳、一定能拍到、馆方推荐、已现场核验”等表述；无候选时只提供通用非接触拍摄安全建议。
+- D6 是只读问答：不得更新路线、TourState、VisitorProfile、StopProgram 或 RAG evidence。当前只完成代码接入与离线测试，真实候选数量须由本机 D5/D6 测试确认。
+
+## D7 知识卡综合验收与阶段冻结（验收矩阵已建立，待本机与 LangSmith 验证）
+
+- 新增 `data/chen_clan_academy/evaluation/d_stage_acceptance_cases_v1.yaml` 与 `test_d_stage_acceptance_cases.py`。矩阵冻结 `dst_acc_001` 至 `dst_acc_017`，覆盖术语定义/英文草稿阻止、研究归因与限制、普通/研究比较、当前点与全馆拍照、家庭与个人排序、平台观察隔离、无候选回退、导游事件、多意图澄清、数据损坏降级和线程隔离。
+- 矩阵不复制卡片正文；它只记录输入、前置 TourState/画像、预期路由、卡片类型、应出现/禁止出现的游客可见文本、允许的状态变化、来源类别和人工审核状态。
+- 除 `tour_event_lifecycle` 外，D2--D6 的所有案例 `allowed_state_changes=[]`；到达案例也不允许直接写入 `visited_stop_ids`。当前 `review_status=pending_local_and_langsmith_validation`，未经本机完整回归、固定 LangSmith 多轮检查和人工审阅前，不能称 D 阶段已验证或已冻结。

@@ -58,14 +58,17 @@ class KnowledgeCardRegistryTests(unittest.TestCase):
         self.assertTrue(all("general" not in card.allowed_scenarios for card in comparisons))
         self.assertEqual(registry.query_registered_cards(card_type="comparison", scenario="general"), [])
 
-    def test_photo_pose_and_platform_are_closed_or_internal(self):
+    def test_experience_assets_are_not_exposed_by_general_visitor_query(self):
         experience = [card for card in self.cards.values() if card.card_type in {"photo_spot_card", "pose_template"}]
         self.assertTrue(experience)
-        self.assertTrue(all(card.runtime_status == "disabled" for card in experience))
+        # Eligibility may mark them as editorial candidates.  They are still
+        # unavailable through the generic visitor knowledge-card interface.
+        self.assertTrue(all(not card.visitor_visible for card in experience))
         platforms = [card for card in self.cards.values() if card.card_type == "platform_observation"]
         self.assertTrue(platforms)
         self.assertTrue(all(not card.visitor_visible and card.runtime_status == "disabled" for card in platforms))
-        self.assertFalse(any(card.card_type == "platform_observation" for card in registry.query_registered_cards()))
+        returned_types = {card.card_type for card in registry.query_registered_cards()}
+        self.assertFalse(returned_types.intersection({"photo_spot_card", "pose_template", "platform_observation"}))
 
     def test_malformed_file_fails_closed(self):
         with patch.object(registry, "_yaml", return_value={}):

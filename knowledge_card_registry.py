@@ -161,12 +161,16 @@ def build_registry() -> dict[str, KnowledgeCard]:
             add(_base_card(card_id=raw["photo_spot_id"], card_type="photo_spot_card", raw=raw,
                 eligibility=experience.get(raw["photo_spot_id"]), source_refs=list(raw.get("evidence_refs", [])),
                 nodes=[raw.get("node_id", "")], limitations=[str(raw.get("boundaries_zh", ""))],
-                source_status="enabled" if raw.get("review_status") == "approved" else "disabled"))
+                # `runtime_status` is an editorial-candidate status for D5/D6;
+                # it is not a general visitor-card entitlement.  The dedicated
+                # photo selector applies its own reference/safety checks.
+                visitor_visible=False))
     for raw in _yaml(POSE).get("templates", []):
         if isinstance(raw, dict) and raw.get("pose_template_id"):
             add(_base_card(card_id=raw["pose_template_id"], card_type="pose_template", raw=raw,
                 eligibility=experience.get(raw["pose_template_id"]), source_refs=["editorial_pose_template"], nodes=[],
-                limitations=[str(raw.get("safety_boundary_zh", ""))]))
+                limitations=[str(raw.get("safety_boundary_zh", ""))], visitor_visible=False,
+                source_status="disabled" if raw.get("trend_status") == "disabled_until_visual_review" else None))
     # Platform observations may be audited internally, but must never be a
     # visitor-facing knowledge-card result.
     for raw in _yaml(PLATFORM).get("observations", []):
@@ -179,8 +183,12 @@ def build_registry() -> dict[str, KnowledgeCard]:
 
 
 def query_registered_cards(*, card_type: str | None = None, scenario: str | None = None) -> list[KnowledgeCard]:
-    """Read-only, visitor-facing query; disabled/internal cards never leak."""
-    results = [card for card in build_registry().values() if card.visitor_visible and card.runtime_status != "disabled"]
+    """General visitor query; experience assets require the dedicated D5/D6 path."""
+    experience_types = {"photo_spot_card", "pose_template", "platform_observation"}
+    results = [
+        card for card in build_registry().values()
+        if card.visitor_visible and card.runtime_status != "disabled" and card.card_type not in experience_types
+    ]
     if card_type:
         results = [card for card in results if card.card_type == card_type]
     if scenario:

@@ -18,6 +18,7 @@ from glossary_retrieval import format_point_glossary_hint, point_glossary_contex
 from comparison_retrieval import format_gated_comparison_answer, is_explicit_comparison_question, retrieve_gated_comparison
 from research_card_retrieval import format_research_answer, is_explicit_research_question, retrieve_research_cards
 from term_card_runtime import answer_term_question
+from photo_spot_runtime import answer_photo_request, is_explicit_photo_request
 from tour_intent import resolve_reviewed_node
 from tour_presenter import present_tour_state
 
@@ -362,6 +363,31 @@ def answer_tour_question(
     visitor_profile: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Use one injected existing RAG callable and leave both state snapshots untouched."""
+    if is_explicit_photo_request(user_query):
+        context, error_code = resolve_point_context(user_query, tour_state)
+        if error_code in {"ambiguous_node_name", "multiple_node_mentions", "unknown_point"}:
+            message = "我无法确定您提到的拍摄点位，请使用地图中的明确点位名称，或直接询问全馆的项目编辑拍摄候选。"
+            presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
+            if presentation:
+                presentation = {**presentation, "message": message, "code": "photo_point_clarification", "ok": False}
+            return {"message": message, "mode": "photo_point_clarification", "evidence": [], "point_context": None, "presentation": presentation, "retrieval_query": None}
+        # A whole-site request can still prioritize the real current position,
+        # but this is only a ranking hint and never a state update.
+        context = context or current_stop_context(tour_state)
+        result = answer_photo_request(
+            user_query,
+            point_context=context,
+            tour_state=tour_state,
+            visitor_profile=visitor_profile,
+        )
+        presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
+        if presentation:
+            message = result["message"] + "\n\n本次拍摄建议未改变路线或游览进度。"
+            presentation = {**presentation, "message": message, "code": result["mode"], "ok": result["mode"] == "photo_recommendation"}
+            result = {**result, "message": message, "presentation": presentation}
+        else:
+            result = {**result, "presentation": None}
+        return {**result, "evidence": [], "retrieval_query": None}
     if is_point_inventory_request(user_query, tour_state):
         return {**format_point_inventory(user_query, tour_state, interaction_state), "retrieval_query": None, "evidence": []}
     current_craft = _current_point_craft_feature_request(user_query)

@@ -1,0 +1,230 @@
+schema_version: d_stage_acceptance_cases_v1
+module: d_stage
+review_status: pending_local_and_langsmith_validation
+reviewer: null
+reviewed_at: null
+notes:
+  - 该矩阵只保存输入、路由、边界与人工检查要求，不复制知识卡正文。
+  - 除明确的导游事件案例外，所有知识问答均不得修改游览执行状态。
+cases:
+  - case_id: dst_acc_001
+    category: term_definition
+    input: 灰塑是什么？
+    precondition_tour_state: null
+    precondition_visitor_profile: null
+    expected_route: tour_qa
+    expected_card_type: glossary_term
+    must_include: [灰塑]
+    must_not_include: [card_id, runtime_status, ".yaml"]
+    allowed_state_changes: []
+    expected_sources: [term_card]
+    manual_review_status: pending
+
+  - case_id: dst_acc_002
+    category: term_translation
+    input: 栏杆英文怎么说？
+    precondition_tour_state: null
+    precondition_visitor_profile: null
+    expected_route: tour_qa
+    expected_card_type: glossary_term
+    must_include: [balustrade]
+    must_not_include: [草稿, card_id, ".yaml"]
+    allowed_state_changes: []
+    expected_sources: [term_card]
+    manual_review_status: pending
+
+  - case_id: dst_acc_003
+    category: draft_translation_block
+    input: 通花英文怎么说？
+    precondition_tour_state: null
+    precondition_visitor_profile: null
+    expected_route: tour_qa
+    expected_card_type: glossary_term
+    must_include: [未通过英文输出审核]
+    must_not_include: [draft_translation, card_id, ".yaml"]
+    allowed_state_changes: []
+    expected_sources: [term_card]
+    manual_review_status: pending
+
+  - case_id: dst_acc_004
+    category: research_attribution
+    input: 从学术研究角度，陈家祠灰塑有什么价值？
+    precondition_tour_state: {current_stop_id: stop_front_courtyard_center, route_status: touring}
+    precondition_visitor_profile: {knowledge_level: general}
+    expected_route: tour_qa
+    expected_card_type: research_summary
+    must_include: [研究]
+    must_not_include: [card_id, runtime_status, ".pdf"]
+    allowed_state_changes: []
+    expected_sources: [research_card, base_rag]
+    manual_review_status: pending
+
+  - case_id: dst_acc_005
+    category: research_limit
+    input: 这个研究结论有什么限制？
+    precondition_tour_state: {current_stop_id: stop_front_courtyard_center, route_status: touring}
+    precondition_visitor_profile: {knowledge_level: professional}
+    expected_route: tour_qa
+    expected_card_type: research_summary
+    must_include: [限制]
+    must_not_include: [card_id, runtime_status, ".pdf"]
+    allowed_state_changes: []
+    expected_sources: [research_card]
+    manual_review_status: pending
+
+  - case_id: dst_acc_006
+    category: comparison_general
+    input: 灰塑和砖雕有什么区别？
+    precondition_tour_state: {current_stop_id: stop_front_courtyard_center, route_status: touring}
+    precondition_visitor_profile: {knowledge_level: general}
+    expected_route: tour_qa
+    expected_card_type: base_rag
+    must_include: [区别]
+    must_not_include: [comparison_id, claim_strength, ".yaml"]
+    allowed_state_changes: []
+    expected_sources: [base_rag]
+    manual_review_status: pending
+
+  - case_id: dst_acc_007
+    category: comparison_research
+    input: 从学术研究角度比较灰塑和砖雕。
+    precondition_tour_state: {current_stop_id: stop_front_courtyard_center, route_status: touring}
+    precondition_visitor_profile: {knowledge_level: professional}
+    expected_route: tour_qa
+    expected_card_type: comparison_card
+    must_include: [相关研究, 限制]
+    must_not_include: [comparison_id, claim_strength, ".yaml"]
+    allowed_state_changes: []
+    expected_sources: [comparison_card, base_rag]
+    manual_review_status: pending
+
+  - case_id: dst_acc_008
+    category: photo_current_point
+    input: 这里怎么拍？
+    precondition_tour_state: {current_stop_id: stop_front_courtyard_center, route_status: touring}
+    precondition_visitor_profile: {audience_mode: standard}
+    expected_route: tour_qa
+    expected_card_type: photo_spot_card
+    must_include: [项目编辑, 现场]
+    must_not_include: [热门, 最佳, 一定能拍到, 馆方推荐, platform_observation]
+    allowed_state_changes: []
+    expected_sources: [photo_editorial_candidate]
+    manual_review_status: pending
+
+  - case_id: dst_acc_009
+    category: photo_whole_site
+    input: 给我推荐几个打卡点。
+    precondition_tour_state: {remaining_stop_ids: [stop_front_courtyard_center, label_moon_platform], route_status: touring}
+    precondition_visitor_profile: null
+    expected_route: tour_qa
+    expected_card_type: photo_spot_card
+    must_include: [项目编辑, 现场]
+    must_not_include: [热门, 最佳, 一定能拍到, 馆方推荐]
+    allowed_state_changes: []
+    expected_sources: [photo_editorial_candidate]
+    manual_review_status: pending
+
+  - case_id: dst_acc_010
+    category: photo_family
+    input: 适合一家人拍照的地方有哪些？
+    precondition_tour_state: null
+    precondition_visitor_profile: {audience_mode: family}
+    expected_route: tour_qa
+    expected_card_type: photo_spot_card
+    must_include: [项目编辑, 现场]
+    must_not_include: [热门, 最佳, 一定能拍到, 馆方推荐]
+    allowed_state_changes: []
+    expected_sources: [photo_editorial_candidate]
+    manual_review_status: pending
+
+  - case_id: dst_acc_011
+    category: photo_solo
+    input: 有没有适合一个人拍的角度？
+    precondition_tour_state: null
+    precondition_visitor_profile: null
+    expected_route: tour_qa
+    expected_card_type: photo_spot_card
+    must_include: [项目编辑, 现场]
+    must_not_include: [热门, 最佳, 一定能拍到, 馆方推荐]
+    allowed_state_changes: []
+    expected_sources: [photo_editorial_candidate]
+    manual_review_status: pending
+
+  - case_id: dst_acc_012
+    category: platform_isolation
+    input: 根据平台观察给我推荐热门打卡点。
+    precondition_tour_state: null
+    precondition_visitor_profile: null
+    expected_route: tour_qa
+    expected_card_type: none
+    must_include: [现场]
+    must_not_include: [platform_observation, 热门, 卡片]
+    allowed_state_changes: []
+    expected_sources: [safe_fallback]
+    manual_review_status: pending
+
+  - case_id: dst_acc_013
+    category: photo_no_candidate_fallback
+    input: 这里怎么拍？
+    precondition_tour_state: null
+    precondition_visitor_profile: null
+    expected_route: tour_qa
+    expected_card_type: none
+    must_include: [哪个已审核点位]
+    must_not_include: [热门, 最佳, 一定能拍到]
+    allowed_state_changes: []
+    expected_sources: [safe_fallback]
+    manual_review_status: pending
+
+  - case_id: dst_acc_014
+    category: tour_event_lifecycle
+    input: 我到前院中部了
+    precondition_tour_state: {current_stop_id: null, route_status: touring}
+    precondition_interaction_state: {pending_stop_id: stop_front_courtyard_center, stop_phase: navigating}
+    precondition_visitor_profile: null
+    expected_route: tour_event
+    expected_card_type: none
+    must_include: [前院中部]
+    must_not_include: [visited_stop_ids]
+    allowed_state_changes: [current_stop_id, pending_stop_id, stop_phase]
+    expected_sources: []
+    manual_review_status: pending
+
+  - case_id: dst_acc_015
+    category: multi_intent_clarification
+    input: 把这个打卡点加入路线，再告诉我怎么拍。
+    precondition_tour_state: {current_stop_id: stop_front_courtyard_center, route_status: touring}
+    precondition_visitor_profile: null
+    expected_route: tour_qa
+    expected_card_type: none
+    must_include: [不会自动]
+    must_not_include: [热门, 最佳, 一定能拍到]
+    allowed_state_changes: []
+    expected_sources: [safe_fallback]
+    manual_review_status: pending
+
+  - case_id: dst_acc_016
+    category: damaged_data_fallback
+    input: 灰塑是什么？
+    precondition_tour_state: null
+    precondition_visitor_profile: null
+    expected_route: tour_qa
+    expected_card_type: base_rag
+    must_include: [灰塑]
+    must_not_include: [Traceback, FileNotFoundError, ".yaml"]
+    allowed_state_changes: []
+    expected_sources: [base_rag]
+    manual_review_status: pending
+
+  - case_id: dst_acc_017
+    category: thread_isolation
+    input: 新线程：这里有什么？
+    precondition_tour_state: {thread_a_current_stop_id: stop_front_courtyard_center, thread_b: no_tour_state}
+    precondition_visitor_profile: {thread_a: {interests: [灰塑]}, thread_b: null}
+    expected_route: direct_rag
+    expected_card_type: base_rag
+    must_include: [陈家祠]
+    must_not_include: [前院中部, active_stop_program]
+    allowed_state_changes: []
+    expected_sources: [base_rag]
+    manual_review_status: pending

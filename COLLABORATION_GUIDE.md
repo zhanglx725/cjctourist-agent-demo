@@ -287,9 +287,21 @@ python inspect_route_plan.py deep_dive_90
 - D4 只能调用 `comparison_retrieval.retrieve_gated_comparison()`；它从 D1 注册表取得比较卡，禁止把 `comparison_cards_v0.yaml` 直接作为游客端运行入口。
 - 普通比较不允许读取研究专用卡，只能回退基础 RAG；明确研究比较，或 `audience_mode=study` / `knowledge_level=professional` 的明确比较，才可使用一张 `attributed_only` 主卡并保留范围和限制。
 - 比较对象必须由当前输入明确给出；“它们”没有可靠对象时只请求澄清。`on_site_observation_prompt` 是观察建议，不是当前位置可见性或导航事实。D4 是只读问答，不写 TourState、StopProgram 或画像。
-## D5-B 打卡卡资格校验接口（待本机验证）
+## D5-B 打卡卡编辑推荐接口（待本机验证）
 
-- `photo_spot_validation.py` 是 D5-B 唯一资格校验层。它必须先经 D1 注册表读取 `photo_spot_card`、`pose_template` 与 `platform_observation`，再用体验资格清单做严格、失败关闭的验证；不得把原卡正文或平台观察直接作为游客端运行入口。
-- 可运行卡必须同时具备 `runtime_status=enabled`、四项 `*_verification_status=verified`、非空 `reviewer/reviewed_at`、空 `blocking_issues`、合法节点/姿势/引用/对象关联和已批准原卡状态。任一条件缺失、冲突或文件异常均禁用。
-- 姿势模板不是独立游客知识卡，只能由已合格打卡卡间接使用；禁用姿势不得被输出。平台观察只供内部审计，永不成为游客端内容或运行证据。`editorial_recommended` 不是“热门”事实。
-- D5-B 当前不改 `tour_qa`、StopProgram、路线、TourState 或画像。`photo_spot_availability()` 仅预留 D6 所需的只读结果；没有合格卡时固定返回 `no_reviewed_photo_spot`，不返回草稿建议。
+- `photo_spot_validation.py` 是 D5-B 唯一的轻量候选门控。体验资格清单的 `runtime_status=enabled` 表示可供项目编辑选择，不表示完整现场审核或游客端通用知识卡资格。
+- 候选必须具有合法节点、完整姿势/平台/证据引用、非禁用姿势、卡片与姿势安全边界、以及可核对的对象—点位关联；断裂、禁用、缺边界和文件异常一律失败关闭。`partial/pending` 本身不阻断 Demo 推荐，但结果必须附带现场条件提示。
+- `query_registered_cards()` 永不返回 `photo_spot_card`、`pose_template`、`platform_observation`。未来 D6 只能通过 `query_available_photo_spots(node_id, audience_mode, themes)` 读取编辑候选；姿势只能由选中打卡卡间接返回，平台观察永远仅内部审计。
+- 专用结果只含安全的结构化选择信息、姿势安全边界和限制，不原样输出混合型 `recommended_capture_zh`。`editorial_recommended` 只能称为“项目编辑建议”，不得称热门、最佳、馆方推荐或已现场核验。
+
+## D6 打卡问答接口（待本机验证）
+
+- `photo_spot_runtime.py` 是 D6 的确定性意图、排序与渲染层；它只能调用 D5-B `query_available_photo_spots()`，不直接读取打卡 YAML、姿势 YAML 或平台观察。
+- 顶层 A1 控制事件、画像更新与路线请求优先；进入 `tour_qa` 后，明确拍照请求先于比较、研究和术语。拍照与修改路线同句必须澄清，D6 不能新增路线点或写入任何游览状态。
+- 专用输出最多三处候选，只返回间接姿势和安全边界；不得输出原始卡 ID、平台观察、混合拍摄草稿、热门/最佳/馆方认证等表述。无可靠当前点的“这里怎么拍”必须要求位置，不得猜测。
+
+## D7 统一验收矩阵与冻结边界（待本机与 LangSmith 验证）
+
+- 统一验收文件为 `data/chen_clan_academy/evaluation/d_stage_acceptance_cases_v1.yaml`，测试入口为 `test_d_stage_acceptance_cases.py`。不得改写既有 `dst_acc_001`--`dst_acc_017` 的含义或编号；新增场景应追加新编号，并说明其对应的 D 子阶段。
+- 每条记录必须保留输入、前置 TourState、前置 VisitorProfile、预期路由、预期卡片类型、必须/禁止文本、允许状态变化、预期来源类型和人工审核状态；它不是知识卡正文副本。
+- D2--D6 问答案例的 `allowed_state_changes` 必须为空。只有 A1 导游事件案例可声明交互状态变化；到达仍不能直接写 `visited_stop_ids`。
