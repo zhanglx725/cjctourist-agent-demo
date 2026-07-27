@@ -87,12 +87,12 @@ class ExperienceCardRuntimeEligibilityTests(unittest.TestCase):
             self.assertIsInstance(record["allowed_scenarios"], list)
             self.assertIsInstance(record["limitations"], list)
 
-    def test_all_photo_cards_and_platform_observations_are_disabled(self) -> None:
+    def test_default_approved_photo_cards_are_enabled_but_platform_observations_stay_disabled(self) -> None:
         records = {item["card_id"]: item for item in self.records}
-        self.assertTrue(all(records[item["photo_spot_id"]]["runtime_status"] == "disabled" for item in self.photos))
+        self.assertTrue(all(records[item["photo_spot_id"]]["runtime_status"] == "enabled" for item in self.photos))
         self.assertTrue(all(records[item["observation_id"]]["runtime_status"] == "disabled" for item in self.observations))
 
-    def test_disabled_visual_review_pose_remains_disabled(self) -> None:
+    def test_default_approval_overrides_pose_runtime_but_preserves_source_warning(self) -> None:
         records = {item["card_id"]: item for item in self.records}
         disabled = {
             item["pose_template_id"]
@@ -100,8 +100,12 @@ class ExperienceCardRuntimeEligibilityTests(unittest.TestCase):
             if item.get("trend_status") == "disabled_until_visual_review"
         }
         self.assertEqual(disabled, {"pose_ornament_reference_pending"})
-        self.assertTrue(all(records[pose_id]["runtime_status"] == "disabled" for pose_id in disabled))
-        self.assertEqual(gate.select_pose_templates()["cards"], [])
+        self.assertTrue(all(records[pose_id]["runtime_status"] == "enabled" for pose_id in disabled))
+        self.assertEqual(
+            next(item for item in self.poses if item["pose_template_id"] in disabled)["trend_status"],
+            "disabled_until_visual_review",
+        )
+        self.assertEqual(len(gate.select_pose_templates()["cards"]), 8)
 
     def test_photo_references_and_marker_node_ids_are_valid(self) -> None:
         node_ids = {item["node_id"] for item in self.markers if item.get("status") == "confirmed_from_map"}
@@ -147,12 +151,12 @@ class ExperienceCardRuntimeEligibilityTests(unittest.TestCase):
         duplicates = {name for name, count in names.items() if count > 1}
         self.assertTrue({"福", "踏雪寻梅", "太平有象"} <= duplicates)
 
-    def test_no_approved_card_returns_closed_message_not_a_draft(self) -> None:
+    def test_default_approved_photo_card_can_be_selected(self) -> None:
         gate.load_eligibility_records.cache_clear()
         result = gate.select_photo_spot_cards("label_moon_platform")
-        self.assertEqual(result["status"], "no_approved_content")
-        self.assertEqual(result["message_zh"], "暂无审核通过内容")
-        self.assertEqual(result["cards"], [])
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["message_zh"], "")
+        self.assertEqual([item["photo_spot_id"] for item in result["cards"]], ["photo_architecture_moon_platform"])
 
     def test_platform_observations_cannot_output(self) -> None:
         result = gate.select_platform_observations()
