@@ -1,0 +1,310 @@
+schema_version: glossary_acceptance_cases_v1
+module: glossary
+purpose: D2术语卡接入人工与自动验收
+created_at: "2026-07-27"
+review_status: draft
+reviewer: null
+reviewed_at: null
+cases:
+  - &base
+    case_id: gls_acc_001
+    category: definition_zh
+    query: "通花栏板是什么？"
+    current_node_id: null
+    expected_route: tour_qa
+    expected_term_ids: [term_openwork, term_railing_panel]
+    required_capabilities: [definition_zh, keyword_retrieval]
+    expected_behavior: &term_behavior
+      result_type: term_supplement
+      current_node_only_boosts_ranking: false
+      require_base_rag_for_fact_extension: true
+      tour_state_must_remain_unchanged: true
+    must_include: ["通花", "栏板"]
+    must_not_include: ["runtime_status", "source_ids", "data/chen_clan_academy"]
+    visibility_boundary: "术语定义不声明任何具体点位必然可见。"
+    source_expectation: &term_source
+      require_source_ids: true
+    case_status: draft
+    notes: "验证复合术语可由已启用的工艺与构件术语补充。"
+  - <<: *base
+    case_id: gls_acc_002
+    query: "灰塑是什么？"
+    expected_term_ids: [term_lime_plaster_relief]
+    must_include: ["灰塑"]
+  - <<: *base
+    case_id: gls_acc_003
+    query: "砖雕是什么？"
+    expected_term_ids: [term_brick_carving]
+    must_include: ["砖雕"]
+  - <<: *base
+    case_id: gls_acc_004
+    query: "石雕是什么？"
+    expected_term_ids: [term_stone_carving]
+    must_include: ["石雕"]
+  - <<: *base
+    case_id: gls_acc_005
+    query: "木雕是什么？"
+    expected_term_ids: [term_wood_carving]
+    must_include: ["木雕"]
+  - <<: *base
+    case_id: gls_acc_006
+    query: "陶塑是什么？"
+    expected_term_ids: [term_ceramic_sculpture]
+    must_include: ["陶塑"]
+  - <<: *base
+    case_id: gls_acc_007
+    query: "屋脊是什么？"
+    expected_term_ids: [term_roof_ridge]
+    must_include: ["屋脊"]
+  - <<: *base
+    case_id: gls_acc_008
+    query: "斗拱是什么？"
+    expected_term_ids: [term_bracket_set]
+    must_include: ["斗拱"]
+  - <<: *base
+    case_id: gls_acc_009
+    category: translation_en
+    query: "栏杆英文怎么说？"
+    expected_term_ids: [term_balustrade]
+    required_capabilities: [en_translation, keyword_retrieval]
+    must_include: ["balustrade"]
+    notes: "只验收已审核英文表达。"
+  - <<: *base
+    case_id: gls_acc_010
+    category: translation_en
+    query: "灰塑英文怎么说？"
+    expected_term_ids: [term_lime_plaster_relief]
+    required_capabilities: [en_translation, keyword_retrieval]
+    must_include: ["lime-plaster relief"]
+  - <<: *base
+    case_id: gls_acc_011
+    category: translation_en
+    query: "砖雕英文怎么说？"
+    expected_term_ids: [term_brick_carving]
+    required_capabilities: [en_translation, keyword_retrieval]
+    must_include: ["brick carving"]
+  - <<: *base
+    case_id: gls_acc_012
+    category: translation_en
+    query: "木雕英文怎么说？"
+    expected_term_ids: [term_wood_carving]
+    required_capabilities: [en_translation, keyword_retrieval]
+    must_include: ["wood carving"]
+  - <<: *base
+    case_id: gls_acc_013
+    category: translation_en
+    query: "石雕英文怎么说？"
+    expected_term_ids: [term_stone_carving]
+    required_capabilities: [en_translation, keyword_retrieval]
+    must_include: ["stone carving"]
+  - <<: *base
+    case_id: gls_acc_014
+    category: translation_en
+    query: "月台栏板英文怎么说？"
+    expected_term_ids: [term_railing_panel]
+    required_capabilities: [en_translation, keyword_retrieval]
+    must_include: ["railing panel"]
+  - <<: *base
+    case_id: gls_acc_015
+    category: pinyin
+    query: "灰塑的拼音是什么？"
+    expected_term_ids: [term_lime_plaster_relief]
+    required_capabilities: [pinyin, keyword_retrieval]
+    must_include: ["Hui Su"]
+  - <<: *base
+    case_id: gls_acc_016
+    category: pinyin
+    query: "通花的拼音是什么？"
+    expected_term_ids: [term_openwork]
+    required_capabilities: [pinyin, keyword_retrieval]
+    must_include: ["Tong Hua"]
+  - <<: *base
+    case_id: gls_acc_017
+    category: domain
+    query: "灰塑属于什么工艺领域？"
+    expected_term_ids: [term_lime_plaster_relief]
+    required_capabilities: [definition_zh, keyword_retrieval]
+    must_include: ["装饰工艺"]
+  - <<: *base
+    case_id: gls_acc_018
+    category: alias
+    query: "透空雕是什么？"
+    expected_term_ids: [term_pierced_carving]
+    required_capabilities: [definition_zh, keyword_retrieval]
+    must_include: ["透雕"]
+    notes: "验收检索规则中已登记的中文别名，不增加新的别名事实。"
+  - <<: *base
+    case_id: gls_acc_019
+    category: node_boost
+    query: "石雕是什么？"
+    current_node_id: label_moon_platform
+    expected_term_ids: [term_stone_carving]
+    expected_behavior:
+      result_type: term_supplement
+      current_node_only_boosts_ranking: true
+      require_base_rag_for_fact_extension: true
+      tour_state_must_remain_unchanged: true
+    must_not_include: ["当前位置一定能看到", "runtime_status", "data/chen_clan_academy"]
+    visibility_boundary: "月台关联只提升石雕术语候选排序；不能断言当前位置一定可见。"
+  - <<: *base
+    case_id: gls_acc_020
+    category: node_boost
+    query: "灰塑是什么？"
+    current_node_id: stop_front_courtyard_center
+    expected_term_ids: [term_lime_plaster_relief]
+    expected_behavior:
+      result_type: term_supplement
+      current_node_only_boosts_ranking: true
+      require_base_rag_for_fact_extension: true
+      tour_state_must_remain_unchanged: true
+    must_not_include: ["当前位置一定能看到", "runtime_status", "data/chen_clan_academy"]
+    visibility_boundary: "前院中部关联只提升灰塑候选排序；可见性须以现场或基础 RAG 为准。"
+  - <<: *base
+    case_id: gls_acc_021
+    category: node_boost
+    query: "木雕是什么？"
+    current_node_id: stop_rear_courtyard
+    expected_term_ids: [term_wood_carving]
+    expected_behavior:
+      result_type: term_supplement
+      current_node_only_boosts_ranking: true
+      require_base_rag_for_fact_extension: true
+      tour_state_must_remain_unchanged: true
+    must_not_include: ["当前位置一定能看到", "runtime_status", "data/chen_clan_academy"]
+    visibility_boundary: "后庭关联只提升木雕候选排序；不输出绝对位置断言。"
+  - <<: *base
+    case_id: gls_acc_022
+    category: node_boost
+    query: "陶塑是什么？"
+    current_node_id: stop_front_courtyard_north
+    expected_term_ids: [term_ceramic_sculpture]
+    expected_behavior:
+      result_type: term_supplement
+      current_node_only_boosts_ranking: true
+      require_base_rag_for_fact_extension: true
+      tour_state_must_remain_unchanged: true
+    must_not_include: ["当前位置一定能看到", "runtime_status", "data/chen_clan_academy"]
+    visibility_boundary: "前庭关联只提升陶塑候选排序；不把关联当作当前可见性证明。"
+  - <<: *base
+    case_id: gls_acc_023
+    category: ambiguity
+    query: "雕刻是什么？"
+    expected_term_ids: [term_stone_carving, term_wood_carving]
+    required_capabilities: [keyword_retrieval]
+    expected_behavior:
+      result_type: clarification
+      current_node_only_boosts_ranking: false
+      require_base_rag_for_fact_extension: true
+      tour_state_must_remain_unchanged: true
+    must_include: ["石雕", "木雕"]
+    notes: "多候选时要求澄清，不随机选定单一术语。"
+  - <<: *base
+    case_id: gls_acc_024
+    category: ambiguity
+    query: "祠堂英文怎么说？"
+    expected_term_ids: [term_joint_ancestral_hall, term_chen_clan_ancestral_hall]
+    required_capabilities: [keyword_retrieval]
+    expected_behavior:
+      result_type: clarification
+      current_node_only_boosts_ranking: false
+      require_base_rag_for_fact_extension: true
+      tour_state_must_remain_unchanged: true
+    must_include: ["合族祠", "陈家祠"]
+    notes: "普通类型概念与专名同时命中时要求澄清。"
+  - <<: *base
+    case_id: gls_acc_025
+    category: draft_block
+    query: "墀头英文怎么说？"
+    expected_term_ids: [term_chitou]
+    required_capabilities: []
+    expected_behavior:
+      result_type: blocked_draft_translation
+      current_node_only_boosts_ranking: false
+      require_base_rag_for_fact_extension: true
+      tour_state_must_remain_unchanged: true
+    must_include: ["尚未通过英文输出审核"]
+    must_not_include: ["chitous", "runtime_status", "data/chen_clan_academy"]
+    notes: "英文草稿不得泄漏到游客输出。"
+  - <<: *base
+    case_id: gls_acc_026
+    category: draft_block
+    query: "雀替英文怎么说？"
+    expected_term_ids: [term_quetti_bracket]
+    required_capabilities: []
+    expected_behavior:
+      result_type: blocked_draft_translation
+      current_node_only_boosts_ranking: false
+      require_base_rag_for_fact_extension: true
+      tour_state_must_remain_unchanged: true
+    must_include: ["尚未通过英文输出审核"]
+    must_not_include: ["queti bracket", "runtime_status", "data/chen_clan_academy"]
+    notes: "草稿译法仅供内部审核。"
+  - <<: *base
+    case_id: gls_acc_027
+    category: negative_route
+    query: "这里有什么？"
+    current_node_id: label_moon_platform
+    expected_route: not_glossary
+    expected_term_ids: []
+    required_capabilities: []
+    expected_behavior:
+      result_type: existing_point_qa
+      current_node_only_boosts_ranking: false
+      require_base_rag_for_fact_extension: true
+      tour_state_must_remain_unchanged: true
+    must_include: []
+    must_not_include: ["term_id", "runtime_status", "data/chen_clan_academy"]
+    visibility_boundary: "保持既有点位问答；术语卡不接管现场内容。"
+    source_expectation:
+      require_source_ids: false
+  - <<: *base
+    case_id: gls_acc_028
+    category: negative_route
+    query: "灰塑和砖雕有什么区别？"
+    expected_route: not_glossary
+    expected_term_ids: []
+    required_capabilities: []
+    expected_behavior:
+      result_type: comparison_deferred
+      current_node_only_boosts_ranking: false
+      require_base_rag_for_fact_extension: true
+      tour_state_must_remain_unchanged: true
+    must_include: []
+    must_not_include: ["term_id", "runtime_status", "data/chen_clan_academy"]
+    visibility_boundary: "比较问题留给后续比较卡阶段。"
+    source_expectation:
+      require_source_ids: false
+  - <<: *base
+    case_id: gls_acc_029
+    category: negative_route
+    query: "我到月台了"
+    expected_route: not_glossary
+    expected_term_ids: []
+    required_capabilities: []
+    expected_behavior:
+      result_type: tour_event_passthrough
+      current_node_only_boosts_ranking: false
+      require_base_rag_for_fact_extension: true
+      tour_state_must_remain_unchanged: true
+    must_include: []
+    must_not_include: ["term_id", "runtime_status", "data/chen_clan_academy"]
+    visibility_boundary: "到达表达留给 tour_event；术语模块不处理事件。"
+    source_expectation:
+      require_source_ids: false
+  - <<: *base
+    case_id: gls_acc_030
+    category: rag_fallback
+    query: "陈家祠今天开放到几点？"
+    expected_route: tour_qa
+    expected_term_ids: []
+    required_capabilities: []
+    expected_behavior:
+      result_type: rag_fallback
+      current_node_only_boosts_ranking: false
+      require_base_rag_for_fact_extension: true
+      tour_state_must_remain_unchanged: true
+    must_include: []
+    must_not_include: ["term_id", "runtime_status", "data/chen_clan_academy"]
+    visibility_boundary: "未命中术语时回退基础 RAG；不把开放信息写成术语事实。"
+    source_expectation:
+      require_source_ids: false
