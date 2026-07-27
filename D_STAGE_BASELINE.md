@@ -11,7 +11,7 @@ branch: main
 remote: origin / https://gitee.com/balegezhua/cjctourist_agent.git
 git_verification_date: 2026-07-27
 frozen_at: 2026-07-27
-handoff_commit: pending
+handoff_commit: 9ac6fa0
 ```
 
 只读 Git 核查结果：`HEAD` 与 `origin/main` 均为 `079a1f1`，工作区干净；D7 验收 YAML、D7 测试和 D6 运行模块均已纳入该提交。`git diff --check` 已通过。
@@ -22,6 +22,8 @@ handoff_commit: pending
 | --- | --- |
 | 操作系统 | Windows 项目环境；具体版本待本机记录 |
 | 虚拟环境解释器 | `D:\VScode_Project\codexspace\codex_agent\.venv\Scripts\python.exe` |
+| `sys.executable` | `D:\VScode_Project\codexspace\codex_agent\.venv\Scripts\python.exe` |
+| `sys.prefix` | `D:\VScode_Project\codexspace\codex_agent\.venv` |
 | Python 版本 | 项目虚拟环境已在本机运行；详细版本待下次环境采集补充 |
 | 主要依赖 | LangGraph / LangChain / LangChain-DeepSeek / ChromaDB / Sentence-Transformers / rank-bm25 / NetworkX / PyYAML |
 | 完整测试入口 | `"D:\VScode_Project\codexspace\codex_agent\.venv\Scripts\python.exe" -m unittest discover -v` |
