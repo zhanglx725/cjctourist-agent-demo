@@ -35,12 +35,12 @@ class DStageAcceptanceCaseTests(unittest.TestCase):
         cls.document = yaml.safe_load(CASES_FILE.read_text(encoding="utf-8"))
         cls.cases = cls.document["cases"]
 
-    def test_header_declares_pending_human_validation_without_claiming_completion(self) -> None:
+    def test_header_records_verified_runtime_baseline_and_keeps_content_review_separate(self) -> None:
         self.assertEqual(self.document["schema_version"], "d_stage_acceptance_cases_v1")
         self.assertEqual(self.document["module"], "d_stage")
-        self.assertEqual(self.document["review_status"], "pending_local_and_langsmith_validation")
-        self.assertIsNone(self.document["reviewer"])
-        self.assertIsNone(self.document["reviewed_at"])
+        self.assertEqual(self.document["review_status"], "verified_runtime_baseline")
+        self.assertEqual(self.document["reviewer"], "project_owner")
+        self.assertEqual(str(self.document["reviewed_at"]), "2026-07-27")
 
     def test_case_ids_are_unique_contiguous_and_frozen(self) -> None:
         ids = [case["case_id"] for case in self.cases]

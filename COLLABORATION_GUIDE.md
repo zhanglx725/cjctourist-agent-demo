@@ -305,3 +305,8 @@ python inspect_route_plan.py deep_dive_90
 - 统一验收文件为 `data/chen_clan_academy/evaluation/d_stage_acceptance_cases_v1.yaml`，测试入口为 `test_d_stage_acceptance_cases.py`。不得改写既有 `dst_acc_001`--`dst_acc_017` 的含义或编号；新增场景应追加新编号，并说明其对应的 D 子阶段。
 - 每条记录必须保留输入、前置 TourState、前置 VisitorProfile、预期路由、预期卡片类型、必须/禁止文本、允许状态变化、预期来源类型和人工审核状态；它不是知识卡正文副本。
 - D2--D6 问答案例的 `allowed_state_changes` 必须为空。只有 A1 导游事件案例可声明交互状态变化；到达仍不能直接写 `visited_stop_ids`。
+
+## E1 协作基线（已验证，等待交接提交）
+
+- `D_STAGE_BASELINE.md` 是 D 阶段共同起点的唯一索引。功能提交为 `079a1f1`；项目负责人已确认本机完整回归 `374 / 374 / 0` 与固定 LangSmith 场景全部通过。`handoff_commit` 将由 E1 交接提交写入。
+- E1 通过后，两位队友必须从同一 `handoff_commit` 创建 `codex/content-experience` 和 `codex/platform-productization`，不得从各自旧分支继续。开始前须报告本地提交、目标基线提交、工作区状态和未提交修改。

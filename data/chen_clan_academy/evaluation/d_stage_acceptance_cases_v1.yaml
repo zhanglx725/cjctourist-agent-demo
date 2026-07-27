@@ -1,11 +1,12 @@
 schema_version: d_stage_acceptance_cases_v1
 module: d_stage
-review_status: pending_local_and_langsmith_validation
-reviewer: null
-reviewed_at: null
+review_status: verified_runtime_baseline
+reviewer: project_owner
+reviewed_at: 2026-07-27
 notes:
   - 该矩阵只保存输入、路由、边界与人工检查要求，不复制知识卡正文。
   - 除明确的导游事件案例外，所有知识问答均不得修改游览执行状态。
+  - manual_review_status=pending 表示后续内容质量/来源精进仍可人工复核，不否定本次运行基线验证。
 cases:
   - case_id: dst_acc_001
     category: term_definition

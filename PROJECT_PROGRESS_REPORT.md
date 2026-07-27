@@ -965,3 +965,8 @@ glossary_ids
 - 新增 `data/chen_clan_academy/evaluation/d_stage_acceptance_cases_v1.yaml` 与 `test_d_stage_acceptance_cases.py`。矩阵冻结 `dst_acc_001` 至 `dst_acc_017`，覆盖术语定义/英文草稿阻止、研究归因与限制、普通/研究比较、当前点与全馆拍照、家庭与个人排序、平台观察隔离、无候选回退、导游事件、多意图澄清、数据损坏降级和线程隔离。
 - 矩阵不复制卡片正文；它只记录输入、前置 TourState/画像、预期路由、卡片类型、应出现/禁止出现的游客可见文本、允许的状态变化、来源类别和人工审核状态。
 - 除 `tour_event_lifecycle` 外，D2--D6 的所有案例 `allowed_state_changes=[]`；到达案例也不允许直接写入 `visited_stop_ids`。当前 `review_status=pending_local_and_langsmith_validation`，未经本机完整回归、固定 LangSmith 多轮检查和人工审阅前，不能称 D 阶段已验证或已冻结。
+
+## E1 D 阶段协作基线（本机与 LangSmith 已验证，待生成交接提交）
+
+- `D_STAGE_BASELINE.md` 以 `079a1f1` 作为功能基线提交；项目负责人已完成本机完整回归 `374 tests / 8.318s / OK`，并确认固定 LangSmith 场景全部通过。
+- 当前受限环境不能启动项目 `.venv`，因此不把本机测试结果误记为沙箱执行。E1 仍待生成并推送 `handoff_commit`；完成后两位队友必须从同一提交建立正式协作分支。
