@@ -30,6 +30,7 @@ from tour_intent import classify_tour_intent
 from tour_presenter import present_clarification, present_tour_event, present_tour_state
 from tour_state import start_tour
 from tour_qa import answer_tour_question, is_point_inventory_request
+from term_card_runtime import is_explicit_term_question
 from guide_program_evidence import build_stop_guidance, reexpress_current_stop_guidance
 from profile_dialogue import collect_profile_input
 from profile_update import apply_profile_update, is_profile_update_request
@@ -754,7 +755,7 @@ def route_initial_request(state: AgentState) -> str:
     if decision.route_kind == "rag_question" or should_direct_rag(text):
         # An explicit audited point inventory is structured data even before a
         # route starts. Other no-route facts retain the established RAG path.
-        if is_point_inventory_request(text, state.get("tour_state")):
+        if is_point_inventory_request(text, state.get("tour_state")) or is_explicit_term_question(text):
             return "tour_qa"
         return "tour_qa" if state.get("tour_state") and state.get("tour_interaction_state") else "direct_rag"
     return "llm_think"

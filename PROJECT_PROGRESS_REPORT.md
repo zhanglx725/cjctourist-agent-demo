@@ -919,3 +919,15 @@ glossary_ids
 
 - 新增离线验收覆盖画像→策略→路线快照→StopProgram 策略审计、风格切换不改游览进度、确认完成唯一写入 visited 以及模糊措辞不触发画像。
 - 当前命令行 Agent 使用 `MemorySaver + thread_id` 保存短期会话：同一 thread 可保留 messages、VisitorProfile、TourState、活动路线和当前讲解包；不同 thread 不共享这些状态。服务重启后不保证恢复，项目尚未实现数据库、跨会话长期画像或对话摘要。
+## D1 异构知识卡统一注册与安全适配层（已实现，待本机验证）
+
+- 新增 `knowledge_card_contract.py` 与 `knowledge_card_registry.py`：不迁移、不改写术语、研究、比较、打卡、姿势和平台原始文件；各类数据只通过适配器生成统一、只读的内部 `KnowledgeCard` 视图。
+- 统一字段为 `card_id`、`card_type`、`runtime_status`、能力/场景、来源、适用节点、限制、原始 payload 与校验错误。资格缺失、来源/节点无效、类型不一致或状态冲突时一律失败关闭；状态优先级为 `disabled > attributed_only > enabled`。
+- 术语、研究、比较和体验卡仍保留各自检索/读取结构，不建立混合向量库；平台观察仅供内部审计，永不作为游客端知识卡结果。D1 尚未接入 Agent、Tour QA、StopProgram 或基础 RAG。
+
+## D2 游览中术语卡接入 Tour QA（已实现，待本机验证）
+
+- 新增 `term_card_runtime.py`：术语问答先从 D1 `knowledge_card_registry` 读取已获运行资格的 `glossary_term`，再输出定义、拼音、领域、英文或已审核英文别名；它不直接读取资格 YAML，也不新建术语向量库。
+- `glossary_retrieval.point_glossary_context()` 仍仅提供“当前点位—术语”的排序提示。回答会说明“存在审核关联、是否看清以现场为准”，绝不将关联说成眼前必然可见的事实。
+- 英文输出额外检查 `en_translation` 能力；草稿术语只返回“未通过英文输出审核”，不会泄露草稿译名，也不会交由模型猜测。术语未命中、注册表异常或定义能力不可用时回退原有基础 RAG。
+- `tour_qa` 在现有点位清单和“这里的某工艺特点”分支之后调用术语适配器；比较句（如“灰塑和砖雕有什么区别”）明确不由 D2 接管，仍保留给既有 RAG/后续比较卡。所有术语问答均不写 TourState、StopProgram 或路线进度。

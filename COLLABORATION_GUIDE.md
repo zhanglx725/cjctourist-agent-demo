@@ -263,3 +263,15 @@ python inspect_route_plan.py deep_dive_90
 
 - `messages` 是对话上下文；`visitor_profile` 是当前会话偏好；`tour_state` 是实际游览进度；`active_route_plan` 和 `active_stop_program` 分别是路线与当前站编排。不要把这些字段写入新知识卡数据。
 - 本地 `MemorySaver` 仅按 `thread_id` 隔离会话内状态；它不是持久化数据库。服务重启和新 thread 均不承诺保留画像、路线、讲解包或检索证据。
+## D1 异构知识卡注册接口（待本机验证）
+
+- `knowledge_card_contract.py` 是 D 阶段统一只读视图；`knowledge_card_registry.py` 是唯一跨类型注册与资格门控层。原卡的 ID、正文、文件格式和各自 retrieval 模块均不得因 D1 修改。
+- 注册表只允许读取，禁止写入 TourState、VisitorProfile、路线、StopProgram 或 RAG index。后续接入必须仍调用本注册表门控，不能因为原卡存在就绕过资格清单。
+- 平台观察 `platform_observation` 可保留内部审计记录，但 `visitor_visible=False`，不得出现在游客端查询结果。
+
+## D2 术语卡运行接口（待本机验证）
+
+- `term_card_runtime.py` 是游览中术语型问题的唯一适配层：必须经 D1 注册表取得 `glossary_term`，不得直接绕过运行资格清单读取 YAML。
+- `glossary_retrieval.py` 与 `term_stop_associations_v1.json` 只可作为候选排序提示；不得据此声明某术语或文物“眼前一定存在”。术语的现场位置、年代、故事和历史事实仍需基础 RAG 的证据。
+- `en_translation` 是独立能力门控。翻译草稿、禁用卡、缺失卡和损坏文件不得输出英文猜测；可安全回退原有基础 RAG，或在英文草稿场景明确拒绝输出。
+- 比较、研究、打卡、到达和路线事件不得由 D2 术语识别器抢占。TourState 与 `active_stop_program` 只能由既有确定性事件/编排流程写入。

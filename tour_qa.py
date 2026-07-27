@@ -15,6 +15,7 @@ from typing import Any, Callable
 
 from route_planner import CATALOG_FILE, _read_catalog
 from glossary_retrieval import format_point_glossary_hint, point_glossary_context
+from term_card_runtime import answer_term_question
 from tour_intent import resolve_reviewed_node
 from tour_presenter import present_tour_state
 
@@ -365,6 +366,9 @@ def answer_tour_question(
         return answer_current_point_craft_features(
             user_query, current_craft, tour_state, interaction_state, rag_search
         )
+    term_answer = answer_term_question(user_query, tour_state, interaction_state)
+    if term_answer is not None:
+        return {**term_answer, "retrieval_query": None, "point_context": current_stop_context(tour_state)}
     retrieval_query, context = build_tour_qa_query(user_query, tour_state)
     try:
         payload = parse_rag_payload(rag_search(retrieval_query))

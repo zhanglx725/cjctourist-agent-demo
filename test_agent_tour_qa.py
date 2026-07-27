@@ -77,6 +77,25 @@ class AgentTourQaTests(unittest.TestCase):
         state = self._arrived_tour()
         self.assertEqual(route_initial_request(_message_state("我到月台了", state)), "tour_event")
 
+    def test_reviewed_term_routes_to_tour_qa_and_comparison_does_not(self):
+        state = self._arrived_tour()
+        self.assertEqual(route_initial_request(_message_state("灰塑英文怎么说？", state)), "tour_qa")
+        self.assertEqual(route_initial_request(_message_state("灰塑和砖雕有什么区别？", state)), "tour_qa")
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            rag.invoke.return_value = FAKE_PAYLOAD
+            term = tour_qa_node(_message_state("灰塑英文怎么说？", state))
+            comparison = tour_qa_node(_message_state("灰塑和砖雕有什么区别？", state))
+        self.assertIn("lime-plaster relief", term["messages"][0].content)
+        self.assertGreaterEqual(rag.invoke.call_count, 1)
+
+    def test_term_without_route_uses_controlled_tour_qa(self):
+        request = _message_state("灰塑是什么？")
+        self.assertEqual(route_initial_request(request), "tour_qa")
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            update = tour_qa_node(request)
+        rag.invoke.assert_not_called()
+        self.assertIn("以石灰为主料", update["messages"][0].content)
+
     def test_answered_question_does_not_block_later_a1_event(self):
         state = self._arrived_tour()
         request = _message_state("前院中部有什么？", state)

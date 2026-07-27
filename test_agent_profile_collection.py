@@ -34,14 +34,16 @@ class AgentProfileCollectionTests(unittest.TestCase):
         self.assertEqual(update["visitor_profile"]["detail_level"], "short")
         self.assertNotIn("tour_state", update)
 
-    def test_active_collection_accepts_next_answer_but_questions_keep_rag_route(self):
+    def test_active_collection_accepts_next_answer_but_keeps_controlled_fact_routes(self):
         first = profile_collection_node(_state("帮我规划路线"))
         second_state = _state("30分钟", first)
         self.assertEqual(route_initial_request(second_state), "profile_collection")
         second = profile_collection_node(second_state)
         self.assertEqual(second["profile_collection"]["next_missing_field"], "interests")
-        question_state = _state("灰塑是什么？", second)
-        self.assertEqual(route_initial_request(question_state), "direct_rag")
+        term_question = _state("灰塑是什么？", second)
+        self.assertEqual(route_initial_request(term_question), "tour_qa")
+        general_question = _state("陈家祠什么时候建成？", second)
+        self.assertEqual(route_initial_request(general_question), "direct_rag")
 
     def test_arrival_event_keeps_a1_priority_over_active_collection(self):
         initial = profile_collection_node(_state("帮我规划路线"))

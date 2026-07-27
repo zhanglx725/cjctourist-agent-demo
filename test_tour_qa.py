@@ -131,9 +131,11 @@ class TourQaTests(unittest.TestCase):
         self.assertEqual(self_arrival["tour_state"]["visited_stop_ids"], [])
         self.assertEqual(self_arrival["interaction_state"]["pending_stop_id"], "stop_front_courtyard_center")
 
-    def test_no_active_tour_keeps_original_query_and_no_presentation(self):
+    def test_no_active_tour_uses_reviewed_term_card_without_presentation(self):
         result = answer_tour_question("灰塑是什么？", None, None, self._success_search)
-        self.assertEqual(result["retrieval_query"], "灰塑是什么？")
+        self.assertEqual(result["mode"], "term_card")
+        self.assertIsNone(result["retrieval_query"])
+        self.assertIn("以石灰为主料", result["message"])
         self.assertIsNone(result["presentation"])
 
     def test_unknown_point_and_missing_point_card_fail_safely(self):
