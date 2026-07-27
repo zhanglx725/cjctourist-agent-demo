@@ -275,3 +275,21 @@ python inspect_route_plan.py deep_dive_90
 - `glossary_retrieval.py` 与 `term_stop_associations_v1.json` 只可作为候选排序提示；不得据此声明某术语或文物“眼前一定存在”。术语的现场位置、年代、故事和历史事实仍需基础 RAG 的证据。
 - `en_translation` 是独立能力门控。翻译草稿、禁用卡、缺失卡和损坏文件不得输出英文猜测；可安全回退原有基础 RAG，或在英文草稿场景明确拒绝输出。
 - 比较、研究、打卡、到达和路线事件不得由 D2 术语识别器抢占。TourState 与 `active_stop_program` 只能由既有确定性事件/编排流程写入。
+
+## D3 研究摘要卡运行接口（待本机验证）
+
+- `research_card_retrieval.py` 必须从 D1 注册表获取研究卡；不得根据原始 JSON 的 `status=reviewed` 直接开放，也不得读取本地 PDF 作为游客端事实来源。
+- D3 只处理明确研究意图，优先级高于 D2 术语但低于到达、确认、跳过等游览事件；含比较语义的问题必须留给 D4，不能由 D3 以论文摘要替代比较结论。
+- 研究摘要只能以归因观点呈现，并同时展示卡片限制。基础 RAG 仍负责地点、年代、位置、数量和故事等稳定事实；D3 不得写 TourState、VisitorProfile、路线或 StopProgram。
+
+## D4 比较卡运行接口（待本机验证）
+
+- D4 只能调用 `comparison_retrieval.retrieve_gated_comparison()`；它从 D1 注册表取得比较卡，禁止把 `comparison_cards_v0.yaml` 直接作为游客端运行入口。
+- 普通比较不允许读取研究专用卡，只能回退基础 RAG；明确研究比较，或 `audience_mode=study` / `knowledge_level=professional` 的明确比较，才可使用一张 `attributed_only` 主卡并保留范围和限制。
+- 比较对象必须由当前输入明确给出；“它们”没有可靠对象时只请求澄清。`on_site_observation_prompt` 是观察建议，不是当前位置可见性或导航事实。D4 是只读问答，不写 TourState、StopProgram 或画像。
+## D5-B 打卡卡资格校验接口（待本机验证）
+
+- `photo_spot_validation.py` 是 D5-B 唯一资格校验层。它必须先经 D1 注册表读取 `photo_spot_card`、`pose_template` 与 `platform_observation`，再用体验资格清单做严格、失败关闭的验证；不得把原卡正文或平台观察直接作为游客端运行入口。
+- 可运行卡必须同时具备 `runtime_status=enabled`、四项 `*_verification_status=verified`、非空 `reviewer/reviewed_at`、空 `blocking_issues`、合法节点/姿势/引用/对象关联和已批准原卡状态。任一条件缺失、冲突或文件异常均禁用。
+- 姿势模板不是独立游客知识卡，只能由已合格打卡卡间接使用；禁用姿势不得被输出。平台观察只供内部审计，永不成为游客端内容或运行证据。`editorial_recommended` 不是“热门”事实。
+- D5-B 当前不改 `tour_qa`、StopProgram、路线、TourState 或画像。`photo_spot_availability()` 仅预留 D6 所需的只读结果；没有合格卡时固定返回 `no_reviewed_photo_spot`，不返回草稿建议。

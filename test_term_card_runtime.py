@@ -92,7 +92,8 @@ class TermCardRuntimeTests(unittest.TestCase):
             "灰塑和砖雕有什么区别？", self.tour, self.interaction,
             lambda query: json.dumps({"query": query, "evidence": []}, ensure_ascii=False),
         )
-        self.assertEqual(result["mode"], "rag")
+        self.assertEqual(result["mode"], "comparison_rag_fallback")
+        self.assertNotEqual(result["mode"], "term_card")
         self.assertEqual(self.tour, before_tour)
         self.assertEqual(self.interaction, before_interaction)
 

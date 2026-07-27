@@ -9,9 +9,12 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 import yaml
+
+from knowledge_card_contract import KnowledgeCard
+from knowledge_card_registry import build_registry
 
 
 ROOT = Path(__file__).parent
@@ -38,6 +41,11 @@ def _is_comparison_question(query: str) -> bool:
     return any(cue in normalized for cue in COMPARISON_CUES)
 
 
+def is_explicit_comparison_question(query: str) -> bool:
+    """Public D4 classifier; an unresolved pronoun is still a comparison."""
+    return _is_comparison_question(query) or "它们" in query
+
+
 def _is_research_question(query: str) -> bool:
     normalized = query.casefold()
     return any(cue in normalized for cue in RESEARCH_CUES)
@@ -60,6 +68,102 @@ def _card_labels(card: dict[str, Any]) -> list[str]:
         }.get(card.get("comparison_level"), [])
     )
     return [str(label).strip() for label in labels if str(label).strip()]
+
+
+def _gated_comparison_cards(registry: dict[str, KnowledgeCard]) -> list[KnowledgeCard]:
+    return [
+        card for card in registry.values()
+        if card.card_type == "comparison"
+        and card.runtime_status in {"enabled", "attributed_only"}
+        and "attributed_comparison" in card.allowed_capabilities
+    ]
+
+
+def _matched_objects(card: KnowledgeCard, query: str) -> list[str]:
+    normalized = query.casefold()
+    labels = _card_labels(card.raw_payload)
+    return [label for label in labels if label.casefold() in normalized]
+
+
+def retrieve_gated_comparison(
+    user_query: str,
+    *,
+    allow_research: bool,
+    registry_loader: Callable[[], dict[str, KnowledgeCard]] = build_registry,
+) -> dict[str, Any]:
+    """Return one D1-gated research comparison card or a safe status.
+
+    The function intentionally returns no raw payload and never claims that a
+    card's comparison objects are visible at the visitor's current position.
+    """
+    if not is_explicit_comparison_question(user_query):
+        return {"status": "not_comparison_question", "card": None}
+    if "它们" in user_query and not any(token in user_query for token in ("灰塑", "砖雕", "石雕", "木雕", "陶塑", "陈家祠", "陈氏书院", "月台", "屋脊")):
+        return {"status": "ambiguous_objects", "card": None}
+    try:
+        cards = _gated_comparison_cards(registry_loader())
+    except Exception:
+        return {"status": "registry_unavailable", "card": None}
+    ranked: list[tuple[tuple[int, int, int], KnowledgeCard]] = []
+    for card in cards:
+        raw = card.raw_payload
+        objects = [str(value) for value in raw.get("comparison_objects", []) if isinstance(value, str)]
+        matched = _matched_objects(card, user_query)
+        # Two named comparison objects outrank theme/dimension wording, then
+        # one-object matches.  Stable card_id resolves all remaining ties.
+        object_hits = sum(1 for value in objects if value.casefold() in user_query.casefold())
+        theme_hit = int(str(raw.get("theme_zh") or "").casefold() in user_query.casefold())
+        dimensions = raw.get("dimensions", [])
+        dimension_hits = sum(1 for value in dimensions if isinstance(value, str) and value.casefold() in user_query.casefold())
+        label_hits = len(matched)
+        score = (2 if object_hits >= 2 else 1 if object_hits == 1 else 0, theme_hit + dimension_hits, label_hits)
+        if any(score):
+            ranked.append((score, card))
+    ranked.sort(key=lambda item: (-item[0][0], -item[0][1], -item[0][2], item[1].card_id))
+    if not ranked:
+        return {"status": "no_matching_card", "card": None}
+    if not allow_research:
+        return {"status": "research_card_not_permitted", "card": None}
+    card = ranked[0][1]
+    raw = card.raw_payload
+    return {
+        "status": "ok",
+        "card": {
+            "objects": list(raw.get("comparison_objects", [])),
+            "scope_zh": raw.get("scope_zh"),
+            "dimensions": list(raw.get("dimensions", [])),
+            "similarities_zh": list(raw.get("similarities_zh", [])),
+            "differences_zh": list(raw.get("differences_zh", [])),
+            "claim_strength": raw.get("claim_strength"),
+            "limitations_zh": raw.get("limitations_zh"),
+            "on_site_observation_prompt": raw.get("on_site_observation_prompt"),
+            "runtime_status": card.runtime_status,
+        },
+    }
+
+
+def format_gated_comparison_answer(context: dict[str, Any]) -> str:
+    """Render one attributed comparison without visitor-facing internal IDs."""
+    status, card = context.get("status"), context.get("card")
+    if status == "ambiguous_objects":
+        return "您说的“它们”缺少可核对的两个比较对象；请直接说出两种工艺或两处建筑名称。"
+    if status == "research_card_not_permitted":
+        return "这类比较卡仅限明确研究视角或研学/专业模式使用；我可以先依据基础资料做不带论文结论的比较。"
+    if status != "ok" or not card:
+        return "暂未找到可安全引用的研究比较卡；我将仅依据基础资料处理，证据不足处不会强行比较。"
+    dimensions = "、".join(str(item) for item in card.get("dimensions", [])[:3])
+    lines = [f"相关研究以{card.get('scope_zh')}为比较范围，可从{dimensions or '材料、题材和视觉效果'}几个维度理解："]
+    similarities = [str(item) for item in card.get("similarities_zh", []) if item]
+    differences = [str(item) for item in card.get("differences_zh", []) if item]
+    if similarities:
+        lines.append(f"相同点：{'；'.join(similarities[:2])}")
+    if differences:
+        lines.append(f"主要差异：{'；'.join(differences[:3])}")
+    if card.get("limitations_zh"):
+        lines.append(f"适用范围与限制：{card['limitations_zh']}")
+    if card.get("on_site_observation_prompt"):
+        lines.append(f"观察建议：{card['on_site_observation_prompt']}（这只是观察建议，不表示对照对象就在当前点位可见。）")
+    return "\n".join(lines)
 
 
 def comparison_context(

@@ -931,3 +931,24 @@ glossary_ids
 - `glossary_retrieval.point_glossary_context()` 仍仅提供“当前点位—术语”的排序提示。回答会说明“存在审核关联、是否看清以现场为准”，绝不将关联说成眼前必然可见的事实。
 - 英文输出额外检查 `en_translation` 能力；草稿术语只返回“未通过英文输出审核”，不会泄露草稿译名，也不会交由模型猜测。术语未命中、注册表异常或定义能力不可用时回退原有基础 RAG。
 - `tour_qa` 在现有点位清单和“这里的某工艺特点”分支之后调用术语适配器；比较句（如“灰塑和砖雕有什么区别”）明确不由 D2 接管，仍保留给既有 RAG/后续比较卡。所有术语问答均不写 TourState、StopProgram 或路线进度。
+
+## D3 游览中研究摘要卡接入 Tour QA（已实现，待本机验证）
+
+- 新增 `research_card_retrieval.py`，只从 D1 注册表筛选 `research_summary` 卡；原始 `status=reviewed` 不可自行开放卡片，`disabled`、`background`、`pending` 及缺少归因能力的卡均不会运行。
+- 仅“论文如何解释”“从学术/研究角度”“研究方法/限制”等明确研究意图触发 D3；比较句明确留给 D4，术语、点位清单、故事与到达事件保留原有分支。
+- 每次最多使用两张卡，按问题标签、支持问题和当前节点关联排序；空 `applicable_node_ids` 不获得当前位置加分，也不被说成游客眼前可见。
+- D3 始终调用基础 RAG 作为事实交叉核对，同时把研究内容表述为“某研究指出”，保留方法（仅爱好者/专业表达）与适用范围/限制；不会输出卡片 ID、运行状态、本地 PDF 路径或检索分数，也不会改变 TourState 或画像。
+
+## D4 游览中比较卡接入 Tour QA（已实现，待本机验证）
+
+- `comparison_retrieval.py` 新增 D1 门控的比较读取接口；D4 不使用原始 YAML 作为运行时入口。八张比较卡仍均为 `attributed_only / research_only`，因此普通比较只会调用基础 RAG，不会泄露研究卡内容。
+- 比较意图在 `tour_qa` 内先于 D3 与 D2 处理。明确研究比较、或画像为研学/专业的明确比较，才可使用一张主比较卡；回答固定包含比较范围、维度、相同点、差异、限制及“相关研究”归因。
+- 两个对象都命中优先于主题/维度/单对象命中；同分按稳定卡 ID 排序。对象不明确的“它们有什么区别”只澄清，不让模型猜测前文对象；当前点从不被当作比较对象必然可见的证据。
+- `on_site_observation_prompt` 仅以“观察建议”呈现。D4 不输出卡片 ID、状态、路径或分数，也不修改 TourState、StopProgram、路线或 VisitorProfile。
+## D5-B 打卡卡运行资格严格校验与安全门控（已实现，待本机验证）
+
+- 新增 `photo_spot_validation.py`：该模块仅验证打卡卡能否在未来 D6 被调用，不推荐、不生成游客文案，也不接入 `tour_qa`、StopProgram 或主动讲解。
+- 一张卡须同时满足：D1 的 `runtime_status=enabled`，位置/安全/内容/来源四项均为 `verified`，存在审核人和审核日期，没有 `blocking_issues`，且原卡人工状态为 `approved`。缺任一项均失败关闭。
+- 校验还会核对审核空间 `node_id`、姿势模板、平台观察引用、证据引用以及对象—点位关联。平台观察只可作为内部审计引用，永远不能成为游客内容或“热门”证据；`editorial_recommended` 也不能支持热门表述。
+- 当前体验资格清单中的 12 张打卡卡、8 个姿势模板和 5 条平台观察均可加载，但打卡卡仍全部禁用：D5-A 人工审核字段尚未齐全，且姿势模板也未开放。因此当前 D6 预留返回为 `{ "available": false, "reason": "no_reviewed_photo_spot" }`，不会用草稿内容降级回答。
+- 新增 `test_photo_spot_validation.py`，覆盖全量解析、严格正向路径、审核字段缺失、阻塞问题、姿势禁用、断裂引用、平台不可游客可见，以及对 TourState/VisitorProfile/StopProgram 的无副作用约束。D5-B 完成只表示门控底座完成，不表示打卡游客功能已开放。

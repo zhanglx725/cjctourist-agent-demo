@@ -15,6 +15,8 @@ from typing import Any, Callable
 
 from route_planner import CATALOG_FILE, _read_catalog
 from glossary_retrieval import format_point_glossary_hint, point_glossary_context
+from comparison_retrieval import format_gated_comparison_answer, is_explicit_comparison_question, retrieve_gated_comparison
+from research_card_retrieval import format_research_answer, is_explicit_research_question, retrieve_research_cards
 from term_card_runtime import answer_term_question
 from tour_intent import resolve_reviewed_node
 from tour_presenter import present_tour_state
@@ -357,6 +359,7 @@ def answer_tour_question(
     tour_state: dict[str, Any] | None,
     interaction_state: dict[str, Any] | None,
     rag_search: Callable[[str], str],
+    visitor_profile: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Use one injected existing RAG callable and leave both state snapshots untouched."""
     if is_point_inventory_request(user_query, tour_state):
@@ -366,6 +369,64 @@ def answer_tour_question(
         return answer_current_point_craft_features(
             user_query, current_craft, tour_state, interaction_state, rag_search
         )
+    if is_explicit_comparison_question(user_query):
+        explicit_research = any(token in user_query for token in ("研究", "学术", "论文", "文献"))
+        profile = visitor_profile or {}
+        allow_research = explicit_research or profile.get("audience_mode") == "study" or profile.get("knowledge_level") == "professional"
+        comparison = retrieve_gated_comparison(user_query, allow_research=allow_research)
+        if comparison.get("status") == "ambiguous_objects":
+            message = format_gated_comparison_answer(comparison)
+            presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
+            if presentation:
+                message += "\n\n本次澄清未改变路线进度，您可继续使用现有导览操作。"
+                presentation = {**presentation, "message": message, "code": "comparison_clarification", "ok": False}
+            return {"message": message, "mode": "comparison_clarification", "evidence": [], "point_context": None, "presentation": presentation, "retrieval_query": None}
+        retrieval_query, context = build_tour_qa_query(user_query, tour_state)
+        try:
+            payload = parse_rag_payload(rag_search(retrieval_query))
+        except Exception as exc:
+            payload = {"evidence": [], "error": f"本地知识检索暂时不可用：{exc}"}
+        if comparison.get("status") == "ok":
+            message = format_gated_comparison_answer(comparison)
+            source_ids = [source for item in payload.get("evidence", []) for source in item.get("source_ids", [])]
+            if source_ids:
+                message += f"\n基础事实交叉核对（来源：{'、'.join(dict.fromkeys(source_ids))}）。"
+            presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
+            if presentation:
+                message += "\n\n本次比较未改变路线进度，您可继续使用现有导览操作。"
+                presentation = {**presentation, "message": message, "code": "comparison_card_answer", "ok": True}
+            return {"message": message, "mode": "comparison_card", "evidence": payload.get("evidence", []), "comparison": comparison.get("card"), "point_context": context, "presentation": presentation, "retrieval_query": retrieval_query}
+        # No research-only card is exposed in ordinary mode.  Preserve the
+        # established base-RAG answer and make the fallback explicit.
+        result = format_tour_qa_answer(user_query, payload, tour_state, interaction_state)
+        prefix = format_gated_comparison_answer(comparison)
+        result["message"] = f"{prefix}\n\n{result['message']}"
+        if result.get("presentation"):
+            result["presentation"] = {**result["presentation"], "message": result["message"], "code": "comparison_rag_fallback"}
+        return {**result, "mode": "comparison_rag_fallback", "comparison": None, "retrieval_query": retrieval_query, "point_context": context}
+    if is_explicit_research_question(user_query):
+        research = retrieve_research_cards(
+            user_query, current_node_id=(tour_state or {}).get("current_stop_id")
+        )
+        retrieval_query, context = build_tour_qa_query(user_query, tour_state)
+        try:
+            payload = parse_rag_payload(rag_search(retrieval_query))
+        except Exception as exc:
+            payload = {"evidence": [], "error": f"本地知识检索暂时不可用：{exc}"}
+        answer = format_research_answer(
+            research,
+            knowledge_level=(visitor_profile or {}).get("knowledge_level", "general"),
+            base_evidence=payload.get("evidence", []),
+        )
+        presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
+        if presentation:
+            answer += "\n\n本次研究说明未改变路线进度，您可继续使用现有导览操作。"
+            presentation = {**presentation, "message": answer, "code": "research_card_answer", "ok": True}
+        return {
+            "message": answer, "mode": "research_card", "evidence": payload.get("evidence", []),
+            "research_cards": research.get("cards", []), "point_context": context,
+            "presentation": presentation, "retrieval_query": retrieval_query,
+        }
     term_answer = answer_term_question(user_query, tour_state, interaction_state)
     if term_answer is not None:
         return {**term_answer, "retrieval_query": None, "point_context": current_stop_context(tour_state)}
