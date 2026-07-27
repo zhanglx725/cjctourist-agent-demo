@@ -1,0 +1,446 @@
+schema_version: d_stage_manual_review_v1
+module: d_stage
+reviewer: null
+reviewed_at: null
+test_date: "2026-07-27"
+tested_branch: main
+tested_commit: d00396969761025896358d90785f0c75ba7a166c
+environment:
+  runner: "LangGraph local Studio"
+  local_docs_url: "http://127.0.0.1:2024/docs"
+  studio_thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f"
+  langsmith_trace_status: "unavailable: APAC ingestion returned 403 during setup; no trace URL recorded"
+full_response_evidence_file: "evidence/pending_reviewer/studio_thread_019fa2c7_full_transcript_v1.json"
+scope:
+  - "Manual execution, evidence collection, findings and handoff only."
+  - "No Agent code, card content, card ID, runtime eligibility, state contract, RAG, spatial data or existing test assertion was modified."
+case_summary:
+  executed: 72
+  passed: 17
+  failed: 51
+  blocked: 4
+finding_summary: {P0: 0, P1: 13, P2: 3, P3: 0}
+review_notes:
+  passed_cases:
+    - "30-minute route can be produced after multi-turn preference collection."
+    - "30-minute grey-plaster route can be produced."
+    - "Basic identity answer: 陈家祠 is Guangdong Folk Arts Museum / 陈氏书院."
+    - "Dynamic closing-time question safely declines to invent same-day hours."
+  common_observations:
+    - "The review thread retains completed-route state at 后西庭; unrelated QA repeatedly injects it into answers."
+    - "Many tourist responses expose internal filenames, source IDs, raw RAG excerpts, and stale route context."
+    - "Each case below is an actual message in the retained local Studio thread; unexecuted acceptance cases remain listed as blocked/not covered."
+full_studio_transcript_coverage:
+  thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f"
+  captured_at: "2026-07-27"
+  message_count: 160
+  human_message_count: 72
+  ai_message_count: 85
+  evidence_rule: "Each pair references the exact local Studio message indices. Full visible answer text remains in Studio; no answer is reconstructed from expectation."
+  pairs: [[0,[1,3,5,6]],[2,[3]],[4,[5,6]],[7,[8]],[9,[10]],[11,[12]],[13,[14,15]],[16,[17,19]],[20,[21]],[22,[23,24]],[25,[26]],[27,[28,29]],[30,[31,33]],[34,[35]],[36,[37,38]],[39,[40,41]],[42,[43]],[44,[45,46]],[47,[48,49]],[50,[51,53]],[54,[55]],[56,[57]],[58,[59]],[60,[61]],[62,[63]],[64,[65]],[66,[67]],[68,[69]],[70,[71,72]],[73,[74]],[75,[76]],[77,[78]],[79,[80]],[81,[82]],[83,[84]],[85,[86]],[87,[88]],[89,[90]],[91,[92]],[93,[94]],[95,[96]],[97,[98]],[99,[100]],[101,[102]],[103,[104]],[105,[106]],[107,[108]],[109,[110]],[111,[112]],[113,[114]],[115,[116]],[117,[118]],[119,[120]],[121,[122]],[123,[124]],[125,[126]],[127,[128]],[129,[130]],[131,[132]],[133,[134]],[135,[136]],[137,[138]],[139,[140]],[141,[142]],[143,[144]],[145,[146]],[147,[148]],[149,[150]],[151,[152]],[153,[154]],[155,[156]],[157,[158,159]]]
+cases:
+  - {case_id: e2_case_001, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "我有30分钟，第一次来，想看最有代表性的内容。", preconditions: "new conversation", expected: "collect needed preference then provide <=30-minute route", actual: "after 木雕/简单讲解 follow-ups, produced a 30-minute highlight route", actual_route: "profile_collection -> direct_route", tour_state_before: "null", tour_state_after: "route initialized", source_or_card_ids: [], evidence_refs: ["Studio messages 0-5"], result: passed, finding_id: null}
+  - {case_id: e2_case_002, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "我有30分钟，最想看灰塑", preconditions: "existing thread", expected: "30-minute grey-plaster route", actual: "returned a 30-minute grey-plaster route", actual_route: "direct_route", tour_state_before: "existing route context", tour_state_after: "route updated", source_or_card_ids: [], evidence_refs: ["Studio messages 13-15"], result: passed, finding_id: null}
+  - {case_id: e2_case_003, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "我有60分钟，想重点了解木雕和建筑工艺。", preconditions: "none", expected: "route <=60 minutes", actual: "61-minute craft route", actual_route: "direct_route", tour_state_before: "not captured", tour_state_after: "route planned", source_or_card_ids: [], evidence_refs: ["Studio messages 22-24"], result: failed, finding_id: e2_a_001}
+  - {case_id: e2_case_004, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "我有1小时，想重点了解木雕和建筑工艺。", preconditions: "none", expected: "same duration semantics as 60分钟", actual: "entered ordinary RAG rather than route planning", actual_route: "tour_qa", tour_state_before: "not captured", tour_state_after: "not captured", source_or_card_ids: [], evidence_refs: ["Studio messages 25-26"], result: failed, finding_id: e2_a_002}
+  - {case_id: e2_case_005, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "我有90分钟，想做研学参观。", preconditions: "craft preference retained", expected: "90-minute study-oriented plan", actual: "returned 60-minute craft route", actual_route: "direct_route", tour_state_before: "profile 90 minutes", tour_state_after: "route remained craft-oriented", source_or_card_ids: [], evidence_refs: ["Studio messages 27-29"], result: failed, finding_id: e2_a_002}
+  - {case_id: e2_case_006, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "我只剩20分钟了，帮我调整路线。", preconditions: "active route", expected: "remaining route replanned", actual: "acknowledged update but later planning retained stale 60/90-minute route", actual_route: "profile_collection/direct_route", tour_state_before: "active route", tour_state_after: "remaining plan not usable", source_or_card_ids: [], evidence_refs: ["Studio messages 34-41"], result: failed, finding_id: e2_a_002}
+  - {case_id: e2_case_007, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "已经参观结束前院中部、前庭后，我只剩二十分钟了，帮我重新规划一条路线", preconditions: "stated completed stops", expected: "exclude stated stops and fit 20 minutes", actual: "returned 61-minute route including prior stops", actual_route: "profile_collection -> direct_route", tour_state_before: "active route", tour_state_after: "incorrect replan", source_or_card_ids: [], evidence_refs: ["Studio messages 39-41"], result: failed, finding_id: e2_a_002}
+  - {case_id: e2_case_008, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "我到前院中部了", preconditions: "touring route", expected: "arrival recognized without completion write", actual: "arrival handling did not yield reliable stop guidance", actual_route: "tour_event", tour_state_before: "pending first stop", tour_state_after: "not fully captured", source_or_card_ids: [], evidence_refs: ["Studio messages 47-49"], result: failed, finding_id: e2_b_001}
+  - {case_id: e2_case_009, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "我该如何去到月台", preconditions: "route context", expected: "navigation to 月台", actual: "unrelated ornament RAG response", actual_route: "tour_qa", tour_state_before: "not captured", tour_state_after: "unchanged", source_or_card_ids: [], evidence_refs: ["Studio messages 20-21"], result: failed, finding_id: e2_b_001}
+  - {case_id: e2_case_010, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "现在出发，已经到达", preconditions: "previous next-stop advice named 前庭", expected: "targeted point clarification", actual: "generic unable-to-confirm-point reply", actual_route: "tour_event", tour_state_before: "pending 前庭", tour_state_after: "not captured", source_or_card_ids: [], evidence_refs: ["Studio messages 54-57"], result: failed, finding_id: e2_b_001}
+  - {case_id: e2_case_011, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "先介绍前庭，我比较喜欢木雕", preconditions: "user declares point and craft preference", expected: "front-courtyard wood-carving introduction", actual: "generic RAG began with grey plaster", actual_route: "tour_qa", tour_state_before: "not captured", tour_state_after: "unchanged", source_or_card_ids: [S11], evidence_refs: ["Studio messages 60-61"], result: failed, finding_id: e2_c_001}
+  - {case_id: e2_case_012, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "用专业一点的方式讲杏林春燕", preconditions: "杏林春燕 just explained", expected: "set expert style and explain named object", actual: "only preference-updated acknowledgement", actual_route: "extended_profile_control", tour_state_before: "not captured", tour_state_after: "unchanged", source_or_card_ids: [S11], evidence_refs: ["Studio messages 89-94"], result: failed, finding_id: e2_c_002}
+  - {case_id: e2_case_013, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "我是一名学者，现在在后东庭，给我介绍这里的木雕", preconditions: "stored state 后西庭/finished", expected: "use 后东庭 or clarify location conflict", actual: "wood items returned but footer asserted 后西庭", actual_route: "tour_qa", tour_state_before: "current_stop_id=后西庭", tour_state_after: "unchanged", source_or_card_ids: [S11], evidence_refs: ["Studio messages 101-102"], result: failed, finding_id: e2_d_001}
+  - {case_id: e2_case_014, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "我现在在后东庭，这里能看到什么", preconditions: "stored state 后西庭/finished", expected: "complete approved 后东庭 association list or qualified answer", actual: "returned only 3 mapped items and asserted 后西庭", actual_route: "tour_qa", tour_state_before: "current_stop_id=后西庭", tour_state_after: "unchanged", source_or_card_ids: [S11], evidence_refs: ["Studio messages 103-104"], result: failed, finding_id: e2_d_001}
+  - {case_id: e2_case_015, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "帮我介绍陈家祠建筑结构", preconditions: "none", expected: "structured visitor explanation", actual: "raw filenames and retrieval excerpts", actual_route: "tour_qa", tour_state_before: "not captured", tour_state_after: "unchanged", source_or_card_ids: [S04, S06], evidence_refs: ["Studio message 82; screenshot codex-clipboard-77d2afa6-3278-4138-a671-7fe4e12223d9.png"], result: failed, finding_id: e2_p_001}
+  - {case_id: e2_case_016, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "帮我列举陈家祠的全部灰塑", preconditions: "none", expected: "verified enumeration or explicit coverage limit", actual: "generic architecture/craft/visit-service material", actual_route: "tour_qa", tour_state_before: "not captured", tour_state_after: "unchanged", source_or_card_ids: [S10, S11], evidence_refs: ["Studio messages 87-88"], result: failed, finding_id: e2_p_001}
+  - {case_id: e2_case_017, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "陈家祠建于哪一年？", preconditions: "none", expected: "answer-first with source difference", actual: "raw history, services and layout excerpts", actual_route: "tour_qa", tour_state_before: "not captured", tour_state_after: "unchanged", source_or_card_ids: [S02, S04], evidence_refs: ["Studio messages 107-108"], result: failed, finding_id: e2_d_002}
+  - {case_id: e2_case_018, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "月台上的石雕有什么特点", preconditions: "none", expected: "moon-platform stone-carving characteristics", actual: "object-count list and prompt to ask again", actual_route: "tour_qa", tour_state_before: "current_stop_id=后西庭", tour_state_after: "unchanged", source_or_card_ids: [], evidence_refs: ["Studio messages 113-114"], result: failed, finding_id: e2_d_003}
+  - {case_id: e2_case_019, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "石雕", preconditions: "previous query specified 月台", expected: "inherit 月台 scope", actual: "retrieved 首进正门 stone items and stale 后西庭 footer", actual_route: "tour_qa", tour_state_before: "current_stop_id=后西庭", tour_state_after: "unchanged", source_or_card_ids: [S10, S11], evidence_refs: ["Studio messages 115-116"], result: failed, finding_id: e2_d_003}
+  - {case_id: e2_case_020, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "这个对象在哪里", preconditions: "previous object 百鸟朝凤", expected: "approved visitor point plus raw location", actual: "only raw 首进西路北面 location", actual_route: "llm_think", tour_state_before: "not captured", tour_state_after: "unchanged", source_or_card_ids: [S11], evidence_refs: ["Studio messages 119-120"], result: failed, finding_id: e2_d_002}
+  - {case_id: e2_case_021, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "今天几点关门", preconditions: "none", expected: "no invented real-time hours", actual: "safe fallback to official current channels", actual_route: "llm_think", tour_state_before: "not captured", tour_state_after: "unchanged", source_or_card_ids: [], evidence_refs: ["Studio messages 123-124"], result: passed, finding_id: null}
+  - {case_id: e2_case_022, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "对比一下其他祠堂，陈家祠有什么特点", preconditions: "comparison target unspecified", expected: "clarify target; do not use research comparison card", actual: "generic history response without clarification", actual_route: "tour_qa", tour_state_before: "not captured", tour_state_after: "unchanged", source_or_card_ids: [], evidence_refs: ["Studio messages 129-130"], result: failed, finding_id: e2_e_003}
+  - {case_id: e2_case_023, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "通花英文怎么说", preconditions: "acceptance data conflicts with reviewed enabled term_openwork", expected: "requires owner decision before final verdict", actual: "unrelated stone-carving RAG", actual_route: "llm_think", tour_state_before: "not captured", tour_state_after: "unchanged", source_or_card_ids: [term_openwork], evidence_refs: ["Studio messages 135-136", "dst_acc_003 conflict"], result: blocked, finding_id: e2_e_001}
+  - {case_id: e2_case_024, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "从学术研究角度，陈家祠灰塑有什么价值？", preconditions: "explicit research framing", expected: "attributed research-card answer", actual: "base RAG and visit-service excerpt", actual_route: "tour_qa", tour_state_before: "not captured", tour_state_after: "unchanged", source_or_card_ids: [research_008_grey_plaster_lions], evidence_refs: ["Studio messages 139-140"], result: failed, finding_id: e2_e_002}
+  - {case_id: e2_case_025, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "研究者通常如何解释陈家祠的建筑装饰", preconditions: "explicit research framing", expected: "attributed research-card answer", actual: "base history RAG without research attribution", actual_route: "tour_qa", tour_state_before: "not captured", tour_state_after: "unchanged", source_or_card_ids: [research_006_sculptural_metaphor], evidence_refs: ["Studio messages 141-142"], result: failed, finding_id: e2_e_002}
+  - {case_id: e2_case_026, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "适合一家人拍照的地方有哪些", preconditions: "none", expected: "natural-language safe family photo advice", actual: "raw DSML tool-call markup leaked", actual_route: "llm_think", tour_state_before: "not captured", tour_state_after: "not captured", source_or_card_ids: [], evidence_refs: ["Studio messages 149-150; screenshot codex-clipboard-3e22ecda-8851-494f-8e07-1bd4618e2819.png"], result: failed, finding_id: e2_f_001}
+  - {case_id: e2_case_027, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "把这个打卡点加入路线，再告诉我怎么拍", preconditions: "no confirmed referenced photo point", expected: "clarify point; no automatic route change", actual: "generic 61-minute route and no photo advice", actual_route: "profile_collection -> direct_route", tour_state_before: "not captured", tour_state_after: "route replanned", source_or_card_ids: [], evidence_refs: ["Studio messages 157-159; screenshot codex-clipboard-0aba0a07-751e-49d2-b76c-4f561e881304.png"], result: failed, finding_id: e2_f_002}
+  - {case_id: e2_case_028, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "灰塑和砖雕有什么区别", preconditions: "ordinary visitor comparison", expected: "concise base-RAG comparison with no route mutation", actual: "raw craft excerpts plus unrelated item and stale location footer", actual_route: "tour_qa", tour_state_before: "current_stop_id=后西庭", tour_state_after: "unchanged", source_or_card_ids: [S10], evidence_refs: ["Studio messages 137-138"], result: failed, finding_id: e2_p_001}
+  - {case_id: e2_case_029, thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f", input: "陈家祠是什么？", preconditions: "none", expected: "concise identity answer", actual: "correctly identified museum site and 陈氏书院; state unchanged", actual_route: "tour_qa", tour_state_before: "not captured", tour_state_after: "unchanged", source_or_card_ids: [S01, S02, S04], evidence_refs: ["Studio messages 105-106"], result: passed, finding_id: null}
+  - {"case_id":"e2_case_030","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"想看木雕","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 2 and following AI message(s)"],"result":"blocked","finding_id":null}
+  - {"case_id":"e2_case_031","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"先简单讲讲","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 4 and following AI message(s)"],"result":"blocked","finding_id":null}
+  - {"case_id":"e2_case_032","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"到了","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 7 and following AI message(s)"],"result":"passed","finding_id":null}
+  - {"case_id":"e2_case_033","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"月台","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 9 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_034","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"我要到月台","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 11 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_035","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"已到前院中部","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 16 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_036","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"抵达前院中部","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 30 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_037","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"帮我规划路线","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 36 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_038","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"我想看灰塑，但不想走太多路。","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 42 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_039","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"帮我i规划一条60分钟详细讲解路线","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 44 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_040","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"再详细讲一点金蟾吐瑞气","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 50 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_041","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"下一点前往哪里","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 54 and following AI message(s)"],"result":"blocked","finding_id":null}
+  - {"case_id":"e2_case_042","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"已到达前庭","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 58 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_043","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"下一站去哪里","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 62 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_044","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"参观完前院中部和前庭，下一站去哪里","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 64 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_045","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"跳过这里","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 66 and following AI message(s)"],"result":"passed","finding_id":null}
+  - {"case_id":"e2_case_046","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"跳过这一战","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 68 and following AI message(s)"],"result":"passed","finding_id":null}
+  - {"case_id":"e2_case_047","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"我到后西庭了，讲点关于三国的","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 70 and following AI message(s)"],"result":"passed","finding_id":null}
+  - {"case_id":"e2_case_048","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"结束路线","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 73 and following AI message(s)"],"result":"passed","finding_id":null}
+  - {"case_id":"e2_case_049","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"给我讲讲月台","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 75 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_050","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"详细讲述杏林春燕","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 77 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_051","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"重点讲前院建筑结构","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 79 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_052","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"给我介绍陈家祠的总体情况","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 83 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_053","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"给我介绍陈家祠有什么灰塑","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 85 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_054","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"给孩子讲杏林春燕","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 89 and following AI message(s)"],"result":"passed","finding_id":null}
+  - {"case_id":"e2_case_055","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"用专业一点的方式讲杏林春燕","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 93 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_056","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"我是一名研究灰塑的学者，给我讲述陈家祠特色灰塑","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 95 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_057","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"我想要听关于灰塑的详细学术内容","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 97 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_058","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"继续刚才的讲解","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 99 and following AI message(s)"],"result":"passed","finding_id":null}
+  - {"case_id":"e2_case_059","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"灰塑是什么","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 109 and following AI message(s)"],"result":"passed","finding_id":null}
+  - {"case_id":"e2_case_060","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"这里的灰塑有什么特点","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 111 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_061","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"百鸟朝凤是什么题材","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 117 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_062","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"后东庭这里有什么","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 121 and following AI message(s)"],"result":"passed","finding_id":null}
+  - {"case_id":"e2_case_063","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"现在有没有临时展览","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 125 and following AI message(s)"],"result":"passed","finding_id":null}
+  - {"case_id":"e2_case_064","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"陈家祠有没有其他祠堂不存在的装饰","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 127 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_065","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"灰塑的拼音是什么","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 131 and following AI message(s)"],"result":"passed","finding_id":null}
+  - {"case_id":"e2_case_066","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"栏杆英文怎么说","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 133 and following AI message(s)"],"result":"passed","finding_id":null}
+  - {"case_id":"e2_case_067","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"陈家祠和普通祠堂有什么不同","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 143 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_068","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"给我推荐几个打卡点。","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 145 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_069","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"在首进正门可以怎么拍","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 147 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_070","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"有没有适合一个人拍的角度","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 151 and following AI message(s)"],"result":"failed","finding_id":null}
+  - {"case_id":"e2_case_071","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"我们想拍一组岭南风格的情侣照。","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 153 and following AI message(s)"],"result":"passed","finding_id":null}
+  - {"case_id":"e2_case_072","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"利用建筑结构","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 155 and following AI message(s)"],"result":"failed","finding_id":null}
+findings:
+  - finding_id: e2_b_003
+    reviewer: null
+    tested_commit: d00396969761025896358d90785f0c75ba7a166c
+    tested_branch: main
+    test_date: "2026-07-27"
+    module: tour_event
+    issue_type: navigation_routed_as_raw_qa
+    severity: P1
+    reproducibility: high
+    preconditions: "route points to 月台"
+    conversation: ["月台", "我要到月台", "我该如何去到月台"]
+    expected: "navigate or clarify destination"
+    actual: "three turns returned raw 月台 object excerpts; one arrival turn produced blank AI output"
+    problem_description: "navigation intent and arrival rendering are unreliable"
+    evidence_refs: ["Studio messages 9-12,16-21"]
+    suspected_layer: tour_event_routing
+    proposed_solution: "prioritize arrival/navigation intent before RAG"
+    acceptance_test: "月台 navigation returns route guidance, never raw ornament dump"
+    status: P1
+  - finding_id: e2_f_003
+    reviewer: null
+    tested_commit: d00396969761025896358d90785f0c75ba7a166c
+    tested_branch: main
+    test_date: "2026-07-27"
+    module: photo_advice
+    issue_type: eligibility_gate_bypassed
+    severity: P2
+    reproducibility: medium
+    preconditions: "whole-site and entrance photo requests"
+    conversation: ["给我推荐几个打卡点。", "在首进正门可以怎么拍", "有没有适合一个人拍的角度"]
+    expected: "only editorial candidates, with required wording and safety boundary"
+    actual: "answers assert direct recommendations and site facts without visible editorial-candidate gate"
+    problem_description: "manual review cannot verify photo-card eligibility or source boundary from rendered answer"
+    evidence_refs: ["Studio messages 145-148,151-152"]
+    suspected_layer: photo_routing_and_rendering
+    proposed_solution: "make selected editorial-candidate provenance auditable while retaining visitor-safe wording"
+    acceptance_test: "photo answer is traceable to eligible candidate and contains required onsite caveat"
+    status: P2
+  - finding_id: e2_a_001
+    reviewer: null
+    tested_commit: d00396969761025896358d90785f0c75ba7a166c
+    tested_branch: main
+    test_date: "2026-07-27"
+    module: route_planning
+    issue_type: time_budget
+    severity: P1
+    reproducibility: high
+    preconditions: "60-minute craft route request"
+    conversation: ["我有60分钟，想重点了解木雕和建筑工艺。"]
+    expected: "A route must stay within available time."
+    actual: "Returned a 60-minute route estimated at 61 minutes."
+    problem_description: "Time budget is exceeded before tour starts."
+    evidence_refs: ["manual observation: A-03"]
+    suspected_layer: route_planning
+    proposed_solution: "Reject or trim route plans that exceed the confirmed budget."
+    acceptance_test: "Estimated duration <= available_minutes."
+    status: P1
+  - finding_id: e2_a_002
+    reviewer: null
+    tested_commit: d00396969761025896358d90785f0c75ba7a166c
+    tested_branch: main
+    test_date: "2026-07-27"
+    module: route_planning
+    issue_type: duration_normalization_and_replanning
+    severity: P1
+    reproducibility: high
+    preconditions: "Existing craft route and preference context"
+    conversation: ["我有1小时，想重点了解木雕和建筑工艺。", "我有90分钟，想做研学参观。", "我只剩20分钟了，帮我调整路线。"]
+    expected: "Equivalent duration phrasing and updated time/interest must create a matching remaining route."
+    actual: "1小时 entered RAG instead of route planning; 90 minutes still returned a 60-minute craft route; 20-minute update did not create a usable replan."
+    problem_description: "Duration normalization, profile application, and dynamic replan are inconsistent."
+    evidence_refs: ["manual observation: A-04,A-05,A-10"]
+    suspected_layer: routing_and_route_planning
+    proposed_solution: "Normalize durations before routing and replan from non-completed stops only."
+    acceptance_test: "1小时=60分钟; 90-minute study request differs from 60-minute craft route; 20-minute update yields <=20-minute remaining itinerary."
+    status: P1
+  - finding_id: e2_b_001
+    reviewer: null
+    tested_commit: d00396969761025896358d90785f0c75ba7a166c
+    tested_branch: main
+    test_date: "2026-07-27"
+    module: tour_event
+    issue_type: arrival_and_continuity
+    severity: P1
+    reproducibility: high
+    preconditions: "Route has suggested 前庭 after 前院中部."
+    conversation: ["现在出发，已经到达", "已到达前庭", "参观完前院中部和前庭，下一站去哪里"]
+    expected: "Ask a targeted point clarification when needed; arrival must not mean completion; next-stop advice must not repeat a stated completed point."
+    actual: "Generic arrival was not resolved; later reply named 前院中部 as next stop after the user stated it had been visited."
+    problem_description: "Pending stop and completion semantics are not carried safely through natural language."
+    evidence_refs: ["studio thread 019fa2c7-b5f6-7b50-b774-12edef2c612f messages 54-65"]
+    suspected_layer: tour_event_and_interaction_state
+    proposed_solution: "Use pending stop in clarification and distinguish stated visit claims from explicit completion confirmation."
+    acceptance_test: "Arrival changes current stop only; only explicit confirmation writes visited; next-step never repeats confirmed/stated-completed point without clarification."
+    status: P1
+  - finding_id: e2_c_001
+    reviewer: null
+    tested_commit: d00396969761025896358d90785f0c75ba7a166c
+    tested_branch: main
+    test_date: "2026-07-27"
+    module: tour_qa
+    issue_type: point_and_profile_selection
+    severity: P1
+    reproducibility: high
+    preconditions: "User stated 前庭 and preference 木雕."
+    conversation: ["先介绍前庭，我比较喜欢木雕"]
+    expected: "A point-aware introduction should prioritize verified 前庭 wood-carving content."
+    actual: "Raw RAG began with 五福捧寿（灰塑） and did not provide a coherent 前庭 wood-carving introduction."
+    problem_description: "Point and declared interest do not control selection order."
+    evidence_refs: ["studio thread messages 60-61; screenshot codex-clipboard-16291fb1-b1fe-4df4-a2ce-3024d7b49067.png"]
+    suspected_layer: point_retrieval_and_response_composition
+    proposed_solution: "Rank verified point-object associations and explicit craft preference before generic RAG."
+    acceptance_test: "前庭+木雕 returns verified 前庭 wood-carving content first."
+    status: P1
+  - finding_id: e2_c_002
+    reviewer: null
+    tested_commit: d00396969761025896358d90785f0c75ba7a166c
+    tested_branch: main
+    test_date: "2026-07-27"
+    module: profile_control
+    issue_type: multi_intent_partial_execution
+    severity: P1
+    reproducibility: high
+    preconditions: "杏林春燕 was just explained to a child."
+    conversation: ["用专业一点的方式讲杏林春燕"]
+    expected: "Update preference and immediately explain the named object professionally."
+    actual: "Only returned a preference-updated acknowledgement."
+    problem_description: "The concrete explanation request is dropped."
+    evidence_refs: ["studio thread messages 89-94"]
+    suspected_layer: extended_profile_control
+    proposed_solution: "After profile mutation, dispatch remaining explicit QA intent in the same turn."
+    acceptance_test: "Response contains both update acknowledgement and professional 杏林春燕 explanation."
+    status: P1
+  - finding_id: e2_d_001
+    reviewer: null
+    tested_commit: d00396969761025896358d90785f0c75ba7a166c
+    tested_branch: main
+    test_date: "2026-07-27"
+    module: spatial_qa
+    issue_type: stale_location_injection
+    severity: P1
+    reproducibility: high
+    preconditions: "Thread route is completed with current_stop_id=后西庭."
+    conversation: ["我是一名学者，现在在后东庭，给我介绍这里的木雕", "我现在在后东庭，这里能看到什么", "这里的灰塑有什么特点"]
+    expected: "QA must not silently mutate TourState, but explicit current-point wording must be used as temporary retrieval context or trigger a conflict clarification."
+    actual: "Responses repeatedly stated 用户位于后西庭 and appended finished state; 后东庭 query returned only 3 of 7 mapped items."
+    problem_description: "Stale formal state overrides current user wording and produces wrong spatial answers."
+    evidence_refs: ["studio thread messages 101-104,112", "route_stop_catalog_v1.csv: 后东庭 maps 7 items"]
+    suspected_layer: tour_qa_context_injection
+    proposed_solution: "Separate formal state from turn-local location candidate and suppress stale location footer in unrelated QA."
+    acceptance_test: "后东庭 query uses 后东庭 associations or asks for arrival confirmation; never asserts 后西庭."
+    status: P1
+  - finding_id: e2_d_002
+    reviewer: null
+    tested_commit: d00396969761025896358d90785f0c75ba7a166c
+    tested_branch: main
+    test_date: "2026-07-27"
+    module: tour_qa
+    issue_type: direct_fact_and_location_presentation
+    severity: P1
+    reproducibility: high
+    preconditions: null
+    conversation: ["陈家祠建于哪一年？", "这个对象在哪里"]
+    expected: "Give a direct, source-qualified answer and translate raw locations into approved visitor-facing node names."
+    actual: "Year answer pasted history, visit services and layout instead of answering; 百鸟朝凤 answer gave 首进西路北面 but omitted mapped point 前西庭."
+    problem_description: "Direct questions are replaced by raw retrieval excerpts and cannot support visitor navigation."
+    evidence_refs: ["studio thread messages 107-108", "screenshot codex-clipboard-713c2fbb-6b20-4013-813b-db275d8eadbf.png"]
+    suspected_layer: response_composition
+    proposed_solution: "Answer first; state 1888 start and 1893/1894 completion-source difference; render raw location plus approved node."
+    acceptance_test: "Answer begins with date/location, then concise source caveat; no internal filename in visitor text."
+    status: P1
+  - finding_id: e2_d_003
+    reviewer: null
+    tested_commit: d00396969761025896358d90785f0c75ba7a166c
+    tested_branch: main
+    test_date: "2026-07-27"
+    module: tour_qa
+    issue_type: context_loss
+    severity: P1
+    reproducibility: high
+    preconditions: "Previous query explicitly named 月台上的石雕."
+    conversation: ["月台上的石雕有什么特点", "石雕"]
+    expected: "First answer addresses moon-platform stone carving; follow-up inherits 月台 context."
+    actual: "First response listed ten objects without answering characteristics; follow-up retrieved 首进正门 stone lions and 封侯挂印."
+    problem_description: "Specific spatial qualifier is lost between adjacent turns."
+    evidence_refs: ["studio thread messages 113-116"]
+    suspected_layer: conversational_retrieval
+    proposed_solution: "Persist explicit object and point qualifiers for short follow-ups."
+    acceptance_test: "月台→石雕 remains scoped to 月台."
+    status: P1
+  - finding_id: e2_e_001
+    reviewer: null
+    tested_commit: d00396969761025896358d90785f0c75ba7a166c
+    tested_branch: main
+    test_date: "2026-07-27"
+    module: glossary
+    issue_type: enabled_term_not_routed
+    severity: P1
+    reproducibility: high
+    preconditions: null
+    conversation: ["通花英文怎么说"]
+    expected: "Use enabled reviewed term_openwork and answer openwork."
+    actual: "llm_think emitted unrelated stone-carving RAG text."
+    problem_description: "A reviewed English term card is bypassed."
+    evidence_refs: ["glossary_zh_en_v0.yaml: term_openwork", "card_runtime_eligibility_knowledge_v1.yaml: term_openwork enabled"]
+    suspected_layer: glossary_routing
+    proposed_solution: "Run exact/alias term match before generic RAG."
+    acceptance_test: "通花英文 returns openwork and no raw RAG."
+    status: P1
+  - finding_id: e2_e_002
+    reviewer: null
+    tested_commit: d00396969761025896358d90785f0c75ba7a166c
+    tested_branch: main
+    test_date: "2026-07-27"
+    module: research_cards
+    issue_type: attributed_research_not_routed
+    severity: P1
+    reproducibility: high
+    preconditions: null
+    conversation: ["从学术研究角度，陈家祠灰塑有什么价值？", "研究者通常如何解释陈家祠的建筑装饰"]
+    expected: "Use eligible research cards with attributed wording, scope, limitations and supporting RAG where appropriate."
+    actual: "Both entered tour_qa and pasted base RAG; first also included visit-service material."
+    problem_description: "Explicit research questions are downgraded to ordinary factual retrieval."
+    evidence_refs: ["studio thread messages 139-142", "runtime eligibility: research_006 and research_008 attributed_only"]
+    suspected_layer: research_question_routing
+    proposed_solution: "Detect explicit academic framing and use attributed-only research-card pathway."
+    acceptance_test: "Answers say 某研究/研究者, include limitations, and do not present viewpoints as museum facts."
+    status: P1
+  - finding_id: e2_f_001
+    reviewer: null
+    tested_commit: d00396969761025896358d90785f0c75ba7a166c
+    tested_branch: main
+    test_date: "2026-07-27"
+    module: photo_advice
+    issue_type: raw_tool_markup_leak
+    severity: P1
+    reproducibility: high
+    preconditions: null
+    conversation: ["适合一家人拍照的地方有哪些"]
+    expected: "Natural-language editorial photo advice with no internal tool representation."
+    actual: "Visitor received DSML tool_calls/invoke/parameter markup."
+    problem_description: "Internal tool-call syntax is exposed and the requested answer is absent."
+    evidence_refs: ["screenshot codex-clipboard-3e22ecda-8851-494f-8e07-1bd4618e2819.png"]
+    suspected_layer: tool_call_rendering
+    proposed_solution: "Ensure tool calls execute server-side and only final composed response reaches visitor UI."
+    acceptance_test: "No DSML, tool_calls, invoke, parameters, file paths or raw tool output in visitor response."
+    status: P1
+  - finding_id: e2_f_002
+    reviewer: null
+    tested_commit: d00396969761025896358d90785f0c75ba7a166c
+    tested_branch: main
+    test_date: "2026-07-27"
+    module: photo_advice
+    issue_type: ambiguous_photo_route_change
+    severity: P1
+    reproducibility: high
+    preconditions: "No successfully confirmed preceding photo point."
+    conversation: ["把这个打卡点加入路线，再告诉我怎么拍"]
+    expected: "Ask which point; do not automatically modify route; offer safe photo guidance."
+    actual: "profile_collection→direct_route produced a generic 61-minute route for 60 minutes and no photo advice."
+    problem_description: "Ambiguous reference triggers unrelated route mutation and loses photo request."
+    evidence_refs: ["screenshot codex-clipboard-0aba0a07-751e-49d2-b76c-4f561e881304.png"]
+    suspected_layer: multi_intent_router
+    proposed_solution: "Resolve photo-point reference and require explicit confirmation before replan."
+    acceptance_test: "No route state change until a concrete point and confirmation are supplied."
+    status: P1
+  - finding_id: e2_p_001
+    reviewer: null
+    tested_commit: d00396969761025896358d90785f0c75ba7a166c
+    tested_branch: main
+    test_date: "2026-07-27"
+    module: response_presentation
+    issue_type: raw_retrieval_presentation
+    severity: P2
+    reproducibility: high
+    preconditions: null
+    conversation: ["帮我介绍陈家祠建筑结构", "帮我列举陈家祠的全部灰塑"]
+    expected: "Direct structured visitor response; exhaustive request must disclose coverage limit when sources cannot prove completeness."
+    actual: "Answers display filenames and raw excerpts; complete-grey-plaster request returned generic architecture, craft and visit-service material."
+    problem_description: "Relevant facts are not synthesized into the requested form."
+    evidence_refs: ["studio thread messages 87-88", "screenshot codex-clipboard-77d2afa6-3278-4138-a671-7fe4e12223d9.png"]
+    suspected_layer: response_composition
+    proposed_solution: "Use answer-first templates and an explicit completeness boundary."
+    acceptance_test: "No internal filenames; exhaustive list is either verified enumeration or qualified as partial."
+    status: P2
+  - finding_id: e2_e_003
+    reviewer: null
+    tested_commit: d00396969761025896358d90785f0c75ba7a166c
+    tested_branch: main
+    test_date: "2026-07-27"
+    module: comparison_cards
+    issue_type: ambiguous_comparison_not_clarified
+    severity: P2
+    reproducibility: high
+    preconditions: null
+    conversation: ["对比一下其他祠堂，陈家祠有什么特点"]
+    expected: "Do not call research comparison card for unspecified comparator; ask a clarifying question."
+    actual: "tour_qa returned generic history material without clarification."
+    problem_description: "Correct comparison-card boundary is not communicated."
+    evidence_refs: ["screenshot codex-clipboard-c53404b4-cbb6-478e-a124-32d20b6dd186.png"]
+    suspected_layer: comparison_intent_handling
+    proposed_solution: "Ask for comparison target and whether a research comparison is intended."
+    acceptance_test: "Ambiguous comparison receives clarification; explicit research comparison uses attributed comparison card."
+    status: P2
+  - finding_id: e2_d_004
+    reviewer: null
+    tested_commit: d00396969761025896358d90785f0c75ba7a166c
+    tested_branch: main
+    test_date: "2026-07-27"
+    module: dynamic_information
+    issue_type: safe_fallback
+    severity: P3
+    reproducibility: high
+    preconditions: null
+    conversation: ["今天几点关门"]
+    expected: "No unsupported same-day hours; refer user to official current channel."
+    actual: "Safely stated that same-day hours are unavailable and referred to official channels."
+    problem_description: "Pass; wording can be shortened for visitor readability."
+    evidence_refs: ["screenshot codex-clipboard-e290733b-bb4a-40cf-b2b5-297eaf86a318.png"]
+    suspected_layer: safe_fallback
+    proposed_solution: "Optional concise wording refinement only."
+    acceptance_test: "No invented real-time opening hours."
+    status: passed
+data_conflicts_to_confirm:
+  - issue: "后东庭 status differs across spatial files."
+    existing_data: "add_node_registry records connected_pending_guide_review; route_stop_catalog records approved and seven mapped objects."
+    impact: "May contribute to unstable point retrieval; no data was changed during review."
+    recommended_resolution: "Owners should confirm one authoritative readiness status and document its runtime meaning."
+uncompleted_or_blocked:
+  - "No two-thread isolation test was executed in this review session."
+  - "No valid LangSmith trace URLs are available because tracing ingestion was unavailable; local Studio message indexes are retained as evidence."
+  - "Reviewer identity is not supplied, therefore reviewer and reviewed_at remain null."
