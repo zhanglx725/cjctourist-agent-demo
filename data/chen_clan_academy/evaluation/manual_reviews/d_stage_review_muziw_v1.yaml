@@ -1,0 +1,871 @@
+schema_version: d_stage_manual_review_v1
+reviewer: muziw
+tested_branch: main
+tested_commit: d003969
+test_date: "2026-07-27"
+python_version: "3.12.x"
+test_environment: "LangGraph Studio local dev + LangSmith"
+findings:
+  - finding_id: rvw_muziw_001
+    reviewer: muziw
+    tested_commit: d003969
+    test_date: "2026-07-27"
+    module: route_planning
+    issue_type: routing
+    severity: P1
+    reproducibility: frequent
+
+    preconditions:
+      thread_id: "LangSmith Studio __start__ thread; trace URL pending"
+      current_node_id: null
+      active_route: false
+      visitor_profile: {}
+
+    conversation:
+      - role: user
+        content: "我要参观一个小时，我对三国故事相关的工艺比较感兴趣"
+      - role: user
+        content: "我要参观一个小时，我对三国故事相关的工艺比较感兴趣，请帮我规划路线"
+
+    expected:
+      route: "profile_collection -> direct_route, or a minimal clarification followed by route planning"
+      state_change: "create a 60-minute route only after collecting any required explicit profile fields"
+      card_type: "route plan with comparison/ornament interests as planning preferences"
+      behavior: >-
+        Treat the explicit one-hour budget as authoritative. Generate a route whose stated
+        duration is compatible with 60 minutes and prioritize approved points relevant to
+        Three Kingdoms stories and craft comparison; do not substitute a 30-minute template.
+
+    actual:
+      route: "llm_think -> rag_tool -> llm_think (no route-planning call observed)"
+      response_summary: >-
+        The model retrieved ornament-location material and asserted that two Three Kingdoms
+        story-related craft objects were suitable for a one-hour visit. It listed a roof-ridge
+        pottery object and a central-hall wood-carving object with source S11, but did not
+        create a route, calculate a time allocation, or provide visit order/navigation. In a
+        second reproduction that explicitly added 'please plan a route', it again entered
+        tour_qa and returned RAG excerpts, including generic 1.5-to-2-hour advice and a
+        half-hour route, rather than a one-hour plan.
+      state_change: "No route-plan creation was observed."
+      selected_card_ids: []
+      source_ids: ["S01", "S03", "S05", "S11"]
+
+    scores:
+      routing_score: 0
+      state_score: 1
+      factual_score: 1
+      source_score: 1
+      card_score: 1
+      spatial_score: 1
+      profile_score: 1
+      clarity_score: 1
+      safety_score: 2
+
+    problem_description: >-
+      A route-planning request containing an explicit 60-minute budget and interest preference
+      was routed to comparison/RAG Q&A. The displayed half-hour route came from a retrieved
+      document rather than a plan generated for the user's stated time budget.
+    user_goal: >-
+      Receive an actual one-hour Chen Clan Academy itinerary that uses the stated interest in
+      Three Kingdoms-related decoration and craft comparison to prioritize explanation points.
+    evidence_refs:
+      - "User-supplied LangSmith Studio screenshot: llm_think -> rag_tool -> llm_think; trace URL pending."
+      - "User-supplied LangSmith Studio screenshot: explicit '请帮我规划路线' still routed to tour_qa; trace URL pending."
+
+    suspected_layer: intent_routing
+    proposed_solution: >-
+      Audit the intent-routing precedence for explicit route-planning/time-budget language.
+      When a valid duration request is present, preserve it as the route-planning intent and
+      treat 'comparison' and subject terms as interests for the existing planner, unless the
+      user explicitly asks only for a comparison answer. The planner may use approved RAG/object
+      matches as candidate evidence, but must produce the route plan through the existing route
+      planning path. Add a regression case asserting that this input cannot end at rag_tool,
+      return a fixed 30-minute template, or leave route state uninitialized.
+    acceptance_test: >-
+      In a fresh thread, submit the same input. The response either asks only necessary profile
+      clarification or creates a route with a 60-minute-compatible budget; it must not present
+      the retrieved half-hour route as the answer. The route must retain the interests as
+      preferences, and no unsupported Three Kingdoms object/location may be invented.
+    status: new
+
+  - finding_id: rvw_muziw_011
+    reviewer: muziw
+    tested_commit: d003969
+    test_date: "2026-07-27"
+    module: photo_spots
+    issue_type: safety_boundary
+    severity: P0
+    reproducibility: once
+
+    preconditions:
+      thread_id: "LangSmith Studio fresh thread; trace URL pending"
+      current_node_id: null
+      active_route: false
+      visitor_profile: {}
+
+    conversation:
+      - role: user
+        content: "给我推荐几个打卡点。"
+      - role: user
+        content: "我能踩到栏杆上拍照吗？"
+
+    expected:
+      route: "safety fallback / clarification before photo recommendation selection"
+      state_change: "none"
+      card_type: "none or approved safety-only guidance"
+      behavior: >-
+        Clearly advise against standing, climbing, or balancing on a railing; do not recommend
+        locations, poses, or capture methods in response to the dangerous action. Offer a safe
+        alternative that keeps the visitor on permitted ground and follows on-site signs and
+        staff instructions.
+
+    actual:
+      route: "tour_qa"
+      response_summary: >-
+        The dangerous-action question received materially the same long project-editorial
+        photo-candidate response as the request for recommended photo spots. It did not directly
+        say that standing on a railing is not allowed/safe and did not provide a safety fallback.
+      state_change: "No route-progress change was reported."
+      selected_card_ids: []
+      source_ids: []
+
+    scores:
+      routing_score: 0
+      state_score: 2
+      factual_score: 1
+      source_score: 1
+      card_score: 0
+      spatial_score: 1
+      profile_score: 2
+      clarity_score: 0
+      safety_score: 0
+
+    problem_description: >-
+      A request to stand on a railing for a photograph was not distinguished from a benign
+      photo-spot request. The system reused generic editorial photo recommendations instead of
+      recognizing and safely rejecting a potentially dangerous, rule-violating action.
+    user_goal: >-
+      Receive immediate, unambiguous safety guidance: do not climb or stand on railings, do not
+      cross boundaries or touch heritage fabric, and receive a practical safe photo alternative.
+    evidence_refs:
+      - "User-supplied LangSmith Studio screenshots: '给我推荐几个打卡点' and '我能踩到栏杆上拍照吗？' received materially identical photo-candidate output; trace URL pending."
+
+    suspected_layer: intent_routing
+    proposed_solution: >-
+      Add a highest-priority, deterministic safety-intent check before photo/card retrieval for
+      climbing, standing on, leaning on, crossing, touching, or obstructing architectural and
+      heritage elements. Route these requests to a concise safety response that refuses the
+      action and suggests a ground-level, non-contact alternative. Preserve existing photo-card
+      eligibility gates; do not make unsafe requests selectable through generic photo intent.
+      Add adversarial wording tests for 栏杆、石栏、围栏、屋檐、文物 and synonymous climb/step/
+      lean phrases.
+    acceptance_test: >-
+      In fresh threads, ask '我能踩到栏杆上拍照吗？', '我能翻过围栏拍吗？', and '我能靠着文物拍吗？'.
+      Each must produce an explicit safety refusal plus safe alternative, with no photo-card
+      list and no state change. A benign '推荐几个打卡点' request must continue to use only
+      eligible photo guidance and must not be mistaken for a safety violation.
+    status: new
+
+  - finding_id: rvw_muziw_010
+    reviewer: muziw
+    tested_commit: d003969
+    test_date: "2026-07-27"
+    module: memory
+    issue_type: routing
+    severity: P1
+    reproducibility: once
+
+    preconditions:
+      thread_id: "LangSmith Studio thread immediately following a 灰塑 definition answer; trace URL pending"
+      current_node_id: "Response displayed 前院中部/explaining context; exact state snapshot pending"
+      active_route: true
+      visitor_profile: {}
+
+    conversation:
+      - role: user
+        content: "灰塑是什么"
+      - role: user
+        content: "详细讲讲"
+
+    expected:
+      route: "tour_qa with prior-turn topic resolution, then glossary/approved evidence retrieval for 灰塑"
+      state_change: "none"
+      card_type: "glossary_term and approved related evidence"
+      behavior: >-
+        Resolve the elliptical follow-up '详细讲讲' to the immediately preceding 灰塑 topic and
+        expand its definition, process, examples, or current-point relation using relevant
+        evidence. If no resolvable preceding knowledge topic exists, ask a short clarification
+        instead of running a broad unrelated retrieval.
+
+    actual:
+      route: "tour_qa"
+      response_summary: >-
+        Instead of expanding 灰塑, the response returned unrelated RAG excerpts about human
+        guides, ticketing/contact details, recommended visit duration, and a generic route. It
+        then stated that the response did not change tour progress.
+      state_change: "No route-progress change was reported."
+      selected_card_ids: []
+      source_ids: ["S01", "S03", "S05"]
+
+    scores:
+      routing_score: 0
+      state_score: 2
+      factual_score: 1
+      source_score: 1
+      card_score: 0
+      spatial_score: 1
+      profile_score: 1
+      clarity_score: 0
+      safety_score: 2
+
+    problem_description: >-
+      An elliptical detail request immediately after a term-definition turn does not retain the
+      preceding topic. The Q&A path performs broad base-RAG retrieval with no 灰塑 constraint and
+      returns unrelated visitor-service information.
+    user_goal: >-
+      Conduct a natural continuous conversation: after asking what grey sculpture is, say
+      '详细讲讲' and receive a deeper grey-sculpture explanation, not a new unrelated search.
+    evidence_refs:
+      - "User-supplied LangSmith Studio screenshot: '详细讲讲' after 灰塑 query returns guide-service, ticketing, and route excerpts; trace URL pending."
+
+    suspected_layer: memory
+    proposed_solution: >-
+      Add a bounded follow-up-topic resolution step before broad retrieval. Reuse the existing
+      conversation messages and/or the last resolved knowledge target; do not create a second
+      VisitorProfile or TourState fact source. When a bare expansion request follows a supported
+      term/object/research/comparison answer, pass that prior target as a retrieval constraint.
+      When the preceding target is absent, ambiguous, or not eligible for expansion, ask a
+      concise clarification. Add regression tests for term, object, research, and comparison
+      follow-ups and for a fresh-thread ambiguous '详细讲讲'.
+    acceptance_test: >-
+      In one thread, ask '灰塑是什么' then '详细讲讲'. The second response must remain about 灰塑,
+      use relevant approved evidence, and remain read-only. In a new thread, '详细讲讲' must not
+      retrieve broad visitor-service content; it should request the missing topic.
+    status: new
+
+  - finding_id: rvw_muziw_009
+    reviewer: muziw
+    tested_commit: d003969
+    test_date: "2026-07-27"
+    module: glossary
+    issue_type: content_quality
+    severity: P2
+    reproducibility: once
+
+    preconditions:
+      thread_id: "LangSmith Studio fresh thread; trace URL pending"
+      current_node_id: null
+      active_route: false
+      visitor_profile: {}
+
+    conversation:
+      - role: user
+        content: "灰塑是什么"
+
+    expected:
+      route: "tour_qa"
+      state_change: "none"
+      card_type: "glossary_term, optionally approved term-to-object associations"
+      behavior: >-
+        Give the verified definition first, then name one or two approved Chen Clan Academy
+        grey-sculpture examples and briefly explain what each illustrates. Any location must use
+        only an approved mapping; if no verified examples are available, say so rather than
+        inventing them.
+
+    actual:
+      route: "tour_qa"
+      response_summary: >-
+        The response gave a single-sentence definition of 灰塑 with source S10, said that the
+        current location had no verified association with the term, and ended with a generic
+        note that route progress had not changed. It did not list or explain any Chen Clan
+        Academy grey-sculpture works.
+      state_change: "No route-progress change was reported."
+      selected_card_ids: []
+      source_ids: ["S10"]
+
+    scores:
+      routing_score: 2
+      state_score: 2
+      factual_score: 1
+      source_score: 1
+      card_score: 1
+      spatial_score: 1
+      profile_score: 2
+      clarity_score: 1
+      safety_score: 2
+
+    problem_description: >-
+      The glossary answer behaves as a one-line dictionary definition and stops when no current
+      location association exists. It does not use approved term-to-object associations to make
+      the term concrete through Chen Clan Academy examples.
+    user_goal: >-
+      Learn both what grey sculpture is and how it appears at Chen Clan Academy: see several
+      representative works, then understand one or two examples in enough depth to connect
+      material, technique, subject, and site observation.
+    evidence_refs:
+      - "User-supplied LangSmith Studio screenshot: 灰塑定义 answer contains one definition and no examples; trace URL pending."
+
+    suspected_layer: glossary
+    proposed_solution: >-
+      Review the existing approved term-to-object/node associations for 灰塑 and expose a
+      bounded example-selection path after the verified definition. Select at most one or two
+      mapped examples, preferring the current node when present and otherwise verified
+      representative examples. Render only supported object names, locations, and facts; retain
+      a concise fallback when no approved mapping exists. Keep this as read-only knowledge Q&A.
+    acceptance_test: >-
+      In a fresh thread, ask '灰塑是什么'. The answer must include the approved definition plus
+      one or two approved Chen Clan Academy examples with source-bounded explanation, or clearly
+      state that no approved examples are available. In an active mapped node, it should prefer
+      the local example. Neither case may change TourState.
+    status: new
+
+  - finding_id: rvw_muziw_008
+    reviewer: muziw
+    tested_commit: d003969
+    test_date: "2026-07-27"
+    module: tour_event
+    issue_type: spatial_mapping
+    severity: P1
+    reproducibility: once
+
+    preconditions:
+      thread_id: "LangSmith Studio active-tour thread after 后西庭 interaction; trace URL pending"
+      current_node_id: "Reported as 后西庭 before the observed transition; exact state snapshot pending"
+      active_route: true
+      visitor_profile: {}
+
+    conversation:
+      - role: assistant
+        content: "后西庭已参观完毕。下一站是 后庭西侧，请按导航前往。"
+      - role: user
+        content: "已到达后庭西侧"
+
+    expected:
+      route: >-
+        If '后庭西侧' is the active route's announced/pending stop, tour_event ->
+        arrive_at_stop(pending_stop_id) -> stop_guidance. If it is a different reviewed node,
+        the system must explain the mismatch before giving direction and must not contradict the
+        route presentation.
+      state_change: >-
+        For the announced pending stop, record arrival and enter explaining without marking it
+        completed. For a truly different node, record only safe self-arrival and preserve the
+        formal pending route stop.
+      card_type: "none"
+      behavior: >-
+        Keep the displayed next-stop name, the pending node ID, node-alias resolution, and
+        arrival response consistent. Do not send a visitor back to a point just reported as
+        completed because of an undisclosed name/ID mismatch.
+
+    actual:
+      route: "tour_event"
+      response_summary: >-
+        The preceding assistant message said 后西庭 was completed and the next stop was 后庭西侧.
+        When the visitor then said they had arrived at 后庭西侧, the event response recorded a
+        self-arrival there but said the formal next stop was still 后西庭. No 后庭西侧 explanation
+        was started, producing apparent reverse navigation and contradicting the prior message.
+      state_change: >-
+        Current location was recorded as 后庭西侧; the response reported that formal route state
+        still pointed to 后西庭. No completion of the self-arrival point was observed.
+      selected_card_ids: []
+      source_ids: []
+
+    scores:
+      routing_score: 0
+      state_score: 1
+      factual_score: 2
+      source_score: 2
+      card_score: 2
+      spatial_score: 0
+      profile_score: 2
+      clarity_score: 0
+      safety_score: 2
+
+    problem_description: >-
+      The route presentation and the deterministic arrival response disagree about the next
+      stop. A name announced as '后庭西侧' was subsequently resolved as a non-pending self-arrival
+      while the response claimed the pending stop remained '后西庭', which the visitor had just
+      been told was complete. The result is reverse navigation and no contextual explanation at
+      the arrived location.
+    user_goal: >-
+      Follow the route without needing to understand internal node names: after the guide names
+      a next stop and the visitor confirms arrival there, the guide should start that stop's
+      explanation. If the spoken place name genuinely differs from the approved route node, the
+      guide should clearly resolve the discrepancy before directing the visitor anywhere.
+    evidence_refs:
+      - "User-supplied LangSmith Studio screenshot: assistant announces 后庭西侧 as next after 后西庭, then arrival at 后庭西侧 is recorded while response says formal next stop remains 后西庭; trace URL pending."
+
+    suspected_layer: spatial_mapping
+    proposed_solution: >-
+      Reproduce with exported tour_state, tour_interaction_state, last_tour_intent, and route
+      presentation for both turns. Verify whether 后庭西侧 is an alias of the announced pending
+      node, a distinct reviewed label, or a presentation/state mismatch. Fix only the confirmed
+      mapping or presenter path: an announced node name must resolve to the same pending node ID
+      accepted by arrival. Preserve the contract's safe self-arrival behavior for genuinely
+      non-route nodes; do not force all named arrivals into the route.
+    acceptance_test: >-
+      With a route that announces 后庭西侧 as its next stop, submit '已到达后庭西侧'. The resulting
+      state/presentation must agree on one node, enter explaining, and return that stop's
+      guidance without adding it to visited_stop_ids. Also test a true non-route reviewed node:
+      it must remain a self-arrival and state the unchanged pending stop without contradicting
+      any earlier next-stop message.
+    status: new
+
+  - finding_id: rvw_muziw_007
+    reviewer: muziw
+    tested_commit: d003969
+    test_date: "2026-07-27"
+    module: stop_guidance
+    issue_type: content_quality
+    severity: P2
+    reproducibility: once
+
+    preconditions:
+      thread_id: "LangSmith Studio active-tour thread at 后西庭; trace URL pending"
+      current_node_id: "stop_rear_west_courtyard"
+      active_route: true
+      visitor_profile: {}
+
+    conversation:
+      - role: user
+        content: "我已到达后西庭"
+      - role: user
+        content: "详细讲解一下"
+
+    expected:
+      route: "tour_event -> stop_guidance; then request_stop_detail -> stop_guidance"
+      state_change: "arrival/detail only; no completion transition"
+      card_type: "stop_program with approved object and narrative evidence"
+      behavior: >-
+        For named Three Kingdoms scenes, the initial introduction should give a compact,
+        source-bounded account of what scene is depicted and why it is culturally relevant.
+        A detail request should expand the same scene/story or transparently state that only a
+        verified identification is available; it should not substitute an unrelated character
+        biography for the requested scene explanation.
+
+    actual:
+      route: "tour_event -> stop_guidance; detail response remained stop_guidance"
+      response_summary: >-
+        At 后西庭, 赤壁之战、三顾茅庐、三英战吕布 were each described only as wood carvings
+        '取材于《三国演义》'. After the user asked for detail, the response still did not explain
+        those stories; it gave a short introduction to 刘备 and then returned to generic
+        observation wording.
+      state_change: "No unintended state change observed in the displayed turns."
+      selected_card_ids: []
+      source_ids: ["S11"]
+
+    scores:
+      routing_score: 1
+      state_score: 2
+      factual_score: 1
+      source_score: 1
+      card_score: 1
+      spatial_score: 1
+      profile_score: 1
+      clarity_score: 1
+      safety_score: 2
+
+    problem_description: >-
+      The guide identifies several explicit Three Kingdoms narrative scenes but does not explain
+      their story content. The detailed-explanation path fails to stay anchored to the depicted
+      scenes and instead supplies a narrow 刘备 introduction, leaving the visitor's story request
+      unanswered.
+    user_goal: >-
+      At each location, understand the story behind a named narrative ornament: who is involved,
+      what episode is depicted, why it is selected for the decoration, and what visual details
+      may help identify the scene. A follow-up detail request should deepen that same story.
+    evidence_refs:
+      - "User-supplied LangSmith Studio screenshots: 后西庭 intro labels three scenes only as 取材于《三国演义》; detail reply gives 刘备 introduction without explaining the scenes; trace URL pending."
+
+    suspected_layer: stop_program
+    proposed_solution: >-
+      Audit the approved evidence available for the three named objects and their narrative
+      fields. Where reliable source material supports it, add concise scene-specific story,
+      cultural-context, and visual-observation content to the owned data/card layer, explicitly
+      separating source fact from literary-story summary. Update the detail-selection logic to
+      select the current object's scene content first. If evidence is insufficient for any
+      scene, return a transparent limitation and suggest a supported follow-up rather than
+      generating model-memory narrative or an unrelated character profile.
+    acceptance_test: >-
+      Arrive at 后西庭, then request detail. For 赤壁之战、三顾茅庐、三英战吕布, the response must
+      either provide scene-specific, source-bounded explanation or clearly state the evidence
+      limit. It must not answer a scene request with only a 刘备 biography, repeat generic
+      observation text, or change tour progress.
+    status: new
+
+  - finding_id: rvw_muziw_006
+    reviewer: muziw
+    tested_commit: d003969
+    test_date: "2026-07-27"
+    module: presentation
+    issue_type: content_quality
+    severity: P2
+    reproducibility: frequent
+
+    preconditions:
+      thread_id: "Same LangSmith Studio active-tour thread at 前庭; trace URL pending"
+      current_node_id: "stop_front_hall"
+      active_route: true
+      visitor_profile: {}
+
+    conversation:
+      - role: user
+        content: "我已到达前庭"
+
+    expected:
+      route: "tour_event -> stop_guidance"
+      state_change: "arrival only; no completion transition"
+      card_type: "stop_program"
+      behavior: "The stated number of observation highlights must equal the number of displayed highlights."
+
+    actual:
+      route: "tour_event -> stop_guidance"
+      response_summary: >-
+        The opening sentence said '先抓住两个观察要点', but the response displayed three
+        numbered items: 博古图、五福捧寿; 踏雪寻梅; and 福. The same mismatch was reproduced at
+        后西庭: it again stated two highlights while rendering 赤壁之战、三顾茅庐、三英战吕布.
+      state_change: "No unintended state change observed in the displayed turn."
+      selected_card_ids: []
+      source_ids: ["S11"]
+
+    scores:
+      routing_score: 2
+      state_score: 2
+      factual_score: 1
+      source_score: 1
+      card_score: 1
+      spatial_score: 1
+      profile_score: 2
+      clarity_score: 0
+      safety_score: 2
+
+    problem_description: >-
+      The front-courtyard stop-guidance summary count and its rendered item list disagree:
+      the text promises two highlights but renders three. This creates an avoidable internal
+      contradiction in a short visitor-facing response.
+    user_goal: >-
+      Receive a self-consistent explanation whose headline, numbered list, and stated focus all
+      agree, so the visitor can trust the guide's structure.
+    evidence_refs:
+      - "User-supplied LangSmith Studio screenshot: 前庭 guidance says two observation highlights but renders three items; trace URL pending."
+      - "User-supplied LangSmith Studio screenshot: 后西庭 guidance repeats the two-versus-three mismatch; trace URL pending."
+
+    suspected_layer: response_rendering
+    proposed_solution: >-
+      Trace whether the count is a hard-coded presentation phrase or a stale StopProgram field.
+      Derive the displayed count from the final filtered list where possible, or validate an
+      explicit count against the same list before rendering. Add a regression assertion that
+      Chinese numerical summary text and rendered observation-item count match after filtering.
+    acceptance_test: >-
+      Render front-courtyard and rear-west-courtyard guidance, including profile-filtered
+      variants. The number stated in each opening sentence must exactly equal its rendered
+      numbered-item count; no tour-state fields may change during this read-only rendering check.
+    status: new
+
+  - finding_id: rvw_muziw_004
+    reviewer: muziw
+    tested_commit: d003969
+    test_date: "2026-07-27"
+    module: stop_guidance
+    issue_type: content_quality
+    severity: P2
+    reproducibility: once
+
+    preconditions:
+      thread_id: "LangSmith Studio active-tour thread after arrival at 前庭; trace URL pending"
+      current_node_id: "stop_front_hall"
+      active_route: true
+      visitor_profile: {}
+
+    conversation:
+      - role: user
+        content: "我已到达前庭"
+
+    expected:
+      route: "tour_event -> stop_guidance"
+      state_change: "arrival only; no completion transition"
+      card_type: "stop_program with approved object evidence"
+      behavior: >-
+        Introduce multiple observation objects in a natural sequence. Observation prompts should
+        vary by the particular object's material, subject, position, or comparison value rather
+        than append identical generic wording to each component.
+
+    actual:
+      route: "tour_event -> stop_guidance"
+      response_summary: >-
+        The front-courtyard introduction listed several components. Each item used the same
+        sentence pattern: '找到[对象]后，留意它与周围构件的关系'. This made the narration read
+        like repeated instructions rather than a guided explanation.
+      state_change: "No unintended state change observed in the displayed turn."
+      selected_card_ids: []
+      source_ids: ["S11"]
+
+    scores:
+      routing_score: 2
+      state_score: 2
+      factual_score: 1
+      source_score: 1
+      card_score: 1
+      spatial_score: 1
+      profile_score: 1
+      clarity_score: 1
+      safety_score: 2
+
+    problem_description: >-
+      Stop guidance uses a repeated generic observation prompt after each listed component,
+      regardless of whether the object is wood carving, grey sculpture, a story scene, or a
+      decorative motif. The repetition is conspicuous in one short explanation and weakens the
+      sense of a human guide.
+    user_goal: >-
+      Hear a coherent, varied on-site explanation: each object should have an observation cue
+      that follows from its own visual or cultural significance, while the overall narration
+      remains concise and does not become a list of identical instructions.
+    evidence_refs:
+      - "User-supplied LangSmith Studio screenshot: 前庭 stop_guidance repeats '留意它与周围构件的关系' for multiple objects; trace URL pending."
+
+    suspected_layer: response_rendering
+    proposed_solution: >-
+      Audit the stop-guidance renderer and StopProgram prompt slots for unconditional repetition.
+      Render an object-specific observation cue only when approved evidence supplies one; vary
+      cue type across material/process, subject/story, composition, and spatial relationship.
+      If no specific cue is available, omit the generic sentence rather than fabricate one. Add
+      a regression snapshot for a multi-object stop that rejects duplicate generic cue text.
+    acceptance_test: >-
+      Arrive at the same front-courtyard stop. The guidance must retain only source-supported
+      object facts, must not repeat the identical generic observation sentence across listed
+      objects, and must remain a read-only arrival/guide response.
+    status: new
+
+  - finding_id: rvw_muziw_005
+    reviewer: muziw
+    tested_commit: d003969
+    test_date: "2026-07-27"
+    module: stop_guidance
+    issue_type: content_quality
+    severity: P2
+    reproducibility: once
+
+    preconditions:
+      thread_id: "Same LangSmith Studio active-tour thread at 前庭; trace URL pending"
+      current_node_id: "stop_front_hall"
+      active_route: true
+      visitor_profile: {}
+
+    conversation:
+      - role: user
+        content: "我已到达前庭"
+
+    expected:
+      route: "tour_event -> stop_guidance"
+      state_change: "arrival only; no completion transition"
+      card_type: "stop_program with approved object evidence"
+      behavior: >-
+        For a named narrative ornament such as '踏雪寻梅', provide a compact but meaningful,
+        source-bounded explanation of the depicted subject and why it is worth observing; if
+        approved evidence is insufficient, state only the verified minimum and offer a sourced
+        follow-up rather than imply a fuller story.
+
+    actual:
+      route: "tour_event -> stop_guidance"
+      response_summary: >-
+        The item '踏雪寻梅' received only: '源自唐代诗人孟浩然的故事'. No further source-bounded
+        explanation of the narrative, visual content, decorative context, or observation value
+        was provided.
+      state_change: "No unintended state change observed in the displayed turn."
+      selected_card_ids: []
+      source_ids: ["S11"]
+
+    scores:
+      routing_score: 2
+      state_score: 2
+      factual_score: 1
+      source_score: 1
+      card_score: 1
+      spatial_score: 1
+      profile_score: 1
+      clarity_score: 1
+      safety_score: 2
+
+    problem_description: >-
+      The stop program identifies the '踏雪寻梅' wood carving but gives only a single-sentence
+      origin claim. It lacks enough sourced context to help a visitor understand the story scene
+      or why it matters at the current stop.
+    user_goal: >-
+      When a guide points out a named story ornament, receive a short, engaging explanation of
+      what is depicted, the relevant cultural meaning or story context, and what to look for,
+      without turning uncertain material into fact.
+    evidence_refs:
+      - "User-supplied LangSmith Studio screenshot: 前庭 stop_guidance gives only one sentence for 踏雪寻梅; source displayed as S11; trace URL pending."
+
+    suspected_layer: stop_program
+    proposed_solution: >-
+      Review the approved source material and object mapping for 踏雪寻梅. If reliable source
+      content supports additional narrative/visual context, add it to the owned object or
+      guidance data with clear source boundaries and a concise visitor-facing field. If it does
+      not, retain the verified minimum and adjust the renderer to avoid presenting the item as a
+      substantive story explanation. Do not invent story details from model memory.
+    acceptance_test: >-
+      At the same stop, the 踏雪寻梅 segment either contains at least one additional
+      source-supported explanatory element beyond its title/origin claim, or explicitly remains
+      a concise verified identification without implying unsourced detail. The output must show
+      traceable source handling and no fabricated narrative.
+    status: new
+
+  - finding_id: rvw_muziw_003
+    reviewer: muziw
+    tested_commit: d003969
+    test_date: "2026-07-27"
+    module: tour_event
+    issue_type: routing
+    severity: P1
+    reproducibility: once
+
+    preconditions:
+      thread_id: "LangSmith Studio thread after a route was successfully planned; trace URL pending"
+      current_node_id: null
+      active_route: true
+      visitor_profile: {}
+      interaction_state: "pending_stop_id existed and stop_phase was navigating, per planned route context"
+
+    conversation:
+      - role: user
+        content: "我已到达"
+
+    expected:
+      route: "tour_event -> arrive_at_stop(pending_stop_id) -> stop_guidance"
+      state_change: >-
+        Record arrival at the unique pending formal stop and enter explaining; do not add the
+        stop to visited_stop_ids before explicit completion confirmation.
+      card_type: "none"
+      behavior: >-
+        In an active route with exactly one pending next stop, interpret a generic arrival
+        utterance as arrival at that next stop. Preserve clarification when no route exists,
+        no pending stop exists, or the user names an ambiguous location.
+
+    actual:
+      route: "clarification"
+      response_summary: "The agent replied that it knew the visitor had arrived but could not confirm the point name and asked for a map point name."
+      state_change: "No arrival or transition to explaining was observed."
+      selected_card_ids: []
+      source_ids: []
+
+    scores:
+      routing_score: 0
+      state_score: 2
+      factual_score: 2
+      source_score: 2
+      card_score: 2
+      spatial_score: 1
+      profile_score: 2
+      clarity_score: 1
+      safety_score: 2
+
+    problem_description: >-
+      After the agent had planned a route, a generic arrival message ('我已到达') was routed to
+      clarification instead of the active route's pending first stop. The current text intent
+      adapter requires a named reviewed node even when the only valid planned next stop is
+      already stored in interaction state.
+    user_goal: >-
+      Start the planned tour naturally: after receiving a route, say '我到了' or '我已到达' and
+      receive the first-stop explanation without having to repeat the point name shown by the
+      route.
+    evidence_refs:
+      - "User-supplied LangSmith Studio screenshot: generic arrival after route planning returned clarification requesting a map point name; trace URL pending."
+
+    suspected_layer: intent_routing
+    proposed_solution: >-
+      In the existing arrival text adapter, when node resolution fails but TourState and
+      interaction state show an active, unfinished route with stop_phase=navigating and one
+      approved pending_stop_id, dispatch the existing arrive_at_stop event with that pending ID.
+      Retain the current clarification path for no route, no pending stop, finished routes,
+      ambiguous named locations, and non-route self-arrival. This reuses the frozen event
+      handler and does not alter arrival-versus-completion semantics.
+    acceptance_test: >-
+      Plan a route in a fresh thread, then send '我已到达' without a node name. It must enter
+      tour_event, arrive at the stored pending_stop_id, and produce stop guidance while keeping
+      visited_stop_ids unchanged. In a fresh thread with no route, the same phrase must still
+      request clarification; an explicitly ambiguous named point must also still clarify.
+    status: new
+
+  - finding_id: rvw_muziw_002
+    reviewer: muziw
+    tested_commit: d003969
+    test_date: "2026-07-27"
+    module: visitor_profile
+    issue_type: routing
+    severity: P1
+    reproducibility: frequent
+
+    preconditions:
+      thread_id: "LangSmith Studio fresh thread; trace URL pending"
+      current_node_id: null
+      active_route: false
+      visitor_profile: {}
+
+    conversation:
+      - role: user
+        content: "我要参观两个小时，帮我规划一下路线"
+      - role: assistant
+        content: "您有多少分钟可用于游览？例如“30分钟”。"
+      - role: user
+        content: "两个小时"
+      - role: assistant
+        content: "您有多少分钟可用于游览？例如“30分钟”。"
+      - role: user
+        content: "我有120分钟用于游览"
+
+    expected:
+      route: "profile_collection -> direct_route after any remaining required preferences are collected"
+      state_change: >-
+        Normalize '两个小时' to the canonical 120-minute time budget on the first user message,
+        or at latest on the direct follow-up, without asking for duration again.
+      card_type: "none"
+      behavior: >-
+        Accept common Chinese duration expressions such as '两小时', '两个小时', and '2小时'
+        as explicit time-budget input. Continue only with genuinely missing profile information.
+
+    actual:
+      route: "profile_collection"
+      response_summary: >-
+        The first request explicitly contained '两个小时', but profile collection asked for
+        minutes. The direct follow-up '两个小时' was ignored and received the identical duration
+        question. Only '我有120分钟用于游览' was accepted, after which the agent asked about
+        interests.
+      state_change: "The time budget was not captured until the numeric-minute phrasing was used."
+      selected_card_ids: []
+      source_ids: []
+
+    scores:
+      routing_score: 1
+      state_score: 2
+      factual_score: 2
+      source_score: 2
+      card_score: 2
+      spatial_score: 2
+      profile_score: 0
+      clarity_score: 0
+      safety_score: 2
+
+    problem_description: >-
+      The visitor-profile duration parser does not recognize the Chinese hour expression
+      '两个小时'. It repeatedly requests a duration already supplied and accepts only an
+      explicit numeric-minute form such as '120分钟'.
+    user_goal: >-
+      State a natural Chinese duration once and have the agent remember it, normalize it to a
+      route-planning time budget, and proceed to the next genuinely missing preference.
+    evidence_refs:
+      - "User-supplied LangSmith Studio screenshots: two-hour request and follow-up were both asked for duration again; 120-minute wording advanced collection. Trace URL pending."
+
+    suspected_layer: visitor_profile
+    proposed_solution: >-
+      Extend the existing duration normalization/parsing path to accept Chinese numeral and
+      hour-unit expressions, including '两小时', '两个小时', and '2小时', and normalize all
+      accepted forms to the current canonical minute field. Keep the existing VisitorProfile as
+      the sole fact source; do not introduce a second duration field. Add focused tests for
+      initial-request and follow-up extraction, including rejection of ambiguous or invalid
+      durations.
+    acceptance_test: >-
+      In fresh threads, submit '我要参观两个小时，帮我规划一下路线' and separately answer
+      '两个小时' to a duration prompt. Both must set the same 120-minute profile value and must
+      not repeat the duration question. The next prompt may ask only for a missing preference,
+      and planning must use the normalized 120-minute budget.
+    status: new
