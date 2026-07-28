@@ -57,6 +57,18 @@ E5-A3 本身未替换 B3 普通渲染入口；E5-A4 已在首次到站成功输�
 
 若 A2 只有 `07_ornament_crafts.md` 的工艺总述、而没有当前审核对象的合格 `08_ornament_items.md` 详情，A4 也会回退 B3：工艺总述不能单独取代到站对象讲解，更不能据此提交 coverage。
 
+## E5-A5：E5-B 风格库合并与真实渲染接入
+
+- 合并提交：`ab08c82`（E5-B 实现提交为 `17271a5`）；E5-C 尚未合并。
+- `GuidancePolicy → resolve_narration_style_id() / compile_narration_style() → NarrationStylePolicy → render_guidance_evidence()` 是唯一风格选择链路；不读取自由文本或复制 VisitorProfile。
+- 映射优先级由 E5-B 编译器固定：`listen_only`、`child_friendly`、`family`、`study`、`mixed_group`、`professional/technical/expert`、其余 `neutral`。
+- 风格层只改变非事实框架、模板句式、观察提示和结束表达；工艺/文物 ID、来源、候选提交、预算和省略对象保持不变。
+- `active_narration_render_audit` 现在额外记录 `style_id`、`style_schema_version`、`style_fallback_used`、`style_warning_codes`，不保存画像副本或模板正文。
+- 风格库缺失、模板非法或 schema 失效时，A3 保留原中性渲染器并写入 `style_library_unavailable`；该回退不会改变 coverage 提交资格。
+- `listen_only` 不输出主动问题或任务；family 只提供共同观察，不假定有儿童；mixed_group 提供通俗主讲和可选深入提示。
+
+待本机验证的新增测试：`test_e5_narration_style_integration.py`。它比较七种风格的事实等价性，并覆盖样式故障回退与输入不可变性。
+
 ## 验证
 
 沙箱使用项目解释器时其 `pyvenv.cfg` 仍引用不可用的 WindowsApps Python，因而本次没有把该环境的启动失败记为代码测试失败；以下命令待项目本机执行并回填结果。

@@ -13,6 +13,7 @@ from typing import Any, Iterable, Mapping
 from guidance_evidence_bundle import CoverageCandidate, EvidencePacket, GuidanceEvidenceBundle
 from guidance_policy import GuidancePolicy
 from guide_program_planner import StopProgram
+from narration_style_policy import NarrationStylePolicy, STYLE_SCHEMA_VERSION, compile_narration_style
 
 
 CRAFT_DIMENSIONS = {
@@ -37,6 +38,10 @@ class NarrationRenderResult:
     allocated_content_seconds: int
     omitted_ornament_ids: tuple[str, ...]
     warnings: tuple[str, ...]
+    style_id: str
+    style_schema_version: str
+    style_fallback_used: bool
+    style_warning_codes: tuple[str, ...]
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -49,6 +54,10 @@ class NarrationRenderResult:
             "allocated_content_seconds": self.allocated_content_seconds,
             "omitted_ornament_ids": list(self.omitted_ornament_ids),
             "warnings": list(self.warnings),
+            "style_id": self.style_id,
+            "style_schema_version": self.style_schema_version,
+            "style_fallback_used": self.style_fallback_used,
+            "style_warning_codes": list(self.style_warning_codes),
         }
 
 
@@ -95,7 +104,66 @@ def _render_limit(program: StopProgram, policy: GuidancePolicy | None) -> int:
     return min(max_items, budget_limit, len(program.selected_items))
 
 
-def _craft_segment(craft: str, packet: EvidencePacket) -> tuple[list[str], tuple[str, ...], bool, str | None]:
+def _resolve_style(policy: GuidancePolicy | None) -> tuple[NarrationStylePolicy | None, str, bool, tuple[str, ...]]:
+    """Load only a policy-selected style; renderer-neutral is the fail-closed fallback."""
+    if policy is None:
+        return None, "neutral", True, ("style_policy_unavailable",)
+    try:
+        style = compile_narration_style(policy)
+        return style, style.style_id, False, ()
+    except Exception:
+        # Do not let an unavailable/malformed style package suppress factual
+        # guidance.  None means retain A3's original neutral phrasing.
+        return None, "neutral", True, ("style_library_unavailable",)
+
+
+def _style_frame(style_id: str) -> str | None:
+    """Non-factual, deterministic framing controlled by approved style metadata."""
+    frames = {
+        "child": "我们用简单的办法，一步步看看这里的装饰。",
+        "family": "可以一起留意这些构件的造型和细节。",
+        "student_research": "可把工艺、构图与下列证据分开观察。",
+        "professional": "以下按工艺、构图与题材信息组织观察。",
+        "listen_only": "下面为连续讲解。",
+        "mixed_group": "先看容易观察的要点；如需可再展开术语。",
+    }
+    return frames.get(style_id)
+
+
+def _style_observation(style_id: str, visible_detail: str) -> str:
+    prompts = {
+        "child": f"可以试着找一找{visible_detail}。",
+        "family": f"可以一起留意{visible_detail}。",
+        "student_research": f"可把{visible_detail}作为观察线索。",
+        "professional": f"可核对{visible_detail}的处理方式。",
+        "mixed_group": f"先留意{visible_detail}；需要时可再深入。",
+    }
+    return prompts.get(style_id, f"观察时，可留意{visible_detail}。")
+
+
+def _template(style: NarrationStylePolicy | None, key: str, slots: dict[str, str]) -> str | None:
+    if style is None or style.style_id == "neutral":
+        return None
+    try:
+        value = style.templates[key].format(**slots).strip()
+    except (KeyError, ValueError, AttributeError):
+        return None
+    return value or None
+
+
+def _definition_slot(craft: str, sentence: str) -> str:
+    normalized = sentence.strip().rstrip("。")
+    for prefix in (f"{craft}是一种", f"{craft}是", f"{craft}又称"):
+        if normalized.startswith(prefix):
+            remainder = normalized[len(prefix):].strip("，、 ")
+            if remainder:
+                return remainder
+    return normalized
+
+
+def _craft_segment(
+    craft: str, packet: EvidencePacket, style: NarrationStylePolicy | None, style_id: str
+) -> tuple[list[str], tuple[str, ...], bool, str | None]:
     sentences = _sentences(packet)
     used: set[str] = set()
     selected: list[tuple[str, tuple[str, ...]]] = []
@@ -110,9 +178,14 @@ def _craft_segment(craft: str, packet: EvidencePacket) -> tuple[list[str], tuple
             break
     if not selected:
         return [], (), False, f"{craft}缺少可用于首次介绍的工艺证据"
-    lines = [f"先认识{craft}：{selected[0][0]}"]
+    template_line = _template(style, "first_craft_intro_style", {
+        "craft_name": craft,
+        "craft_definition": _definition_slot(craft, selected[0][0]),
+        "object_name": "", "observation_location": "", "visible_detail": "", "evidence_fact": "",
+    })
+    lines = [template_line or f"先认识{craft}：{selected[0][0]}"]
     lines.extend(sentence for sentence, _ in selected[1:])
-    lines.append(f"在本点可把视线放在{craft}对象的造型、细部和所在构件上。")
+    lines.append(_style_observation(style_id, f"{craft}对象的造型、细部和所在构件"))
     source_ids = tuple(sorted({source for _, values in selected for source in values}))
     complete = len(covered_dimensions) >= 2
     warning = None if complete else f"{craft}工艺证据暂不足两类信息，未作为完整首次介绍"
@@ -125,6 +198,8 @@ def _ornament_segment(
     location: Any,
     *,
     first: bool,
+    style: NarrationStylePolicy | None,
+    style_id: str,
 ) -> tuple[list[str], tuple[str, ...], bool, str | None]:
     sentences = _sentences(packet)
     used: set[str] = set()
@@ -134,20 +209,34 @@ def _ornament_segment(
     chosen = [value for value in (shape, theme) if value]
     if not chosen and fallback:
         chosen.append(fallback)
-    lines = [f"{item.name}是一件{item.craft}装饰。"]
-    if getattr(location, "valid", False) and location.raw_location:
-        lines.append(f"可先看向{location.raw_location}。")
+    location_text = location.raw_location if getattr(location, "valid", False) and location.raw_location else "本点相关构件"
+    evidence_fact = "".join(sentence for sentence, _ in chosen)
+    template_key = "first_ornament_intro_style" if first else "repeat_ornament_style"
+    template_line = _template(style, template_key, {
+        "craft_name": item.craft,
+        "craft_definition": "",
+        "object_name": item.name,
+        "observation_location": location_text,
+        "visible_detail": f"{item.name}的轮廓和细部",
+        "evidence_fact": evidence_fact,
+    })
+    if template_line:
+        lines = [template_line]
     else:
-        lines.append("可先在本点的相关构件上寻找它的造型细节。")
-    lines.extend(sentence for sentence, _ in chosen)
-    lines.append(f"观察时，可留意{item.name}的轮廓、细部与周围构件的关系。")
+        lines = [f"{item.name}是一件{item.craft}装饰。"]
+        if getattr(location, "valid", False) and location.raw_location:
+            lines.append(f"可先看向{location.raw_location}。")
+        else:
+            lines.append("可先在本点的相关构件上寻找它的造型细节。")
+        lines.extend(sentence for sentence, _ in chosen)
+    lines.append(_style_observation(style_id, f"{item.name}的轮廓、细部与周围构件的关系"))
     source_ids = tuple(sorted({source for _, values in chosen for source in values}))
     complete = bool(shape and theme and source_ids)
     if first and not complete:
         warning = f"{item.name}的证据不足以完成首次文物介绍，未列为可提交覆盖候选"
     else:
         warning = None
-    if not first and chosen:
+    if not first and chosen and not template_line:
         lines.insert(1, "这一处可作为前面内容的简短回顾，再留意它本点的细部。")
     return lines, source_ids, complete if first else False, warning
 
@@ -163,10 +252,13 @@ def render_guidance_evidence(
     policy = guidance_policy if isinstance(guidance_policy, GuidancePolicy) else _policy_from_program(program)
     if isinstance(guidance_policy, dict):
         policy = GuidancePolicy(**guidance_policy)
+    style, style_id, style_fallback_used, style_warning_codes = _resolve_style(policy)
     limit = _render_limit(program, policy)
     rendered_items = program.selected_items[:limit]
     omitted = tuple(item.ornament_id for item in program.selected_items[limit:])
     lines = [f"现在来到{program.display_name}。"]
+    if frame := _style_frame(style_id):
+        lines.append(frame)
     rendered_crafts: list[str] = []
     rendered_ornaments: list[str] = []
     used_sources: set[str] = set()
@@ -180,7 +272,7 @@ def render_guidance_evidence(
         if status == "first_introduction":
             packet = bundle.craft_overviews.get(craft)
             if packet and packet.evidence:
-                segment, sources, complete, warning = _craft_segment(craft, packet)
+                segment, sources, complete, warning = _craft_segment(craft, packet, style, style_id)
                 lines.extend(segment)
                 used_sources.update(sources)
                 if complete and (candidate := eligible_by_subject.get(("craft", craft))):
@@ -200,7 +292,7 @@ def render_guidance_evidence(
             continue
         first = bundle.coverage_status["ornament"].get(item.ornament_id) == "first_introduction"
         segment, sources, complete, warning = _ornament_segment(
-            item, packet, bundle.location_evidence.get(item.ornament_id), first=first
+            item, packet, bundle.location_evidence.get(item.ornament_id), first=first, style=style, style_id=style_id
         )
         lines.extend(segment)
         rendered_ornaments.append(item.ornament_id)
@@ -234,4 +326,8 @@ def render_guidance_evidence(
         allocated_content_seconds=allocated,
         omitted_ornament_ids=omitted,
         warnings=tuple(warnings),
+        style_id=style_id,
+        style_schema_version=STYLE_SCHEMA_VERSION,
+        style_fallback_used=style_fallback_used,
+        style_warning_codes=style_warning_codes,
     )

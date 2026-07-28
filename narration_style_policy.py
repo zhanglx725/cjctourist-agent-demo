@@ -8,6 +8,7 @@ import yaml
 from guidance_policy import GuidancePolicy
 
 STYLE_FILE = Path(__file__).parent / "data" / "chen_clan_academy" / "narration_styles" / "styles_v1.yaml"
+STYLE_SCHEMA_VERSION = "narration_style_v1"
 REQUIRED = frozenset(("schema_version", "style_id", "display_name", "applicable_policy_conditions", "vocabulary_level", "sentence_length", "narrative_pacing", "craft_explanation_style", "ornament_explanation_style", "interaction_patterns", "observation_prompt_patterns", "allowed_devices", "prohibited_patterns", "fallback_style_id", "templates"))
 TEMPLATE_KEYS = frozenset(("first_craft_intro_style", "repeat_craft_style", "first_ornament_intro_style", "repeat_ornament_style"))
 PLACEHOLDERS = frozenset(("craft_name", "craft_definition", "object_name", "observation_location", "visible_detail", "evidence_fact"))
@@ -72,6 +73,11 @@ def compile_narration_style(policy: GuidancePolicy) -> NarrationStylePolicy:
     elif policy.knowledge_level == "professional" or policy.narrative_mode in {"technical", "expert"}: key = "professional"
     else: key = "neutral"
     return styles.get(key, styles["neutral"])
+
+
+def resolve_narration_style_id(policy: GuidancePolicy) -> str:
+    """Expose the deterministic policy-to-style decision without profile access."""
+    return compile_narration_style(policy).style_id
 
 
 def load_narration_style(style_id: str) -> NarrationStylePolicy:
