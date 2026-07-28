@@ -1,0 +1,379 @@
+schema_version: e5_c_langsmith_manual_scoring_template_v1
+module: e5_c_narration_evaluation
+baseline_commit: 824f8446fb2f23c5adb0ed7491e69b8a39c636cb
+branch: codex/e5-c-narration-evaluation
+review_status: draft
+reviewer: null
+reviewed_at: null
+execution_environment:
+  runner: LangSmith / LangGraph Studio manual review
+  connection_status: not_connected_in_template_generation
+  execution_status: not_run
+scoring_rules:
+  allowed_score_values: [0, 1, 2, null]
+  score_meaning:
+    0: 失败
+    1: 部分满足
+    2: 完全满足
+    null: 未实际执行
+  execution_rules:
+    - 未实际执行的案例不得填写 0、1、2 或 passed。
+    - 不得编造 thread_id、trace_url、TourState 前后状态、实际回复、来源命中或人工结论。
+    - "trace 缺失时保留 trace_status: not_run 与 trace_url: null。"
+    - blocked_pending_e5_a 是运行资格状态，不是失败或通过结果。
+manual_cases:
+  - manual_case_id: e5c_manual_001
+    source_case_id: e5_nar_001
+    runtime_readiness: blocked_pending_e5_a
+    thread_id: null
+    preconditions:
+      - 新建独立 thread。
+      - 设置30分钟、灰塑兴趣和标准讲解偏好。
+      - 到达前院中部后，尚未产生任何 NarrationCoverage 记录。
+    input: 我到了前院中部，请第一次讲讲这里的灰塑。
+    expected_nodes: [stop_front_courtyard_center]
+    expected_sources: [S10, S11]
+    tour_state_before: null
+    tour_state_after: null
+    score:
+      fact_grounding: null
+      point_accuracy: null
+      craft_intro_completeness: null
+      ornament_depth: null
+      observation_usefulness: null
+      personalization_fit: null
+      naturalness: null
+      budget_compliance: null
+      state_safety: null
+      source_traceability: null
+    trace_status: blocked_pending_e5_a
+    trace_url: null
+    finding_id: null
+    result: blocked_pending_e5_a
+    execution_notes: >-
+      等待 E5-A 实现 NarrationCoverage、NarrationPlan 与首次灰塑证据编排后执行；
+      不得以现有通用讲解或 Mock 判定该案例通过。
+
+  - manual_case_id: e5c_manual_002
+    source_case_id: e5_nar_003
+    runtime_readiness: blocked_pending_e5_a
+    thread_id: null
+    preconditions:
+      - 新建独立 thread。
+      - 当前点为前院中部，且独角狮尚未被实质介绍。
+    input: 第一次介绍独角狮，请讲它的位置、工艺和细节。
+    expected_nodes: [stop_front_courtyard_center]
+    expected_sources: [S10, S11]
+    tour_state_before: null
+    tour_state_after: null
+    score:
+      fact_grounding: null
+      point_accuracy: null
+      craft_intro_completeness: null
+      ornament_depth: null
+      observation_usefulness: null
+      personalization_fit: null
+      naturalness: null
+      budget_compliance: null
+      state_safety: null
+      source_traceability: null
+    trace_status: blocked_pending_e5_a
+    trace_url: null
+    finding_id: null
+    result: blocked_pending_e5_a
+    execution_notes: >-
+      等待 E5-A 首次文物介绍与证据提交语义；检查位置提示、工艺、可见细节和有来源题材或故事，
+      不把 raw_location 扩写为实时可见性。
+
+  - manual_case_id: e5c_manual_003
+    source_case_id: e5c_static_010
+    runtime_readiness: executable_static
+    thread_id: null
+    preconditions:
+      - 当前点设为后西庭。
+      - 当前点对象白名单使用 stop_rear_west_courtyard 的审核 ornaments。
+    input: 再讲详细一点三顾茅庐。
+    expected_nodes: [stop_rear_west_courtyard]
+    expected_sources: [S11]
+    tour_state_before: null
+    tour_state_after: null
+    score:
+      fact_grounding: null
+      point_accuracy: null
+      craft_intro_completeness: null
+      ornament_depth: null
+      observation_usefulness: null
+      personalization_fit: null
+      naturalness: null
+      budget_compliance: null
+      state_safety: null
+      source_traceability: null
+    trace_status: not_run
+    trace_url: null
+    finding_id: null
+    result: not_run
+    execution_notes: >-
+      仅供人工检查当前点白名单、已有单件证据和 TourState 不变；不将“新增细节”误判为 E5-A 已实现的后续讲解能力。
+
+  - manual_case_id: e5c_manual_004
+    source_case_id: e5_nar_002
+    runtime_readiness: blocked_pending_e5_a
+    thread_id: null
+    preconditions:
+      - 同一 thread 已成功完成 e5_nar_001 的灰塑实质介绍并写入 Coverage。
+      - 已到达月台，当前对象为杏林春燕。
+    input: 现在到月台了，再讲讲这里的灰塑。
+    expected_nodes: [label_moon_platform]
+    expected_sources: [S10, S11]
+    tour_state_before: null
+    tour_state_after: null
+    score:
+      fact_grounding: null
+      point_accuracy: null
+      craft_intro_completeness: null
+      ornament_depth: null
+      observation_usefulness: null
+      personalization_fit: null
+      naturalness: null
+      budget_compliance: null
+      state_safety: null
+      source_traceability: null
+    trace_status: blocked_pending_e5_a
+    trace_url: null
+    finding_id: null
+    result: blocked_pending_e5_a
+    execution_notes: >-
+      等待 E5-A 后续工艺判定；重点检查不重复完整灰塑定义，改以杏林春燕的新对象细节或差异组织讲解。
+
+  - manual_case_id: e5c_manual_005
+    source_case_id: e5_nar_004
+    runtime_readiness: blocked_pending_e5_a
+    thread_id: null
+    preconditions:
+      - 当前点为前院中部。
+      - StopProgram 已分配短时间本点内容预算。
+    input: 我只有很短时间，请安排前院中部讲解重点。
+    expected_nodes: [stop_front_courtyard_center]
+    expected_sources: [S10, S11]
+    tour_state_before: null
+    tour_state_after: null
+    score:
+      fact_grounding: null
+      point_accuracy: null
+      craft_intro_completeness: null
+      ornament_depth: null
+      observation_usefulness: null
+      personalization_fit: null
+      naturalness: null
+      budget_compliance: null
+      state_safety: null
+      source_traceability: null
+    trace_status: blocked_pending_e5_a
+    trace_url: null
+    finding_id: null
+    result: blocked_pending_e5_a
+    execution_notes: >-
+      等待 E5-A 在预算内保留首次工艺与核心文物证据链的编排逻辑；不得仅依据现有 StopProgram 静态预算宣称通过。
+
+  - manual_case_id: e5c_manual_006
+    source_case_id: e5c_static_007
+    runtime_readiness: executable_static
+    thread_id: null
+    preconditions:
+      - 当前点为前院中部。
+      - 画像 fixture 为 child，映射 audience_mode=child_friendly。
+    input: 给孩子讲讲前院中部的福禄寿。
+    expected_nodes: [stop_front_courtyard_center]
+    expected_sources: [S11]
+    tour_state_before: null
+    tour_state_after: null
+    score:
+      fact_grounding: null
+      point_accuracy: null
+      craft_intro_completeness: null
+      ornament_depth: null
+      observation_usefulness: null
+      personalization_fit: null
+      naturalness: null
+      budget_compliance: null
+      state_safety: null
+      source_traceability: null
+    trace_status: not_run
+    trace_url: null
+    finding_id: null
+    result: not_run
+    execution_notes: 简化语言或低压力观察提示不得扩大对象、事实或来源集合。
+
+  - manual_case_id: e5c_manual_007
+    source_case_id: e5c_static_003
+    runtime_readiness: executable_static
+    thread_id: null
+    preconditions:
+      - 当前点为前庭。
+      - 画像 fixture 为 family，映射 audience_mode=family。
+    input: 前庭的博古图、五福捧寿讲的是什么？
+    expected_nodes: [stop_front_courtyard_north]
+    expected_sources: [S10, S11]
+    tour_state_before: null
+    tour_state_after: null
+    score:
+      fact_grounding: null
+      point_accuracy: null
+      craft_intro_completeness: null
+      ornament_depth: null
+      observation_usefulness: null
+      personalization_fit: null
+      naturalness: null
+      budget_compliance: null
+      state_safety: null
+      source_traceability: null
+    trace_status: not_run
+    trace_url: null
+    finding_id: null
+    result: not_run
+    execution_notes: 家庭表达只影响语言与互动形式，不改变审核对象、事实或来源。
+
+  - manual_case_id: e5c_manual_008
+    source_case_id: e5c_static_008
+    runtime_readiness: executable_static
+    thread_id: null
+    preconditions:
+      - 当前点为前庭。
+      - 画像 fixture 为 professional，映射 knowledge_level=professional。
+    input: 用专业一点的方式讲讲前庭的石雕踏雪寻梅。
+    expected_nodes: [stop_front_courtyard_north]
+    expected_sources: [S10, S11]
+    tour_state_before: null
+    tour_state_after: null
+    score:
+      fact_grounding: null
+      point_accuracy: null
+      craft_intro_completeness: null
+      ornament_depth: null
+      observation_usefulness: null
+      personalization_fit: null
+      naturalness: null
+      budget_compliance: null
+      state_safety: null
+      source_traceability: null
+    trace_status: not_run
+    trace_url: null
+    finding_id: null
+    result: not_run
+    execution_notes: 专业术语或来源细节不得扩大事实集合，也不得混同同名不同工艺的踏雪寻梅记录。
+
+  - manual_case_id: e5c_manual_009
+    source_case_id: e5c_static_006
+    runtime_readiness: executable_static
+    thread_id: null
+    preconditions:
+      - 当前点为月台。
+      - 画像 fixture 为 listen_only，映射 interaction_mode=listen_only。
+    input: 只听讲解，不要让我做互动任务。请讲讲月台的书字换鹅。
+    expected_nodes: [label_moon_platform]
+    expected_sources: [S11]
+    tour_state_before: null
+    tour_state_after: null
+    score:
+      fact_grounding: null
+      point_accuracy: null
+      craft_intro_completeness: null
+      ornament_depth: null
+      observation_usefulness: null
+      personalization_fit: null
+      naturalness: null
+      budget_compliance: null
+      state_safety: null
+      source_traceability: null
+    trace_status: not_run
+    trace_url: null
+    finding_id: null
+    result: not_run
+    execution_notes: 输出不得包含问题句、任务式表达或要求游客回应的互动。
+
+  - manual_case_id: e5c_manual_010
+    source_case_id: e5_nar_007
+    runtime_readiness: blocked_pending_e5_a
+    thread_id: null
+    preconditions:
+      - 准备两个独立 thread，各自没有 NarrationCoverage 记录。
+      - 两个 thread 使用相同前院中部灰塑首次讲解输入。
+    input: 两个不同 thread 分别第一次讲前院中部的灰塑。
+    expected_nodes: [stop_front_courtyard_center]
+    expected_sources: [S10, S11]
+    tour_state_before: null
+    tour_state_after: null
+    score:
+      fact_grounding: null
+      point_accuracy: null
+      craft_intro_completeness: null
+      ornament_depth: null
+      observation_usefulness: null
+      personalization_fit: null
+      naturalness: null
+      budget_compliance: null
+      state_safety: null
+      source_traceability: null
+    trace_status: blocked_pending_e5_a
+    trace_url: null
+    finding_id: null
+    result: blocked_pending_e5_a
+    execution_notes: 等待 E5-A 的 thread-local NarrationCoverage；不得以一般会话隔离代替覆盖记录隔离验收。
+
+  - manual_case_id: e5c_manual_011
+    source_case_id: e5_nar_008
+    runtime_readiness: blocked_pending_e5_a
+    thread_id: null
+    preconditions:
+      - 在 E5-A 提供的受控取证失败条件下执行。
+      - 当前对象仍限定为前院中部审核对象。
+    input: 在缺少工艺或单件证据的受控注入条件下，讲讲当前对象。
+    expected_nodes: [stop_front_courtyard_center]
+    expected_sources: [S10, S11]
+    tour_state_before: null
+    tour_state_after: null
+    score:
+      fact_grounding: null
+      point_accuracy: null
+      craft_intro_completeness: null
+      ornament_depth: null
+      observation_usefulness: null
+      personalization_fit: null
+      naturalness: null
+      budget_compliance: null
+      state_safety: null
+      source_traceability: null
+    trace_status: blocked_pending_e5_a
+    trace_url: null
+    finding_id: null
+    result: blocked_pending_e5_a
+    execution_notes: 等待 E5-A 暴露可控的取证失败路径；资料不足时不得补写事实或提交 Coverage。
+
+  - manual_case_id: e5c_manual_012
+    source_case_id: e5_nar_005
+    runtime_readiness: executable_static
+    thread_id: null
+    preconditions:
+      - 当前点为前院中部。
+      - 当前点审核对象白名单不含木雕。
+    input: 我喜欢木雕，前院中部有什么可以看？
+    expected_nodes: [stop_front_courtyard_center]
+    expected_sources: [S11]
+    tour_state_before: null
+    tour_state_after: null
+    score:
+      fact_grounding: null
+      point_accuracy: null
+      craft_intro_completeness: null
+      ornament_depth: null
+      observation_usefulness: null
+      personalization_fit: null
+      naturalness: null
+      budget_compliance: null
+      state_safety: null
+      source_traceability: null
+    trace_status: not_run
+    trace_url: null
+    finding_id: null
+    result: not_run
+    execution_notes: 不得把前庭、月台或后西庭的木雕表述为当前点眼前对象。

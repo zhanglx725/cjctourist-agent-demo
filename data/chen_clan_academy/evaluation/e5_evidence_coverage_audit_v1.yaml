@@ -1,0 +1,219 @@
+schema_version: e5_evidence_coverage_audit_v1
+module: e5_c_narration_evaluation
+baseline_commit: 824f8446fb2f23c5adb0ed7491e69b8a39c636cb
+branch: codex/e5-c-narration-evaluation
+review_status: draft
+audit_basis:
+  craft_context: data/chen_clan_academy/knowledge/07_ornament_crafts.md
+  item_detail: data/chen_clan_academy/knowledge/08_ornament_items.md
+  item_location: data/chen_clan_academy/knowledge/09_ornament_locations.md
+  reviewed_node_mapping: data/chen_clan_academy/routes/node_guide_cards_v1.json
+  source_registry: data/chen_clan_academy/sources/source_registry.md
+records:
+  - subject_id: craft:灰塑
+    subject_kind: craft
+    subject_name: 灰塑
+    craft: 灰塑
+    affected_nodes:
+      - stop_front_courtyard_center
+      - label_moon_platform
+      - stop_front_courtyard_north
+      - stop_rear_west_courtyard
+    evidence_documents:
+      - data/chen_clan_academy/knowledge/07_ornament_crafts.md
+    source_ids: [S10]
+    raw_location_status: not_applicable_craft_general_evidence
+    node_mapping_status: mapped_through_reviewed_ornaments
+    alias_consistency_status: exact_craft_label
+    evidence_coverage_status: sufficient_for_static_traceability
+    findings: []
+
+  - subject_id: craft:木雕
+    subject_kind: craft
+    subject_name: 木雕
+    craft: 木雕
+    affected_nodes:
+      - label_moon_platform
+      - stop_front_courtyard_north
+      - stop_rear_west_courtyard
+    evidence_documents:
+      - data/chen_clan_academy/knowledge/07_ornament_crafts.md
+    source_ids: [S10]
+    raw_location_status: not_applicable_craft_general_evidence
+    node_mapping_status: mapped_through_reviewed_ornaments
+    alias_consistency_status: exact_craft_label
+    evidence_coverage_status: sufficient_for_static_traceability
+    findings: []
+
+  - subject_id: craft:石雕
+    subject_kind: craft
+    subject_name: 石雕
+    craft: 石雕
+    affected_nodes:
+      - stop_front_courtyard_center
+      - label_moon_platform
+      - stop_front_courtyard_north
+      - stop_rear_west_courtyard
+    evidence_documents:
+      - data/chen_clan_academy/knowledge/07_ornament_crafts.md
+    source_ids: [S10]
+    raw_location_status: not_applicable_craft_general_evidence
+    node_mapping_status: mapped_through_reviewed_ornaments
+    alias_consistency_status: exact_craft_label
+    evidence_coverage_status: sufficient_for_static_traceability
+    findings: []
+
+  - subject_id: craft:陶塑
+    subject_kind: craft
+    subject_name: 陶塑
+    craft: 陶塑
+    affected_nodes:
+      - stop_front_courtyard_center
+      - label_moon_platform
+      - stop_front_courtyard_north
+    evidence_documents:
+      - data/chen_clan_academy/knowledge/07_ornament_crafts.md
+    source_ids: [S10]
+    raw_location_status: not_applicable_craft_general_evidence
+    node_mapping_status: mapped_through_reviewed_ornaments
+    alias_consistency_status: exact_craft_label
+    evidence_coverage_status: sufficient_for_static_traceability
+    findings: []
+
+  - subject_id: orn_005
+    subject_kind: ornament
+    subject_name: 独角狮
+    craft: 灰塑
+    affected_nodes: [stop_front_courtyard_center]
+    evidence_documents:
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    source_ids: [S11]
+    raw_location_status: confirmed_in_09_and_node_card
+    node_mapping_status: confirmed_manual_review_existing_node
+    alias_consistency_status: exact_name_match
+    evidence_coverage_status: sufficient_for_static_traceability
+    findings: []
+
+  - subject_id: orn_008
+    subject_kind: ornament
+    subject_name: 福禄寿
+    craft: 灰塑
+    affected_nodes: [stop_front_courtyard_center]
+    evidence_documents:
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    source_ids: [S11]
+    raw_location_status: confirmed_in_09_and_node_card
+    node_mapping_status: confirmed_manual_review_existing_node
+    alias_consistency_status: exact_name_match
+    evidence_coverage_status: sufficient_for_static_traceability
+    findings: []
+
+  - subject_id: orn_078
+    subject_kind: ornament
+    subject_name: 引福归堂
+    craft: 石雕
+    affected_nodes: [label_moon_platform]
+    evidence_documents:
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    source_ids: [S11]
+    raw_location_status: confirmed_in_09_and_node_card
+    node_mapping_status: confirmed_manual_review_existing_node
+    alias_consistency_status: exact_name_match
+    evidence_coverage_status: sufficient_for_static_traceability
+    findings: []
+
+  - subject_id: orn_001
+    subject_kind: ornament
+    subject_name: 百鸟朝凤
+    craft: 灰塑
+    affected_nodes: [stop_front_west_courtyard]
+    evidence_documents:
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    source_ids: [S11]
+    raw_location_status: confirmed_in_09_and_node_card
+    node_mapping_status: confirmed_manual_review_existing_node
+    alias_consistency_status: exact_name_match
+    evidence_coverage_status: sufficient_for_static_traceability
+    findings: []
+
+  - subject_id: orn_032
+    subject_kind: ornament
+    subject_name: 博古图、五福捧寿
+    craft: 木雕
+    affected_nodes: [stop_front_courtyard_north]
+    evidence_documents:
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    source_ids: [S11]
+    raw_location_status: confirmed_in_09_and_node_card
+    node_mapping_status: confirmed_manual_review_existing_node
+    alias_consistency_status: exact_name_match
+    evidence_coverage_status: sufficient_for_static_traceability
+    findings: []
+
+  - subject_id: orn_072
+    subject_kind: ornament
+    subject_name: 石狮子
+    craft: 石雕
+    affected_nodes: [stop_front_courtyard_center]
+    evidence_documents:
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    source_ids: [S11]
+    raw_location_status: confirmed_in_09_and_node_card
+    node_mapping_status: confirmed_manual_review_existing_node
+    alias_consistency_status: exact_name_match
+    evidence_coverage_status: sufficient_for_static_traceability
+    findings: []
+
+  - subject_id: orn_089
+    subject_kind: ornament
+    subject_name: 书字换鹅
+    craft: 陶塑
+    affected_nodes: [label_moon_platform]
+    evidence_documents:
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    source_ids: [S11]
+    raw_location_status: confirmed_in_09_and_node_card
+    node_mapping_status: confirmed_manual_review_existing_node
+    alias_consistency_status: exact_name_match
+    evidence_coverage_status: sufficient_for_static_traceability
+    findings: []
+
+  - subject_id: orn_083
+    subject_kind: ornament
+    subject_name: 凤凰牡丹
+    craft: 陶塑
+    affected_nodes: [stop_front_courtyard_center]
+    evidence_documents:
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    source_ids: [S11]
+    raw_location_status: confirmed_in_09_and_node_card
+    node_mapping_status: mapping_present_with_malformed_craft_value
+    alias_consistency_status: partial_name_alias_match
+    evidence_coverage_status: partial_data_normalization_gap
+    findings:
+      - finding_id: e5_cov_001
+        subject_id: orn_083
+        missing_evidence_type: normalized_craft_label_and_name_alias_mapping
+        affected_nodes: [stop_front_courtyard_center]
+        severity: P2
+        recommended_owner: spatial_data_owner
+        recommended_action: >-
+          After owner review, normalize the node-card craft value
+          "凤穿牡丹）（陶塑" and explicitly map the node-card name
+          "凤凰牡丹" to the S11 item name "凤凰牡丹（凤穿牡丹）".
