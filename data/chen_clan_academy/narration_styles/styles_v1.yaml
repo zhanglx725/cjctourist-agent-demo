@@ -1,0 +1,73 @@
+schema_version: narration_style_library_v1
+styles:
+  - &base
+    schema_version: narration_style_v1
+    style_id: neutral
+    display_name: 中性清晰
+    applicable_policy_conditions: [default]
+    vocabulary_level: general
+    sentence_length: medium
+    narrative_pacing: steady
+    craft_explanation_style: definition_then_example
+    ornament_explanation_style: fact_then_observation
+    interaction_patterns: []
+    observation_prompt_patterns: ["您可以留意{visible_detail}。"]
+    allowed_devices: [plain_explanation]
+    prohibited_patterns: [unsupported_fact, forced_interaction]
+    fallback_style_id: neutral
+    templates: &templates
+      first_craft_intro_style: "{craft_name}是一种{craft_definition}。{evidence_fact}"
+      repeat_craft_style: "这里同样可见{craft_name}，可留意{visible_detail}。"
+      first_ornament_intro_style: "{object_name}位于{observation_location}。{evidence_fact}"
+      repeat_ornament_style: "再次看到{object_name}时，可对照{visible_detail}。"
+  - <<: *base
+    style_id: child
+    display_name: 儿童友好
+    applicable_policy_conditions: [audience_mode_child_friendly]
+    vocabulary_level: simple
+    sentence_length: short
+    narrative_pacing: lively
+    interaction_patterns: [safe_optional_observation]
+    allowed_devices: [safe_observation_game, concrete_metaphor]
+  - <<: *base
+    style_id: family
+    display_name: 亲子共游
+    applicable_policy_conditions: [audience_mode_family]
+    vocabulary_level: simple
+    sentence_length: short
+    narrative_pacing: shared
+    interaction_patterns: [optional_shared_observation]
+    allowed_devices: [optional_family_observation]
+  - <<: *base
+    style_id: student_research
+    display_name: 研学观察
+    applicable_policy_conditions: [audience_mode_study]
+    vocabulary_level: general
+    sentence_length: medium
+    narrative_pacing: analytical
+    craft_explanation_style: concept_evidence_comparison
+    allowed_devices: [evidence_boundary, comparison_prompt]
+  - <<: *base
+    style_id: professional
+    display_name: 专业讲解
+    applicable_policy_conditions: [professional_or_technical]
+    vocabulary_level: technical
+    sentence_length: compact
+    narrative_pacing: dense
+    craft_explanation_style: process_component_evidence
+    allowed_devices: [technical_term, evidence_boundary]
+  - <<: *base
+    style_id: listen_only
+    display_name: 静听模式
+    applicable_policy_conditions: [interaction_mode_listen_only]
+    interaction_patterns: []
+    allowed_devices: [non_mandatory_observation]
+    prohibited_patterns: [question, task, response_request, unsupported_fact]
+  - <<: *base
+    style_id: mixed_group
+    display_name: 混合群体
+    applicable_policy_conditions: [audience_mode_mixed_group]
+    vocabulary_level: simple
+    sentence_length: medium
+    narrative_pacing: layered
+    allowed_devices: [optional_deepening]
