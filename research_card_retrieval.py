@@ -51,9 +51,15 @@ def _score(card: KnowledgeCard, query: str, current_node_id: str | None) -> int:
     supported_hit = sum(1 for value in supported if isinstance(value, str) and any(tag in normalized for tag in raw.get("topic_tags", []) if tag))
     topic_hits = sum(1 for tag in raw.get("topic_tags", []) if isinstance(tag, str) and tag.casefold() in normalized)
     title_hits = sum(1 for value in _labels(card) if value and value.casefold() in normalized)
+    content_score = (60 if supported_hit else 0) + topic_hits * 20 + min(title_hits, 3) * 5
+    # A current-node relation is only a tie-breaker among cards that already
+    # match the research question.  It must never turn an unrelated question
+    # into an apparent exact research-card match.
+    if content_score == 0:
+        return 0
     node_bonus = 20 if current_node_id and current_node_id in raw.get("applicable_node_ids", []) else 0
     # Whole-site cards (empty applicable nodes) deliberately receive no node bonus.
-    return (60 if supported_hit else 0) + topic_hits * 20 + min(title_hits, 3) * 5 + node_bonus
+    return content_score + node_bonus
 
 
 def retrieve_research_cards(

@@ -77,6 +77,36 @@ backlog:
       study request differs from a 60-minute craft request, and a 20-minute
       update produces a usable remaining route without reintroducing completed or skipped stops.
 
+  - backlog_id: e3_021_decimal_arabic_hour_duration_parsing
+    priority: P2
+    status: verified_fixed
+    source_finding_ids: [e4_3c_manual_001]
+    module: route_planning
+    issue_type: parsing
+    suspected_layer: duration_parser
+    reproduction_status: reproduced and verified by project-owner targeted, full-regression, and LangSmith checks
+    summary: >-
+      Decimal Arabic hour expressions such as "1.5小时" and "1.5个小时" do
+      not yet normalize to 90 minutes, although equivalent Chinese hour forms
+      are supported.
+    owner: route_owner
+    contract_impact: none
+    repair_boundary:
+      - duration_parser.py
+      - test_duration_parser.py
+    excluded_from_repair:
+      - route_selection.py
+      - TourState
+      - route_planner.py
+    acceptance_test: >-
+      "1.5小时" and "1.5个小时" normalize deterministically to 90 minutes in
+      explicit route or remaining-time context; unrelated historical questions
+      remain outside duration routing.
+    verification: >-
+      Project owner confirmed targeted parser/integration tests, full unittest
+      regression, and LangSmith route inputs for 30, 75, and 90 minute decimal
+      hour expressions. Over-range and fractional-minute inputs safely clarify.
+
   - backlog_id: e3_003_route_budget_upper_bound
     priority: P1
     status: open
@@ -328,7 +358,7 @@ backlog:
 
   - backlog_id: e3_020_mult_objective_route_selection_and_budget_utilization
     priority: P1
-    status: score_calibration_blocked_by_selection_inconsistency
+    status: verified_fixed
     source_finding_ids: [e4_3b_langsmith_001]
     module: route_planning
     issue_type: route_quality
@@ -342,13 +372,12 @@ backlog:
       Node path: profile_collection -> direct_route. Output reported available
       time 90 minutes and the crafts_60 anchor at approximately 61 minutes.
     summary: >-
-      Route selection must compare reviewed anchors and reviewed dynamic routes
-      under one strict budget, using object-derived interest coverage and
-      detail-level time utilisation rather than title-theme overlap alone.
-      For exact 30/60/90-minute requests, an eligible reviewed anchor may be
-      preferred only when it is within a policy-configured near-optimal score
-      margin of the best dynamic candidate. The margin remains uncalibrated
-      until the fixed score-truth scenarios are collected.
+      Route selection now compares reviewed anchors and dynamic routes under one
+      strict budget, using actual guide-stop objects for interest coverage and
+      detail-level time utilisation rather than title-theme overlap. No anchor
+      preference margin is applied: every qualified candidate uses the same
+      auditable score. The 95--100 percent utilisation segment is a smooth
+      preference penalty, not a second feasibility rejection.
     owner: route_owner
     contract_impact: >-
       Replaces exact-duration forced-anchor selection and the 10 percent
@@ -358,6 +387,10 @@ backlog:
       productive deep-time budget, and reports object-derived coverage; 45/75
       requests remain dynamic; no qualified candidate returns a structured
       no-route result rather than an over-budget route.
+    verification: >-
+      E4-3B1/E4-3B2 project-owner local route-selection tests and complete
+      unittest regression passed. Fixed score scenarios confirm strict-budget
+      selection, object-derived coverage, and deterministic score gaps.
 
 test_gaps:
   - gap_id: e3_gap_001_thread_isolation

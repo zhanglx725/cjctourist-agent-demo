@@ -33,6 +33,25 @@ class E4DurationIntegrationTests(unittest.TestCase):
         self.assertEqual(route["tour_state"]["available_minutes"], 60)
         self.assertEqual(route["visitor_profile"]["available_minutes"], 60)
 
+    def test_decimal_arabic_hour_route_input_reaches_the_existing_ninety_minute_flow(self):
+        text = "我有1.5个小时，喜欢灰塑和木雕，深入讲解，帮我规划路线"
+        collected = collect_profile_input(None, text, start_collection=True)
+        assert collected is not None
+        self.assertEqual(collected.status, "ready")
+        self.assertEqual(collected.collection.profile.available_minutes, 90)
+
+        route = direct_route_node(_state(text))
+        self.assertEqual(route["tour_state"]["available_minutes"], 90)
+        self.assertEqual(route["visitor_profile"]["available_minutes"], 90)
+
+    def test_out_of_range_decimal_hours_are_rejected_by_existing_profile_limits(self):
+        collected = collect_profile_input(
+            None, "我有2.5小时，喜欢灰塑，标准讲解", start_collection=True
+        )
+        assert collected is not None
+        self.assertEqual(collected.status, "clarification")
+        self.assertEqual(collected.reason_code, "invalid_profile_value")
+
     def test_half_hour_route_and_chinese_remaining_time_use_same_parser(self):
         route = direct_route_node(_state("给我规划一条半小时路线"))
         self.assertEqual(route["tour_state"]["available_minutes"], 30)

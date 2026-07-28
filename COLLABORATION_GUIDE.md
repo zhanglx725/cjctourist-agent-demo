@@ -319,7 +319,31 @@ python inspect_route_plan.py deep_dive_90
 
 ## E4-3B 路线选择共享边界
 
+- 兴趣覆盖证据只能来自路线实际 `guide_stop_ids` 的点位讲解包对象；对象必须满足 `final_node_id == guide_stop_id` 且 `mapping_decision in {change, add_node}`。路线标题、`themes`、`guide_focus` 和 LLM 推断均不得单独形成兴趣覆盖。
+- `node_guide_cards_v1.json` 是两阶段生成文件：`build_node_guide_cards.py` 生成路线评分所需的基础对象投影，`build_term_stop_associations.py` 随后回写术语 `glossary_ids`。修改审核空间映射后，必须重新运行基础构建，并通过“路线对象投影与已提交卡片一致”测试；不得将术语回写字段误作基础构建过期。统一为单一构建流水线是后续技术债。
+
 - `route_selection.py` 是路线初始化时唯一的锚点/动态候选选择器。禁止重新引入“模板标题主题优先”或“精确时长强制锚点”的分支。
 - 新路线必须严格满足 `estimated_total_seconds <= available_minutes * 60`。不得以 10% 容忍、显示时四舍五入或模糊警告掩盖超时；无合格候选必须返回可审计的无路线结果。
+- 严格预算是候选资格层；`time_utilization` 只负责在合格候选间表达“保留现场余量”的偏好。两者不得把刚好用满预算的合格路线重复惩罚为不可用。
+
+## E4-4B 问答上下文共享边界
+
+- `qa_context` 是单线程、单轮受控追问的检索条件，不是游客真实位置、长期画像或 RAG 证据缓存；不得写入 TourState、VisitorProfile、StopProgram 或知识卡。
+- 只有成功的结构化点位回答、或带 RAG evidence 的点位解释可创建 `qa_context`；失败、澄清和无证据解释必须清除它。
+- 显式点位只限定该轮/追问的问答范围；“这里/此处/本点”始终以 `TourState.current_stop_id` 为准。
+- A1 的 `request_stop_detail` 只展开当前正式讲解点；远程点位问答的展开必须走只读 `qa_follow_up_detail`，不得改变事件契约。
 - 兴趣覆盖只能由候选实际停留点的已审核点位—文物—工艺关联派生。不得为路线选择新增独立手工标签库，也不得由 LLM 推断覆盖关系。
 - `detail_level` 是选择器和动态每站预算的输入；TourState 的到达、完成、跳过、重规划语义仍完全由 A1 事件层控制。
+
+## E4-5B 知识子路由共享边界
+
+- 比较卡只有在用户本轮明确命中卡片双方审核比较对象时才可使用；单对象、主题或维度命中必须回退基础 RAG，不能拼接或替代缺失对象。
+- 研究意图没有 D1 合格的直接匹配卡时必须显示为基础资料回退，并保留 RAG 来源；不得把相关但不精确的研究摘要作为答案。
+- 明确点位概览与当前点工艺问答均以对应 `node_guide_card` 为硬范围。显式点位不改变物理位置；“这里”只使用 `TourState.current_stop_id`。
+- “危险动作 + 拍照 + 受保护构件”在顶层安全优先处理，不得先执行到达、查询打卡候选或写入游览状态。普通构件事实问题不应误触该拒绝。
+
+## E5-0 证据驱动讲解质量契约（冻结）
+
+- 统一契约见 `E5_NARRATION_CONTRACT.md`。E5 引入的 `NarrationCoverage` 只记录本线程、本次游览中已经成功输出且带 evidence 的工艺/文物介绍；它不是 TourState、VisitorProfile、知识事实或 RAG 原文缓存。
+- 首次工艺优先使用 `07_ornament_crafts.md` 的 evidence，首次文物优先使用 `08_ornament_items.md` 的 evidence，并只能连接当前点讲解包中审核关联的对象。预算不足时减少对象数，不减少核心证据链。
+- E5-A、E5-B、E5-C 必须从同一 E5-0 提交建立分支；主负责人独占修改本文件、进度报告和学习说明。具体文件所有权、失败关闭规则与 `e5_nar_001`--`e5_nar_008` 验收编号均以契约为准。

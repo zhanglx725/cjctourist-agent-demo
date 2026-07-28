@@ -21,6 +21,7 @@ ROUTES_DIR = Path("data/chen_clan_academy/routes")
 NODE_CARDS_FILE = ROUTES_DIR / "node_guide_cards_v1.json"
 POLICY_FILE = ROUTES_DIR / "dynamic_route_policy_v1.json"
 ENTRY_NODE_ID = "entrance_main_outside"
+REVIEWED_MAPPING_DECISIONS = frozenset({"change", "add_node"})
 
 
 class RouteSelectionError(ValueError):
@@ -155,15 +156,21 @@ def _node_ornaments() -> dict[str, tuple[dict[str, str], ...]]:
             continue
         approved: list[dict[str, str]] = []
         for ornament in card.get("ornaments", []):
-            # The card is generated from reviewed mappings.  Still require a
-            # matching final node so stale/foreign rows cannot score a route.
-            if ornament.get("final_node_id") != node_id:
+            # The card is generated from reviewed mappings. Reapply both
+            # mapping gates here so a stale or hand-edited card cannot make an
+            # unreviewed, foreign association influence route selection.
+            if (
+                ornament.get("final_node_id") != node_id
+                or ornament.get("mapping_decision") not in REVIEWED_MAPPING_DECISIONS
+            ):
                 continue
             approved.append(
                 {
                     "ornament_id": str(ornament.get("ornament_id", "")),
                     "name": str(ornament.get("name", "")),
                     "craft": str(ornament.get("craft", "")),
+                    "final_node_id": node_id,
+                    "mapping_decision": str(ornament.get("mapping_decision", "")),
                 }
             )
         indexed[node_id] = tuple(approved)
@@ -204,13 +211,24 @@ def derive_interest_coverage(
 
 
 def _time_utilization_score(ratio: float, lower: float, upper: float) -> float:
+    """Score budget use after strict-budget qualification.
+
+    The time band expresses a preferred amount of on-site slack, not a second
+    feasibility rule.  A route at the band upper bound receives ``0.9``.  It
+    then declines linearly but remains useful at the hard budget boundary
+    (``0.7`` at ``1.0``); plans over budget are rejected before this function
+    can affect candidate selection.
+    """
     midpoint = (lower + upper) / 2
     if lower <= ratio <= upper:
         half_band = max((upper - lower) / 2, 0.000001)
         return 0.9 + 0.1 * (1 - min(abs(ratio - midpoint) / half_band, 1))
     if ratio < lower:
         return max(0.0, 0.9 * ratio / lower)
-    return max(0.0, 0.9 * (1 - (ratio - upper) / max(1 - upper, 0.000001)))
+    if ratio <= 1.0:
+        return 0.9 - 0.2 * ((ratio - upper) / max(1 - upper, 0.000001))
+    # Defensive only: strict qualification rejects this case before scoring.
+    return max(0.0, 0.7 * (1 - (ratio - 1.0) / 0.10))
 
 
 def _candidate_components(

@@ -100,6 +100,29 @@ class AgentTourQaTests(unittest.TestCase):
         request = _message_state("我想踩在栏杆上拍照，怎么拍？")
         self.assertEqual(route_initial_request(request), "tour_qa")
 
+    def test_unsafe_photo_request_beats_arrival_without_partial_state_update(self):
+        state = self._arrived_tour()
+        before_tour = deepcopy(state["tour_state"])
+        before_interaction = deepcopy(state["tour_interaction_state"])
+        request = _message_state("我到月台了，踩栏杆怎么拍？", state)
+        self.assertEqual(route_initial_request(request), "tour_qa")
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            update = tour_qa_node(request)
+        rag.invoke.assert_not_called()
+        self.assertIn("不建议", update["messages"][0].content)
+        self.assertNotIn("月台", update["messages"][0].content.split("\n")[0])
+        self.assertEqual(state["tour_state"], before_tour)
+        self.assertEqual(state["tour_interaction_state"], before_interaction)
+
+    def test_ordinary_railing_fact_is_not_a_photo_safety_refusal(self):
+        state = self._arrived_tour()
+        request = _message_state("栏杆有什么特点？", state)
+        self.assertEqual(route_initial_request(request), "tour_qa")
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            rag.invoke.return_value = FAKE_PAYLOAD
+            update = tour_qa_node(request)
+        self.assertNotIn("不建议踩、爬", update["messages"][0].content)
+
     def test_answered_question_does_not_block_later_a1_event(self):
         state = self._arrived_tour()
         request = _message_state("前院中部有什么？", state)

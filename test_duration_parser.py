@@ -22,6 +22,10 @@ class DurationParserTests(unittest.TestCase):
             "一个半小时": 90,
             "一小时半": 90,
             "1.5小时": 90,
+            "1.5个小时": 90,
+            "0.5小时": 30,
+            "0.5个小时": 30,
+            "1.25小时": 75,
             "两小时": 120,
             "一刻钟": 15,
             "三刻钟": 45,
@@ -40,6 +44,16 @@ class DurationParserTests(unittest.TestCase):
         result = parse_duration_minutes("我有三十分钟或一个小时")
         self.assertEqual(result.reason_code, "ambiguous_duration")
         self.assertIsNone(result.minutes)
+
+    def test_fractional_minutes_are_not_treated_as_fractional_hours(self):
+        result = parse_duration_minutes("1.5分钟")
+        self.assertEqual(result.reason_code, "no_duration")
+        self.assertIsNone(result.minutes)
+
+    def test_decimal_hours_can_parse_beyond_profile_range_without_truncation(self):
+        result = parse_duration_minutes("2.5小时")
+        self.assertTrue(result.ok)
+        self.assertEqual(result.minutes, 150)
 
     def test_non_duration_history_question_is_not_route_context(self):
         text = "陈家祠建了多少年？"

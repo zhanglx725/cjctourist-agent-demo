@@ -979,7 +979,47 @@ glossary_ids
 - 游览中修改时间继续通过现有确定性 `replan_time` 适配层：保留已访问与跳过记录，不重复当前未确认站点，也不改变 A1 的到达、讲解结束和确认完成语义。
 - 已新增 `test_duration_parser.py` 与 `test_e4_duration_integration.py`。项目负责人已确认定向测试和完整 `unittest discover -v` 本机通过；本轮仍需以 LangSmith 检查“一个小时初始化”和“只剩半小时重规划”的真实节点链路。
 
-## E4-3B 多目标路线选择与严格预算（实现中，待本机验证）
+## E4-3B 多目标路线选择与严格预算（已本机验证）
+
+### E4-3B1 点位对象—兴趣证据一致性验收（已本机验证）
+
+- 路线兴趣覆盖读取 `node_guide_cards_v1.json` 时，重复核验对象的 `final_node_id` 必须等于实际 guide stop，且 `mapping_decision` 只能是 `change` 或 `add_node`；手工改写或过期卡片中的其他对象不能参与路线评分。
+- `test_node_guide_cards.py` 将重新执行 `build_cards()`，按 `node_id` 比较路线评分所依赖的对象投影（稳定排序后的 `ornament_id`、名称、工艺、审核节点和映射决定）、`ornament_count` 与 `craft_distribution`。术语构建器后续追加的 `glossary_ids`、`extensions` 不参与此项验收。
+- 当前讲解包采用“基础点位卡生成 → 术语关联回写”的两阶段流水线；未来可统一为单一可复现构建命令，现阶段作为技术债记录，不在本次路线评分验收中重构。
+- 当前 `interest_coverage` 只表达“用户兴趣是否在实际停靠点的审核对象中被覆盖”，不表示文物丰富度、典型性、权威排名或文化事实。文化特点、年代、寓意和故事仍须由 RAG evidence 支撑。
+
+### E4-3B2 时间利用率评分校准（已本机验证）
+
+- 严格预算仍是资格层硬约束：超出用户秒数预算的候选直接淘汰，不参与评分。
+- `time_utilization` 只表达偏好：在各深度目标区间内得最高分；从区间上限 0.95 到预算上限 1.00 线性由约 0.9 降至约 0.7，不再把刚好用满预算的合格路线打成 0 分。
+
+## E4-4B 点位问答短期上下文（已本机验证）
+
+- 新增只读 `qa_context`：只在成功且有可继续依据的点位问答后保存结构化检索条件；无证据、失败或澄清回答不会留下可用上下文。它不保存 RAG 正文，也不进入 TourState、VisitorProfile 或 StopProgram。
+- “再讲详细一点”在上一轮为 `tour_qa` 时进入独立 `qa_follow_up_detail`，重新检索上一轮限定点位；上一轮为 `stop_guidance` 时仍严格保留 A1 `request_stop_detail` 语义。
+- “石雕呢？”只在紧邻的有效点位问答后继承唯一问答点位；“这里呢？”始终回到真实 `current_stop_id`。
+- 路线事件、重规划、完成、路线初始化和其他非问答操作都会清除 `qa_context`。
+- 项目负责人已确认 E4-4B 定向测试与完整回归通过；后续只允许在不改变 A1、TourState 和知识卡事实边界的前提下优化表达与检索质量。
+
+## E4-3C 阿拉伯小数小时解析（已本机验证）
+
+- `duration_parser.py` 现以精确 `Decimal` 完成小数小时到分钟的换算：`1.5小时/1.5个小时 → 90`、`0.5小时/0.5个小时 → 30`、`1.25小时 → 75`。
+- 小数分钟不再从尾部误识别，例如 `1.5分钟` 不会被拆成 `5分钟`；`2.5小时 → 150` 仍由既有 VisitorProfile 的 20--120 分钟范围校验拒绝，不截断也不改路线选择。
+- 项目负责人已确认定向测试、完整 `unittest discover -v` 与 LangSmith 小数小时路线输入均通过。
+
+## E4-5B 知识子路由精确匹配、点位硬范围与安全优先（待本机验证）
+
+- D4 比较卡改为“双对象精确命中”门控：主题、维度或单一工艺命中都不能补足缺失比较对象。无精确合格卡时分别检索用户明确说出的双方基础资料，并说明证据不足时不作差异结论。
+- D3 明确研究意图在没有 D1 合格且直接匹配的研究卡时，改为 `research_rag_fallback`：游客消息保留基础 RAG 的实际来源，并明确该回答不是研究卡结论。
+- 明确点位概览（如“讲讲月台”）进入该点的审核讲解包，点位仅限定本轮查询，不改变 `current_stop_id`。当前点工艺术语先核对本点审核对象；不存在时返回 `current_craft_absent`，不以全馆资料补造眼前实例。
+- 顶层对“明确危险动作 + 明确拍照意图”先送入 D6 安全拒绝，再进行到达或多意图仲裁；拒绝不会查询打卡候选，也不会写入 TourState。
+
+## E5-0 个性化讲解质量、首次工艺介绍与文物深度契约（已冻结，未接入生产行为）
+
+- 新增 `E5_NARRATION_CONTRACT.md`，冻结从 VisitorProfile、GuidancePolicy、StopProgram、NarrationCoverage、RAG evidence 到确定性游客讲解的职责边界。
+- `NarrationCoverage` 被设计为独立线程内覆盖记录：只有成功、有 evidence 的讲解才标记 introduced；新路线清空，游览中到达、跳过、重规划和确认完成不清空。它不写入 TourState 或 VisitorProfile。
+- 首次工艺必须先有 `07_ornament_crafts.md` 证据并连接当前点审核实例；首次文物要求位置、工艺、可见细节和有来源的题材/寓意/故事。预算不足时少讲对象而不截断证据链。
+- 本步只新增契约与测试骨架；未实现覆盖状态写入、首次讲解编排、风格素材库或质量评测引擎。后续 E5-A/B/C 的冻结接口与验收编号见契约文件。
 
 - 新增 `route_selection.py`：审核锚点与动态路线进入统一候选池。候选必须满足 `estimated_total_seconds <= available_minutes * 60`；无合格候选返回结构化 `no_qualified_route`，不再提供超时路线。
 - 兴趣覆盖不再比较路线标题主题。选择器从实际 `guide_stop_ids` 对应的 `node_guide_cards_v1.json` 已审核对象中，按文物名称和工艺确定性派生证据；不会新增第二份人工 `interest_tags` 事实源。

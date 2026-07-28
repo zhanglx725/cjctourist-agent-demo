@@ -5,6 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 import unittest
+from unittest.mock import patch
 
 from route_planner import plan_template
 from tour_interaction import handle_tour_event, initialize_interaction
@@ -72,6 +73,19 @@ class TourQaTests(unittest.TestCase):
         self.assertEqual(result["inventory"]["node_id"], "label_moon_platform")
         self.assertGreater(result["inventory"]["craft_distribution"].get("石雕", 0), 0)
 
+    def test_explicit_point_overview_is_hard_bounded_to_its_card(self):
+        rear_tour = deepcopy(self.tour)
+        rear_tour["current_stop_id"] = "stop_rear_west_courtyard"
+        before = deepcopy(rear_tour)
+        result = answer_tour_question(
+            "讲讲月台。", rear_tour, self.interaction,
+            lambda _: self.fail("explicit point overview must use its reviewed card"),
+        )
+        self.assertEqual(result["mode"], "inventory")
+        self.assertEqual(result["inventory"]["node_id"], "label_moon_platform")
+        self.assertEqual(result["point_context"]["node_id"], "label_moon_platform")
+        self.assertEqual(rear_tour, before)
+
     def test_general_fact_question_is_not_restricted_to_current_point(self):
         result = answer_tour_question(
             "陈家祠什么时候建成？", self.tour, self.interaction, self._success_search
@@ -101,6 +115,27 @@ class TourQaTests(unittest.TestCase):
         result = answer_tour_question(
             "这里的灰塑有什么特点？", self_arrival["tour_state"], self_arrival["interaction_state"],
             lambda _: self.fail("no local craft must not call RAG"),
+        )
+        self.assertEqual(result["mode"], "current_craft_absent")
+        self.assertIn("没有灰塑", result["message"])
+
+    def test_deictic_craft_definition_requires_a_local_reviewed_association(self):
+        before_tour, before_interaction = deepcopy(self.tour), deepcopy(self.interaction)
+        result = answer_tour_question(
+            "这里的灰塑是什么意思？", self.tour, self.interaction,
+            lambda _: self.fail("eligible term card should not need RAG"),
+        )
+        self.assertEqual(result["mode"], "current_point_term_card")
+        self.assertEqual(result["point_context"]["node_id"], "stop_front_courtyard_center")
+        self.assertIn("确有灰塑对象", result["message"])
+        self.assertEqual(self.tour, before_tour)
+        self.assertEqual(self.interaction, before_interaction)
+
+        absent = deepcopy(self.tour)
+        absent["current_stop_id"] = "stop_rear_courtyard_west"
+        result = answer_tour_question(
+            "这里的灰塑是什么意思？", absent, self.interaction,
+            lambda _: self.fail("absent local craft must not call RAG"),
         )
         self.assertEqual(result["mode"], "current_craft_absent")
         self.assertIn("没有灰塑", result["message"])
@@ -167,6 +202,37 @@ class TourQaTests(unittest.TestCase):
         self.assertEqual(unavailable["evidence"], [])
         self.assertEqual(self.tour, before_tour)
         self.assertEqual(self.interaction, before_interaction)
+
+    def test_research_without_exact_card_falls_back_to_visible_base_evidence(self):
+        before_tour, before_interaction = deepcopy(self.tour), deepcopy(self.interaction)
+        with patch("tour_qa.retrieve_research_cards", return_value={"status": "no_eligible_match", "cards": []}):
+            result = answer_tour_question(
+                "从研究角度讲讲陈家祠的空间布局。",
+                self.tour, self.interaction, self._success_search,
+            )
+        self.assertEqual(result["mode"], "research_rag_fallback")
+        self.assertIn("基础资料回答", result["message"])
+        self.assertIn("S11", result["message"])
+        self.assertEqual(result["research_cards"], [])
+        self.assertEqual(self.tour, before_tour)
+        self.assertEqual(self.interaction, before_interaction)
+
+    def test_inexact_comparison_card_falls_back_to_separate_base_rag_queries(self):
+        calls = []
+
+        def search(query: str) -> str:
+            calls.append(query)
+            return self._success_search(query)
+
+        with patch("tour_qa.retrieve_gated_comparison", return_value={"status": "no_matching_card", "card": None}):
+            result = answer_tour_question(
+                "灰塑和木雕有什么区别？", self.tour, self.interaction, search,
+            )
+        self.assertEqual(result["mode"], "comparison_rag_fallback")
+        self.assertEqual(result["comparison"], None)
+        self.assertEqual(result["comparison_subjects"], ("灰塑", "木雕"))
+        self.assertEqual(calls, ["灰塑 是什么 工艺 特点", "木雕 是什么 工艺 特点"])
+        self.assertIn("S11", result["message"])
 
 
 if __name__ == "__main__":

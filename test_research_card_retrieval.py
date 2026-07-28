@@ -43,6 +43,15 @@ class ResearchCardRetrievalTests(unittest.TestCase):
         # of visitor rendering, but are safe to assert inside this retrieval test.
         self.assertTrue(result["cards"][0]["applicable_here"])
 
+    def test_current_node_never_substitutes_for_question_match(self) -> None:
+        result = retrieve_research_cards(
+            "从研究角度看冷巷通风。",
+            current_node_id="label_moon_platform",
+            registry_loader=lambda: {"research_a": _research("research_a", node_ids=["label_moon_platform"])},
+        )
+        self.assertEqual(result["status"], "no_eligible_match")
+        self.assertEqual(result["cards"], [])
+
     def test_disabled_and_background_cards_never_run(self) -> None:
         cards = {
             "disabled": _research("disabled", status="disabled"),

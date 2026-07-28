@@ -6,6 +6,29 @@ import unittest
 from unittest.mock import patch
 
 import comparison_retrieval
+from knowledge_card_contract import KnowledgeCard
+
+
+def _gated_card(card_id: str, objects: list[str]) -> KnowledgeCard:
+    return KnowledgeCard(
+        card_id=card_id,
+        card_type="comparison",
+        runtime_status="attributed_only",
+        allowed_capabilities=("attributed_comparison",),
+        allowed_scenarios=("study", "professional"),
+        source_refs=("CMPREF_TEST",),
+        applicable_node_ids=(),
+        limitations=("必须归因。",),
+        raw_payload={
+            "comparison_id": card_id,
+            "comparison_objects": objects,
+            "scope_zh": "测试范围",
+            "dimensions": ["材料与工艺"],
+            "similarities_zh": ["测试相同点"],
+            "differences_zh": ["测试差异"],
+            "limitations_zh": "测试限制",
+        },
+    )
 
 
 class ComparisonRetrievalTests(unittest.TestCase):
@@ -60,6 +83,28 @@ class ComparisonRetrievalTests(unittest.TestCase):
             result = comparison_retrieval.comparison_context("陈家祠和沙面有什么区别？")
         self.assertEqual(result["status"], "ok")
         self.assertEqual(result["cards"][0]["comparison_id"], "cmp_confirmed")
+
+    def test_gated_card_requires_both_explicit_objects(self) -> None:
+        cards = {
+            "grey_brick": _gated_card("grey_brick", ["灰塑", "砖塑"]),
+            "grey_wood": _gated_card("grey_wood", ["灰塑", "木雕"]),
+        }
+        result = comparison_retrieval.retrieve_gated_comparison(
+            "从研究角度比较灰塑和木雕有什么区别？",
+            allow_research=True,
+            registry_loader=lambda: cards,
+        )
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["card"]["objects"], ["灰塑", "木雕"])
+
+    def test_one_sided_card_never_becomes_research_comparison(self) -> None:
+        cards = {"grey_brick": _gated_card("grey_brick", ["灰塑", "砖塑"])}
+        result = comparison_retrieval.retrieve_gated_comparison(
+            "从研究角度比较灰塑和木雕有什么区别？",
+            allow_research=True,
+            registry_loader=lambda: cards,
+        )
+        self.assertEqual(result, {"status": "no_matching_card", "card": None})
 
 
 if __name__ == "__main__":

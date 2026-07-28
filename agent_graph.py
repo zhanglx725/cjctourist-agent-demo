@@ -28,11 +28,21 @@ from tour_interaction import handle_tour_event, initialize_interaction
 from tour_intent import classify_tour_intent
 from tour_presenter import present_clarification, present_tour_event, present_tour_state
 from tour_state import start_tour
-from tour_qa import answer_tour_question, is_point_inventory_request
+from tour_qa import (
+    answer_qa_follow_up_detail,
+    answer_tour_question,
+    build_qa_context_from_answer,
+    is_point_inventory_request,
+)
+from qa_context import (
+    clear_qa_context,
+    is_qa_follow_up_detail_request,
+    is_qa_subject_follow_up_request,
+)
 from term_card_runtime import is_explicit_term_question
 from research_card_retrieval import is_explicit_research_question
 from comparison_retrieval import is_explicit_comparison_question
-from photo_spot_runtime import is_explicit_photo_request
+from photo_spot_runtime import is_explicit_photo_request, is_unsafe_photo_request
 from guide_program_evidence import build_stop_guidance, reexpress_current_stop_guidance
 from profile_dialogue import collect_profile_input
 from profile_update import apply_profile_update, is_profile_update_request
@@ -65,6 +75,7 @@ class AgentState(TypedDict, total=False):
     last_tour_event: dict[str, Any]
     active_stop_program: dict[str, Any]
     active_guidance_evidence_by_item: dict[str, list[dict[str, Any]]]
+    qa_context: dict[str, Any]
     # C2 preferences are distinct from TourState's per-tour snapshot.  C3
     # will explicitly copy a validated profile when a route is initialized.
     visitor_profile: dict[str, Any]
@@ -151,6 +162,20 @@ def _latest_user_text(state: AgentState) -> str:
         return ""
     content = state["messages"][-1].content
     return content if isinstance(content, str) else str(content)
+
+
+def _last_assistant_response_kind(state: AgentState) -> str | None:
+    """Inspect message metadata only; it never infers tour facts from prose."""
+    for message in reversed(state.get("messages", [])[:-1]):
+        if not isinstance(message, AIMessage):
+            continue
+        metadata = message.additional_kwargs or {}
+        if metadata.get("tour_qa_answer"):
+            return "tour_qa"
+        if metadata.get("stop_guidance"):
+            return "stop_guidance"
+        return "other"
+    return None
 
 
 @tool
@@ -245,6 +270,10 @@ def llm_think_node(state: AgentState) -> dict[str, Any]:
     )
     return {
         "messages": [response],
+        # A generic LLM turn is a non-question conversational turn from the
+        # perspective of the bounded tour-QA follow-up contract.  It must not
+        # leave an earlier local query eligible for a later omitted follow-up.
+        "qa_context": clear_qa_context(state.get("qa_context")),
         "performance_metrics": _append_metric(
             state,
             "llm_think",
@@ -275,6 +304,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
     except VisitorProfileError as exc:
         return {
             "messages": [AIMessage(content=f"游客画像无效，无法开始路线：{exc}")],
+            "qa_context": clear_qa_context(state.get("qa_context")),
             "performance_metrics": _append_metric(
                 state, "direct_route", time.perf_counter() - started,
                 route_started=False, profile_error=True,
@@ -293,6 +323,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
                 "messages": [AIMessage(content=(
                     "当前时间预算内没有可安全安排的审核路线；请增加可用时间或调整需求。"
                 ))],
+                "qa_context": clear_qa_context(state.get("qa_context")),
                 "performance_metrics": _append_metric(
                     state, "direct_route", time.perf_counter() - started,
                     route_started=False, route_error=True,
@@ -315,6 +346,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
     except (ValueError, RuntimeError) as exc:
         return {
             "messages": [AIMessage(content=f"无法按当前画像生成审核路线：{exc}")],
+            "qa_context": clear_qa_context(state.get("qa_context")),
             "performance_metrics": _append_metric(
                 state, "direct_route", time.perf_counter() - started,
                 route_started=False, route_error=True,
@@ -356,6 +388,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         "tour_interaction_state": interaction,
         "tour_presentation": presentation,
         "visitor_profile": profile.to_dict(),
+        "qa_context": clear_qa_context(state.get("qa_context")),
         "performance_metrics": _append_metric(
             state,
             "direct_route",
@@ -390,6 +423,7 @@ def profile_collection_node(state: AgentState) -> dict[str, Any]:
         message = "请先说明您想规划路线，或继续回答当前的导览偏好问题。"
         return {
             "messages": [AIMessage(content=message)],
+            "qa_context": clear_qa_context(state.get("qa_context")),
             "performance_metrics": _append_metric(
                 state, "profile_collection", time.perf_counter() - started,
                 status="ignored",
@@ -398,6 +432,7 @@ def profile_collection_node(state: AgentState) -> dict[str, Any]:
     payload = result.to_dict()
     return {
         "messages": [AIMessage(content=payload["message"])],
+        "qa_context": clear_qa_context(state.get("qa_context")),
         "visitor_profile": payload["visitor_profile"],
         "profile_collection": payload["profile_collection"],
         "performance_metrics": _append_metric(
@@ -423,6 +458,7 @@ def profile_update_node(state: AgentState) -> dict[str, Any]:
         presentation = present_clarification(message, state.get("tour_interaction_state"))
         return {
             "messages": [AIMessage(content=message)],
+            "qa_context": clear_qa_context(state.get("qa_context")),
             "tour_presentation": presentation,
             "last_profile_update": {"ok": False, "code": "multiple_intents"},
             "performance_metrics": _append_metric(
@@ -434,6 +470,7 @@ def profile_update_node(state: AgentState) -> dict[str, Any]:
         presentation = present_clarification(intent.clarification_message or "请一次只调整一项导览操作。", state.get("tour_interaction_state"))
         return {
             "messages": [AIMessage(content=presentation["message"])],
+            "qa_context": clear_qa_context(state.get("qa_context")),
             "tour_presentation": presentation,
             "last_profile_update": {"ok": False, "code": "multiple_intents"},
             "performance_metrics": _append_metric(
@@ -456,6 +493,7 @@ def profile_update_node(state: AgentState) -> dict[str, Any]:
         "messages": [AIMessage(content=presentation["message"])],
         "last_profile_update": {"ok": result["ok"], "code": result["code"]},
         "tour_presentation": presentation,
+        "qa_context": clear_qa_context(state.get("qa_context")),
         "performance_metrics": _append_metric(
             state, "profile_update", time.perf_counter() - started,
             ok=result["ok"], code=result["code"],
@@ -479,6 +517,7 @@ def extended_profile_control_node(state: AgentState) -> dict[str, Any]:
     control = result["control"]
     updates: dict[str, Any] = {
         "messages": [AIMessage(content=result["message"])],
+        "qa_context": clear_qa_context(state.get("qa_context")),
         "last_extended_profile_control": {"ok": result["ok"], "kind": control.kind, "patch": control.patch},
         "performance_metrics": _append_metric(state, "extended_profile_control", time.perf_counter() - started,
                                                 ok=result["ok"], kind=control.kind),
@@ -521,6 +560,7 @@ def tour_event_node(state: AgentState) -> dict[str, Any]:
     if decision.route_kind != "tour_event" or not decision.event_type:
         return {
             "messages": [AIMessage(content="我无法确认这项导游操作，请换一种明确说法。")],
+            "qa_context": clear_qa_context(state.get("qa_context")),
             "last_tour_intent": decision.to_dict(),
             "performance_metrics": _append_metric(state, "tour_event", time.perf_counter() - started, executed=False),
         }
@@ -540,6 +580,7 @@ def tour_event_node(state: AgentState) -> dict[str, Any]:
             "ok": result["ok"],
         },
         "tour_presentation": presentation,
+        "qa_context": clear_qa_context(state.get("qa_context")),
         "performance_metrics": _append_metric(
             state,
             "tour_event",
@@ -606,6 +647,7 @@ def clarification_node(state: AgentState) -> dict[str, Any]:
         "messages": [AIMessage(content=presentation["message"])],
         "last_tour_intent": decision.to_dict(),
         "tour_presentation": presentation,
+        "qa_context": clear_qa_context(state.get("qa_context")),
         "performance_metrics": _append_metric(state, "clarification", 0.0, reason_code=decision.reason_code),
     }
 
@@ -626,6 +668,7 @@ def direct_rag_node(state: AgentState) -> dict[str, Any]:
     return {
         "messages": [marker],
         "retrieved_evidence": evidence,
+        "qa_context": clear_qa_context(state.get("qa_context")),
         "performance_metrics": _append_metric(
             state,
             "direct_rag",
@@ -668,10 +711,48 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
             evidence_count=len(result["evidence"]),
             current_stop_id=(result.get("point_context") or {}).get("node_id"),
         ),
+        "qa_context": build_qa_context_from_answer(
+            query, result, state.get("tour_state")
+        ) or clear_qa_context(state.get("qa_context")),
     }
     # The presenter is UI data, not a state transition.  Deliberately do not
     # return tour_state or tour_interaction_state here.
     if result["presentation"] is not None:
+        updates["tour_presentation"] = result["presentation"]
+    return updates
+
+
+def qa_follow_up_detail_node(state: AgentState) -> dict[str, Any]:
+    """Expand only the immediately preceding bounded tour-QA context."""
+    query = _latest_user_text(state)
+    started = time.perf_counter()
+    result = answer_qa_follow_up_detail(
+        query,
+        state.get("qa_context"),
+        state.get("tour_state"),
+        state.get("tour_interaction_state"),
+        lambda retrieval_query: str(chen_clan_academy_rag_search.invoke({"query": retrieval_query})),
+        detailed=is_qa_follow_up_detail_request(query),
+    )
+    updated_context = build_qa_context_from_answer(
+        query, result, state.get("tour_state"), state.get("qa_context")
+    )
+    updates: dict[str, Any] = {
+        "messages": [AIMessage(
+            content=result["message"],
+            additional_kwargs={"tour_qa_answer": True, "qa_follow_up_detail": True},
+        )],
+        "retrieved_evidence": result["evidence"],
+        "qa_context": updated_context or clear_qa_context(state.get("qa_context")),
+        "performance_metrics": _append_metric(
+            state,
+            "qa_follow_up_detail",
+            time.perf_counter() - started,
+            mode=result.get("mode"),
+            evidence_count=len(result["evidence"]),
+        ),
+    }
+    if result.get("presentation") is not None:
         updates["tour_presentation"] = result["presentation"]
     return updates
 
@@ -724,6 +805,20 @@ def route_after_llm(state: AgentState) -> str:
 def route_initial_request(state: AgentState) -> str:
     """Apply A1-2 priority before route/RAG/LLM fallbacks."""
     text = _latest_user_text(state)
+    # Safety is evaluated before event/multi-intent arbitration.  A dangerous
+    # photo request must never record an arrival first or reach D5 candidates.
+    # The D6 handler performs the deterministic refusal without state writes.
+    if is_unsafe_photo_request(text):
+        return "tour_qa"
+    # A1 reserves request_stop_detail for the active physical StopProgram.
+    # The same wording may instead follow a successful knowledge answer; that
+    # read-only path is selected only from explicit message metadata.
+    if is_qa_follow_up_detail_request(text) or is_qa_subject_follow_up_request(text):
+        previous_kind = _last_assistant_response_kind(state)
+        if previous_kind == "tour_qa":
+            return "qa_follow_up_detail"
+        if previous_kind not in {"stop_guidance"}:
+            return "qa_follow_up_detail"
     decision = classify_tour_intent(
         text, state.get("tour_state"), state.get("tour_interaction_state")
     )
@@ -792,6 +887,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("rag_tool", rag_tool_node)
     workflow.add_node("direct_rag", direct_rag_node)
     workflow.add_node("tour_qa", tour_qa_node)
+    workflow.add_node("qa_follow_up_detail", qa_follow_up_detail_node)
     workflow.add_node("direct_route", direct_route_node)
     workflow.add_node("profile_collection", profile_collection_node)
     workflow.add_node("profile_update", profile_update_node)
@@ -803,12 +899,13 @@ def build_agent_graph(with_checkpointer: bool = True):
         START,
         route_initial_request,
         {
-            "direct_rag": "direct_rag", "tour_qa": "tour_qa", "direct_route": "direct_route", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "tour_event": "tour_event",
+            "direct_rag": "direct_rag", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "tour_event": "tour_event",
             "clarification": "clarification", "llm_think": "llm_think",
         },
     )
     workflow.add_edge("direct_rag", "llm_think")
     workflow.add_edge("tour_qa", END)
+    workflow.add_edge("qa_follow_up_detail", END)
     workflow.add_edge("direct_route", END)
     workflow.add_conditional_edges(
         "profile_collection", route_after_profile_collection,

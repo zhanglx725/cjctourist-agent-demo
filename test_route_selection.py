@@ -9,12 +9,38 @@ from route_planner import plan_template
 from route_selection import (
     RouteCandidateEvaluation,
     _select_highest_scored_candidate,
+    _time_utilization_score,
     derive_interest_coverage,
     recommend_route,
 )
 
 
 class RouteSelectionTests(unittest.TestCase):
+    def test_time_utilization_prefers_target_band_without_cliff_at_hard_budget(self):
+        lower, upper = 0.60, 0.95
+        midpoint = (lower + upper) / 2
+        self.assertAlmostEqual(_time_utilization_score(midpoint, lower, upper), 1.0)
+        self.assertAlmostEqual(_time_utilization_score(upper, lower, upper), 0.9)
+        midpoint_to_budget = _time_utilization_score(0.975, lower, upper)
+        self.assertGreater(midpoint_to_budget, 0.7)
+        self.assertLess(midpoint_to_budget, 0.9)
+        self.assertAlmostEqual(_time_utilization_score(1.0, lower, upper), 0.7)
+        self.assertGreater(
+            _time_utilization_score(upper, lower, upper),
+            midpoint_to_budget,
+        )
+        self.assertGreater(
+            midpoint_to_budget,
+            _time_utilization_score(1.0, lower, upper),
+        )
+
+    def test_time_utilization_scores_remain_bounded_and_budget_filter_is_separate(self):
+        lower, upper = 0.60, 0.95
+        for ratio in (0.0, 0.30, lower, 0.775, upper, 0.975, 1.0, 1.01):
+            score = _time_utilization_score(ratio, lower, upper)
+            self.assertGreaterEqual(score, 0.0)
+            self.assertLessEqual(score, 1.0)
+
     def test_highest_scored_qualified_candidate_is_selected_without_anchor_margin(self):
         anchor = RouteCandidateEvaluation(
             candidate_id="highlights_30",
@@ -61,10 +87,22 @@ class RouteSelectionTests(unittest.TestCase):
         self.assertLessEqual(selected.estimated_total_seconds, 90 * 60)
         ratio = selected.estimated_total_seconds / (90 * 60)
         self.assertGreaterEqual(ratio, 0.80)
-        self.assertLessEqual(ratio, 0.95)
-        covered = selected.selection_reason["covered_interests"]
-        self.assertIn("灰塑", covered)
-        self.assertIn("木雕", covered)
+        if ratio > 0.95:
+            time_utilization = selected.selection_reason["components"]["time_utilization"]
+            self.assertGreater(time_utilization, 0.0)
+            self.assertLess(time_utilization, 0.9)
+        evidence = derive_interest_coverage(selected.guide_stop_ids, ["灰塑", "木雕"])
+        for interest in ("灰塑", "木雕"):
+            self.assertTrue(evidence[interest], interest)
+            self.assertTrue(
+                all(item["node_id"] in selected.guide_stop_ids for item in evidence[interest])
+            )
+            self.assertTrue(
+                all(item["final_node_id"] == item["node_id"] for item in evidence[interest])
+            )
+            self.assertTrue(
+                all(item["mapping_decision"] in {"change", "add_node"} for item in evidence[interest])
+            )
 
     def test_interest_evidence_is_derived_from_actual_reviewed_stop_objects(self):
         result = recommend_route(60, interests=["灰塑", "木雕"], detail_level="standard")
@@ -77,6 +115,50 @@ class RouteSelectionTests(unittest.TestCase):
             self.assertTrue(
                 all(interest in item["craft"] or interest in item["name"] for item in matches)
             )
+            self.assertTrue(
+                all(item["mapping_decision"] in {"change", "add_node"} for item in matches)
+            )
+            self.assertTrue(
+                all(item["final_node_id"] == item["node_id"] for item in matches)
+            )
+
+    def test_interest_evidence_rejects_foreign_or_unreviewed_card_objects(self):
+        payload = {
+            "cards": [
+                {
+                    "node_id": "reviewed_stop",
+                    "themes": ["灰塑"],
+                    "guide_focus": "灰塑观察",
+                    "ornaments": [
+                        {"ornament_id": "orn_change", "name": "审核灰塑", "craft": "灰塑", "final_node_id": "reviewed_stop", "mapping_decision": "change"},
+                        {"ornament_id": "orn_add", "name": "审核木雕", "craft": "木雕", "final_node_id": "reviewed_stop", "mapping_decision": "add_node"},
+                        {"ornament_id": "orn_unreviewed", "name": "未审核灰塑", "craft": "灰塑", "final_node_id": "reviewed_stop", "mapping_decision": "keep"},
+                        {"ornament_id": "orn_foreign", "name": "外部灰塑", "craft": "灰塑", "final_node_id": "other_stop", "mapping_decision": "change"},
+                    ],
+                }
+            ]
+        }
+        with patch("route_selection._load_json", return_value=payload):
+            evidence = derive_interest_coverage(("reviewed_stop",), ["灰塑", "木雕"])
+        self.assertEqual([item["ornament_id"] for item in evidence["灰塑"]], ["orn_change"])
+        self.assertEqual([item["ornament_id"] for item in evidence["木雕"]], ["orn_add"])
+
+    def test_title_theme_or_focus_never_counts_as_object_interest_coverage(self):
+        payload = {
+            "cards": [
+                {
+                    "node_id": "title_only_stop",
+                    "themes": ["灰塑"],
+                    "guide_focus": "重点讲灰塑工艺",
+                    "ornaments": [
+                        {"ornament_id": "orn_stone", "name": "石雕装饰", "craft": "石雕", "final_node_id": "title_only_stop", "mapping_decision": "change"}
+                    ],
+                }
+            ]
+        }
+        with patch("route_selection._load_json", return_value=payload):
+            evidence = derive_interest_coverage(("title_only_stop",), ["灰塑"])
+        self.assertEqual(evidence["灰塑"], ())
 
     def test_non_anchor_duration_keeps_dynamic_route_available(self):
         result = recommend_route(45, interests=["灰塑"], detail_level="standard")
@@ -129,6 +211,10 @@ class RouteSelectionTests(unittest.TestCase):
         self.assertEqual(result.status, "no_qualified_route")
         self.assertIsNone(result.selected)
         self.assertEqual(result.reason_code, "no_reviewed_candidate_within_strict_budget")
+        over_budget_evaluation = next(
+            item for item in result.evaluations if item.candidate_id == "highlights_30"
+        )
+        self.assertEqual(over_budget_evaluation.rejected_reason, "strict_budget_exceeded_or_unknown")
 
     def test_same_input_is_stable_and_state_free(self):
         first = recommend_route(75, interests=["木雕", "灰塑"], detail_level="standard")

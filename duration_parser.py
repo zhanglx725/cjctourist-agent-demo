@@ -8,6 +8,7 @@ value; the parser never invokes an LLM and never changes state.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 import re
 
 
@@ -22,8 +23,10 @@ _DURATION_RE = re.compile(
     r"|(?P<half>半小时)"
     r"|(?P<quarter>一刻钟)"
     r"|(?P<three_quarters>三刻钟)"
-    r"|(?P<minutes>(?:\d{1,3}|[零〇一二三四五六七八九十两]+)\s*分钟)"
-    r"|(?P<hours>(?:(?:\d{1,3}(?:\.\d+)?)|一个|[零〇一二三四五六七八九十两]+)\s*小时)"
+    # The numeric-minute form must not restart at the fractional tail of an
+    # unsupported expression such as "1.5分钟" and silently parse it as 5 分钟.
+    r"|(?P<minutes>(?<![.\d])(?:\d{1,3}|[零〇一二三四五六七八九十两]+)\s*分钟)"
+    r"|(?P<hours>(?:(?:\d{1,3}(?:\.\d+)?)\s*个?|一个|[零〇一二三四五六七八九十两]+)\s*小时)"
     r")"
 )
 
@@ -64,12 +67,16 @@ def _parse_chinese_number(value: str) -> int | None:
     return tens * 10 + ones
 
 
-def _number_value(value: str) -> float | None:
+def _number_value(value: str) -> Decimal | None:
+    """Return an exact numeric value for supported duration units."""
     normalized = value.strip().replace("个", "")
     if re.fullmatch(r"\d{1,3}(?:\.\d+)?", normalized):
-        return float(normalized)
+        try:
+            return Decimal(normalized)
+        except InvalidOperation:
+            return None
     parsed = _parse_chinese_number(normalized)
-    return float(parsed) if parsed is not None else None
+    return Decimal(parsed) if parsed is not None else None
 
 
 def _candidate_minutes(match: re.Match[str]) -> int | None:
@@ -85,15 +92,15 @@ def _candidate_minutes(match: re.Match[str]) -> int | None:
     if minutes:
         value = minutes.removesuffix("分钟").strip()
         numeric = _number_value(value)
-        return int(numeric) if numeric is not None and numeric.is_integer() else None
+        return int(numeric) if numeric is not None and numeric == numeric.to_integral_value() else None
     hours = match.group("hours")
     if hours:
         value = hours.removesuffix("小时").strip()
         numeric = _number_value(value)
         if numeric is None:
             return None
-        duration = numeric * 60
-        return int(duration) if duration.is_integer() else None
+        duration = numeric * Decimal(60)
+        return int(duration) if duration == duration.to_integral_value() else None
     return None
 
 

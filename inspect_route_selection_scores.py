@@ -61,6 +61,17 @@ def inspect_scenario(
         "selection_status": result.status,
         "selected_route_id": result.selected.route_id if result.selected else None,
         "selected_strategy": result.selected.route_strategy if result.selected else None,
+        "selected_total_score": (
+            result.selected.selection_reason.get("selected_total_score")
+            if result.selected
+            else None
+        ),
+        "gap_from_best_score": (
+            result.selected.selection_reason.get("gap_from_best_score")
+            if result.selected
+            else None
+        ),
+        "selection_reason": result.selected.selection_reason if result.selected else None,
         "candidates": candidates,
     }
 

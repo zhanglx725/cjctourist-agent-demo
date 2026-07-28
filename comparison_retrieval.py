@@ -80,9 +80,56 @@ def _gated_comparison_cards(registry: dict[str, KnowledgeCard]) -> list[Knowledg
 
 
 def _matched_objects(card: KnowledgeCard, query: str) -> list[str]:
+    """Return comparison objects whose own reviewed label is named in query.
+
+    A comparison card is only safe when both of its actual objects are named.
+    Theme and dimension labels may help a human browse cards, but must never
+    turn a one-sided craft match into a two-object comparison.
+    """
     normalized = query.casefold()
-    labels = _card_labels(card.raw_payload)
-    return [label for label in labels if label.casefold() in normalized]
+    objects = [
+        str(value).strip()
+        for value in card.raw_payload.get("comparison_objects", [])
+        if isinstance(value, str) and value.strip()
+    ]
+    return [value for value in objects if _object_matches_query(value, normalized)]
+
+
+def _object_aliases(object_name: str) -> tuple[str, ...]:
+    """Return conservative deterministic aliases for reviewed object labels."""
+    aliases = {object_name}
+    # Parenthetical scope is not part of the visitor's object wording.
+    aliases.add(object_name.split("（", 1)[0].strip())
+    aliases.add(object_name.split("(", 1)[0].strip())
+    aliases.update(
+        {
+            "陈氏书院": "陈家祠",
+            "广州灰塑（含陈家祠案例）": "广州灰塑",
+            "山东鄄城砖塑": "鄄城砖塑",
+        }.get(object_name, "").split("\n")
+    )
+    # These are reviewed craft names, not a semantic expansion: they only
+    # normalize the card's own Guangzhou-grey-plaster wording.
+    if object_name.startswith("广州灰塑"):
+        aliases.update({"陈家祠灰塑", "灰塑"})
+    return tuple(alias for alias in aliases if alias)
+
+
+def _object_matches_query(object_name: str, normalized_query: str) -> bool:
+    return any(alias.casefold() in normalized_query for alias in _object_aliases(object_name))
+
+
+def extract_comparison_subjects(user_query: str) -> tuple[str, ...]:
+    """Extract only explicit public comparison subjects for base-RAG fallback.
+
+    This list is deliberately small and deterministic.  It does not invent a
+    counterpart when the visitor names only one side of a comparison.
+    """
+    public_terms = (
+        "灰塑", "木雕", "砖雕", "砖塑", "陶塑", "石雕", "屋脊",
+        "月台", "陈家祠", "陈氏书院", "晋祠", "开平碉楼",
+    )
+    return tuple(term for term in public_terms if term in user_query)
 
 
 def retrieve_gated_comparison(
@@ -104,27 +151,24 @@ def retrieve_gated_comparison(
         cards = _gated_comparison_cards(registry_loader())
     except Exception:
         return {"status": "registry_unavailable", "card": None}
-    ranked: list[tuple[tuple[int, int, int], KnowledgeCard]] = []
+    ranked: list[KnowledgeCard] = []
     for card in cards:
-        raw = card.raw_payload
-        objects = [str(value) for value in raw.get("comparison_objects", []) if isinstance(value, str)]
         matched = _matched_objects(card, user_query)
-        # Two named comparison objects outrank theme/dimension wording, then
-        # one-object matches.  Stable card_id resolves all remaining ties.
-        object_hits = sum(1 for value in objects if value.casefold() in user_query.casefold())
-        theme_hit = int(str(raw.get("theme_zh") or "").casefold() in user_query.casefold())
-        dimensions = raw.get("dimensions", [])
-        dimension_hits = sum(1 for value in dimensions if isinstance(value, str) and value.casefold() in user_query.casefold())
-        label_hits = len(matched)
-        score = (2 if object_hits >= 2 else 1 if object_hits == 1 else 0, theme_hit + dimension_hits, label_hits)
-        if any(score):
-            ranked.append((score, card))
-    ranked.sort(key=lambda item: (-item[0][0], -item[0][1], -item[0][2], item[1].card_id))
+        objects = [
+            str(value).strip()
+            for value in card.raw_payload.get("comparison_objects", [])
+            if isinstance(value, str) and value.strip()
+        ]
+        # Exact card use requires every reviewed comparison object.  A theme,
+        # a dimension, or a single craft can never fill in a missing side.
+        if len(objects) >= 2 and len(matched) == len(objects):
+            ranked.append(card)
+    ranked.sort(key=lambda card: card.card_id)
     if not ranked:
         return {"status": "no_matching_card", "card": None}
     if not allow_research:
         return {"status": "research_card_not_permitted", "card": None}
-    card = ranked[0][1]
+    card = ranked[0]
     raw = card.raw_payload
     return {
         "status": "ok",
