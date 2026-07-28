@@ -1,0 +1,132 @@
+schema_version: e5_narration_runtime_results_v1
+evaluation_baseline: a643a5a577394b2876cbfbd3ed6d4a97f958982b
+implementation_commit: 5183b7e66745f201d5f68efd9b812a306b873b25
+integration_commit: effc5a5
+source_cases_file: data/chen_clan_academy/evaluation/e5_narration_cases_v1.yaml
+environment:
+  execution_status: pending_local_execution
+  environment_limitation: sandbox_cannot_access_windowsapps_base_python
+  executed_at: null
+  note: >-
+    This file is a runtime-result overlay.  It does not alter the historical
+    readiness values frozen in the E5-C source cases.
+results:
+  - case_id: e5_nar_001
+    baseline_readiness: blocked_pending_e5_a
+    implementation_status: implemented_pending_execution
+    automated_test_status: pending_local_execution
+    langsmith_status: pending_langsmith
+    actual_node_path: []
+    actual_source_ids: []
+    rendered_craft_ids: []
+    rendered_ornament_ids: []
+    coverage_before: null
+    coverage_after: null
+    tour_state_before: null
+    tour_state_after: null
+    score_by_dimension: {evidence: pending, first_craft: pending, state_invariant: pending}
+    finding_ids: []
+    evidence_refs: [e5_narration_cases_v1.yaml:e5_nar_001]
+    notes: First gray-plaster runtime narration awaits local execution and LangSmith trace.
+  - case_id: e5_nar_002
+    baseline_readiness: blocked_pending_e5_a
+    implementation_status: implemented_pending_execution
+    automated_test_status: pending_local_execution
+    langsmith_status: pending_langsmith
+    actual_node_path: []
+    actual_source_ids: []
+    rendered_craft_ids: []
+    rendered_ornament_ids: []
+    coverage_before: null
+    coverage_after: null
+    tour_state_before: null
+    tour_state_after: null
+    score_by_dimension: {repeat_craft: pending, new_ornament: pending, state_invariant: pending}
+    finding_ids: []
+    evidence_refs: [e5_narration_cases_v1.yaml:e5_nar_002]
+    notes: Follow-up gray-plaster narration awaits a two-stop local trace.
+  - case_id: e5_nar_003
+    baseline_readiness: blocked_pending_e5_a
+    implementation_status: implemented_pending_execution
+    automated_test_status: pending_local_execution
+    langsmith_status: pending_langsmith
+    actual_node_path: []
+    actual_source_ids: []
+    rendered_craft_ids: []
+    rendered_ornament_ids: []
+    coverage_before: null
+    coverage_after: null
+    tour_state_before: null
+    tour_state_after: null
+    score_by_dimension: {location: pending, ornament_detail: pending, state_invariant: pending}
+    finding_ids: []
+    evidence_refs: [e5_narration_cases_v1.yaml:e5_nar_003]
+    notes: First ornament-detail runtime trace awaits local execution.
+  - case_id: e5_nar_004
+    baseline_readiness: blocked_pending_e5_a
+    implementation_status: implemented_pending_execution
+    automated_test_status: pending_local_execution
+    langsmith_status: pending_langsmith
+    actual_node_path: []
+    actual_source_ids: []
+    rendered_craft_ids: []
+    rendered_ornament_ids: []
+    coverage_before: null
+    coverage_after: null
+    tour_state_before: null
+    tour_state_after: null
+    score_by_dimension: {budget: pending, omitted_subjects: pending, state_invariant: pending}
+    finding_ids: []
+    evidence_refs: [e5_narration_cases_v1.yaml:e5_nar_004]
+    notes: Short-budget runtime trace awaits local execution.
+  - case_id: e5_nar_006
+    baseline_readiness: blocked_pending_e5_a
+    implementation_status: implemented_pending_execution
+    automated_test_status: pending_local_execution
+    langsmith_status: pending_langsmith
+    actual_node_path: []
+    actual_source_ids: []
+    rendered_craft_ids: []
+    rendered_ornament_ids: []
+    coverage_before: null
+    coverage_after: null
+    tour_state_before: null
+    tour_state_after: null
+    score_by_dimension: {listen_only: pending, first_ornament: pending, state_invariant: pending}
+    finding_ids: []
+    evidence_refs: [e5_narration_cases_v1.yaml:e5_nar_006]
+    notes: Listen-only runtime trace awaits local execution.
+  - case_id: e5_nar_007
+    baseline_readiness: blocked_pending_e5_a
+    implementation_status: implemented_pending_execution
+    automated_test_status: pending_local_execution
+    langsmith_status: pending_langsmith
+    actual_node_path: []
+    actual_source_ids: []
+    rendered_craft_ids: []
+    rendered_ornament_ids: []
+    coverage_before: null
+    coverage_after: null
+    tour_state_before: null
+    tour_state_after: null
+    score_by_dimension: {thread_isolation: pending, first_craft: pending, state_invariant: pending}
+    finding_ids: []
+    evidence_refs: [e5_narration_cases_v1.yaml:e5_nar_007]
+    notes: Independent-thread runtime trace awaits local execution.
+  - case_id: e5_nar_008
+    baseline_readiness: blocked_pending_e5_a
+    implementation_status: pending_controlled_failure_injection
+    automated_test_status: pending_local_execution
+    langsmith_status: pending_langsmith
+    actual_node_path: []
+    actual_source_ids: []
+    rendered_craft_ids: []
+    rendered_ornament_ids: []
+    coverage_before: null
+    coverage_after: null
+    tour_state_before: null
+    tour_state_after: null
+    score_by_dimension: {failure_closed: pending, coverage_guard: pending, state_invariant: pending}
+    finding_ids: []
+    evidence_refs: [e5_narration_cases_v1.yaml:e5_nar_008]
+    notes: Requires a controlled evidence-failure injection; no failure is claimed before execution.
