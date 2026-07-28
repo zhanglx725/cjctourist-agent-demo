@@ -27,12 +27,14 @@ triage_method:
 backlog:
   - backlog_id: e3_001_photo_unsafe_action_refusal
     priority: P0
-    status: open_blocks_e4_merge_until_reproduced
+    status: fixed_pending_verification
     source_finding_ids: [rvw_muziw_011]
     module: photo_spots
     issue_type: safety_boundary
     suspected_layer: intent_routing
-    reproduction_status: manual_evidence_once; independent_reproduction_not_run
+    reproduction_status: >-
+      manual_evidence_once; deterministic regression coverage added in E4-1;
+      local and LangSmith verification pending
     summary: Dangerous railing-climbing photo request was not refused before photo advice.
     owner: integration_owner
     contract_impact: none

@@ -14,11 +14,13 @@ from typing import Any, Callable
 from photo_spot_validation import EDITORIAL_ON_SITE_DISCLAIMER, query_available_photo_spots, validate_photo_spot_cards
 
 
-PHOTO_CUES = ("拍照", "怎么拍", "打卡", "机位", "构图", "合影", "自拍", "拍哪里", "值得拍", "拍摄建议")
+PHOTO_CUES = ("拍照", "拍一张", "拍", "怎么拍", "打卡", "机位", "构图", "合影", "自拍", "拍哪里", "值得拍", "拍摄建议")
 ROUTE_CHANGE_CUES = ("加入路线", "加入行程", "加入游览", "改路线", "调整路线")
 DEICTIC_CUES = ("这里", "此处", "眼前", "当前点", "当前站", "本点")
 FAMILY_CUES = ("一家人", "亲子", "全家", "家庭")
 SOLO_CUES = ("一个人", "自己拍", "独自", "单人")
+UNSAFE_PHOTO_ACTION_CUES = ("踩", "爬", "攀登", "攀爬", "坐上", "坐在", "站上", "倚靠", "靠着", "翻越", "翻过", "跨越")
+PROTECTED_FEATURE_CUES = ("栏杆", "栏板", "石狮", "文物", "构件", "围挡", "展品")
 MARKERS_FILE = Path("data/chen_clan_academy/spatial/marker_inventory_v0.csv")
 
 
@@ -28,6 +30,29 @@ def is_explicit_photo_request(user_query: str) -> bool:
 
 def has_photo_route_conflict(user_query: str) -> bool:
     return is_explicit_photo_request(user_query) and any(cue in user_query for cue in ROUTE_CHANGE_CUES)
+
+
+def is_unsafe_photo_request(user_query: str) -> bool:
+    """Return whether a photo request proposes contact with a protected feature.
+
+    This is intentionally a narrow, deterministic gate: an action word alone
+    (for example, ``踩点拍照`` or sitting in a rest area) is not enough.  A
+    refusal is emitted only when a listed dangerous action and a listed
+    architectural/heritage feature occur in the same request.
+    """
+    return (
+        is_explicit_photo_request(user_query)
+        and any(cue in user_query for cue in UNSAFE_PHOTO_ACTION_CUES)
+        and any(cue in user_query for cue in PROTECTED_FEATURE_CUES)
+    )
+
+
+def _photo_safety_refusal_message() -> str:
+    return (
+        "不建议踩、爬、坐上、倚靠或翻越栏杆、构件、围挡和文物拍照。"
+        "请留在允许停留的平地和开放区域，在不触摸构件、不阻碍通行的前提下远观取景。\n\n"
+        + EDITORIAL_ON_SITE_DISCLAIMER
+    )
 
 
 def _audience_group_hints(user_query: str, visitor_profile: dict[str, Any] | None) -> set[str]:
@@ -142,6 +167,16 @@ def answer_photo_request(
     candidate_validator: Callable[[], dict[str, dict[str, Any]]] = validate_photo_spot_cards,
 ) -> dict[str, Any]:
     """Create a D6 response from D5 candidates, with no state side effects."""
+    # This check is intentionally before every D5 validation, selection, and
+    # rendering call.  A dangerous action is never eligible for a candidate,
+    # pose, route suggestion, or other photo guidance.
+    if is_unsafe_photo_request(user_query):
+        return {
+            "message": _photo_safety_refusal_message(),
+            "mode": "photo_safety_refusal",
+            "photo_spots": [],
+            "point_context": point_context,
+        }
     if has_photo_route_conflict(user_query):
         return {
             "message": "拍照建议与修改路线需要分别确认。本次不会自动把打卡点加入路线；您可以先说明想了解哪个点位的拍摄建议。",

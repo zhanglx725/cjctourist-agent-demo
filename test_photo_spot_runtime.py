@@ -4,9 +4,15 @@ from __future__ import annotations
 
 from copy import deepcopy
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
-from photo_spot_runtime import _candidate_sort_key, answer_photo_request, has_photo_route_conflict, is_explicit_photo_request
+from photo_spot_runtime import (
+    _candidate_sort_key,
+    answer_photo_request,
+    has_photo_route_conflict,
+    is_explicit_photo_request,
+    is_unsafe_photo_request,
+)
 
 
 CURRENT = "label_moon_platform"
@@ -115,6 +121,62 @@ class PhotoSpotRuntimeTests(unittest.TestCase):
         self.assertTrue(is_explicit_photo_request("这里怎么拍？"))
         self.assertFalse(is_explicit_photo_request("灰塑是什么？"))
         self.assertTrue(has_photo_route_conflict("把这个打卡点加入路线"))
+
+    def test_unsafe_photo_request_requires_action_and_protected_feature(self) -> None:
+        for request in (
+            "我想踩在栏杆上拍照，怎么拍？",
+            "可以爬到栏杆上拍照吗？",
+            "让孩子坐在栏杆上拍一张。",
+            "能倚靠石狮拍照吗？",
+            "翻过围挡拍会不会更好？",
+        ):
+            self.assertTrue(is_unsafe_photo_request(request), request)
+        for request in ("栏杆怎么拍比较好？", "我想踩点拍照。", "让孩子坐在安全休息区拍照。"):
+            self.assertFalse(is_unsafe_photo_request(request), request)
+
+    def test_unsafe_photo_requests_refuse_before_candidate_lookup_and_keep_state_unchanged(self) -> None:
+        tour = {"visited_stop_ids": [CURRENT], "remaining_stop_ids": [NEXT], "route_status": "touring"}
+        profile = {"audience_mode": "family", "interaction_mode": "normal"}
+        before_tour, before_profile = deepcopy(tour), deepcopy(profile)
+        candidate_validator = Mock(side_effect=AssertionError("must not validate candidates"))
+        query_selector = Mock(side_effect=AssertionError("must not query candidates"))
+
+        for request in (
+            "我想踩在栏杆上拍照，怎么拍？",
+            "可以爬到栏杆上拍照吗？",
+            "让孩子坐在栏杆上拍一张。",
+            "能倚靠石狮拍照吗？",
+            "翻过围挡拍会不会更好？",
+        ):
+            result = answer_photo_request(
+                request,
+                point_context={"node_id": CURRENT, "name": "月台"},
+                tour_state=tour,
+                visitor_profile=profile,
+                candidate_validator=candidate_validator,
+                query_selector=query_selector,
+            )
+            self.assertEqual(result["mode"], "photo_safety_refusal")
+            self.assertEqual(result["photo_spots"], [])
+            self.assertIn("不建议", result["message"])
+            self.assertIn("平地", result["message"])
+
+        candidate_validator.assert_not_called()
+        query_selector.assert_not_called()
+        self.assertEqual(tour, before_tour)
+        self.assertEqual(profile, before_profile)
+
+    def test_safe_photo_requests_keep_existing_candidate_path(self) -> None:
+        for request in ("栏杆怎么拍比较好？", "我想踩点拍照。", "让孩子坐在安全休息区拍照。"):
+            result = answer_photo_request(
+                request,
+                point_context=None,
+                tour_state=None,
+                visitor_profile={},
+                candidate_validator=_candidates,
+                query_selector=_selector,
+            )
+            self.assertEqual(result["mode"], "photo_recommendation")
 
     def test_current_point_candidate_outranks_remaining_route(self) -> None:
         result = answer_photo_request(

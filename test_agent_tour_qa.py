@@ -96,6 +96,10 @@ class AgentTourQaTests(unittest.TestCase):
         rag.invoke.assert_not_called()
         self.assertIn("以石灰为主料", update["messages"][0].content)
 
+    def test_unsafe_photo_request_still_enters_controlled_photo_qa_path(self):
+        request = _message_state("我想踩在栏杆上拍照，怎么拍？")
+        self.assertEqual(route_initial_request(request), "tour_qa")
+
     def test_answered_question_does_not_block_later_a1_event(self):
         state = self._arrived_tour()
         request = _message_state("前院中部有什么？", state)
