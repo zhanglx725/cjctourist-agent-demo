@@ -1,0 +1,331 @@
+schema_version: d_stage_optimization_backlog_v1
+backlog_id: D_STAGE_OPTIMIZATION_BACKLOG_V1
+stage: E3
+status: frozen_for_implementation_planning
+
+# The two reviewed commits have identical functional code. d003969 only records
+# the handoff commit in D_STAGE_BASELINE.md.
+functional_baseline_commit: 9ac6fa0
+reviewed_commit: d003969
+baseline_difference: documentation_only
+review_sources:
+  - data/chen_clan_academy/evaluation/manual_reviews/d_stage_review_muziw_v1.yaml
+  - data/chen_clan_academy/evaluation/manual_reviews/d_stage_review_pending_reviewer_v1.yaml
+
+triage_method:
+  source_evidence: E2 local Studio manual-review records
+  independent_integration_reproduction: not_run_in_current_sandbox
+  reproduction_blocker: >-
+    The sandbox cannot launch the checked-in project virtual environment because
+    its interpreter resolves to an unavailable WindowsApps Python path. This is
+    an execution-environment limitation, not a code-test failure.
+  rule: >-
+    Severity is triaged from the retained E2 evidence and the frozen D-stage
+    safety rules. Each E4 implementation must first add an automated regression
+    test and reproduce the issue against its implementation baseline.
+
+backlog:
+  - backlog_id: e3_001_photo_unsafe_action_refusal
+    priority: P0
+    status: open_blocks_e4_merge_until_reproduced
+    source_finding_ids: [rvw_muziw_011]
+    module: photo_spots
+    issue_type: safety_boundary
+    suspected_layer: intent_routing
+    reproduction_status: manual_evidence_once; independent_reproduction_not_run
+    summary: Dangerous railing-climbing photo request was not refused before photo advice.
+    owner: integration_owner
+    contract_impact: none
+    acceptance_test: >-
+      A request to stand, climb, balance on, touch, lean on, cross, or block a
+      protected feature receives a clear refusal and a permitted-ground
+      alternative; it does not return a photo-spot recommendation for the unsafe action.
+
+  - backlog_id: e3_002_duration_normalization_and_replanning
+    priority: P1
+    status: open
+    source_finding_ids: [rvw_muziw_001, rvw_muziw_002, e2_a_002]
+    module: route_planning
+    issue_type: routing
+    suspected_layer: intent_routing
+    reproduction_status: confirmed_by_e2_manual_evidence; independent_reproduction_not_run
+    summary: Natural-language hour durations, retained preferences, and remaining-time replanning are inconsistent.
+    owner: route_owner
+    contract_impact: none
+    acceptance_test: >-
+      "1小时" normalizes to 60 minutes, "两个小时" to 120 minutes, a 90-minute
+      study request differs from a 60-minute craft request, and a 20-minute
+      update produces a usable remaining route without reintroducing completed or skipped stops.
+
+  - backlog_id: e3_003_route_budget_upper_bound
+    priority: P1
+    status: open
+    source_finding_ids: [e2_a_001]
+    module: route_planning
+    issue_type: content_quality
+    suspected_layer: unknown
+    reproduction_status: confirmed_by_e2_manual_evidence; independent_reproduction_not_run
+    summary: A route requested for 60 minutes was presented as 61 minutes.
+    owner: route_owner
+    contract_impact: none
+    acceptance_test: Every newly initialized route reports estimated_total_seconds <= available_minutes * 60.
+
+  - backlog_id: e3_004_arrival_navigation_and_pending_stop_continuity
+    priority: P1
+    status: open
+    source_finding_ids: [rvw_muziw_003, e2_b_001, e2_b_003]
+    module: tour_event
+    issue_type: state_error
+    suspected_layer: intent_routing
+    reproduction_status: confirmed_by_e2_manual_evidence; independent_reproduction_not_run
+    summary: Generic arrival and destination-navigation utterances can fall through to raw QA or repeat a completed stop.
+    owner: integration_owner
+    contract_impact: review_against_A1_before_implementation
+    acceptance_test: >-
+      With one pending stop, "我已到达" resolves to that stop without writing
+      visited_stop_ids; "我该如何到月台" returns deterministic navigation rather
+      than RAG; confirmed stops are never proposed again.
+
+  - backlog_id: e3_005_spatial_readiness_alias_and_turn_local_location
+    priority: P1
+    status: blocked_pending_owner_confirmation
+    source_finding_ids: [rvw_muziw_008, e2_d_001]
+    module: tour_qa
+    issue_type: spatial_mapping
+    suspected_layer: spatial_mapping
+    reproduction_status: confirmed_by_e2_manual_evidence; data_conflict_unresolved
+    summary: >-
+      A route label and reviewed node can disagree, while stale formal location
+      can override an explicitly stated current point such as 后东庭.
+    owner: spatial_data_owner
+    blocking_data_conflict: >-
+      add_node_registry records 后东庭 as connected_pending_guide_review, while
+      route_stop_catalog records it as approved with seven mapped objects.
+    contract_impact: none_until_authoritative_readiness_is_confirmed
+    acceptance_test: >-
+      After an owner declares the authoritative readiness meaning, an explicit
+      turn-local point either uses its approved associations or asks for arrival
+      confirmation; it never asserts a stale different point.
+
+  - backlog_id: e3_006_followup_topic_and_spatial_scope_memory
+    priority: P1
+    status: open
+    source_finding_ids: [rvw_muziw_010, e2_d_003]
+    module: memory
+    issue_type: routing
+    suspected_layer: memory
+    reproduction_status: confirmed_by_e2_manual_evidence; independent_reproduction_not_run
+    summary: Elliptical follow-ups lose their immediate term or point qualifier.
+    owner: integration_owner
+    contract_impact: none
+    acceptance_test: >-
+      "灰塑是什么" then "详细讲讲" expands 灰塑, and "月台上的石雕" then
+      "石雕" remains scoped to 月台 without changing TourState.
+
+  - backlog_id: e3_007_explicit_point_and_interest_selection
+    priority: P1
+    status: open
+    source_finding_ids: [e2_c_001]
+    module: tour_qa
+    issue_type: card_selection
+    suspected_layer: base_rag
+    reproduction_status: confirmed_by_e2_manual_evidence; independent_reproduction_not_run
+    summary: Explicit point and craft preference do not reliably rank verified local objects first.
+    owner: content_experience_owner
+    contract_impact: none
+    acceptance_test: A 前庭 + 木雕 request prioritizes verified 前庭 wood-carving content before generic grey-plaster material.
+
+  - backlog_id: e3_008_profile_update_with_same_turn_question
+    priority: P1
+    status: open
+    source_finding_ids: [e2_c_002]
+    module: visitor_profile
+    issue_type: routing
+    suspected_layer: intent_routing
+    reproduction_status: confirmed_by_e2_manual_evidence; independent_reproduction_not_run
+    summary: A valid profile update consumes a same-turn named-object question instead of answering it.
+    owner: integration_owner
+    contract_impact: none
+    acceptance_test: >-
+      "用专业一点的方式讲杏林春燕" atomically updates the permitted preference
+      and answers the named-object question without changing route progress.
+
+  - backlog_id: e3_009_answer_first_visitor_safe_presentation
+    priority: P1
+    status: open
+    source_finding_ids: [e2_d_002, e2_p_001]
+    module: presentation
+    issue_type: content_quality
+    suspected_layer: response_rendering
+    reproduction_status: confirmed_by_e2_manual_evidence; independent_reproduction_not_run
+    summary: Direct fact and location questions expose raw retrieval excerpts or omit the approved visitor-facing node.
+    owner: content_experience_owner
+    contract_impact: none
+    acceptance_test: >-
+      A date question answers first with the 1888 and 1893/1894 source distinction;
+      an object-location answer includes the approved visitor point where available;
+      neither exposes filenames or raw chunk text.
+
+  - backlog_id: e3_010_reviewed_term_english_routing
+    priority: P1
+    status: open
+    source_finding_ids: [e2_e_001]
+    module: glossary
+    issue_type: routing
+    suspected_layer: intent_routing
+    reproduction_status: confirmed_by_e2_manual_evidence; eligibility_reference_requires_recheck
+    summary: An enabled reviewed term card for 通花 was bypassed by generic retrieval.
+    owner: knowledge_card_owner
+    contract_impact: none
+    acceptance_test: >-
+      If term_openwork remains enabled by the D1 registry, "通花英文怎么说" returns
+      only the approved English output; otherwise it uses the existing safe block message.
+
+  - backlog_id: e3_011_explicit_research_card_routing
+    priority: P1
+    status: open
+    source_finding_ids: [e2_e_002]
+    module: research_cards
+    issue_type: routing
+    suspected_layer: intent_routing
+    reproduction_status: confirmed_by_e2_manual_evidence; independent_reproduction_not_run
+    summary: Explicit academic questions fall back to base RAG instead of the attributed research-card path.
+    owner: knowledge_card_owner
+    contract_impact: none
+    acceptance_test: >-
+      Explicit research framing selects only eligible research cards, uses attribution
+      and limitations, and does not mutate TourState.
+
+  - backlog_id: e3_012_photo_tool_markup_leak
+    priority: P1
+    status: open
+    source_finding_ids: [e2_f_001]
+    module: photo_spots
+    issue_type: interface
+    suspected_layer: response_rendering
+    reproduction_status: confirmed_by_e2_manual_evidence; independent_reproduction_not_run
+    summary: Visitor-facing photo output leaked DSML or tool-call markup instead of a composed answer.
+    owner: integration_owner
+    contract_impact: none
+    acceptance_test: >-
+      Photo output contains no DSML, tool_calls, invoke, parameter markup, raw tool output,
+      filenames, or internal card identifiers.
+
+  - backlog_id: e3_013_photo_request_plus_route_mutation_clarification
+    priority: P1
+    status: open
+    source_finding_ids: [e2_f_002]
+    module: photo_spots
+    issue_type: safety_boundary
+    suspected_layer: intent_routing
+    reproduction_status: confirmed_by_e2_manual_evidence; independent_reproduction_not_run
+    summary: An ambiguous request to add a photo point triggered unrelated route replanning and lost the photo request.
+    owner: integration_owner
+    contract_impact: requires_new_deterministic_confirmation_event_before_route_mutation
+    acceptance_test: >-
+      Without a concrete referenced photo point and explicit confirmation, the response
+      asks for clarification and leaves route and TourState unchanged.
+
+  - backlog_id: e3_014_glossary_explanation_depth
+    priority: P2
+    status: open
+    source_finding_ids: [rvw_muziw_009]
+    module: glossary
+    issue_type: content_quality
+    suspected_layer: glossary
+    reproduction_status: confirmed_by_e2_manual_evidence; independent_reproduction_not_run
+    summary: Term definition is too shallow and does not clearly connect approved examples or current-point context.
+    owner: content_experience_owner
+    contract_impact: none
+    acceptance_test: A glossary response adds only approved examples or qualified point association, with sources and no invented visibility claim.
+
+  - backlog_id: e3_015_stop_program_story_and_evidence_depth
+    priority: P2
+    status: open
+    source_finding_ids: [rvw_muziw_005, rvw_muziw_007]
+    module: stop_guidance
+    issue_type: content_quality
+    suspected_layer: stop_program
+    reproduction_status: confirmed_by_e2_manual_evidence; independent_reproduction_not_run
+    summary: Selected stop objects can be named without enough supported story, observation, or evidence context.
+    owner: content_experience_owner
+    contract_impact: none
+    acceptance_test: Detail and standard stop guidance differ meaningfully while remaining grounded in the active StopProgram and RAG evidence.
+
+  - backlog_id: e3_016_stop_guidance_repetition_and_count_accuracy
+    priority: P2
+    status: open
+    source_finding_ids: [rvw_muziw_004, rvw_muziw_006]
+    module: presentation
+    issue_type: content_quality
+    suspected_layer: response_rendering
+    reproduction_status: confirmed_by_e2_manual_evidence; independent_reproduction_not_run
+    summary: Stop guidance can repeat generic observation text or promise a number of highlights different from what it renders.
+    owner: content_experience_owner
+    contract_impact: none
+    acceptance_test: Rendered highlight counts equal selected-item counts and repeated generic observation wording is avoided when approved location/detail exists.
+
+  - backlog_id: e3_017_photo_candidate_auditability
+    priority: P2
+    status: open
+    source_finding_ids: [e2_f_003]
+    module: photo_spots
+    issue_type: card_selection
+    suspected_layer: intent_routing
+    reproduction_status: confirmed_by_e2_manual_evidence; independent_reproduction_not_run
+    summary: Reviewers cannot verify from the response that a photo recommendation came from an eligible editorial candidate.
+    owner: photo_content_owner
+    contract_impact: none
+    acceptance_test: >-
+      A test-visible structured result records the eligible candidate selection and onsite caveat,
+      while visitor text remains free of internal status and identifiers.
+
+  - backlog_id: e3_018_ambiguous_comparison_clarification
+    priority: P2
+    status: open
+    source_finding_ids: [e2_e_003]
+    module: comparison_cards
+    issue_type: routing
+    suspected_layer: intent_routing
+    reproduction_status: confirmed_by_e2_manual_evidence; independent_reproduction_not_run
+    summary: A comparison with no concrete comparator returns generic history instead of asking a bounded clarification.
+    owner: knowledge_card_owner
+    contract_impact: none
+    acceptance_test: An unspecified comparison asks for the target; explicit research comparison retains attribution, scope, and limitations.
+
+  - backlog_id: e3_019_dynamic_information_fallback_wording
+    priority: P3
+    status: deferred_passed_behavior
+    source_finding_ids: [e2_d_004]
+    module: fallback
+    issue_type: fallback_error
+    suspected_layer: unknown
+    reproduction_status: passed_in_e2_manual_evidence
+    summary: Same-day opening-hours fallback is safe; only optional wording compression remains.
+    owner: content_experience_owner
+    contract_impact: none
+    acceptance_test: The answer never invents real-time hours and remains concise.
+
+test_gaps:
+  - gap_id: e3_gap_001_thread_isolation
+    status: not_tested
+    source: d_stage_review_pending_reviewer_v1.yaml
+    impact: No pass/fail claim about cross-thread state isolation may be made from E2.
+    required_before_release: Two thread_ids must prove isolated TourState, VisitorProfile, active route, StopProgram, and transient retrieval context.
+
+unmapped_or_pending_attribution:
+  - source_finding_id: e2_a_001
+    field: suspected_layer
+    value: unknown
+    handling: Keep unknown until a route-budget reproduction identifies the owning layer.
+  - source_finding_id: e2_d_004
+    field: suspected_layer
+    value: unknown
+    handling: No defect is asserted; this remains a deferred wording improvement.
+
+freeze_rules:
+  - Every source finding_id is retained in exactly one backlog entry.
+  - No E4 implementation may start without selecting a backlog_id and adding its acceptance test.
+  - e3_005 remains blocked until the spatial data owner resolves the authoritative readiness status.
+  - e3_001 is P0 and blocks E4 merge for the affected photo pathway until independently reproduced and fixed.
+  - Thread isolation is a test gap, not evidence of either a passing or failing implementation.
