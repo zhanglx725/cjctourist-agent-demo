@@ -2,7 +2,8 @@
 
 - baseline_commit: `824f844`
 - branch: `codex/e5-b-style-library`
-- status: local verification complete; commit hash pending.
+- status: local verification complete.
+- implementation_commit: `17271a5`
 
 ## Style packages
 
