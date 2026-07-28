@@ -39,6 +39,8 @@ from qa_context import (
     is_qa_follow_up_detail_request,
     is_qa_subject_follow_up_request,
 )
+from narration_coverage import empty_narration_coverage
+from narration_coverage import IntroductionRecord, NarrationCoverageError, commit_introductions, load_narration_coverage
 from term_card_runtime import is_explicit_term_question
 from research_card_retrieval import is_explicit_research_question
 from comparison_retrieval import is_explicit_comparison_question
@@ -75,6 +77,11 @@ class AgentState(TypedDict, total=False):
     last_tour_event: dict[str, Any]
     active_stop_program: dict[str, Any]
     active_guidance_evidence_by_item: dict[str, list[dict[str, Any]]]
+    # E5-A1 thread-local introduction coverage.  It is deliberately separate
+    # from TourState, VisitorProfile, qa_context and the active StopProgram.
+    narration_coverage: dict[str, Any]
+    active_guidance_evidence_bundle: dict[str, Any]
+    active_narration_render_audit: dict[str, Any]
     qa_context: dict[str, Any]
     # C2 preferences are distinct from TourState's per-tour snapshot.  C3
     # will explicitly copy a validated profile when a route is initialized.
@@ -388,6 +395,12 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         "tour_interaction_state": interaction,
         "tour_presentation": presentation,
         "visitor_profile": profile.to_dict(),
+        # A route initialization starts a new tour session, so successful
+        # introductions from an earlier route must not suppress first-contact
+        # narration in this one.  E5-A4 will be the only later writer.
+        "narration_coverage": empty_narration_coverage().to_dict(),
+        "active_guidance_evidence_bundle": None,
+        "active_narration_render_audit": None,
         "qa_context": clear_qa_context(state.get("qa_context")),
         "performance_metrics": _append_metric(
             state,
@@ -612,11 +625,59 @@ def stop_guidance_node(state: AgentState) -> dict[str, Any]:
         current_program=state.get("active_stop_program"),
         detailed=last_event.get("event") == "request_stop_detail",
         visitor_profile=state.get("visitor_profile"),
+        narration_coverage=state.get("narration_coverage"),
     )
+    coverage_before = load_narration_coverage(state.get("narration_coverage"))
+    coverage_after = coverage_before
+    commit_audit: dict[str, Any] = {"status": "not_attempted", "submitted_subject_ids": [], "committed_subject_ids": []}
+    if result.get("status") == "guided_e5":
+        render_audit = result.get("narration_render_audit") or {}
+        current_node = (state.get("tour_state") or {}).get("current_stop_id")
+        rendered = {
+            ("craft", subject_id) for subject_id in render_audit.get("rendered_craft_ids", [])
+        }.union({("ornament", subject_id) for subject_id in render_audit.get("rendered_ornament_ids", [])})
+        used_source_ids = set(render_audit.get("used_source_ids", []))
+        turn_id = f"stop_guidance:{current_node}:{len(state.get('messages', [])) + 1}"
+        try:
+            records: list[IntroductionRecord] = []
+            for candidate in result.get("coverage_candidates", []):
+                if not isinstance(candidate, dict):
+                    continue
+                key = (candidate.get("subject_kind"), candidate.get("subject_id"))
+                expected_evidence_kind = {
+                    "craft": "craft_overview",
+                    "ornament": "ornament_detail",
+                }.get(key[0])
+                actual_sources = tuple(source for source in candidate.get("source_ids", []) if source in used_source_ids)
+                if (
+                    key not in rendered
+                    or candidate.get("evidence_kind") != expected_evidence_kind
+                    or not actual_sources
+                    or not result.get("message", "").strip()
+                    or candidate.get("node_id") != current_node
+                    or current_node != render_audit.get("node_id")
+                ):
+                    continue
+                records.append(IntroductionRecord(
+                    subject_kind=key[0], subject_id=key[1], source_ids=actual_sources,
+                    introduced_by="stop_guidance", node_id=current_node, turn_id=turn_id,
+                ))
+            coverage_after = commit_introductions(coverage_before, records)
+            commit_audit = {
+                "status": "committed" if records else "no_eligible_candidates",
+                "submitted_subject_ids": [record.subject_id for record in records],
+                "committed_subject_ids": list(coverage_after.introduced_craft_ids) + list(coverage_after.introduced_ornament_ids),
+                "turn_id": turn_id,
+            }
+        except (NarrationCoverageError, TypeError, ValueError):
+            # Atomic failure: retain the exact original coverage snapshot.
+            coverage_after = coverage_before
+            commit_audit = {"status": "atomic_commit_rejected", "submitted_subject_ids": [], "committed_subject_ids": []}
     updates: dict[str, Any] = {
         "messages": [AIMessage(content=result["message"], additional_kwargs={"stop_guidance": True})],
         "retrieved_evidence": result["evidence"],
         "tour_presentation": result["presentation"],
+        "narration_coverage": coverage_after.to_dict(),
         "performance_metrics": _append_metric(
             state,
             "stop_guidance",
@@ -629,6 +690,13 @@ def stop_guidance_node(state: AgentState) -> dict[str, Any]:
     if result["stop_program"] is not None:
         updates["active_stop_program"] = result["stop_program"]
         updates["active_guidance_evidence_by_item"] = result.get("evidence_by_item", {})
+    if result.get("guidance_evidence_bundle_audit") is not None:
+        updates["active_guidance_evidence_bundle"] = result["guidance_evidence_bundle_audit"]
+    if result.get("narration_render_audit") is not None:
+        updates["active_narration_render_audit"] = {
+            **result["narration_render_audit"],
+            "coverage_commit": commit_audit,
+        }
     # Deliberately do not return tour_state or tour_interaction_state.  The
     # A1 adapter remains the only mutation entry point.
     return updates

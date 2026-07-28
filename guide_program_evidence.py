@@ -12,6 +12,9 @@ from typing import Any, Callable
 
 from guide_program_planner import SelectedItem, StopProgram, plan_stop_program
 from guide_narration import compose_guide_narration
+from guidance_evidence_bundle import build_guidance_evidence_bundle
+from narration_coverage import load_narration_coverage
+from narration_rendering import render_guidance_evidence
 from guidance_policy import GuidancePolicy, build_guidance_policy
 from tour_presenter import present_tour_state
 from tour_qa import load_guide_cards, parse_rag_payload
@@ -155,6 +158,7 @@ def build_stop_guidance(
     current_program: dict[str, Any] | None = None,
     detailed: bool = False,
     visitor_profile: dict[str, Any] | None = None,
+    narration_coverage: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return sourced guidance for the active stop without mutating tour state."""
     presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
@@ -208,6 +212,76 @@ def build_stop_guidance(
             "presentation": {**present_tour_state(tour_state, interaction_state), "message": message, "code": "guidance_no_candidates", "ok": True},
         }
 
+    # E5-A4 first attempts the typed evidence/rendering path.  It stays here,
+    # before the legacy B3 loop, so a valid E5 answer does not duplicate RAG
+    # calls.  Any bundle/rendering failure falls through to the established B3
+    # behaviour and is deliberately ineligible for coverage submission.
+    # ``request_stop_detail`` retains the established B3 expansion contract in
+    # this increment.  E5-A4 only replaces the first-arrival presentation;
+    # treating detail as E5 output now would silently drop the existing
+    # detailed-answer behaviour before it has its own evidence contract.
+    if not detailed:
+        try:
+            coverage = load_narration_coverage(narration_coverage)
+            bundle = build_guidance_evidence_bundle(program, coverage, rag_search)
+            render = render_guidance_evidence(program, bundle, guidance_policy)
+            # A craft overview alone is not a complete stop-guidance answer:
+            # E5's first-contact contract also requires a current reviewed
+            # object with accepted 08 detail evidence.  Otherwise preserve the
+            # established B3 object narration rather than replacing it with a
+            # shallow craft-only message (and never submit coverage).
+            if (
+                render.visitor_message.strip()
+                and render.used_source_ids
+                and render.rendered_ornament_ids
+                and bundle.ornament_details
+            ):
+                message = render.visitor_message
+                view = present_tour_state(tour_state, interaction_state, message=message)
+                e5_evidence = [
+                    entry
+                    for packet in (*bundle.craft_overviews.values(), *bundle.ornament_details.values())
+                    for entry in packet.evidence
+                ]
+                return {
+                    "message": message,
+                    "status": "guided_e5",
+                    "stop_program": program.to_dict(),
+                    "evidence": [dict(entry) for entry in e5_evidence],
+                    "evidence_by_item": bundle.evidence_by_item,
+                    "rag_queries": [
+                        packet.query
+                        for packet in (*bundle.craft_overviews.values(), *bundle.ornament_details.values())
+                    ],
+                    "source_ids": list(render.used_source_ids),
+                    "guidance_policy": guidance_policy.to_dict(),
+                    "guidance_evidence_bundle_audit": {
+                        "node_id": bundle.node_id,
+                        "craft_ids": sorted(bundle.craft_overviews),
+                        "ornament_ids": sorted(bundle.ornament_details),
+                        "source_ids": list(bundle.source_ids),
+                        "coverage_status": {kind: dict(values) for kind, values in bundle.coverage_status.items()},
+                    },
+                    "narration_render_audit": {
+                        "node_id": bundle.node_id,
+                        "rendered_craft_ids": list(render.rendered_craft_ids),
+                        "rendered_ornament_ids": list(render.rendered_ornament_ids),
+                        "used_source_ids": list(render.used_source_ids),
+                        "content_budget_seconds": render.content_budget_seconds,
+                        "allocated_content_seconds": render.allocated_content_seconds,
+                        "omitted_ornament_ids": list(render.omitted_ornament_ids),
+                        "warnings": list(render.warnings),
+                    },
+                    "coverage_candidates": [candidate.to_dict() for candidate in render.eligible_coverage_candidates],
+                    "narration": {"used_llm": False, "fallback_reason": None, "detailed": detailed, "renderer": "e5_a3"},
+                    "presentation": {**view, "code": "stop_guidance", "ok": True, "evidence_count": len(e5_evidence)},
+                }
+        except Exception:
+            # Existing B3 remains a safe presentation fallback.  Do not expose
+            # a partial typed packet or submit a coverage candidate from this
+            # path.
+            pass
+
     evidence: list[dict[str, Any]] = []
     rag_queries: list[str] = []
     evidence_by_item: dict[str, list[dict[str, Any]]] = {}
@@ -237,6 +311,7 @@ def build_stop_guidance(
             "used_llm": narration.used_llm,
             "fallback_reason": narration.fallback_reason,
             "detailed": detailed,
+            "renderer": "b3_legacy_fallback",
         },
         "presentation": {**view, "code": "stop_guidance", "ok": True, "evidence_count": len(evidence)},
     }
