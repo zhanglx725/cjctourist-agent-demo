@@ -1,6 +1,6 @@
 schema_version: d_stage_manual_review_v1
 module: d_stage
-reviewer: null
+reviewer: "19989008830"
 reviewed_at: null
 test_date: "2026-07-27"
 tested_branch: main
@@ -9,6 +9,7 @@ environment:
   runner: "LangGraph local Studio"
   local_docs_url: "http://127.0.0.1:2024/docs"
   studio_thread_id: "019fa2c7-b5f6-7b50-b774-12edef2c612f"
+  trace_status: not_run
   langsmith_trace_status: "unavailable: APAC ingestion returned 403 during setup; no trace URL recorded"
 full_response_evidence_file: "evidence/pending_reviewer/studio_thread_019fa2c7_full_transcript_v1.json"
 scope:
@@ -113,12 +114,12 @@ cases:
   - {"case_id":"e2_case_072","thread_id":"019fa2c7-b5f6-7b50-b774-12edef2c612f","input":"利用建筑结构","preconditions":"Full response retained in full_response_evidence_file; per-turn state snapshot not captured.","expected":"Handle explicit request without unsupported facts or unauthorized state mutation.","actual":"Complete actual response retained in full_response_evidence_file.","actual_route":"not captured","tour_state_before":"not captured","tour_state_after":"not captured","source_or_card_ids":[],"evidence_refs":["full transcript: human message 155 and following AI message(s)"],"result":"failed","finding_id":null}
 findings:
   - finding_id: e2_b_003
-    reviewer: null
+    reviewer: "19989008830"
     tested_commit: d00396969761025896358d90785f0c75ba7a166c
     tested_branch: main
     test_date: "2026-07-27"
     module: tour_event
-    issue_type: navigation_routed_as_raw_qa
+    issue_type: routing
     severity: P1
     reproducibility: high
     preconditions: "route points to 月台"
@@ -127,17 +128,17 @@ findings:
     actual: "three turns returned raw 月台 object excerpts; one arrival turn produced blank AI output"
     problem_description: "navigation intent and arrival rendering are unreliable"
     evidence_refs: ["Studio messages 9-12,16-21"]
-    suspected_layer: tour_event_routing
+    suspected_layer: intent_routing
     proposed_solution: "prioritize arrival/navigation intent before RAG"
     acceptance_test: "月台 navigation returns route guidance, never raw ornament dump"
     status: P1
   - finding_id: e2_f_003
-    reviewer: null
+    reviewer: "19989008830"
     tested_commit: d00396969761025896358d90785f0c75ba7a166c
     tested_branch: main
     test_date: "2026-07-27"
-    module: photo_advice
-    issue_type: eligibility_gate_bypassed
+    module: photo_spots
+    issue_type: card_selection
     severity: P2
     reproducibility: medium
     preconditions: "whole-site and entrance photo requests"
@@ -146,17 +147,17 @@ findings:
     actual: "answers assert direct recommendations and site facts without visible editorial-candidate gate"
     problem_description: "manual review cannot verify photo-card eligibility or source boundary from rendered answer"
     evidence_refs: ["Studio messages 145-148,151-152"]
-    suspected_layer: photo_routing_and_rendering
+    suspected_layer: intent_routing
     proposed_solution: "make selected editorial-candidate provenance auditable while retaining visitor-safe wording"
     acceptance_test: "photo answer is traceable to eligible candidate and contains required onsite caveat"
     status: P2
   - finding_id: e2_a_001
-    reviewer: null
+    reviewer: "19989008830"
     tested_commit: d00396969761025896358d90785f0c75ba7a166c
     tested_branch: main
     test_date: "2026-07-27"
     module: route_planning
-    issue_type: time_budget
+    issue_type: content_quality
     severity: P1
     reproducibility: high
     preconditions: "60-minute craft route request"
@@ -165,17 +166,17 @@ findings:
     actual: "Returned a 60-minute route estimated at 61 minutes."
     problem_description: "Time budget is exceeded before tour starts."
     evidence_refs: ["manual observation: A-03"]
-    suspected_layer: route_planning
+    suspected_layer: unknown
     proposed_solution: "Reject or trim route plans that exceed the confirmed budget."
     acceptance_test: "Estimated duration <= available_minutes."
     status: P1
   - finding_id: e2_a_002
-    reviewer: null
+    reviewer: "19989008830"
     tested_commit: d00396969761025896358d90785f0c75ba7a166c
     tested_branch: main
     test_date: "2026-07-27"
     module: route_planning
-    issue_type: duration_normalization_and_replanning
+    issue_type: routing
     severity: P1
     reproducibility: high
     preconditions: "Existing craft route and preference context"
@@ -184,17 +185,17 @@ findings:
     actual: "1小时 entered RAG instead of route planning; 90 minutes still returned a 60-minute craft route; 20-minute update did not create a usable replan."
     problem_description: "Duration normalization, profile application, and dynamic replan are inconsistent."
     evidence_refs: ["manual observation: A-04,A-05,A-10"]
-    suspected_layer: routing_and_route_planning
+    suspected_layer: intent_routing
     proposed_solution: "Normalize durations before routing and replan from non-completed stops only."
     acceptance_test: "1小时=60分钟; 90-minute study request differs from 60-minute craft route; 20-minute update yields <=20-minute remaining itinerary."
     status: P1
   - finding_id: e2_b_001
-    reviewer: null
+    reviewer: "19989008830"
     tested_commit: d00396969761025896358d90785f0c75ba7a166c
     tested_branch: main
     test_date: "2026-07-27"
     module: tour_event
-    issue_type: arrival_and_continuity
+    issue_type: state_error
     severity: P1
     reproducibility: high
     preconditions: "Route has suggested 前庭 after 前院中部."
@@ -203,17 +204,17 @@ findings:
     actual: "Generic arrival was not resolved; later reply named 前院中部 as next stop after the user stated it had been visited."
     problem_description: "Pending stop and completion semantics are not carried safely through natural language."
     evidence_refs: ["studio thread 019fa2c7-b5f6-7b50-b774-12edef2c612f messages 54-65"]
-    suspected_layer: tour_event_and_interaction_state
+    suspected_layer: tour_state
     proposed_solution: "Use pending stop in clarification and distinguish stated visit claims from explicit completion confirmation."
     acceptance_test: "Arrival changes current stop only; only explicit confirmation writes visited; next-step never repeats confirmed/stated-completed point without clarification."
     status: P1
   - finding_id: e2_c_001
-    reviewer: null
+    reviewer: "19989008830"
     tested_commit: d00396969761025896358d90785f0c75ba7a166c
     tested_branch: main
     test_date: "2026-07-27"
     module: tour_qa
-    issue_type: point_and_profile_selection
+    issue_type: card_selection
     severity: P1
     reproducibility: high
     preconditions: "User stated 前庭 and preference 木雕."
@@ -222,17 +223,17 @@ findings:
     actual: "Raw RAG began with 五福捧寿（灰塑） and did not provide a coherent 前庭 wood-carving introduction."
     problem_description: "Point and declared interest do not control selection order."
     evidence_refs: ["studio thread messages 60-61; screenshot codex-clipboard-16291fb1-b1fe-4df4-a2ce-3024d7b49067.png"]
-    suspected_layer: point_retrieval_and_response_composition
+    suspected_layer: base_rag
     proposed_solution: "Rank verified point-object associations and explicit craft preference before generic RAG."
     acceptance_test: "前庭+木雕 returns verified 前庭 wood-carving content first."
     status: P1
   - finding_id: e2_c_002
-    reviewer: null
+    reviewer: "19989008830"
     tested_commit: d00396969761025896358d90785f0c75ba7a166c
     tested_branch: main
     test_date: "2026-07-27"
-    module: profile_control
-    issue_type: multi_intent_partial_execution
+    module: visitor_profile
+    issue_type: routing
     severity: P1
     reproducibility: high
     preconditions: "杏林春燕 was just explained to a child."
@@ -241,17 +242,17 @@ findings:
     actual: "Only returned a preference-updated acknowledgement."
     problem_description: "The concrete explanation request is dropped."
     evidence_refs: ["studio thread messages 89-94"]
-    suspected_layer: extended_profile_control
+    suspected_layer: intent_routing
     proposed_solution: "After profile mutation, dispatch remaining explicit QA intent in the same turn."
     acceptance_test: "Response contains both update acknowledgement and professional 杏林春燕 explanation."
     status: P1
   - finding_id: e2_d_001
-    reviewer: null
+    reviewer: "19989008830"
     tested_commit: d00396969761025896358d90785f0c75ba7a166c
     tested_branch: main
     test_date: "2026-07-27"
-    module: spatial_qa
-    issue_type: stale_location_injection
+    module: tour_qa
+    issue_type: spatial_mapping
     severity: P1
     reproducibility: high
     preconditions: "Thread route is completed with current_stop_id=后西庭."
@@ -260,17 +261,17 @@ findings:
     actual: "Responses repeatedly stated 用户位于后西庭 and appended finished state; 后东庭 query returned only 3 of 7 mapped items."
     problem_description: "Stale formal state overrides current user wording and produces wrong spatial answers."
     evidence_refs: ["studio thread messages 101-104,112", "route_stop_catalog_v1.csv: 后东庭 maps 7 items"]
-    suspected_layer: tour_qa_context_injection
+    suspected_layer: tour_state
     proposed_solution: "Separate formal state from turn-local location candidate and suppress stale location footer in unrelated QA."
     acceptance_test: "后东庭 query uses 后东庭 associations or asks for arrival confirmation; never asserts 后西庭."
     status: P1
   - finding_id: e2_d_002
-    reviewer: null
+    reviewer: "19989008830"
     tested_commit: d00396969761025896358d90785f0c75ba7a166c
     tested_branch: main
     test_date: "2026-07-27"
     module: tour_qa
-    issue_type: direct_fact_and_location_presentation
+    issue_type: content_quality
     severity: P1
     reproducibility: high
     preconditions: null
@@ -279,17 +280,17 @@ findings:
     actual: "Year answer pasted history, visit services and layout instead of answering; 百鸟朝凤 answer gave 首进西路北面 but omitted mapped point 前西庭."
     problem_description: "Direct questions are replaced by raw retrieval excerpts and cannot support visitor navigation."
     evidence_refs: ["studio thread messages 107-108", "screenshot codex-clipboard-713c2fbb-6b20-4013-813b-db275d8eadbf.png"]
-    suspected_layer: response_composition
+    suspected_layer: response_rendering
     proposed_solution: "Answer first; state 1888 start and 1893/1894 completion-source difference; render raw location plus approved node."
     acceptance_test: "Answer begins with date/location, then concise source caveat; no internal filename in visitor text."
     status: P1
   - finding_id: e2_d_003
-    reviewer: null
+    reviewer: "19989008830"
     tested_commit: d00396969761025896358d90785f0c75ba7a166c
     tested_branch: main
     test_date: "2026-07-27"
     module: tour_qa
-    issue_type: context_loss
+    issue_type: content_quality
     severity: P1
     reproducibility: high
     preconditions: "Previous query explicitly named 月台上的石雕."
@@ -298,17 +299,17 @@ findings:
     actual: "First response listed ten objects without answering characteristics; follow-up retrieved 首进正门 stone lions and 封侯挂印."
     problem_description: "Specific spatial qualifier is lost between adjacent turns."
     evidence_refs: ["studio thread messages 113-116"]
-    suspected_layer: conversational_retrieval
+    suspected_layer: memory
     proposed_solution: "Persist explicit object and point qualifiers for short follow-ups."
     acceptance_test: "月台→石雕 remains scoped to 月台."
     status: P1
   - finding_id: e2_e_001
-    reviewer: null
+    reviewer: "19989008830"
     tested_commit: d00396969761025896358d90785f0c75ba7a166c
     tested_branch: main
     test_date: "2026-07-27"
     module: glossary
-    issue_type: enabled_term_not_routed
+    issue_type: routing
     severity: P1
     reproducibility: high
     preconditions: null
@@ -317,17 +318,17 @@ findings:
     actual: "llm_think emitted unrelated stone-carving RAG text."
     problem_description: "A reviewed English term card is bypassed."
     evidence_refs: ["glossary_zh_en_v0.yaml: term_openwork", "card_runtime_eligibility_knowledge_v1.yaml: term_openwork enabled"]
-    suspected_layer: glossary_routing
+    suspected_layer: intent_routing
     proposed_solution: "Run exact/alias term match before generic RAG."
     acceptance_test: "通花英文 returns openwork and no raw RAG."
     status: P1
   - finding_id: e2_e_002
-    reviewer: null
+    reviewer: "19989008830"
     tested_commit: d00396969761025896358d90785f0c75ba7a166c
     tested_branch: main
     test_date: "2026-07-27"
     module: research_cards
-    issue_type: attributed_research_not_routed
+    issue_type: routing
     severity: P1
     reproducibility: high
     preconditions: null
@@ -336,17 +337,17 @@ findings:
     actual: "Both entered tour_qa and pasted base RAG; first also included visit-service material."
     problem_description: "Explicit research questions are downgraded to ordinary factual retrieval."
     evidence_refs: ["studio thread messages 139-142", "runtime eligibility: research_006 and research_008 attributed_only"]
-    suspected_layer: research_question_routing
+    suspected_layer: intent_routing
     proposed_solution: "Detect explicit academic framing and use attributed-only research-card pathway."
     acceptance_test: "Answers say 某研究/研究者, include limitations, and do not present viewpoints as museum facts."
     status: P1
   - finding_id: e2_f_001
-    reviewer: null
+    reviewer: "19989008830"
     tested_commit: d00396969761025896358d90785f0c75ba7a166c
     tested_branch: main
     test_date: "2026-07-27"
-    module: photo_advice
-    issue_type: raw_tool_markup_leak
+    module: photo_spots
+    issue_type: interface
     severity: P1
     reproducibility: high
     preconditions: null
@@ -355,17 +356,17 @@ findings:
     actual: "Visitor received DSML tool_calls/invoke/parameter markup."
     problem_description: "Internal tool-call syntax is exposed and the requested answer is absent."
     evidence_refs: ["screenshot codex-clipboard-3e22ecda-8851-494f-8e07-1bd4618e2819.png"]
-    suspected_layer: tool_call_rendering
+    suspected_layer: response_rendering
     proposed_solution: "Ensure tool calls execute server-side and only final composed response reaches visitor UI."
     acceptance_test: "No DSML, tool_calls, invoke, parameters, file paths or raw tool output in visitor response."
     status: P1
   - finding_id: e2_f_002
-    reviewer: null
+    reviewer: "19989008830"
     tested_commit: d00396969761025896358d90785f0c75ba7a166c
     tested_branch: main
     test_date: "2026-07-27"
-    module: photo_advice
-    issue_type: ambiguous_photo_route_change
+    module: photo_spots
+    issue_type: safety_boundary
     severity: P1
     reproducibility: high
     preconditions: "No successfully confirmed preceding photo point."
@@ -374,17 +375,17 @@ findings:
     actual: "profile_collection→direct_route produced a generic 61-minute route for 60 minutes and no photo advice."
     problem_description: "Ambiguous reference triggers unrelated route mutation and loses photo request."
     evidence_refs: ["screenshot codex-clipboard-0aba0a07-751e-49d2-b76c-4f561e881304.png"]
-    suspected_layer: multi_intent_router
+    suspected_layer: intent_routing
     proposed_solution: "Resolve photo-point reference and require explicit confirmation before replan."
     acceptance_test: "No route state change until a concrete point and confirmation are supplied."
     status: P1
   - finding_id: e2_p_001
-    reviewer: null
+    reviewer: "19989008830"
     tested_commit: d00396969761025896358d90785f0c75ba7a166c
     tested_branch: main
     test_date: "2026-07-27"
-    module: response_presentation
-    issue_type: raw_retrieval_presentation
+    module: presentation
+    issue_type: content_quality
     severity: P2
     reproducibility: high
     preconditions: null
@@ -393,17 +394,17 @@ findings:
     actual: "Answers display filenames and raw excerpts; complete-grey-plaster request returned generic architecture, craft and visit-service material."
     problem_description: "Relevant facts are not synthesized into the requested form."
     evidence_refs: ["studio thread messages 87-88", "screenshot codex-clipboard-77d2afa6-3278-4138-a671-7fe4e12223d9.png"]
-    suspected_layer: response_composition
+    suspected_layer: response_rendering
     proposed_solution: "Use answer-first templates and an explicit completeness boundary."
     acceptance_test: "No internal filenames; exhaustive list is either verified enumeration or qualified as partial."
     status: P2
   - finding_id: e2_e_003
-    reviewer: null
+    reviewer: "19989008830"
     tested_commit: d00396969761025896358d90785f0c75ba7a166c
     tested_branch: main
     test_date: "2026-07-27"
     module: comparison_cards
-    issue_type: ambiguous_comparison_not_clarified
+    issue_type: routing
     severity: P2
     reproducibility: high
     preconditions: null
@@ -412,17 +413,17 @@ findings:
     actual: "tour_qa returned generic history material without clarification."
     problem_description: "Correct comparison-card boundary is not communicated."
     evidence_refs: ["screenshot codex-clipboard-c53404b4-cbb6-478e-a124-32d20b6dd186.png"]
-    suspected_layer: comparison_intent_handling
+    suspected_layer: intent_routing
     proposed_solution: "Ask for comparison target and whether a research comparison is intended."
     acceptance_test: "Ambiguous comparison receives clarification; explicit research comparison uses attributed comparison card."
     status: P2
   - finding_id: e2_d_004
-    reviewer: null
+    reviewer: "19989008830"
     tested_commit: d00396969761025896358d90785f0c75ba7a166c
     tested_branch: main
     test_date: "2026-07-27"
-    module: dynamic_information
-    issue_type: safe_fallback
+    module: fallback
+    issue_type: fallback_error
     severity: P3
     reproducibility: high
     preconditions: null
@@ -431,7 +432,7 @@ findings:
     actual: "Safely stated that same-day hours are unavailable and referred to official channels."
     problem_description: "Pass; wording can be shortened for visitor readability."
     evidence_refs: ["screenshot codex-clipboard-e290733b-bb4a-40cf-b2b5-297eaf86a318.png"]
-    suspected_layer: safe_fallback
+    suspected_layer: unknown
     proposed_solution: "Optional concise wording refinement only."
     acceptance_test: "No invented real-time opening hours."
     status: passed
@@ -441,6 +442,8 @@ data_conflicts_to_confirm:
     impact: "May contribute to unstable point retrieval; no data was changed during review."
     recommended_resolution: "Owners should confirm one authoritative readiness status and document its runtime meaning."
 uncompleted_or_blocked:
-  - "No two-thread isolation test was executed in this review session."
+  - item: thread_isolation
+    status: not_tested
+    reason: "No two-thread isolation test was executed in this review session."
   - "No valid LangSmith trace URLs are available because tracing ingestion was unavailable; local Studio message indexes are retained as evidence."
-  - "Reviewer identity is not supplied, therefore reviewer and reviewed_at remain null."
+  - "Reviewer is identified as 19989008830 from the current repository Git identity; reviewed_at remains null because a separate review-completion timestamp was not recorded."
