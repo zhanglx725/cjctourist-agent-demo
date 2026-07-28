@@ -1,8 +1,8 @@
-"""Deterministic route planning over the reviewed Chen Clan Academy space graph.
+"""Deterministic planning over reviewed Chen Clan Academy route data.
 
-The planner selects no stops by itself in v1.  It expands a human-reviewed
-template into reviewed walking segments, then reports the time budget and data
-provenance.  Natural-language explanation belongs to the Agent layer later.
+Reviewed templates expand into safe walking segments here. E4-3B compares those
+anchors with dynamic reviewed candidates through ``route_selection``; neither
+path may exceed the visitor's requested time budget.
 """
 
 from __future__ import annotations
@@ -238,8 +238,7 @@ def plan_template(route_id: str) -> RoutePlan:
         else None
     )
     budget_seconds = int(template["target_minutes"]) * 60
-    overrun_limit = 1 + float(policy["time_policy"]["maximum_overrun_ratio"])
-    within_budget = total_seconds <= budget_seconds * overrun_limit if total_seconds is not None else None
+    within_budget = total_seconds <= budget_seconds if total_seconds is not None else None
     warnings = [templates["rules"]["time_warning"], policy["time_policy"]["time_warning"]]
     warnings.append("完整路径已包含回到前院出口区的步行时间；出口开放情况仍需以现场为准。")
     if not within_budget:
@@ -267,24 +266,24 @@ def plan_template(route_id: str) -> RoutePlan:
     )
 
 
-def recommend_route(available_minutes: int | None = None, interests: list[str] | None = None) -> RoutePlan:
-    """Choose a reviewed template by time fit, then by explicit theme overlap."""
-    templates = _read_json(TEMPLATES_FILE)["templates"]
-    plans = [(template, plan_template(template["route_id"])) for template in templates]
-    if available_minutes is None:
-        available_minutes = 30
-    limit_seconds = available_minutes * 60 * 1.1
-    feasible = [pair for pair in plans if pair[1].estimated_total_seconds <= limit_seconds]
-    candidates = feasible or plans
-    wanted = " ".join(interests or [])
+def recommend_route(
+    available_minutes: int | None = None,
+    interests: list[str] | None = None,
+    detail_level: str = "standard",
+):
+    """Return the v2 multi-objective reviewed-route selection result.
 
-    def rank(pair: tuple[dict[str, Any], RoutePlan]) -> tuple[int, int]:
-        template, plan = pair
-        overlap = sum(theme in wanted for theme in template.get("themes", []))
-        difference = abs((plan.estimated_total_seconds or 0) - available_minutes * 60)
-        return overlap, -difference
+    The previous title-theme-first, 10%-overrun anchor ranking was retired in
+    E4-3B.  Import lazily to keep ``route_selection`` free to read this module's
+    reviewed-template expansion functions without an import cycle.
+    """
+    from route_selection import recommend_route as recommend_mult_objective_route
 
-    return max(candidates, key=rank)[1]
+    return recommend_mult_objective_route(
+        available_minutes=available_minutes or 30,
+        interests=interests,
+        detail_level=detail_level,
+    )
 
 
 def _remaining_route_estimate(
@@ -360,7 +359,7 @@ def plan_from_current_position(
     observation_each = int(experience.get("observation_seconds_per_stop", 180))
     interaction_each = int(experience.get("interaction_seconds_per_stop", 120))
     buffer_each = int(policy["time_policy"]["per_stop_buffer_seconds"])
-    allowed = round(remaining_minutes * 60 * (1 + float(policy["time_policy"]["maximum_overrun_ratio"])))
+    allowed = int(remaining_minutes * 60)
 
     kept = list(ordered)
     dropped: list[str] = []

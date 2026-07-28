@@ -48,6 +48,16 @@ explaining → explanation_finished → awaiting_confirmation
 
 它不写入 `visited_stop_ids`，不移除 `remaining_stop_ids`，不改变 `current_stop_id`、`pending_stop_id`、路线顺序或 `route_status`。最后一站也必须在之后由 `confirm_stop_complete()` 明确确认，才能结束路线。已经处于 `awaiting_confirmation` 时重复提交返回幂等成功；其他阶段返回结构化错误。所有调用仍必须经过 `handle_tour_event()`。
 
+### 受控文本映射补充
+
+文本适配层只把明确、可验证的表达映射为既有白名单事件，随后仍须由
+`handle_tour_event()` 校验前置条件；它不直接写入 TourState：
+
+- 活动路线处于 `navigating` 且存在唯一 `pending_stop_id` 时，“我到了”可映射为该 pending 点的 `arrive_at_stop`；没有该上下文仍要求澄清。
+- “下一站怎么走”“怎么去下一站”映射为 `next_stop`，不作为事实问答处理；“月台怎么走”等一般地点问法仍保留原有问答路径。
+- “确认完成本点”映射为 `confirm_stop_complete`；带问号的确认询问不执行事件。
+- “本点讲解结束”“讲解播放结束了”映射为 `explanation_finished`。适配层只发送事件；是否处于 `explaining` 仍由状态适配器决定，且该事件绝不写入 `visited_stop_ids`。
+
 ## 3. 统一响应结构
 
 每个事件处理器均返回同一结构；失败时也必须返回结构化结果，禁止静默吞掉请求。

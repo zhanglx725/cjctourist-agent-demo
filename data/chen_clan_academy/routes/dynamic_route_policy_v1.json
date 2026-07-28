@@ -1,11 +1,10 @@
 {
-  "schema_version": "v1",
-  "status": "draft_for_dynamic_route_planning",
-  "scope": "Dynamic composition for reviewed guide stops only; it does not replace reviewed anchor routes.",
+  "schema_version": "v2",
+  "status": "active_mult_objective_selection",
+  "scope": "Dynamic composition uses reviewed guide stops only and is evaluated beside reviewed anchor routes; neither source can bypass reviewed space data.",
   "duration_policy": {
     "minimum_minutes": 20,
     "maximum_minutes": 120,
-    "maximum_overrun_ratio": 0.1,
     "maximum_stops_by_duration": {
       "20": 2,
       "30": 3,
@@ -16,7 +15,7 @@
       "120": 8
     },
     "anchor_template_minutes": [30, 60, 90],
-    "anchor_template_rule": "Use reviewed anchor routes for exact anchor durations without exclusions; other durations may be dynamically composed."
+    "anchor_template_rule": "Reviewed anchors and dynamic compositions enter the same strict-budget candidate evaluation for every supported duration."
   },
   "candidate_policy": {
     "required_review_status": "approved",
@@ -52,7 +51,28 @@
     "guide": 300,
     "observation": 180,
     "interaction": 120,
-    "notes": "Each guide stop reserves guide, observation and interaction time; routes are not walking-only."
+    "notes": "Standard-detail baseline. Each guide stop reserves guide, observation and interaction time; routes are not walking-only."
+  },
+  "experience_budget_per_stop_by_detail": {
+    "short": {"guide": 210, "observation": 90, "interaction": 30},
+    "standard": {"guide": 300, "observation": 180, "interaction": 120},
+    "deep": {"guide": 360, "observation": 240, "interaction": 240}
+  },
+  "selection_policy": {
+    "weights": {
+      "time_utilization": 0.29,
+      "interest_coverage": 0.29,
+      "detail_fit": 0.18,
+      "walking_cost": 0.11,
+      "reviewed_anchor_bonus": 0.13
+    },
+    "detail_time_bands": {
+      "short": [0.45, 0.72],
+      "standard": [0.60, 0.95],
+      "deep": [0.80, 0.95]
+    },
+    "detail_minimum_guide_stops": {"short": 2, "standard": 3, "deep": 4},
+    "notes": "Initial v1 weights are auditable tuning parameters, not permanent facts. All candidates must satisfy the strict requested-time budget before scoring."
   },
   "exit_policy": {
     "default_exit_node_id": "stop_front_courtyard_center",

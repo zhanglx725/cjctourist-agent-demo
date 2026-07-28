@@ -139,6 +139,61 @@ class TourInteractionE2ETests(unittest.TestCase):
         self.assertEqual(update["tour_presentation"]["phase"], "explaining")
         self.assertIn("explanation_finished", [item["id"] for item in update["tour_presentation"]["actions"]])
 
+    def test_e4_2b_text_truth_table_preserves_arrival_navigation_and_completion_contract(self):
+        initial = self._started()
+
+        # Generic arrival uses the one pending stop and does not complete it.
+        arrived, update = self._agent_event(initial, "我到了")
+        self.assertEqual(update["last_tour_intent"]["event_type"], "arrive_at_stop")
+        self.assertEqual(arrived["tour_state"]["current_stop_id"], "stop_front_courtyard_center")
+        self.assertEqual(arrived["tour_state"]["visited_stop_ids"], [])
+        self.assertEqual(arrived["tour_interaction_state"]["stop_phase"], "explaining")
+
+        # Textual lifecycle completion changes only the interaction phase.
+        awaiting, update = self._agent_event(arrived, "本点讲解结束")
+        self.assertEqual(update["last_tour_intent"]["event_type"], "explanation_finished")
+        self.assertEqual(awaiting["tour_state"], arrived["tour_state"])
+        self.assertEqual(awaiting["tour_interaction_state"]["stop_phase"], "awaiting_confirmation")
+
+        # Explicit confirmation is the first text action that records a visit.
+        completed, update = self._agent_event(awaiting, "确认完成本点")
+        self.assertEqual(update["last_tour_intent"]["event_type"], "confirm_stop_complete")
+        self.assertEqual(completed["tour_state"]["visited_stop_ids"], ["stop_front_courtyard_center"])
+        self.assertEqual(completed["tour_interaction_state"]["pending_stop_id"], "label_moon_platform")
+        self.assertEqual(completed["tour_interaction_state"]["stop_phase"], "navigating")
+
+        spoken_done = self._started()
+        spoken_done, _ = self._agent_event(spoken_done, "我到前院中部了")
+        spoken_done, update = self._agent_event(spoken_done, "我看完了")
+        self.assertEqual(update["last_tour_intent"]["event_type"], "confirm_stop_complete")
+        self.assertEqual(spoken_done["tour_state"]["visited_stop_ids"], ["stop_front_courtyard_center"])
+
+        # The combined natural completion phrase remains one confirmation event.
+        replay = self._started()
+        replay, _ = self._agent_event(replay, "我到前院中部了")
+        replay, _ = self._agent_event(replay, "我看完了，去下一站")
+        self.assertEqual(replay["tour_state"]["visited_stop_ids"], ["stop_front_courtyard_center"])
+
+        # Explicit non-pending arrival is still a self-arrival, never a route advance.
+        self_arrived, update = self._agent_event(self._started(), "我到月台了")
+        self.assertEqual(update["tour_presentation"]["code"], "self_arrival")
+        self.assertEqual(self_arrived["tour_state"]["visited_stop_ids"], [])
+        self.assertEqual(self_arrived["tour_interaction_state"]["pending_stop_id"], "stop_front_courtyard_center")
+
+        # A next-stop navigation request is read-only.
+        navigation_initial = self._started()
+        navigation, update = self._agent_event(navigation_initial, "下一站怎么走")
+        self.assertEqual(update["tour_presentation"]["code"], "next_stop_ready")
+        self.assertEqual(navigation["tour_state"], navigation_initial["tour_state"])
+        self.assertEqual(navigation["tour_interaction_state"], navigation_initial["tour_interaction_state"])
+
+        # Arrival plus a factual request is still an atomic clarification.
+        request = _message_state("我到月台了，顺便讲讲这里", self._started())
+        self.assertEqual(route_initial_request(request), "clarification")
+        clarification = clarification_node(request)
+        self.assertEqual(clarification["last_tour_intent"]["reason_code"], "multiple_intents")
+        self.assertNotIn("tour_state", clarification)
+
     def test_ambiguous_multi_intent_and_unknown_node_have_no_partial_state_update(self):
         state = self._started()
         before_tour = deepcopy(state["tour_state"])

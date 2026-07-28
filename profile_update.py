@@ -8,9 +8,9 @@ TourState's narrow snapshot transition for interests/detail level.
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
+from duration_parser import has_remaining_duration_context
 from profile_dialogue import extract_profile_patch
 from tour_interaction import handle_tour_event
 from tour_state import TourStateError, apply_profile_snapshot
@@ -22,14 +22,13 @@ from visitor_profile import (
 )
 
 
-TIME_UPDATE_RE = re.compile(r"(?:只剩|还剩|剩余)\s*\d{1,3}\s*分钟")
 INTEREST_UPDATE_CUES = ("接下来", "后面", "之后", "想多看", "更想", "改看", "更喜欢")
 DETAIL_UPDATE_CUES = ("后面", "接下来", "之后", "简单讲", "详细一点", "深入一点", "想听深入", "想深入")
 
 
 def _is_update_text(text: str, fields: set[str]) -> bool:
     """Require explicit change language so point questions stay in A2 RAG."""
-    if "available_minutes" in fields and TIME_UPDATE_RE.search(text):
+    if "available_minutes" in fields and has_remaining_duration_context(text):
         return True
     if "interests" in fields and any(cue in text for cue in INTEREST_UPDATE_CUES):
         return True
@@ -44,7 +43,7 @@ def is_profile_update_request(text: str) -> bool:
     if conflict:
         # A conflicting phrase still belongs to C4 when it explicitly tries
         # to alter time, interests, or depth; the adapter will reject it.
-        return bool(TIME_UPDATE_RE.search(text) or any(cue in text for cue in (*INTEREST_UPDATE_CUES, *DETAIL_UPDATE_CUES)))
+        return bool(has_remaining_duration_context(text) or any(cue in text for cue in (*INTEREST_UPDATE_CUES, *DETAIL_UPDATE_CUES)))
     return bool(patch) and _is_update_text(text, fields)
 
 

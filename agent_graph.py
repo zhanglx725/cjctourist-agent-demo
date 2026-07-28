@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import json
 import time
-import re
 from dataclasses import asdict
 from pathlib import Path
 from typing import Annotated, Any
@@ -18,9 +17,9 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 from dotenv import load_dotenv
+from duration_parser import has_route_duration_context, parse_duration_minutes
 from rag_retrieval import ChenClanHybridRetriever
 from route_planner import CATALOG_FILE, recommend_route, _read_catalog
-from dynamic_route_planner import plan_dynamic_route
 from tour_navigation import (
     format_next_stop_navigation,
     next_stop_navigation,
@@ -129,20 +128,15 @@ def should_direct_rag(user_text: str) -> bool:
 
 def should_direct_route(user_text: str) -> bool:
     """Route requests are deterministic and need no LLM tool-selection turn."""
-    route_terms = ("路线", "规划", "怎么逛", "游览", "参观顺序", "半小时", "一小时", "90分钟")
-    return any(term in user_text for term in route_terms) or bool(re.search(r"\d+\s*分钟", user_text))
+    route_terms = ("路线", "规划", "怎么逛", "游览", "参观顺序", "导览", "带我逛")
+    return any(term in user_text for term in route_terms) or has_route_duration_context(user_text)
 
 
 def _route_request_from_text(user_text: str) -> tuple[int, list[str]]:
-    explicit_minutes = re.search(r"(\d{1,3})\s*分钟", user_text)
-    if explicit_minutes:
-        minutes = max(20, min(120, int(explicit_minutes.group(1))))
-    elif re.search(r"90\s*分钟|一小时半|1\.5\s*小时", user_text):
-        minutes = 90
-    elif re.search(r"60\s*分钟|一小时", user_text):
-        minutes = 60
-    else:
-        minutes = 30
+    duration = parse_duration_minutes(user_text)
+    if duration.reason_code == "ambiguous_duration":
+        raise VisitorProfileError("时间表达包含多个不同分钟数，请只确认一个可用时间。")
+    minutes = duration.minutes if duration.ok else 30
     interests = [
         term
         for term in ("灰塑", "木雕", "石雕", "陶塑", "三国", "故事", "吉祥", "工艺", "建筑装饰", "深度")
@@ -288,36 +282,36 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         }
     minutes = profile.available_minutes
     interests = list(profile.interests)
-    # Exact 30/60/90-minute requests retain human-reviewed anchors.  Other
-    # durations use A0-4b dynamic composition, already benchmarked in A0-5/6.
-    is_anchor_duration = minutes in {30, 60, 90}
     try:
-        if is_anchor_duration:
-            plan = recommend_route(available_minutes=minutes, interests=interests)
-            route_id = plan.route_id
-            route_strategy = "anchor"
-            plan_data = {**plan.to_dict(), "route_strategy": route_strategy}
-            guide_stop_ids = tuple(plan.stop_ids[1:])
-            explanation_seconds = plan.estimated_explanation_seconds
-            observation_seconds = plan.estimated_observation_seconds
-            interaction_seconds = plan.estimated_interaction_seconds
-            total_seconds = plan.estimated_total_seconds or 0
-            walk_seconds = plan.estimated_walk_seconds or 0
-            exit_node_id = plan.exit_node_id
-            exit_return_seconds = plan.estimated_exit_return_seconds or 0
-        else:
-            plan = plan_dynamic_route(minutes, interests)
-            route_id = f"dynamic_{minutes}"
-            route_strategy = "dynamic"
-            plan_data = {**asdict(plan), "route_strategy": route_strategy}
-            guide_stop_ids = plan.stop_ids
-            explanation_seconds = plan.estimated_guide_seconds
-            observation_seconds = plan.estimated_observation_seconds
-            interaction_seconds = plan.estimated_interaction_seconds
-            total_seconds = plan.estimated_total_seconds
-            walk_seconds = plan.estimated_walk_seconds
-            exit_node_id = plan.exit_node_id
-            exit_return_seconds = plan.estimated_exit_return_seconds
+        selection_result = recommend_route(
+            available_minutes=minutes,
+            interests=interests,
+            detail_level=profile.detail_level,
+        )
+        if selection_result.selected is None:
+            return {
+                "messages": [AIMessage(content=(
+                    "当前时间预算内没有可安全安排的审核路线；请增加可用时间或调整需求。"
+                ))],
+                "performance_metrics": _append_metric(
+                    state, "direct_route", time.perf_counter() - started,
+                    route_started=False, route_error=True,
+                    route_selection_status=selection_result.status,
+                    reason_code=selection_result.reason_code,
+                ),
+            }
+        plan = selection_result.selected
+        route_id = plan.route_id
+        route_strategy = plan.route_strategy
+        plan_data = plan.to_dict()
+        guide_stop_ids = plan.guide_stop_ids
+        explanation_seconds = plan.estimated_explanation_seconds
+        observation_seconds = plan.estimated_observation_seconds
+        interaction_seconds = plan.estimated_interaction_seconds
+        total_seconds = plan.estimated_total_seconds
+        walk_seconds = plan.estimated_walk_seconds
+        exit_node_id = plan.exit_node_id
+        exit_return_seconds = plan.estimated_exit_return_seconds
     except (ValueError, RuntimeError) as exc:
         return {
             "messages": [AIMessage(content=f"无法按当前画像生成审核路线：{exc}")],
@@ -337,7 +331,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         )
     total_minutes = total_seconds / 60
     message = (
-        f"为您推荐“{getattr(plan, 'display_name', f'{minutes}分钟动态讲解线')}”。预计总时长约 {total_minutes:.0f} 分钟"
+        f"为您推荐“{plan.display_name}”。预计总时长约 {total_minutes:.0f} 分钟"
         f"（可用时间 {minutes} 分钟；策略：{'人工审核锚点' if route_strategy == 'anchor' else '动态组合'}）。\n\n"
         "讲解停留顺序：\n"
         + "\n".join(stop_lines)
@@ -372,6 +366,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
             interests=interests,
             detail_level=profile.detail_level,
             profile_source=profile_source,
+            route_selection_reason=plan.selection_reason,
         ),
     }
 

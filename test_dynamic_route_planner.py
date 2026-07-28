@@ -59,6 +59,12 @@ class DynamicRouteCandidateTests(unittest.TestCase):
             .intersection(route.stop_ids)
         )
 
+    def test_deep_dynamic_route_uses_the_deep_experience_budget_with_strict_cap(self):
+        route = plan_dynamic_route(90, interests=["灰塑", "木雕"], detail_level="deep")
+        self.assertEqual(route.detail_level, "deep")
+        self.assertLessEqual(route.estimated_total_seconds, 90 * 60)
+        self.assertGreater(route.estimated_interaction_seconds, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

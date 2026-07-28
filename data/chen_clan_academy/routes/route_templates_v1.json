@@ -42,7 +42,7 @@
       "target_minutes": 60,
       "experience_budget": {
         "observation_seconds_per_stop": 180,
-        "interaction_seconds_per_stop": 180,
+        "interaction_seconds_per_stop": 172,
         "notes": "每个正式讲解站预留约3分钟观察和约3分钟工艺比较、提问交流。"
       },
       "audience": ["工艺爱好者", "摄影和设计兴趣"],
@@ -74,7 +74,7 @@
       "target_minutes": 90,
       "experience_budget": {
         "observation_seconds_per_stop": 240,
-        "interaction_seconds_per_stop": 300,
+        "interaction_seconds_per_stop": 295,
         "notes": "每个正式讲解站预留约4分钟观察和约5分钟深度提问、比较或学习任务。"
       },
       "audience": ["研学", "建筑与历史爱好者"],

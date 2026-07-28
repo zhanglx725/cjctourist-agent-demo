@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from duration_parser import has_remaining_duration_context, has_route_duration_context, parse_duration_minutes
 from tour_interaction import EVENTS
 
 
@@ -156,13 +157,13 @@ def _has_destination_language(text: str) -> bool:
 
 
 def _remaining_minutes(text: str) -> int | None:
-    match = re.search(r"(?:只剩|还剩|剩余)\s*(\d{1,3})\s*分钟", text)
-    return int(match.group(1)) if match else None
+    parsed = parse_duration_minutes(text)
+    return parsed.minutes if parsed.ok and has_remaining_duration_context(text) else None
 
 
 def _looks_like_route_request(text: str) -> bool:
-    route_terms = ("路线", "规划", "怎么逛", "游览", "参观顺序", "半小时", "一小时", "90分钟")
-    return any(term in text for term in route_terms) or bool(re.search(r"(?:我有|有)\s*\d{1,3}\s*分钟", text))
+    route_terms = ("路线", "规划", "怎么逛", "游览", "参观顺序", "导览", "带我逛")
+    return any(term in text for term in route_terms) or has_route_duration_context(text)
 
 
 def _looks_like_question(text: str) -> bool:
@@ -179,7 +180,57 @@ def _has_factual_follow_up(text: str) -> bool:
     A question mark by itself is normal for “下一站去哪？”, so it must not
     turn a single navigation event into a false multi-intent request.
     """
+    # "下一站怎么走" and "怎么去下一站" are deterministic navigation
+    # controls, not a control-plus-factual-question combination.  Keep the
+    # general "怎么走" cue below for questions such as "月台怎么走".
+    if _is_next_stop_navigation_phrase(text):
+        return False
     return any(term in text for term in ("什么", "为什么", "有什么", "介绍", "怎么走", "如何", "特点", "讲讲"))
+
+
+def _is_next_stop_navigation_phrase(text: str) -> bool:
+    """Return whether text explicitly asks how to reach the formal next stop."""
+    return any(phrase in text for phrase in (
+        "下一站怎么走", "怎么去下一站", "下一站怎么去", "下一站如何去",
+    ))
+
+
+def _is_explicit_completion_confirmation(text: str) -> bool:
+    """Recognize an imperative confirmation without executing a question."""
+    if not any(phrase in text for phrase in ("确认完成本点", "确认本点完成", "确认已完成本点")):
+        return False
+    return not bool(re.search(r"(?:吗|么|？|\?)\s*$", text))
+
+
+def _pending_arrival_fallback(
+    tour_state: dict[str, Any] | None,
+    interaction_state: dict[str, Any] | None,
+) -> str | None:
+    """Return the sole formal pending stop for an otherwise unnamed arrival.
+
+    This is intentionally narrow: a generic "我到了" is safe only while an
+    unfinished route is awaiting arrival at its one stored pending stop.  Named
+    ambiguous or unknown locations continue through their clarification paths.
+    """
+    if not tour_state or not interaction_state:
+        return None
+    pending = interaction_state.get("pending_stop_id")
+    if (
+        interaction_state.get("stop_phase") != "navigating"
+        or tour_state.get("route_status") == "completed"
+        or not pending
+        or pending not in tour_state.get("remaining_stop_ids", [])
+    ):
+        return None
+    return str(pending)
+
+
+def _is_generic_arrival_phrase(text: str) -> bool:
+    """Return whether arrival wording contains no named or unknown destination."""
+    return bool(re.fullmatch(
+        r"(?:我\s*)?(?:(?:已|已经|刚)\s*)?(?:到了|到达了?|到)\s*[。！!？?]?",
+        text.strip(),
+    ))
 
 
 def _event_hits(text: str) -> set[str]:
@@ -187,13 +238,15 @@ def _event_hits(text: str) -> set[str]:
     hits: set[str] = set()
     if _has_arrival_language(text):
         hits.add("arrive_at_stop")
-    if any(term in text for term in ("讲完了", "讲完", "看完了", "看完", "参观完了", "讲解完成")):
+    if any(term in text for term in ("本点讲解结束", "讲解播放结束了")):
+        hits.add("explanation_finished")
+    if any(term in text for term in ("讲完了", "讲完", "看完了", "看完", "参观完了", "讲解完成")) or _is_explicit_completion_confirmation(text):
         hits.add("confirm_stop_complete")
     if any(term in text for term in ("跳过", "不去")):
         hits.add("skip_stop")
     if _remaining_minutes(text) is not None:
         hits.add("replan_time")
-    if any(term in text for term in ("结束导览", "结束游览", "结束路线", "路线结束", "游览结束", "结束了")):
+    if "explanation_finished" not in hits and any(term in text for term in ("结束导览", "结束游览", "结束路线", "路线结束", "游览结束", "结束了")):
         hits.add("finish_tour")
     if any(term in text for term in ("再讲详细", "详细一点", "讲细一点", "展开讲解")):
         hits.add("request_stop_detail")
@@ -217,6 +270,10 @@ def classify_tour_intent(
     if not text:
         return clarification("empty_input", "请告诉我您想继续游览、提问，还是规划路线。")
 
+    parsed_duration = parse_duration_minutes(text)
+    if has_remaining_duration_context(text) and parsed_duration.reason_code == "ambiguous_duration":
+        return clarification("ambiguous_duration", "时间表达包含多个不同分钟数，请只确认一个剩余时间。")
+
     hits = _event_hits(text)
     # A control action plus a factual request must not partly execute in A1-2.
     fact_cue = _has_factual_follow_up(text) and "request_stop_detail" not in hits
@@ -234,6 +291,9 @@ def classify_tour_intent(
                     return clarification("ambiguous_node_name", "该名称对应多个审核点位，请补充方位或选择具体点位。")
                 if resolution.reason_code == "multiple_node_mentions":
                     return clarification("multiple_node_mentions", "您提到了多个点位，请一次确认一个当前位置。")
+                pending = _pending_arrival_fallback(tour_state, interaction_state)
+                if pending is not None and _is_generic_arrival_phrase(text):
+                    return validate_event_suggestion("arrive_at_stop", {"node_id": pending})
                 return clarification("arrival_node_unresolved", "我知道您已到达，但无法确认点位名称，请说出地图上的明确点位。")
             return validate_event_suggestion("arrive_at_stop", {"node_id": resolution.node_id})
         if event == "skip_stop":

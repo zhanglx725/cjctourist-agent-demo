@@ -30,9 +30,19 @@ class RoutePlannerTests(unittest.TestCase):
         self.assertEqual(plan.estimated_interaction_seconds, 360)
         self.assertGreater(plan.estimated_total_seconds, plan.estimated_explanation_seconds)
 
+    def test_reviewed_anchor_templates_keep_strict_budget_by_adjusting_experience_only(self):
+        crafts = plan_template("crafts_60")
+        deep = plan_template("deep_dive_90")
+        self.assertLessEqual(crafts.estimated_total_seconds, 60 * 60)
+        self.assertLessEqual(deep.estimated_total_seconds, 90 * 60)
+        self.assertEqual(crafts.estimated_interaction_seconds, 5 * 172)
+        self.assertEqual(deep.estimated_interaction_seconds, 6 * 295)
+
     def test_recommendation_respects_available_time(self):
-        plan = recommend_route(available_minutes=30, interests=["工艺"])
-        self.assertEqual(plan.route_id, "highlights_30")
+        result = recommend_route(available_minutes=30, interests=["工艺"])
+        self.assertEqual(result.status, "selected")
+        self.assertIsNotNone(result.selected)
+        self.assertLessEqual(result.selected.estimated_total_seconds, 30 * 60)
 
 
 if __name__ == "__main__":

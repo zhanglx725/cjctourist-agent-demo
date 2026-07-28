@@ -28,6 +28,17 @@ class TourIntentTests(unittest.TestCase):
         self.assertEqual(decision.event_type, "arrive_at_stop")
         self.assertEqual(decision.arguments["node_id"], "stop_front_courtyard_center")
 
+    def test_generic_arrival_uses_only_pending_stop_while_navigating(self):
+        decision = self.classify("我到了")
+        self.assertEqual(decision.route_kind, "tour_event")
+        self.assertEqual(decision.event_type, "arrive_at_stop")
+        self.assertEqual(decision.arguments, {"node_id": "stop_front_courtyard_center"})
+
+    def test_generic_arrival_without_active_pending_stop_still_clarifies(self):
+        decision = classify_tour_intent("我到了")
+        self.assertEqual(decision.route_kind, "clarification")
+        self.assertEqual(decision.reason_code, "arrival_node_unresolved")
+
     def test_self_arrival_can_resolve_non_route_spatial_node(self):
         decision = self.classify("我到首进正厅了")
         self.assertEqual(decision.event_type, "arrive_at_stop")
@@ -52,9 +63,35 @@ class TourIntentTests(unittest.TestCase):
         decision = self.classify("下一站去哪？")
         self.assertEqual(decision.event_type, "next_stop")
 
+    def test_next_stop_how_to_walk_is_a_navigation_event(self):
+        decision = self.classify("下一站怎么走")
+        self.assertEqual(decision.route_kind, "tour_event")
+        self.assertEqual(decision.event_type, "next_stop")
+
+    def test_general_named_location_how_to_walk_remains_a_question(self):
+        decision = self.classify("月台怎么走")
+        self.assertEqual(decision.route_kind, "rag_question")
+        self.assertIsNone(decision.event_type)
+
     def test_completion_phrase_beats_next_stop_phrase(self):
         decision = self.classify("讲完了，去下一站")
         self.assertEqual(decision.event_type, "confirm_stop_complete")
+
+    def test_explicit_completion_confirmation_maps_to_confirm_event(self):
+        decision = self.classify("确认完成本点")
+        self.assertEqual(decision.route_kind, "tour_event")
+        self.assertEqual(decision.event_type, "confirm_stop_complete")
+
+    def test_completion_question_does_not_execute_confirm_event(self):
+        decision = self.classify("确认完成本点吗？")
+        self.assertNotEqual(decision.event_type, "confirm_stop_complete")
+
+    def test_explanation_end_text_maps_to_lifecycle_event(self):
+        for text in ("本点讲解结束", "讲解播放结束了"):
+            with self.subTest(text=text):
+                decision = self.classify(text)
+                self.assertEqual(decision.route_kind, "tour_event")
+                self.assertEqual(decision.event_type, "explanation_finished")
 
     def test_contextual_skip_uses_current_route_context(self):
         decision = self.classify("这里先跳过")
@@ -75,6 +112,18 @@ class TourIntentTests(unittest.TestCase):
         decision = self.classify("我只剩20分钟")
         self.assertEqual(decision.event_type, "replan_time")
         self.assertEqual(decision.arguments, {"available_minutes": 20})
+
+    def test_remaining_chinese_duration_and_explicit_time_change_map_to_replan(self):
+        for text, expected in (("我现在只剩三十分钟", 30), ("把时间改成一个半小时", 90)):
+            with self.subTest(text=text):
+                decision = self.classify(text)
+                self.assertEqual(decision.event_type, "replan_time")
+                self.assertEqual(decision.arguments, {"available_minutes": expected})
+
+    def test_conflicting_remaining_durations_clarify_without_event(self):
+        decision = self.classify("我只剩三十分钟或一个小时")
+        self.assertEqual(decision.route_kind, "clarification")
+        self.assertEqual(decision.reason_code, "ambiguous_duration")
 
     def test_fast_without_minutes_requests_clarification(self):
         decision = self.classify("快一点")

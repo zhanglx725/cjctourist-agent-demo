@@ -13,12 +13,12 @@ class RouteBenchmarkTests(unittest.TestCase):
     def test_every_dynamic_route_is_within_its_allowed_budget(self):
         self.assertTrue(all(result.dynamic_within_budget for result in self.results.values()))
 
-    def test_exact_anchor_duration_cases_fall_back_to_reviewed_routes_when_needed(self):
+    def test_anchor_duration_cases_use_mult_objective_selection_not_forced_fallback(self):
         for case_id in ("anchor_30_architecture", "anchor_60_crafts_stories", "anchor_90_deep_dive"):
             result = self.results[case_id]
-            self.assertEqual(result.recommended_strategy, "anchor")
-            self.assertIn("reviewed_anchor_fallback", result.reason_codes)
-            self.assertTrue(result.anchor_within_budget)
+            self.assertIn(result.recommended_strategy, {"anchor", "dynamic"})
+            self.assertIn("mult_objective_selection", result.reason_codes)
+            self.assertIn("strict_budget", result.reason_codes)
 
     def test_non_anchor_durations_keep_dynamic_composition(self):
         for case_id in ("dynamic_45_plaster", "dynamic_75_crafts"):

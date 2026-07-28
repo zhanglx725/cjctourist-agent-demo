@@ -8,9 +8,9 @@ the preference values themselves live in one C1 VisitorProfile instance.
 from __future__ import annotations
 
 from dataclasses import dataclass
-import re
 from typing import Any
 
+from duration_parser import parse_duration_minutes
 from visitor_profile import (
     ACTIVE_FIELDS,
     DEFAULT_AVAILABLE_MINUTES,
@@ -114,13 +114,6 @@ def _prompt(field: str) -> str:
     }[field]
 
 
-def _minute_candidates(text: str) -> set[int]:
-    candidates = {int(value) for value in re.findall(r"(\d{1,3})\s*分钟", text)}
-    word_patterns = (("一小时半", 90), ("一个半小时", 90), ("半小时", 30), ("一小时", 60))
-    candidates.update(value for phrase, value in word_patterns if phrase in text)
-    return candidates
-
-
 def _detail_candidates(text: str) -> set[str]:
     candidates: set[str] = set()
     if any(term in text for term in ("简单讲", "简要", "简短", "快一点")):
@@ -134,16 +127,16 @@ def _detail_candidates(text: str) -> set[str]:
 
 def _extract_patch(text: str) -> tuple[dict[str, Any], set[str], str | None]:
     """Extract one atomic patch; conflicting fields reject the whole turn."""
-    minutes = _minute_candidates(text)
+    duration = parse_duration_minutes(text)
     detail = _detail_candidates(text)
-    if len(minutes) > 1:
+    if duration.reason_code == "ambiguous_duration":
         return {}, set(), "时间表达包含多个不同分钟数，请只确认一个可用时间。"
     if len(detail) > 1:
         return {}, set(), "讲解深度表达不一致，请选择简单、标准或深入其中一种。"
     patch: dict[str, Any] = {}
     fields: set[str] = set()
-    if minutes:
-        patch["available_minutes"] = next(iter(minutes))
+    if duration.ok:
+        patch["available_minutes"] = duration.minutes
         fields.add("available_minutes")
     interests = [term for term in INTEREST_TERMS if term in text]
     if interests:

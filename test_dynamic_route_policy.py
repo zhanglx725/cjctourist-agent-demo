@@ -17,11 +17,15 @@ class DynamicRoutePolicyTests(unittest.TestCase):
         duration = self.policy["duration_policy"]
         self.assertEqual(duration["minimum_minutes"], 20)
         self.assertEqual(duration["maximum_minutes"], 120)
-        self.assertGreater(duration["maximum_overrun_ratio"], 0)
+        self.assertNotIn("maximum_overrun_ratio", duration)
 
     def test_anchor_routes_are_preserved(self):
         self.assertEqual(
             self.policy["duration_policy"]["anchor_template_minutes"], [30, 60, 90]
+        )
+        self.assertIn(
+            "same strict-budget candidate evaluation",
+            self.policy["duration_policy"]["anchor_template_rule"],
         )
 
     def test_candidates_require_approved_ornament_rich_stops(self):

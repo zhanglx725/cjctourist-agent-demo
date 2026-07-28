@@ -37,7 +37,7 @@ def _route_payload(result: RouteBenchmarkResult) -> tuple[str, tuple[str, ...], 
             plan.full_path_node_ids,
             plan.edge_ids,
             plan.estimated_total_seconds or 0,
-            round(plan.target_minutes * 60 * 1.1),
+            plan.target_minutes * 60,
         )
     plan = plan_dynamic_route(result.available_minutes, list(result.interests))
     return (

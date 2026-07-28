@@ -28,7 +28,7 @@ class AgentTourStateTests(unittest.TestCase):
 
     def test_arrival_routes_to_unified_event_node_and_adapter(self):
         initial = self._started()
-        state = _message_state("我到前院中部了", initial)
+        state = _message_state("我到了", initial)
         self.assertEqual(route_initial_request(state), "tour_event")
         with patch("agent_graph.handle_tour_event", wraps=agent_graph.handle_tour_event) as mocked:
             result = tour_event_node(state)
@@ -39,12 +39,66 @@ class AgentTourStateTests(unittest.TestCase):
         self.assertEqual(result["tour_presentation"]["phase"], "explaining")
         self.assertIn("explanation_finished", [item["id"] for item in result["tour_presentation"]["actions"]])
 
+    def test_generic_arrival_uses_pending_stop_only_through_adapter(self):
+        initial = self._started()
+        state = _message_state("我到了", initial)
+        self.assertEqual(route_initial_request(state), "tour_event")
+        with patch("agent_graph.handle_tour_event", wraps=agent_graph.handle_tour_event) as mocked:
+            result = tour_event_node(state)
+        mocked.assert_called_once_with(
+            initial["tour_state"], initial["tour_interaction_state"], "arrive_at_stop",
+            node_id=initial["tour_interaction_state"]["pending_stop_id"],
+        )
+        self.assertEqual(result["tour_state"]["visited_stop_ids"], [])
+        self.assertEqual(result["tour_interaction_state"]["stop_phase"], "explaining")
+
     def test_text_confirmation_is_only_path_that_marks_visit_complete(self):
         initial = self._started()
-        arrived = tour_event_node(_message_state("我到前院中部了", initial))
+        pending = initial["tour_interaction_state"]["pending_stop_id"]
+        arrived = tour_event_node(_message_state("我到了", initial))
         completed = tour_event_node(_message_state("讲完了，去下一站", arrived))
-        self.assertEqual(completed["tour_state"]["visited_stop_ids"], ["stop_front_courtyard_center"])
+        self.assertEqual(completed["tour_state"]["visited_stop_ids"], [pending])
         self.assertEqual(completed["last_tour_intent"]["event_type"], "confirm_stop_complete")
+
+    def test_explicit_confirmation_text_marks_visit_complete_only_after_arrival(self):
+        initial = self._started()
+        pending = initial["tour_interaction_state"]["pending_stop_id"]
+        arrived = tour_event_node(_message_state("我到了", initial))
+        completed = tour_event_node(_message_state("确认完成本点", arrived))
+        self.assertEqual(completed["last_tour_intent"]["event_type"], "confirm_stop_complete")
+        self.assertEqual(completed["tour_state"]["visited_stop_ids"], [pending])
+        self.assertEqual(completed["tour_interaction_state"]["stop_phase"], "navigating")
+
+    def test_text_explanation_end_only_enters_awaiting_confirmation(self):
+        initial = self._started()
+        pending = initial["tour_interaction_state"]["pending_stop_id"]
+        arrived = tour_event_node(_message_state("我到了", initial))
+        request = _message_state("本点讲解结束", arrived)
+        self.assertEqual(route_initial_request(request), "tour_event")
+        result = tour_event_node(request)
+        self.assertEqual(result["last_tour_intent"]["event_type"], "explanation_finished")
+        self.assertEqual(result["tour_state"]["visited_stop_ids"], [])
+        self.assertEqual(result["tour_interaction_state"]["pending_stop_id"], pending)
+        self.assertEqual(result["tour_interaction_state"]["stop_phase"], "awaiting_confirmation")
+
+    def test_text_explanation_end_before_arrival_is_rejected_by_adapter(self):
+        initial = self._started()
+        request = _message_state("讲解播放结束了", initial)
+        self.assertEqual(route_initial_request(request), "tour_event")
+        result = tour_event_node(request)
+        self.assertEqual(result["last_tour_intent"]["event_type"], "explanation_finished")
+        self.assertFalse(result["last_tour_event"]["ok"])
+        self.assertEqual(result["tour_state"], initial["tour_state"])
+        self.assertEqual(result["tour_interaction_state"], initial["tour_interaction_state"])
+
+    def test_next_stop_how_to_walk_is_read_only_navigation(self):
+        initial = self._started()
+        request = _message_state("下一站怎么走", initial)
+        self.assertEqual(route_initial_request(request), "tour_event")
+        result = tour_event_node(request)
+        self.assertEqual(result["last_tour_intent"]["event_type"], "next_stop")
+        self.assertEqual(result["tour_state"], initial["tour_state"])
+        self.assertEqual(result["tour_interaction_state"], initial["tour_interaction_state"])
 
     def test_multi_intent_returns_clarification_without_state_change(self):
         initial = self._started()

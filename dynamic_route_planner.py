@@ -45,6 +45,7 @@ class CandidateScore:
 @dataclass(frozen=True)
 class DynamicRoutePlan:
     requested_minutes: int
+    detail_level: str
     start_node_id: str
     exit_node_id: str
     stop_ids: tuple[str, ...]
@@ -195,8 +196,9 @@ def _maximum_stops(available_minutes: int, policy: dict) -> int:
     return int(list(policy["duration_policy"]["maximum_stops_by_duration"].values())[-1])
 
 
-def _experience_per_stop(policy: dict) -> tuple[int, int, int]:
-    budget = policy["experience_budget_per_stop_seconds"]
+def _experience_per_stop(policy: dict, detail_level: str = "standard") -> tuple[int, int, int]:
+    budgets = policy.get("experience_budget_per_stop_by_detail", {})
+    budget = budgets.get(detail_level) or policy["experience_budget_per_stop_seconds"]
     return int(budget["guide"]), int(budget["observation"]), int(budget["interaction"])
 
 
@@ -304,9 +306,43 @@ def _local_replace_order(
     return best
 
 
+def _trim_order_to_time_cap(
+    start_node_id: str,
+    order: tuple[DynamicRouteCandidate, ...],
+    interests: list[str],
+    policy: dict,
+    experience_each: int,
+    graph,
+    exit_node_id: str,
+    maximum_seconds: int,
+) -> tuple[DynamicRouteCandidate, ...]:
+    """Remove the weakest stop until a detail-level upper band is met.
+
+    Beam pruning can retain a rich near-cap route while discarding a shorter
+    intermediate state. This deterministic repair only removes a reviewed stop;
+    it never adds nodes, edges or unreviewed content.
+    """
+    trimmed = order
+    minimum_stops = int(policy["route_quality_policy"].get("minimum_core_stops", 2))
+    while len(trimmed) > minimum_stops:
+        _, _, walk_seconds = _compose_path(start_node_id, trimmed, graph, exit_node_id)
+        if walk_seconds + len(trimmed) * experience_each <= maximum_seconds:
+            break
+        ranked: list[tuple[float, int, str]] = []
+        for index, candidate in enumerate(trimmed):
+            content = score_candidate(candidate, interests, list(trimmed[:index]), policy).total
+            # Optional stops are removed first when cultural utility is tied.
+            role_penalty = 0 if candidate.route_role == "optional" else 1
+            ranked.append((content, role_penalty, candidate.node_id))
+        _, _, removed_id = sorted(ranked)[0]
+        trimmed = tuple(candidate for candidate in trimmed if candidate.node_id != removed_id)
+    return trimmed
+
+
 def plan_dynamic_route(
     available_minutes: int,
     interests: list[str] | None = None,
+    detail_level: str = "standard",
     start_node_id: str = "entrance_main_outside",
     excluded_stop_ids: list[str] | None = None,
     exit_node_id: str | None = None,
@@ -322,6 +358,8 @@ def plan_dynamic_route(
     duration = policy["duration_policy"]
     if not int(duration["minimum_minutes"]) <= available_minutes <= int(duration["maximum_minutes"]):
         raise DynamicRouteCandidateError("请求时长超出动态路线支持范围。")
+    if detail_level not in {"short", "standard", "deep"}:
+        raise DynamicRouteCandidateError("讲解深度必须是 short、standard 或 deep。")
     interests = [term.strip() for term in (interests or []) if term.strip()]
     candidates = filter_dynamic_candidates(start_node_id, excluded_stop_ids)
     graph = build_spatial_graph()
@@ -329,11 +367,13 @@ def plan_dynamic_route(
     if exit_node_id not in graph:
         raise DynamicRouteCandidateError(f"未知动态路线出口区域：{exit_node_id}")
     max_stops = _maximum_stops(available_minutes, policy)
-    guide_each, observation_each, interaction_each = _experience_per_stop(policy)
+    guide_each, observation_each, interaction_each = _experience_per_stop(policy, detail_level)
     experience_each = guide_each + observation_each + interaction_each
-    allowed_total = round(available_minutes * 60 * (1 + float(duration["maximum_overrun_ratio"])))
+    allowed_total = int(available_minutes * 60)
     detour_penalty = float(policy["scoring_policy"]["detour_penalty_per_second"])
     time_fit_bonus = float(policy["scoring_policy"]["time_fit_bonus"])
+    detail_bands = policy.get("selection_policy", {}).get("detail_time_bands", {})
+    detail_lower, detail_upper = detail_bands.get(detail_level, (0.0, 1.0))
 
     # state = (utility, selected in visiting order, total seconds including experience)
     states: list[tuple[float, tuple[DynamicRouteCandidate, ...], int]] = [(0.0, (), 0)]
@@ -371,14 +411,33 @@ def plan_dynamic_route(
         # Keep different orders, but bounded so planning remains fast and predictable.
         states = sorted(expanded, key=lambda item: (item[0], len(item[1])), reverse=True)[:beam_width]
 
+    # First prefer states in the configured detail-level time-utilisation band.
+    # This is a bounded candidate-pool choice, not an unbounded score multiplier:
+    # cultural value and walking cost still rank plans inside the eligible pool.
+    productive_states = [
+        item for item in states
+        if item[1] and detail_lower <= item[2] / allowed_total <= detail_upper
+    ]
+    final_states = productive_states or [item for item in states if item[1]]
+    if not final_states:
+        raise DynamicRouteCandidateError("在当前时长和排除条件下，没有可安排的已审核讲解点。")
     # Prefer utility, then a route that makes productive use of its requested time.
     best_utility, selected, _ = max(
-        states,
+        final_states,
         key=lambda item: (item[0], len(item[1]), item[2]),
     )
-    if not selected:
-        raise DynamicRouteCandidateError("在当前时长和排除条件下，没有可安排的已审核讲解点。")
 
+    upper_band_seconds = int(allowed_total * float(detail_upper))
+    selected = _trim_order_to_time_cap(
+        start_node_id,
+        selected,
+        interests,
+        policy,
+        experience_each,
+        graph,
+        exit_node_id,
+        upper_band_seconds,
+    )
     selected = _local_replace_order(
         start_node_id,
         selected,
@@ -389,6 +448,16 @@ def plan_dynamic_route(
         experience_each,
         graph,
         exit_node_id,
+    )
+    selected = _trim_order_to_time_cap(
+        start_node_id,
+        selected,
+        interests,
+        policy,
+        experience_each,
+        graph,
+        exit_node_id,
+        upper_band_seconds,
     )
     ordered = _two_opt_order(start_node_id, selected, graph, exit_node_id)
     path_nodes, edge_ids, walk_seconds = _compose_path(start_node_id, ordered, graph, exit_node_id)
@@ -408,6 +477,7 @@ def plan_dynamic_route(
         raise DynamicRouteCandidateError("路径优化后超出允许时间预算，请缩短时长或增加排除点。")
     return DynamicRoutePlan(
         requested_minutes=available_minutes,
+        detail_level=detail_level,
         start_node_id=start_node_id,
         exit_node_id=exit_node_id,
         stop_ids=tuple(candidate.node_id for candidate in ordered),

@@ -1,10 +1,9 @@
 {
-  "schema_version": "v1",
-  "status": "draft",
+  "schema_version": "v2",
+  "status": "active_mult_objective_selection",
   "time_policy": {
     "walk_time_source": "edge.estimated_walk_seconds",
     "per_stop_buffer_seconds": 30,
-    "maximum_overrun_ratio": 0.1,
     "time_warning": "预计步行时间基于官网地图和路线估算，待现场复核。"
   },
   "path_policy": {

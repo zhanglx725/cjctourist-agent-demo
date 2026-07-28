@@ -310,3 +310,16 @@ python inspect_route_plan.py deep_dive_90
 
 - `D_STAGE_BASELINE.md` 是 D 阶段共同起点的唯一索引。功能提交为 `079a1f1`；项目负责人已确认本机完整回归 `374 / 374 / 0` 与固定 LangSmith 场景全部通过。`handoff_commit` 将由 E1 交接提交写入。
 - E1 通过后，两位队友必须从同一 `handoff_commit` 创建 `codex/content-experience` 和 `codex/platform-productization`，不得从各自旧分支继续。开始前须报告本地提交、目标基线提交、工作区状态和未提交修改。
+
+## E4-3 时长解析共享边界
+
+- 所有中文/阿拉伯数字导览时长的识别必须调用 `duration_parser.py` 中的公共函数；禁止在 Agent、画像收集、路线规划、重规划或 UI 层重新复制正则与数字转换规则。
+- 解析与业务语境分离：`parse_duration_minutes()` 仅返回显式分钟值或歧义；`has_route_duration_context()` 与 `has_remaining_duration_context()` 决定是否可用于启动路线或更新剩余时间。最终范围校验仍由 `VisitorProfile` 与既有路线策略负责。
+- 新增时长表达、上下文或产品范围时，须同时补充解析器单测和路线/游览中集成测试；不得用 LLM 推断不明确的时长。
+
+## E4-3B 路线选择共享边界
+
+- `route_selection.py` 是路线初始化时唯一的锚点/动态候选选择器。禁止重新引入“模板标题主题优先”或“精确时长强制锚点”的分支。
+- 新路线必须严格满足 `estimated_total_seconds <= available_minutes * 60`。不得以 10% 容忍、显示时四舍五入或模糊警告掩盖超时；无合格候选必须返回可审计的无路线结果。
+- 兴趣覆盖只能由候选实际停留点的已审核点位—文物—工艺关联派生。不得为路线选择新增独立手工标签库，也不得由 LLM 推断覆盖关系。
+- `detail_level` 是选择器和动态每站预算的输入；TourState 的到达、完成、跳过、重规划语义仍完全由 A1 事件层控制。

@@ -21,10 +21,10 @@ class RouteReviewTests(unittest.TestCase):
         self.assertTrue(record["automatic_checks"]["path_returns_to_front_courtyard_exit_area"])
         self.assertTrue(record["time_seconds"]["within_budget"])
 
-    def test_anchor_case_keeps_the_selected_anchor_route_for_review(self):
+    def test_anchor_case_uses_a_strict_budget_selected_route_for_review(self):
         record = self.records["anchor_60_crafts_stories"]
-        self.assertEqual(record["recommended_strategy"], "anchor")
-        self.assertEqual(record["chosen_route_source"], "anchor:crafts_60")
+        self.assertIn(record["recommended_strategy"], {"anchor", "dynamic"})
+        self.assertTrue(record["time_seconds"]["within_budget"])
 
 
 if __name__ == "__main__":

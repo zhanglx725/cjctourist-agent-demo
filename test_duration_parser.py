@@ -1,0 +1,59 @@
+"""Offline unit tests for the one shared Chinese duration parser."""
+
+from __future__ import annotations
+
+import unittest
+
+from duration_parser import (
+    has_remaining_duration_context,
+    has_route_duration_context,
+    parse_duration_minutes,
+)
+
+
+class DurationParserTests(unittest.TestCase):
+    def test_supported_chinese_and_arabic_duration_expressions(self):
+        cases = {
+            "30分钟": 30,
+            "三十分钟": 30,
+            "半小时": 30,
+            "一个小时": 60,
+            "一小时": 60,
+            "一个半小时": 90,
+            "一小时半": 90,
+            "1.5小时": 90,
+            "两小时": 120,
+            "一刻钟": 15,
+            "三刻钟": 45,
+            "2小时": 120,
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                result = parse_duration_minutes(text)
+                self.assertTrue(result.ok)
+                self.assertEqual(result.minutes, expected)
+
+    def test_two_hours_with_classifier_is_normalized(self):
+        self.assertEqual(parse_duration_minutes("\u4e24\u4e2a\u5c0f\u65f6").minutes, 120)
+
+    def test_conflicting_duration_is_not_silently_selected(self):
+        result = parse_duration_minutes("我有三十分钟或一个小时")
+        self.assertEqual(result.reason_code, "ambiguous_duration")
+        self.assertIsNone(result.minutes)
+
+    def test_non_duration_history_question_is_not_route_context(self):
+        text = "陈家祠建了多少年？"
+        self.assertEqual(parse_duration_minutes(text).reason_code, "no_duration")
+        self.assertFalse(has_route_duration_context(text))
+        self.assertFalse(has_remaining_duration_context(text))
+
+    def test_route_and_remaining_contexts_are_distinguished(self):
+        self.assertTrue(has_route_duration_context("我有一个小时，喜欢灰塑"))
+        self.assertTrue(has_route_duration_context("给我规划一条半小时路线"))
+        self.assertTrue(has_remaining_duration_context("我现在只剩三十分钟"))
+        self.assertTrue(has_remaining_duration_context("把时间改成一个半小时"))
+        self.assertFalse(has_remaining_duration_context("我有一个小时，喜欢灰塑"))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -45,15 +45,33 @@ backlog:
 
   - backlog_id: e3_002_duration_normalization_and_replanning
     priority: P1
-    status: open
+    status: fixed_pending_verification
     source_finding_ids: [rvw_muziw_001, rvw_muziw_002, e2_a_002]
     module: route_planning
     issue_type: routing
-    suspected_layer: intent_routing
-    reproduction_status: confirmed_by_e2_manual_evidence; independent_reproduction_not_run
+    suspected_layer: duration_parsing_and_intent_routing
+    reproduction_status: >-
+      confirmed_by_e2_manual_evidence; deterministic E4-3 regression coverage
+      added; project-owner local targeted and full unittest verification passed;
+      LangSmith verification pending
     summary: Natural-language hour durations, retained preferences, and remaining-time replanning are inconsistent.
     owner: route_owner
     contract_impact: none
+    root_cause: >-
+      Route start, profile collection, profile updates and tour intent previously
+      used overlapping local time-expression rules. Chinese hour forms therefore
+      could be ignored or interpreted differently between initialization and
+      remaining-time replanning.
+    repair_files:
+      - duration_parser.py
+      - agent_graph.py
+      - profile_dialogue.py
+      - profile_update.py
+      - tour_intent.py
+    verification_tests:
+      - test_duration_parser.py
+      - test_e4_duration_integration.py
+      - unittest discover -v
     acceptance_test: >-
       "1小时" normalizes to 60 minutes, "两个小时" to 120 minutes, a 90-minute
       study request differs from a 60-minute craft request, and a 20-minute
@@ -74,7 +92,7 @@ backlog:
 
   - backlog_id: e3_004_arrival_navigation_and_pending_stop_continuity
     priority: P1
-    status: open
+    status: fixed_pending_verification
     source_finding_ids: [rvw_muziw_003, e2_b_001, e2_b_003]
     module: tour_event
     issue_type: state_error
@@ -307,6 +325,39 @@ backlog:
     owner: content_experience_owner
     contract_impact: none
     acceptance_test: The answer never invents real-time hours and remains concise.
+
+  - backlog_id: e3_020_mult_objective_route_selection_and_budget_utilization
+    priority: P1
+    status: score_calibration_blocked_by_selection_inconsistency
+    source_finding_ids: [e4_3b_langsmith_001]
+    module: route_planning
+    issue_type: route_quality
+    suspected_layer: anchor_selection_policy
+    reproduction_status: >-
+      Reproduced in LangSmith: a 90-minute deep request for 灰塑 and 木雕
+      entered profile_collection then direct_route, but selected the roughly
+      61-minute crafts_60 anchor because title-theme overlap outranked budget fit.
+    original_trace: >-
+      Input: 我有一个半小时，喜欢灰塑和木雕，深入讲解，帮我规划路线。
+      Node path: profile_collection -> direct_route. Output reported available
+      time 90 minutes and the crafts_60 anchor at approximately 61 minutes.
+    summary: >-
+      Route selection must compare reviewed anchors and reviewed dynamic routes
+      under one strict budget, using object-derived interest coverage and
+      detail-level time utilisation rather than title-theme overlap alone.
+      For exact 30/60/90-minute requests, an eligible reviewed anchor may be
+      preferred only when it is within a policy-configured near-optimal score
+      margin of the best dynamic candidate. The margin remains uncalibrated
+      until the fixed score-truth scenarios are collected.
+    owner: route_owner
+    contract_impact: >-
+      Replaces exact-duration forced-anchor selection and the 10 percent
+      overrun allowance; does not change TourState event semantics.
+    acceptance_test: >-
+      A 90-minute deep 灰塑/木雕 request stays within 90 minutes, uses a
+      productive deep-time budget, and reports object-derived coverage; 45/75
+      requests remain dynamic; no qualified candidate returns a structured
+      no-route result rather than an over-budget route.
 
 test_gaps:
   - gap_id: e3_gap_001_thread_isolation
