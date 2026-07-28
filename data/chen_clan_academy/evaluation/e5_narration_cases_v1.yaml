@@ -1,0 +1,627 @@
+schema_version: e5_narration_cases_v1
+module: e5_c_narration_evaluation
+baseline_commit: 824f8446fb2f23c5adb0ed7491e69b8a39c636cb
+branch: codex/e5-c-narration-evaluation
+review_status: draft
+case_scope: >-
+  E5-C static traceability and runtime-invariant cases. Cases that require
+  NarrationCoverage, NarrationPlan, or first/subsequent narration behavior are
+  intentionally blocked until E5-A is integrated.
+hard_failure_catalog:
+  - 文物不属于当前点审核对象白名单。
+  - 虚构现有证据未支持的事实。
+  - 将无来源的文化结论作为事实输出。
+  - 超出 StopProgram 的本点内容预算。
+  - 讲解、问答或取证修改 TourState。
+  - listen_only 模式主动要求游客完成互动任务或回答问题。
+  - 将研究观点表达为确定的馆方事实。
+cases:
+  - case_id: e5c_static_001
+    runtime_readiness: executable_static
+    evaluation_phase: static_evidence_audit
+    current_node_id: stop_front_courtyard_center
+    point_name: 前院中部
+    craft: 灰塑
+    ornament_id: orn_005
+    ornament_name: 独角狮
+    profile_fixture:
+      fixture: neutral
+      audience_mode: standard
+    stage: 当前点知识问答
+    input: 独角狮是什么装饰？
+    expected_evidence_documents:
+      - data/chen_clan_academy/knowledge/07_ornament_crafts.md
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    expected_source_ids: [S10, S11]
+    expected_object_whitelist: [orn_005, orn_008, orn_012, orn_022, orn_069, orn_072, orn_077, orn_080, orn_083, orn_087, orn_090]
+    expected_invariants:
+      - orn_005 is a reviewed ornament of stop_front_courtyard_center.
+      - 独角狮的工艺、单件详情和 raw_location 分别可回溯到 07、08、09/点位卡。
+      - 当前点问答不得以其他点位对象替代独角狮。
+      - TourState 前后不变。
+    hard_failure_conditions:
+      - 文物不属于当前点审核对象白名单。
+      - 虚构现有证据未支持的事实。
+      - 将无来源的文化结论作为事实输出。
+      - 修改 TourState。
+      - 将研究观点表达为确定的馆方事实。
+    notes: 静态审计只确认对象、来源和位置链，不断言现行运行时已有首次讲解能力。
+
+  - case_id: e5c_static_002
+    runtime_readiness: executable_static
+    evaluation_phase: static_evidence_audit
+    current_node_id: label_moon_platform
+    point_name: 月台
+    craft: 石雕
+    ornament_id: orn_078
+    ornament_name: 引福归堂
+    profile_fixture:
+      fixture: neutral
+      audience_mode: standard
+    stage: 当前点知识问答
+    input: 月台上的引福归堂有什么特点？
+    expected_evidence_documents:
+      - data/chen_clan_academy/knowledge/07_ornament_crafts.md
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    expected_source_ids: [S10, S11]
+    expected_object_whitelist: [orn_026, orn_041, orn_078, orn_089, orn_091, orn_092, orn_093, orn_095, orn_099, orn_100]
+    expected_invariants:
+      - orn_078 is a reviewed ornament of label_moon_platform.
+      - 月台案例同时保留灰塑 orn_026、木雕 orn_041、石雕 orn_078、陶塑 orn_089 的审核白名单。
+      - raw_location 仅可作为安全观察提示，不能推断实时可见性或通行条件。
+      - TourState 前后不变。
+    hard_failure_conditions:
+      - 文物不属于当前点审核对象白名单。
+      - 虚构现有证据未支持的事实。
+      - 将无来源的文化结论作为事实输出。
+      - 修改 TourState。
+      - 将研究观点表达为确定的馆方事实。
+    notes: 月台是四类工艺均有审核对象的静态覆盖锚点。
+
+  - case_id: e5c_static_003
+    runtime_readiness: executable_static
+    evaluation_phase: static_evidence_audit
+    current_node_id: stop_front_courtyard_north
+    point_name: 前庭
+    craft: 木雕
+    ornament_id: orn_032
+    ornament_name: 博古图、五福捧寿
+    profile_fixture:
+      fixture: family
+      audience_mode: family
+    stage: 当前点知识问答
+    input: 前庭的博古图、五福捧寿讲的是什么？
+    expected_evidence_documents:
+      - data/chen_clan_academy/knowledge/07_ornament_crafts.md
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    expected_source_ids: [S10, S11]
+    expected_object_whitelist: [orn_011, orn_014, orn_027, orn_032, orn_036, orn_037, orn_051, orn_052, orn_060, orn_061, orn_074, orn_081, orn_085]
+    expected_invariants:
+      - orn_032 is a reviewed ornament of stop_front_courtyard_north.
+      - 家庭画像只影响表达和互动形式，不扩展对象、事实或来源集合。
+      - TourState 前后不变。
+    hard_failure_conditions:
+      - 文物不属于当前点审核对象白名单。
+      - 虚构现有证据未支持的事实。
+      - 将无来源的文化结论作为事实输出。
+      - 修改 TourState。
+      - 将研究观点表达为确定的馆方事实。
+    notes: 以单件木雕详情和其审核位置的可追溯性为检查对象。
+
+  - case_id: e5c_static_004
+    runtime_readiness: executable_static
+    evaluation_phase: static_evidence_audit
+    current_node_id: stop_rear_west_courtyard
+    point_name: 后西庭
+    craft: 木雕
+    ornament_id: orn_034
+    ornament_name: 赤壁之战
+    profile_fixture:
+      fixture: student_research
+      audience_mode: study
+    stage: 当前点知识问答
+    input: 后西庭的赤壁之战刻画了什么？
+    expected_evidence_documents:
+      - data/chen_clan_academy/knowledge/07_ornament_crafts.md
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    expected_source_ids: [S10, S11]
+    expected_object_whitelist: [orn_003, orn_034, orn_049, orn_050, orn_063, orn_076, orn_079, orn_101, orn_102]
+    expected_invariants:
+      - orn_034 is a reviewed ornament of stop_rear_west_courtyard.
+      - study 画像可增加术语说明的需求，但不把研究观点作为确定馆方事实。
+      - TourState 前后不变。
+    hard_failure_conditions:
+      - 文物不属于当前点审核对象白名单。
+      - 虚构现有证据未支持的事实。
+      - 将无来源的文化结论作为事实输出。
+      - 修改 TourState。
+      - 将研究观点表达为确定的馆方事实。
+    notes: 后西庭用于审计故事题材的单件证据不越过当前点白名单。
+
+  - case_id: e5c_static_005
+    runtime_readiness: executable_static
+    evaluation_phase: current_runtime_invariant
+    current_node_id: stop_front_courtyard_center
+    point_name: 前院中部
+    craft: 灰塑
+    ornament_id: orn_005
+    ornament_name: 独角狮
+    profile_fixture:
+      fixture: neutral
+      audience_mode: standard
+    stage: 当前点知识问答
+    input: 我喜欢木雕，这里有什么？
+    expected_evidence_documents:
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    expected_source_ids: [S11]
+    expected_object_whitelist: [orn_005, orn_008, orn_012, orn_022, orn_069, orn_072, orn_077, orn_080, orn_083, orn_087, orn_090]
+    expected_invariants:
+      - stop_front_courtyard_center 的审核对象白名单中不包含木雕。
+      - 当前点问答不得把前庭、月台或后西庭的木雕说成眼前对象。
+      - 可安全说明当前点没有审核木雕对象或引导用户前往其他已审核点，但不得伪造当前位置事实。
+      - TourState 前后不变。
+    hard_failure_conditions:
+      - 文物不属于当前点审核对象白名单。
+      - 虚构现有证据未支持的事实。
+      - 将无来源的文化结论作为事实输出。
+      - 修改 TourState。
+      - 将研究观点表达为确定的馆方事实。
+    notes: 对应冻结验收 e5_nar_005 的当前运行时白名单不变量部分。
+
+  - case_id: e5c_static_006
+    runtime_readiness: executable_static
+    evaluation_phase: current_runtime_invariant
+    current_node_id: label_moon_platform
+    point_name: 月台
+    craft: 陶塑
+    ornament_id: orn_089
+    ornament_name: 书字换鹅
+    profile_fixture:
+      fixture: listen_only
+      interaction_mode: listen_only
+    stage: 当前点知识问答
+    input: 只听讲解，不要让我做互动任务。请讲讲月台的书字换鹅。
+    expected_evidence_documents:
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    expected_source_ids: [S11]
+    expected_object_whitelist: [orn_026, orn_041, orn_078, orn_089, orn_091, orn_092, orn_093, orn_095, orn_099, orn_100]
+    expected_invariants:
+      - listen_only maps to interaction_mode=listen_only.
+      - 输出不得主动要求回答、完成任务或选择互动。
+      - 可使用非强制观察提示，但不能降低证据与对象白名单要求。
+      - TourState 前后不变。
+    hard_failure_conditions:
+      - 文物不属于当前点审核对象白名单。
+      - 虚构现有证据未支持的事实。
+      - 将无来源的文化结论作为事实输出。
+      - 修改 TourState。
+      - listen_only 模式主动要求游客完成互动任务或回答问题。
+      - 将研究观点表达为确定的馆方事实。
+    notes: 当前可审计 interaction_mode 的策略边界；首次讲解完整度仍由 e5_nar_006 覆盖。
+
+  - case_id: e5c_static_007
+    runtime_readiness: executable_static
+    evaluation_phase: current_runtime_invariant
+    current_node_id: stop_front_courtyard_center
+    point_name: 前院中部
+    craft: 灰塑
+    ornament_id: orn_008
+    ornament_name: 福禄寿
+    profile_fixture:
+      fixture: child
+      audience_mode: child_friendly
+    stage: 当前点知识问答
+    input: 给孩子讲讲前院中部的福禄寿。
+    expected_evidence_documents:
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    expected_source_ids: [S11]
+    expected_object_whitelist: [orn_005, orn_008, orn_012, orn_022, orn_069, orn_072, orn_077, orn_080, orn_083, orn_087, orn_090]
+    expected_invariants:
+      - child maps to audience_mode=child_friendly.
+      - 简化语言或低压力观察任务不得增加新的对象、事实或来源。
+      - TourState 前后不变。
+    hard_failure_conditions:
+      - 文物不属于当前点审核对象白名单。
+      - 虚构现有证据未支持的事实。
+      - 将无来源的文化结论作为事实输出。
+      - 修改 TourState。
+      - 将研究观点表达为确定的馆方事实。
+    notes: 只审计当前画像策略与事实边界，不锁定中文文案。
+
+  - case_id: e5c_static_008
+    runtime_readiness: executable_static
+    evaluation_phase: current_runtime_invariant
+    current_node_id: stop_front_courtyard_north
+    point_name: 前庭
+    craft: 石雕
+    ornament_id: orn_074
+    ornament_name: 踏雪寻梅
+    profile_fixture:
+      fixture: professional
+      knowledge_level: professional
+    stage: 当前点知识问答
+    input: 用专业一点的方式讲讲前庭的石雕踏雪寻梅。
+    expected_evidence_documents:
+      - data/chen_clan_academy/knowledge/07_ornament_crafts.md
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    expected_source_ids: [S10, S11]
+    expected_object_whitelist: [orn_011, orn_014, orn_027, orn_032, orn_036, orn_037, orn_051, orn_052, orn_060, orn_061, orn_074, orn_081, orn_085]
+    expected_invariants:
+      - professional maps to knowledge_level=professional.
+      - 专业表达可增加术语和来源细节，不能扩大事实集合或超出本点白名单。
+      - TourState 前后不变。
+    hard_failure_conditions:
+      - 文物不属于当前点审核对象白名单。
+      - 虚构现有证据未支持的事实。
+      - 将无来源的文化结论作为事实输出。
+      - 修改 TourState。
+      - 将研究观点表达为确定的馆方事实。
+    notes: 同名踏雪寻梅在点位数据中有不同工艺记录；本案例固定 orn_074 的石雕记录。
+
+  - case_id: e5c_static_009
+    runtime_readiness: executable_static
+    evaluation_phase: current_runtime_invariant
+    current_node_id: label_moon_platform
+    point_name: 月台
+    craft: 灰塑
+    ornament_id: orn_026
+    ornament_name: 杏林春燕
+    profile_fixture:
+      fixture: mixed_group
+      audience_mode: mixed_group
+    stage: 当前点知识问答
+    input: 给我们不同年龄的人一起讲讲月台的杏林春燕。
+    expected_evidence_documents:
+      - data/chen_clan_academy/knowledge/07_ornament_crafts.md
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    expected_source_ids: [S10, S11]
+    expected_object_whitelist: [orn_026, orn_041, orn_078, orn_089, orn_091, orn_092, orn_093, orn_095, orn_099, orn_100]
+    expected_invariants:
+      - mixed_group maps to audience_mode=mixed_group.
+      - 通俗主叙述和可选深入不得强制互动，也不得扩大事实集合。
+      - TourState 前后不变。
+    hard_failure_conditions:
+      - 文物不属于当前点审核对象白名单。
+      - 虚构现有证据未支持的事实。
+      - 将无来源的文化结论作为事实输出。
+      - 修改 TourState。
+      - 将研究观点表达为确定的馆方事实。
+    notes: 覆盖 mixed_group 的策略映射和月台灰塑证据链。
+
+  - case_id: e5c_static_010
+    runtime_readiness: executable_static
+    evaluation_phase: current_runtime_invariant
+    current_node_id: stop_rear_west_courtyard
+    point_name: 后西庭
+    craft: 木雕
+    ornament_id: orn_049
+    ornament_name: 三顾茅庐
+    profile_fixture:
+      fixture: neutral
+      audience_mode: standard
+    stage: 再讲详细一点
+    input: 再讲详细一点三顾茅庐。
+    expected_evidence_documents:
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    expected_source_ids: [S11]
+    expected_object_whitelist: [orn_003, orn_034, orn_049, orn_050, orn_063, orn_076, orn_079, orn_101, orn_102]
+    expected_invariants:
+      - 详细追问仍须限制在 orn_049 的现有单件证据和本点审核对象内。
+      - 详细程度不得改变 TourState、路线或 VisitorProfile。
+      - 不得把未验证故事细节补写为事实。
+    hard_failure_conditions:
+      - 文物不属于当前点审核对象白名单。
+      - 虚构现有证据未支持的事实。
+      - 将无来源的文化结论作为事实输出。
+      - 修改 TourState。
+      - 将研究观点表达为确定的馆方事实。
+    notes: 不对现行运行时是否产生新增细节作结论；只定义可执行的事实与状态边界。
+
+  - case_id: e5c_static_011
+    runtime_readiness: executable_static
+    evaluation_phase: current_runtime_invariant
+    current_node_id: stop_front_courtyard_center
+    point_name: 前院中部
+    craft: 灰塑
+    ornament_id: orn_005
+    ornament_name: 独角狮
+    profile_fixture:
+      fixture: neutral
+      audience_mode: standard
+    stage: 短时间预算
+    input: 我只剩很短时间了，讲前院中部的灰塑重点。
+    expected_evidence_documents:
+      - data/chen_clan_academy/knowledge/07_ornament_crafts.md
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    expected_source_ids: [S10, S11]
+    expected_object_whitelist: [orn_005, orn_008, orn_012, orn_022, orn_069, orn_072, orn_077, orn_080, orn_083, orn_087, orn_090]
+    expected_invariants:
+      - StopProgram 的 budget_scope 是 stop_explanation_content_only。
+      - 预算不足时应减少对象或互动扩展，不能超出 StopProgram 预算。
+      - 现行规划、讲解或问答不得修改 TourState。
+    hard_failure_conditions:
+      - 文物不属于当前点审核对象白名单。
+      - 虚构现有证据未支持的事实。
+      - 将无来源的文化结论作为事实输出。
+      - 超出 StopProgram 的本点内容预算。
+      - 修改 TourState。
+      - 将研究观点表达为确定的馆方事实。
+    notes: 首次工艺与核心文物证据链的保留规则须在 E5-A 合入后再执行验证。
+
+  - case_id: e5_nar_001
+    runtime_readiness: blocked_pending_e5_a
+    evaluation_phase: future_e5_a_runtime
+    current_node_id: stop_front_courtyard_center
+    point_name: 前院中部
+    craft: 灰塑
+    ornament_id: orn_005
+    ornament_name: 独角狮
+    profile_fixture:
+      fixture: neutral
+      audience_mode: standard
+    stage: 首次工艺讲解
+    input: 我到了前院中部，请第一次讲讲这里的灰塑。
+    expected_evidence_documents:
+      - data/chen_clan_academy/knowledge/07_ornament_crafts.md
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    expected_source_ids: [S10, S11]
+    expected_object_whitelist: [orn_005, orn_008, orn_012, orn_022, orn_069, orn_072, orn_077, orn_080, orn_083, orn_087, orn_090]
+    expected_invariants:
+      - 首讲优先使用 07 的灰塑总述证据。
+      - 首讲至少覆盖定义、材料或方法、技法、常见位置、视觉特点、观察方法中的三项。
+      - 首讲连接到本点审核对象独角狮或福禄寿，且不把其他点位对象说成眼前实例。
+      - TourState 前后不变。
+    hard_failure_conditions:
+      - 文物不属于当前点审核对象白名单。
+      - 虚构现有证据未支持的事实。
+      - 将无来源的文化结论作为事实输出。
+      - 超出 StopProgram 的本点内容预算。
+      - 修改 TourState。
+      - 将研究观点表达为确定的馆方事实。
+    notes: 依赖 E5-A NarrationCoverage 和 NarrationPlan；当前不得以 Mock 或临时状态替代。
+
+  - case_id: e5_nar_002
+    runtime_readiness: blocked_pending_e5_a
+    evaluation_phase: future_e5_a_runtime
+    current_node_id: label_moon_platform
+    point_name: 月台
+    craft: 灰塑
+    ornament_id: orn_026
+    ornament_name: 杏林春燕
+    profile_fixture:
+      fixture: neutral
+      audience_mode: standard
+    stage: 后续重复工艺
+    input: 现在到月台了，再讲讲这里的灰塑。
+    expected_evidence_documents:
+      - data/chen_clan_academy/knowledge/07_ornament_crafts.md
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    expected_source_ids: [S10, S11]
+    expected_object_whitelist: [orn_026, orn_041, orn_078, orn_089, orn_091, orn_092, orn_093, orn_095, orn_099, orn_100]
+    expected_invariants:
+      - 前置条件为同一 thread 已成功介绍灰塑。
+      - 后续灰塑讲解避免重复完整定义，优先讲杏林春燕的新对象细节或差异。
+      - TourState 前后不变。
+    hard_failure_conditions:
+      - 文物不属于当前点审核对象白名单。
+      - 虚构现有证据未支持的事实。
+      - 将无来源的文化结论作为事实输出。
+      - 超出 StopProgram 的本点内容预算。
+      - 修改 TourState。
+      - 将研究观点表达为确定的馆方事实。
+    notes: 依赖 thread 内 NarrationCoverage 的首次/后续判定。
+
+  - case_id: e5_nar_003
+    runtime_readiness: blocked_pending_e5_a
+    evaluation_phase: future_e5_a_runtime
+    current_node_id: stop_front_courtyard_center
+    point_name: 前院中部
+    craft: 灰塑
+    ornament_id: orn_005
+    ornament_name: 独角狮
+    profile_fixture:
+      fixture: professional
+      knowledge_level: professional
+    stage: 首次文物讲解
+    input: 第一次介绍独角狮，请讲它的位置、工艺和细节。
+    expected_evidence_documents:
+      - data/chen_clan_academy/knowledge/07_ornament_crafts.md
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    expected_source_ids: [S10, S11]
+    expected_object_whitelist: [orn_005, orn_008, orn_012, orn_022, orn_069, orn_072, orn_077, orn_080, orn_083, orn_087, orn_090]
+    expected_invariants:
+      - 首次文物讲解包含名称、审核位置提示、工艺、可见细节及有来源的题材或故事。
+      - raw_location 只能形成安全观察提示，不能推断实时可见性。
+      - TourState 前后不变。
+    hard_failure_conditions:
+      - 文物不属于当前点审核对象白名单。
+      - 虚构现有证据未支持的事实。
+      - 将无来源的文化结论作为事实输出。
+      - 超出 StopProgram 的本点内容预算。
+      - 修改 TourState。
+      - 将研究观点表达为确定的馆方事实。
+    notes: 依赖 E5-A 对首次实质介绍及有效 evidence 的提交语义。
+
+  - case_id: e5_nar_004
+    runtime_readiness: blocked_pending_e5_a
+    evaluation_phase: future_e5_a_runtime
+    current_node_id: stop_front_courtyard_center
+    point_name: 前院中部
+    craft: 灰塑
+    ornament_id: orn_005
+    ornament_name: 独角狮
+    profile_fixture:
+      fixture: neutral
+      audience_mode: standard
+    stage: 短时间预算
+    input: 我只有很短时间，请安排前院中部讲解重点。
+    expected_evidence_documents:
+      - data/chen_clan_academy/knowledge/07_ornament_crafts.md
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    expected_source_ids: [S10, S11]
+    expected_object_whitelist: [orn_005, orn_008, orn_012, orn_022, orn_069, orn_072, orn_077, orn_080, orn_083, orn_087, orn_090]
+    expected_invariants:
+      - 先减少对象与可选互动扩展，保留首次灰塑和核心对象的完整证据链。
+      - 不得通过截断句子、删除来源关系或超预算满足缩短要求。
+      - TourState 前后不变。
+    hard_failure_conditions:
+      - 文物不属于当前点审核对象白名单。
+      - 虚构现有证据未支持的事实。
+      - 将无来源的文化结论作为事实输出。
+      - 超出 StopProgram 的本点内容预算。
+      - 修改 TourState。
+      - 将研究观点表达为确定的馆方事实。
+    notes: StopProgram 的基础预算可静态审计；核心证据链的选择和保留依赖 E5-A。
+
+  - case_id: e5_nar_005
+    runtime_readiness: executable_static
+    evaluation_phase: current_runtime_invariant
+    current_node_id: stop_front_courtyard_center
+    point_name: 前院中部
+    craft: 灰塑
+    ornament_id: orn_005
+    ornament_name: 独角狮
+    profile_fixture:
+      fixture: neutral
+      audience_mode: standard
+    stage: 当前点知识问答
+    input: 我喜欢木雕，前院中部有什么可以看？
+    expected_evidence_documents:
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    expected_source_ids: [S11]
+    expected_object_whitelist: [orn_005, orn_008, orn_012, orn_022, orn_069, orn_072, orn_077, orn_080, orn_083, orn_087, orn_090]
+    expected_invariants:
+      - 前院中部审核对象不含木雕。
+      - 不把其他点位木雕说为当前点对象。
+      - TourState 前后不变。
+    hard_failure_conditions:
+      - 文物不属于当前点审核对象白名单。
+      - 虚构现有证据未支持的事实。
+      - 将无来源的文化结论作为事实输出。
+      - 修改 TourState。
+      - 将研究观点表达为确定的馆方事实。
+    notes: 冻结验收中可在当前实现上测试的白名单部分。
+
+  - case_id: e5_nar_006
+    runtime_readiness: blocked_pending_e5_a
+    evaluation_phase: future_e5_a_runtime
+    current_node_id: label_moon_platform
+    point_name: 月台
+    craft: 陶塑
+    ornament_id: orn_089
+    ornament_name: 书字换鹅
+    profile_fixture:
+      fixture: listen_only
+      interaction_mode: listen_only
+    stage: 首次文物讲解
+    input: 我只想听，不要互动。请第一次完整讲讲书字换鹅。
+    expected_evidence_documents:
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    expected_source_ids: [S11]
+    expected_object_whitelist: [orn_026, orn_041, orn_078, orn_089, orn_091, orn_092, orn_093, orn_095, orn_099, orn_100]
+    expected_invariants:
+      - 首讲不因 listen_only 降低事实深度。
+      - 输出没有问题句、任务式表达或要求游客回应的互动。
+      - TourState 前后不变。
+    hard_failure_conditions:
+      - 文物不属于当前点审核对象白名单。
+      - 虚构现有证据未支持的事实。
+      - 将无来源的文化结论作为事实输出。
+      - 超出 StopProgram 的本点内容预算。
+      - 修改 TourState。
+      - listen_only 模式主动要求游客完成互动任务或回答问题。
+      - 将研究观点表达为确定的馆方事实。
+    notes: listen_only 策略已存在；首讲完整度和提交覆盖记录仍依赖 E5-A。
+
+  - case_id: e5_nar_007
+    runtime_readiness: blocked_pending_e5_a
+    evaluation_phase: future_e5_a_runtime
+    current_node_id: stop_front_courtyard_center
+    point_name: 前院中部
+    craft: 灰塑
+    ornament_id: orn_005
+    ornament_name: 独角狮
+    profile_fixture:
+      fixture: neutral
+      audience_mode: standard
+    stage: 后续重复工艺
+    input: 两个不同 thread 分别第一次讲前院中部的灰塑。
+    expected_evidence_documents:
+      - data/chen_clan_academy/knowledge/07_ornament_crafts.md
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/knowledge/09_ornament_locations.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    expected_source_ids: [S10, S11]
+    expected_object_whitelist: [orn_005, orn_008, orn_012, orn_022, orn_069, orn_072, orn_077, orn_080, orn_083, orn_087, orn_090]
+    expected_invariants:
+      - 两个 thread 的 NarrationCoverage 不共享。
+      - 每个独立 thread 都应将其输出视为首次灰塑介绍。
+      - TourState 前后不变。
+    hard_failure_conditions:
+      - 文物不属于当前点审核对象白名单。
+      - 虚构现有证据未支持的事实。
+      - 将无来源的文化结论作为事实输出。
+      - 超出 StopProgram 的本点内容预算。
+      - 修改 TourState。
+      - 将研究观点表达为确定的馆方事实。
+    notes: 当前仓库没有 NarrationCoverage，不能将一般会话隔离替代为此验收的通过证据。
+
+  - case_id: e5_nar_008
+    runtime_readiness: blocked_pending_e5_a
+    evaluation_phase: future_e5_a_runtime
+    current_node_id: stop_front_courtyard_center
+    point_name: 前院中部
+    craft: 灰塑
+    ornament_id: orn_005
+    ornament_name: 独角狮
+    profile_fixture:
+      fixture: neutral
+      audience_mode: standard
+    stage: 首次文物讲解
+    input: 在缺少工艺或单件证据的受控注入条件下，讲讲当前对象。
+    expected_evidence_documents:
+      - data/chen_clan_academy/knowledge/07_ornament_crafts.md
+      - data/chen_clan_academy/knowledge/08_ornament_items.md
+      - data/chen_clan_academy/routes/node_guide_cards_v1.json
+    expected_source_ids: [S10, S11]
+    expected_object_whitelist: [orn_005, orn_008, orn_012, orn_022, orn_069, orn_072, orn_077, orn_080, orn_083, orn_087, orn_090]
+    expected_invariants:
+      - 无工艺或单件 evidence 时明确资料不足，不以名称或常识补写事实。
+      - 无证据、澄清、错误或空输出不得写入 NarrationCoverage。
+      - TourState 前后不变。
+    hard_failure_conditions:
+      - 文物不属于当前点审核对象白名单。
+      - 虚构现有证据未支持的事实。
+      - 将无来源的文化结论作为事实输出。
+      - 修改 TourState。
+      - 将研究观点表达为确定的馆方事实。
+    notes: 需要 E5-A 公开可控的取证失败路径；本案例不得通过生产桩代码或 Mock 转为可执行。
