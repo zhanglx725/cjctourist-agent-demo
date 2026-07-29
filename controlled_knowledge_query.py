@@ -18,7 +18,7 @@ KNOWLEDGE_DOMAIN_CATEGORIES: dict[str, tuple[str, ...]] = {
     "site_overview": ("basic_info", "history_architecture"),
     "history_architecture": ("history_architecture",),
     "visit_service": ("visit_service", "basic_info"),
-    "ticketing": ("ticketing_snapshot", "basic_info"),
+    "ticketing": ("ticketing_snapshot",),
     "event_notice": ("event_notice",),
     "ornament_craft": ("ornament_craft",),
     "ornament_item": ("ornament_item",),
@@ -167,6 +167,62 @@ class ControlledKnowledgePlan:
             return None
 
 
+def identify_controlled_knowledge_plan(
+    user_text: str,
+) -> ControlledKnowledgePlan | None:
+    """Recognize a small set of reviewed title-like knowledge requests.
+
+    These requests often contain no question mark or interrogative verb, so
+    leaving them to free model routing makes the retrieval category unstable.
+    The parser selects only an existing closed plan; it does not add facts.
+    """
+
+    subject = str(user_text or "").strip().rstrip("？?。！!")
+    compact = "".join(subject.split())
+    if not subject or len(subject) > 80:
+        return None
+    if any(
+        term in compact
+        for term in ("规划路线", "路线怎么走", "怎么逛", "参观顺序")
+    ):
+        return None
+    has_invoice = "发票" in compact or "开票" in compact
+    if not has_invoice:
+        return None
+    has_invoice_request = any(
+        term in compact
+        for term in (
+            "团队",
+            "订单",
+            "门票",
+            "电子发票",
+            "发票规则",
+            "开票",
+            "开发票",
+            "申请发票",
+            "修改",
+            "改发票",
+            "退票",
+        )
+    )
+    if not has_invoice_request:
+        return None
+    question_type = (
+        "method"
+        if any(term in compact for term in ("怎么", "如何", "怎样", "申请"))
+        else "rule"
+    )
+    try:
+        return ControlledKnowledgePlan(
+            domain="ticketing",
+            question_type=question_type,
+            subject_text=subject,
+            detail_level="brief",
+        )
+    except ValueError:
+        return None
+
+
 def build_controlled_retrieval_query(plan: ControlledKnowledgePlan) -> str:
     """Build a stable query from closed hints and an exact visitor subject."""
 
@@ -246,6 +302,44 @@ def _visitor_answer_is_safe(message: str) -> bool:
     return _SOURCE_ID.search(compact) is None
 
 
+def _render_reviewed_invoice_rule(
+    plan: ControlledKnowledgePlan,
+    evidence: list[dict[str, Any]],
+) -> str | None:
+    """Return the reviewed invoice rule when all required clauses are present."""
+
+    compact = "".join(
+        "".join(str(item.get("content") or "").split()) for item in evidence
+    )
+    if not ("发票" in plan.subject_text or "开票" in plan.subject_text):
+        return None
+    has_deadline = "30日内" in compact and "发票" in compact
+    has_no_change = "不可修改" in compact or "不能修改" in compact
+    has_no_refund = any(
+        term in compact
+        for term in ("不能退票", "不可退票", "不能办理退票")
+    )
+    if not (has_deadline and has_no_change and has_no_refund):
+        return None
+    prefix = (
+        "团队订单的电子发票"
+        if any(term in plan.subject_text for term in ("团队", "团体"))
+        else "门票电子发票"
+    )
+    return (
+        f"{prefix}可在购买后 30 日内申请。"
+        "发票一经开具不能修改，也不能办理退票。"
+        "这是本地规则快照；具体申请入口和当前规则请以官方小程序订单页面为准。"
+    )
+
+
+def _is_invoice_plan(plan: ControlledKnowledgePlan) -> bool:
+    return (
+        plan.domain == "ticketing"
+        and ("发票" in plan.subject_text or "开票" in plan.subject_text)
+    )
+
+
 def render_controlled_knowledge_answer(
     plan: ControlledKnowledgePlan,
     evidence: Iterable[dict[str, Any]],
@@ -259,6 +353,14 @@ def render_controlled_knowledge_answer(
         if plan.is_dynamic:
             message += " 开放或服务安排可能调整，请以馆方当日公告为准。"
         return message
+    if _is_invoice_plan(plan):
+        reviewed_invoice = _render_reviewed_invoice_rule(plan, scoped)
+        if reviewed_invoice is not None:
+            return reviewed_invoice
+        return (
+            "现有票务资料不足以同时确认电子发票的申请期限、修改限制和退票限制，"
+            "因此不作推测。具体规则请以官方小程序订单页面为准。"
+        )
     try:
         message = str(invoke_model(grounded_answer_prompt(plan, scoped))).strip()
     except Exception:

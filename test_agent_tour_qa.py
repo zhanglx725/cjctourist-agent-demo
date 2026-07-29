@@ -111,6 +111,23 @@ ORNAMENT_STORY_PAYLOAD = json.dumps(
     },
     ensure_ascii=False,
 )
+TEAM_INVOICE_PAYLOAD = json.dumps(
+    {
+        "evidence": [
+            {
+                "category": "ticketing_snapshot",
+                "document": "06_ticketing_rules.md",
+                "title_path": ["购票、预约与入馆规则", "团队预约"],
+                "source_ids": ["S07"],
+                "content": (
+                    "团队订单电子发票规则：购买后 30 日内可申请；"
+                    "发票开具后不可修改且不能退票。"
+                ),
+            }
+        ]
+    },
+    ensure_ascii=False,
+)
 
 
 def _message_state(text: str, initial: dict | None = None) -> dict:
@@ -197,6 +214,57 @@ class AgentTourQaTests(unittest.TestCase):
             update["tour_presentation"]["code"],
             "tour_qa_single_fact_answer",
         )
+
+    def test_team_invoice_title_has_the_same_controlled_answer_in_both_modes(self):
+        query = "团队订单电子发票规则"
+        expected_search = {
+            "query": (
+                "团队订单电子发票规则 陈家祠 购票 预约 入馆规则 "
+                "规则 要求 限制"
+            ),
+            "categories": ["ticketing_snapshot"],
+        }
+
+        no_route = _message_state(query)
+        no_route.update(semantic_normalization_node(no_route))
+        self.assertEqual(route_initial_request(no_route), "direct_rag")
+        with (
+            patch("agent_graph.chen_clan_academy_rag_search") as rag,
+            patch("agent_graph._invoke_grounded_knowledge_model") as model,
+        ):
+            rag.invoke.return_value = TEAM_INVOICE_PAYLOAD
+            retrieval = direct_rag_node(no_route)
+        rag.invoke.assert_called_once_with(expected_search)
+        model.assert_not_called()
+        next_state = {
+            **no_route,
+            **retrieval,
+            "messages": [*no_route["messages"], *retrieval["messages"]],
+        }
+        no_route_answer = llm_think_node(next_state)["messages"][0].content
+
+        active = _message_state(query, self._arrived_tour())
+        active.update(semantic_normalization_node(active))
+        self.assertEqual(route_initial_request(active), "tour_qa")
+        with (
+            patch("agent_graph.chen_clan_academy_rag_search") as rag,
+            patch("agent_graph._invoke_grounded_knowledge_model") as model,
+        ):
+            rag.invoke.return_value = TEAM_INVOICE_PAYLOAD
+            update = tour_qa_node(active)
+        rag.invoke.assert_called_once_with(expected_search)
+        model.assert_not_called()
+        active_answer = update["messages"][0].content
+
+        self.assertEqual(no_route_answer, active_answer)
+        self.assertIn("购买后 30 日内", active_answer)
+        self.assertIn("不能修改", active_answer)
+        self.assertIn("不能办理退票", active_answer)
+        self.assertIn("官方小程序订单页面", active_answer)
+        self.assertNotIn("06_ticketing_rules.md", active_answer)
+        self.assertNotIn("S07", active_answer)
+        self.assertNotIn("tour_state", update)
+        self.assertNotIn("tour_interaction_state", update)
 
     @staticmethod
     def _normalize_story_question(initial: dict | None = None) -> dict:

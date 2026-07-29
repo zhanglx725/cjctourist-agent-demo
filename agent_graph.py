@@ -60,6 +60,7 @@ from semantic_normalization import (
 from controlled_knowledge_query import (
     ControlledKnowledgePlan,
     build_controlled_retrieval_query,
+    identify_controlled_knowledge_plan,
     render_controlled_knowledge_answer,
 )
 from single_fact_answer import (
@@ -228,7 +229,10 @@ def _effective_fact_kind(state: AgentState) -> str | None:
 def _effective_knowledge_plan(state: AgentState) -> ControlledKnowledgePlan | None:
     """Return the current turn's validated, read-only knowledge plan."""
 
-    return ControlledKnowledgePlan.from_dict(state.get("knowledge_query_plan"))
+    stored = ControlledKnowledgePlan.from_dict(state.get("knowledge_query_plan"))
+    if stored is not None:
+        return stored
+    return identify_controlled_knowledge_plan(_latest_user_text(state))
 
 
 def _invoke_semantic_model(prompt: str) -> str:
@@ -263,6 +267,7 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
         raw_text, state.get("tour_state"), state.get("tour_interaction_state")
     )
     deterministic_fact_kind = identify_single_fact_kind(raw_text)
+    deterministic_knowledge_plan = identify_controlled_knowledge_plan(raw_text)
     specialized_knowledge = (
         parse_craft_explanation_request(raw_text) is not None
         or parse_craft_location_request(raw_text) is not None
@@ -273,6 +278,28 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
         or is_explicit_term_question(raw_text)
         or is_point_inventory_request(raw_text, state.get("tour_state"))
     )
+    if (
+        deterministic_knowledge_plan is not None
+        and deterministic_fact_kind is None
+        and not specialized_knowledge
+        and not is_unsafe_photo_request(raw_text)
+    ):
+        return {
+            "semantic_candidate": None,
+            "semantic_control_text": None,
+            "semantic_fact_kind": None,
+            "knowledge_query_plan": deterministic_knowledge_plan.to_dict(),
+            "performance_metrics": _append_metric(
+                state,
+                "semantic_normalization",
+                time.perf_counter() - started,
+                status="deterministic_knowledge_plan",
+                knowledge_domain=deterministic_knowledge_plan.domain,
+                knowledge_question_type=(
+                    deterministic_knowledge_plan.question_type
+                ),
+            ),
+        }
     # Existing deterministic controls/facts and specialized read-only paths
     # retain precedence.  The model is only a closed classifier for text that
     # those parsers did not already consume.

@@ -167,6 +167,28 @@ class SemanticNormalizationTests(unittest.TestCase):
         state["tour_interaction_state"] = {"phase": "explaining"}
         self.assertEqual(route_initial_request(state), "tour_qa")
 
+    def test_invoice_title_uses_deterministic_ticketing_plan_without_model(self):
+        state = self._state("团队订单电子发票规则")
+        with patch(
+            "agent_graph.recognize_semantic_candidate"
+        ) as recognizer:
+            state.update(semantic_normalization_node(state))
+        recognizer.assert_not_called()
+        self.assertEqual(
+            state["knowledge_query_plan"],
+            {
+                "domain": "ticketing",
+                "question_type": "rule",
+                "subject_text": "团队订单电子发票规则",
+                "detail_level": "brief",
+                "confidence": "high",
+            },
+        )
+        self.assertEqual(route_initial_request(state), "direct_rag")
+        state["tour_state"] = {"current_stop_id": "stop_front_courtyard_center"}
+        state["tour_interaction_state"] = {"phase": "explaining"}
+        self.assertEqual(route_initial_request(state), "tour_qa")
+
     def test_unlisted_fact_paraphrase_is_stored_without_rewriting_user_text(self):
         state = self._state("陈家祠一般哪天歇着？")
         with patch(

@@ -9,11 +9,32 @@ from controlled_knowledge_query import (
     build_controlled_retrieval_query,
     filter_plan_evidence,
     grounded_answer_prompt,
+    identify_controlled_knowledge_plan,
     render_controlled_knowledge_answer,
 )
 
 
 class ControlledKnowledgeQueryTests(unittest.TestCase):
+    def test_title_like_invoice_requests_use_one_closed_ticketing_plan(self):
+        cases = (
+            ("团队订单电子发票规则", "rule"),
+            ("团队票怎么开发票", "method"),
+            ("开票后还能改吗", "rule"),
+        )
+        for text, question_type in cases:
+            with self.subTest(text=text):
+                plan = identify_controlled_knowledge_plan(text)
+                self.assertIsNotNone(plan)
+                self.assertEqual(plan.domain, "ticketing")
+                self.assertEqual(plan.question_type, question_type)
+                self.assertEqual(plan.categories, ("ticketing_snapshot",))
+                self.assertEqual(plan.subject_text, text)
+        self.assertIsNone(
+            identify_controlled_knowledge_plan(
+                "帮我规划路线，再说说团队订单电子发票规则"
+            )
+        )
+
     def test_plan_rejects_values_outside_the_closed_taxonomy(self):
         with self.assertRaises(ValueError):
             ControlledKnowledgePlan(
@@ -115,6 +136,52 @@ class ControlledKnowledgeQueryTests(unittest.TestCase):
             lambda _: "学生票的适用条件如下。",
         )
         self.assertIn("馆方当日公告", message)
+
+    def test_reviewed_invoice_rule_is_deterministic_and_natural(self):
+        plan = identify_controlled_knowledge_plan("团队订单电子发票规则")
+        evidence = [
+            {
+                "category": "ticketing_snapshot",
+                "content": (
+                    "团队订单电子发票规则：购买后 30 日内可申请；"
+                    "发票开具后不可修改且不能退票。"
+                ),
+            },
+            {
+                "category": "basic_info",
+                "content": "无关场馆地址。",
+            },
+        ]
+
+        def forbidden(_: str) -> str:
+            self.fail("reviewed invoice rule must not depend on model synthesis")
+
+        message = render_controlled_knowledge_answer(plan, evidence, forbidden)
+        self.assertIn("团队订单的电子发票", message)
+        self.assertIn("购买后 30 日内", message)
+        self.assertIn("不能修改", message)
+        self.assertIn("不能办理退票", message)
+        self.assertIn("官方小程序订单页面", message)
+        self.assertNotIn("ticketing_snapshot", message)
+
+    def test_incomplete_invoice_evidence_fails_closed_without_model(self):
+        plan = identify_controlled_knowledge_plan("开票后还能改吗")
+
+        def forbidden(_: str) -> str:
+            self.fail("incomplete reviewed invoice evidence must fail closed")
+
+        message = render_controlled_knowledge_answer(
+            plan,
+            [
+                {
+                    "category": "ticketing_snapshot",
+                    "content": "电子发票可在购买后 30 日内申请。",
+                }
+            ],
+            forbidden,
+        )
+        self.assertIn("资料不足", message)
+        self.assertIn("不作推测", message)
 
 
 if __name__ == "__main__":
