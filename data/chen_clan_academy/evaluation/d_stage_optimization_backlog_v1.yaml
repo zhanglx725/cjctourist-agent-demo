@@ -173,7 +173,7 @@ backlog:
 
   - backlog_id: e3_006_followup_topic_and_spatial_scope_memory
     priority: P1
-    status: fixed_pending_verification
+    status: open
     source_finding_ids: [rvw_muziw_010, e2_d_003]
     module: memory
     issue_type: routing
@@ -185,8 +185,14 @@ backlog:
       The repair preserves one explicit reviewed craft term as a whole-site,
       read-only qa_context, recognizes the real wording “详细讲讲”, and
       re-retrieves only that craft's scoped evidence.  Targeted automated
-      regression passed on 2026-07-29; LangSmith verification is pending.
-    summary: Elliptical follow-ups lose their immediate term or point qualifier.
+      regression passed on 2026-07-29.  LangSmith evidence on 2026-07-29 shows
+      the topic is now retained (“下面继续展开灰塑”) but the expanded answer
+      still includes venue, ticketing, contact, and generic visit-duration
+      content; evidence relevance filtering therefore remains open.
+    summary: >-
+      Elliptical follow-ups can lose their immediate term or point qualifier;
+      even after topic retention, whole-site craft expansion can mix in
+      unrelated visitor-service retrieval evidence.
     owner: integration_owner
     contract_impact: none
     repair_files:
@@ -198,7 +204,10 @@ backlog:
       - test_agent_tour_qa.py
     acceptance_test: >-
       "灰塑是什么" then "详细讲讲" expands 灰塑, and "月台上的石雕" then
-      "石雕" remains scoped to 月台 without changing TourState.
+      "石雕" remains scoped to 月台 without changing TourState. The 灰塑
+      expansion contains only craft/object evidence relevant to 灰塑 and must
+      exclude venue identity, address, ticketing, contact, booking, generic
+      visit-duration, and unrelated route content.
 
   - backlog_id: e3_007_explicit_point_and_interest_selection
     priority: P1

@@ -91,6 +91,27 @@ verification_runs:
       - "本次未单独复测同义表达“我已到达”。"
       - "本次未复测无活动路线、无唯一 pending_stop_id 或显式歧义点位时是否仍安全澄清。"
       - "截图未展开状态快照，尚未人工确认到达时 visited_stop_ids 未被提前写入。"
+  - verification_id: langsmith_rvw_muziw_010_gray_plastic_evidence_scope_20260729
+    finding_id: rvw_muziw_010
+    reviewer: muziw
+    tested_branch: main
+    tested_commit: unknown_local_server
+    test_date: "2026-07-29"
+    test_environment: "LangGraph Studio + LangSmith"
+    inputs:
+      - "灰塑是什么？"
+      - "详细讲讲。"
+    observed_result: >-
+      第二轮明确以“下面继续展开‘灰塑’”开头，说明主题已被识别；但正文在灰塑的
+      工艺性说明之后混入“场馆名称”、地址、官网/预约/票务联系方式和“建议游玩时长”等
+      无关访客服务信息。可见主题连续性部分成立，但证据筛选未限制在灰塑相关材料。
+    result: partial_passed
+    evidence_refs:
+      - "User-supplied LangSmith screenshot, 2026-07-29; trace URL not provided."
+    limitations:
+      - "截图未提供运行服务所加载的精确 Git 提交，不能将该结果归因于某一特定代码版本。"
+      - "本次未展开 retrieved_evidence，尚未逐条核对无关服务信息来自哪个文档片段。"
+      - "未在新线程复测裸输入“详细讲讲”的安全澄清行为。"
 findings:
   - finding_id: rvw_muziw_001
     reviewer: muziw
