@@ -35,7 +35,10 @@ from tour_qa import (
     build_qa_context_from_answer,
     is_point_inventory_request,
 )
-from craft_knowledge import parse_craft_explanation_request
+from craft_knowledge import (
+    parse_craft_explanation_request,
+    parse_craft_location_request,
+)
 from qa_context import (
     clear_qa_context,
     is_qa_follow_up_detail_request,
@@ -262,6 +265,7 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
     deterministic_fact_kind = identify_single_fact_kind(raw_text)
     specialized_knowledge = (
         parse_craft_explanation_request(raw_text) is not None
+        or parse_craft_location_request(raw_text) is not None
         or is_explicit_photo_request(raw_text)
         or is_visit_safety_question(raw_text)
         or is_explicit_comparison_question(raw_text)
@@ -1337,6 +1341,8 @@ def route_initial_request(state: AgentState) -> str:
     # so comparisons and concrete ornament/story questions remain with their
     # existing handlers.
     if parse_craft_explanation_request(raw_text):
+        return "tour_qa"
+    if parse_craft_location_request(raw_text):
         return "tour_qa"
     # A1 reserves request_stop_detail for the active physical StopProgram.
     # The same wording may instead follow a successful knowledge answer; that

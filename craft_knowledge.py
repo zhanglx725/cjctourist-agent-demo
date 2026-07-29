@@ -36,6 +36,15 @@ BRIEF_FIELD_LABELS: dict[str, tuple[str, ...]] = {
     "铜铁铸": ("工艺地位", "陈家祠应用"),
     "彩绘": ("门神", "壁画", "楹联"),
 }
+LOCATION_FIELD_LABELS: dict[str, tuple[str, ...]] = {
+    "陶塑": ("工艺性质", "陈家祠应用"),
+    "灰塑": ("工艺性质与位置",),
+    "木雕": ("使用部位", "代表性空间"),
+    "石雕": ("陈家祠应用", "月台亮点"),
+    "砖雕": ("陈家祠代表作", "建筑分布与题材"),
+    "铜铁铸": ("陈家祠应用",),
+    "彩绘": ("门神", "壁画", "楹联"),
+}
 
 _DETAIL_MARKERS = (
     "详细讲讲",
@@ -101,6 +110,18 @@ class CraftExplanationRequest:
     detail_level: Literal["brief", "detailed"]
 
 
+@dataclass(frozen=True)
+class CraftLocationRequest:
+    crafts: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CraftLocationAnswer:
+    message: str
+    evidence: tuple[dict[str, object], ...]
+    missing_crafts: tuple[str, ...]
+
+
 def _compact_request(text: str) -> str:
     compact = _TRAILING_PUNCTUATION.sub("", str(text or ""))
     return _LEADING_POLITENESS.sub("", compact)
@@ -136,6 +157,49 @@ def parse_craft_explanation_request(
     ):
         return CraftExplanationRequest(craft, "brief")
     return None
+
+
+def parse_craft_location_request(text: str) -> CraftLocationRequest | None:
+    """Recognize an explicit multi-craft request for observation locations."""
+
+    compact = _compact_request(text)
+    named = tuple(
+        sorted(
+            (craft for craft in CRAFT_TERMS if craft in compact),
+            key=compact.index,
+        )
+    )
+    if len(named) < 2:
+        return None
+    if any(
+        token in compact
+        for token in ("区别", "相比", "比较", "不同", "异同", "相对于")
+    ):
+        return None
+    if not any(
+        token in compact
+        for token in (
+            "在哪里",
+            "在哪儿",
+            "在哪",
+            "哪里看",
+            "哪儿看",
+            "何处",
+            "位置",
+            "哪些部位",
+            "什么部位",
+            "什么地方",
+            "哪些地方",
+            "哪里有",
+            "哪儿有",
+            "哪里能看到",
+            "哪能看到",
+            "分布",
+            "怎么找",
+        )
+    ):
+        return None
+    return CraftLocationRequest(crafts=named)
 
 
 def _parse_craft_source(path: Path) -> dict[str, CraftRecord]:
@@ -246,6 +310,62 @@ def brief_fields(record: CraftRecord) -> tuple[CraftField, ...]:
             f"简要讲解字段缺失：{record.craft}/{'、'.join(missing)}"
         )
     return tuple(by_label[label] for label in labels)
+
+
+def location_fields(record: CraftRecord) -> tuple[CraftField, ...]:
+    """Select only reviewed fields that answer where a craft can be observed."""
+
+    labels = LOCATION_FIELD_LABELS[record.craft]
+    by_label = {field.label: field for field in record.fields}
+    missing = [label for label in labels if label not in by_label]
+    if missing:
+        raise CraftKnowledgeError(
+            f"位置说明字段缺失：{record.craft}/{'、'.join(missing)}"
+        )
+    return tuple(by_label[label] for label in labels)
+
+
+def render_craft_location_answer(
+    request: CraftLocationRequest,
+) -> CraftLocationAnswer:
+    """Render a bounded list without exposing raw chunks or retrieval metadata."""
+
+    lines = ["可以按下面这些位置寻找："]
+    evidence: list[dict[str, object]] = []
+    missing: list[str] = []
+    for craft in request.crafts:
+        try:
+            record = load_craft_record(craft)
+            fields = location_fields(record)
+        except CraftKnowledgeError:
+            missing.append(craft)
+            lines.append(f"- {craft}：现有审核资料不足以确认观察位置。")
+            continue
+        statement = "；".join(field.text.rstrip("。") for field in fields) + "。"
+        lines.append(f"- {craft}：{statement}")
+        evidence.append(
+            {
+                "document": record.document,
+                "title_path": ["陈家祠建筑装饰工艺总览", record.title],
+                "source_ids": list(record.source_ids),
+                "content": " ".join(field.text for field in fields),
+                "craft": craft,
+                "craft_fields": [
+                    {"label": field.label, "text": field.text}
+                    for field in fields
+                ],
+                "retrieval_methods": ["canonical_craft_location_fields"],
+            }
+        )
+    lines.append(
+        "这些是馆方工艺资料中的稳定位置线索；具体区域是否开放、"
+        "构件是否清晰可见，请以现场标识和工作人员安排为准。"
+    )
+    return CraftLocationAnswer(
+        message="\n".join(lines),
+        evidence=tuple(evidence),
+        missing_crafts=tuple(missing),
+    )
 
 
 def _connector(label: str, index: int) -> str:

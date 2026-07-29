@@ -13,11 +13,14 @@ from agent_graph import route_initial_request
 from craft_knowledge import (
     BRIEF_FIELD_LABELS,
     CRAFT_TERMS,
+    LOCATION_FIELD_LABELS,
     CraftKnowledgeError,
     brief_fields,
     load_craft_record,
     parse_craft_explanation_request,
+    parse_craft_location_request,
     render_craft_explanation,
+    render_craft_location_answer,
 )
 from route_planner import plan_template
 from tour_interaction import handle_tour_event, initialize_interaction
@@ -85,8 +88,78 @@ class CraftKnowledgeTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertIsNone(parse_craft_explanation_request(text))
 
+    def test_multi_craft_location_parser_is_explicit_ordered_and_bounded(self):
+        request = parse_craft_location_request(
+            "木雕、砖雕、石雕、陶塑、灰塑这些工艺，分别适合在哪里看？"
+        )
+        self.assertIsNotNone(request)
+        self.assertEqual(
+            request.crafts,
+            ("木雕", "砖雕", "石雕", "陶塑", "灰塑"),
+        )
+        for query in (
+            "陶塑和灰塑分别在什么地方能看到？",
+            "石雕、木雕主要分布在哪些部位？",
+            "砖雕和铜铁铸应该怎么找？",
+        ):
+            with self.subTest(query=query):
+                self.assertIsNotNone(parse_craft_location_request(query))
+        self.assertIsNone(parse_craft_location_request("灰塑在哪里看？"))
+        self.assertIsNone(
+            parse_craft_location_request("灰塑和砖雕的位置有什么区别？")
+        )
+        self.assertIsNone(parse_craft_location_request("介绍木雕和砖雕"))
+
+    def test_multi_craft_location_answer_selects_reviewed_fields_only(self):
+        request = parse_craft_location_request(
+            "木雕、砖雕、石雕、陶塑、灰塑分别在哪里看？"
+        )
+        answer = render_craft_location_answer(request)
+        self.assertEqual(answer.missing_crafts, ())
+        self.assertEqual(
+            [item["craft"] for item in answer.evidence],
+            list(request.crafts),
+        )
+        self.assertIn("首进大厅四扇木雕屏门", answer.message)
+        self.assertIn("正面外墙有六幅大型砖雕", answer.message)
+        self.assertIn("聚贤堂前月台", answer.message)
+        self.assertIn("主要装饰在庙宇、祠堂、会馆等大型建筑屋脊", answer.message)
+        self.assertIn("门额窗框、山墙顶端、屋檐瓦脊", answer.message)
+        for token in (".md", "S10", "source_ids", "title_path", "- **"):
+            self.assertNotIn(token, answer.message)
+        for item in answer.evidence:
+            expected_labels = LOCATION_FIELD_LABELS[item["craft"]]
+            self.assertEqual(
+                tuple(field["label"] for field in item["craft_fields"]),
+                expected_labels,
+            )
+
+    def test_multi_craft_location_is_equivalent_before_and_during_tour(self):
+        query = "木雕、砖雕、石雕、陶塑、灰塑这些工艺，分别在哪里看？"
+        no_route = answer_tour_question(query, None, None, self._no_rag)
+        active = answer_tour_question(
+            query, self.tour, self.interaction, self._no_rag
+        )
+        self.assertEqual(no_route["mode"], "multi_craft_location")
+        self.assertEqual(active["mode"], "multi_craft_location")
+        self.assertTrue(active["message"].startswith(no_route["message"]))
+        self.assertIn("未改变路线进度", active["message"])
+        self.assertEqual(no_route["evidence"], active["evidence"])
+        self.assertEqual(
+            no_route["retrieval_strategy"],
+            "canonical_craft_location_fields",
+        )
+        for initial in ({}, {"tour_state": self.tour, "tour_interaction_state": self.interaction}):
+            state = {
+                **initial,
+                "messages": [HumanMessage(content=query)],
+                "performance_metrics": [],
+            }
+            self.assertEqual(route_initial_request(state), "tour_qa")
+
     def test_brief_field_policy_is_complete_and_exact(self):
         self.assertEqual(set(BRIEF_FIELD_LABELS), set(CRAFT_TERMS))
+        self.assertEqual(set(LOCATION_FIELD_LABELS), set(CRAFT_TERMS))
         for craft in CRAFT_TERMS:
             with self.subTest(craft=craft):
                 selected = brief_fields(load_craft_record(craft))

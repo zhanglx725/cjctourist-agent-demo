@@ -33,7 +33,9 @@ from craft_knowledge import (
     CraftKnowledgeError,
     load_craft_record,
     parse_craft_explanation_request,
+    parse_craft_location_request,
     render_craft_explanation,
+    render_craft_location_answer,
 )
 from single_fact_answer import (
     identify_single_fact_kind,
@@ -789,6 +791,35 @@ def answer_tour_question(
             "point_context": current_stop_context(tour_state),
             "presentation": presentation,
             "retrieval_query": None,
+        }
+    craft_location_request = parse_craft_location_request(user_query)
+    if craft_location_request is not None:
+        answer = render_craft_location_answer(craft_location_request)
+        presentation = (
+            present_tour_state(tour_state, interaction_state)
+            if tour_state and interaction_state
+            else None
+        )
+        message = answer.message
+        if presentation:
+            message += "\n\n本次位置说明未改变路线进度，您可继续使用现有导览操作。"
+            presentation = {
+                **presentation,
+                "message": message,
+                "code": "multi_craft_location_answer",
+                "ok": not answer.missing_crafts,
+                "evidence_count": len(answer.evidence),
+            }
+        return {
+            "message": message,
+            "mode": "multi_craft_location",
+            "evidence": list(answer.evidence),
+            "point_context": current_stop_context(tour_state),
+            "presentation": presentation,
+            "retrieval_query": None,
+            "retrieval_strategy": "canonical_craft_location_fields",
+            "requested_crafts": list(craft_location_request.crafts),
+            "missing_crafts": list(answer.missing_crafts),
         }
     fact_kind = normalized_fact_kind or identify_single_fact_kind(user_query)
     fact_categories = (
