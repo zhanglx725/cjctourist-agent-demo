@@ -226,6 +226,32 @@ class RouteSelectionTests(unittest.TestCase):
         self.assertEqual(first.selected.guide_stop_ids, second.selected.guide_stop_ids)
         self.assertEqual(first.selected.selection_reason, second.selected.selection_reason)
 
+    def test_minimize_walking_uses_lowest_walk_seconds_in_qualified_pool(self):
+        result = recommend_route(
+            30,
+            interests=[],
+            detail_level="standard",
+            route_constraint="minimize_walking",
+        )
+        self.assertEqual(result.status, "selected")
+        selected = result.selected
+        assert selected is not None
+        reason = selected.selection_reason
+        self.assertEqual(selected.route_constraint, "minimize_walking")
+        self.assertEqual(
+            reason["route_constraint_policy"],
+            "minimize_estimated_walk_seconds_among_qualified_reviewed_candidates",
+        )
+        self.assertEqual(
+            reason["selected_estimated_walk_seconds"],
+            min(reason["candidate_walk_seconds"].values()),
+        )
+        self.assertLessEqual(selected.estimated_total_seconds, 30 * 60)
+
+    def test_unknown_route_constraint_fails_closed(self):
+        with self.assertRaises(ValueError):
+            recommend_route(30, route_constraint="absolute_shortest")
+
     def test_no_interest_prefers_time_fit_without_exceeding_budget(self):
         result = recommend_route(30, interests=[], detail_level="standard")
         self.assertEqual(result.status, "selected")

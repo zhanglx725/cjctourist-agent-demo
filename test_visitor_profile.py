@@ -69,6 +69,16 @@ class VisitorProfileTests(unittest.TestCase):
         with self.assertRaises(VisitorProfileError):
             create_visitor_profile(accessibility_need="yes")
 
+    def test_route_constraint_is_explicit_optional_and_round_trips(self):
+        profile = create_visitor_profile(route_constraint=" MINIMIZE_WALKING ")
+        self.assertEqual(profile.route_constraint, "minimize_walking")
+        self.assertEqual(
+            profile_from_dict(profile.to_dict()).route_constraint,
+            "minimize_walking",
+        )
+        with self.assertRaises(VisitorProfileError):
+            create_visitor_profile(route_constraint="shortest_unverified")
+
     def test_update_is_immutable_and_can_clear_optional_values(self):
         original = create_visitor_profile(available_minutes=30, interests=["灰塑"], language="zh")
         updated = update_visitor_profile(original, available_minutes=45, interests=["木雕", "灰塑"], language=None)

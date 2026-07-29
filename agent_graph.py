@@ -384,6 +384,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
             available_minutes=minutes,
             interests=interests,
             detail_level=profile.detail_level,
+            route_constraint=profile.route_constraint,
         )
         if selection_result.selected is None:
             return {
@@ -441,6 +442,13 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         f"观察 {observation_seconds // 60} 分钟、"
         f"互动 {interaction_seconds // 60} 分钟和步行约 {walk_seconds} 秒。\n"
         f"结束后将沿已审核路径回到前院出口区（{exit_node_id}），已预留约 {exit_return_seconds} 秒。\n\n"
+        + (
+            "本次采用少走路优先：只在当前时间预算内的已审核候选路线中，"
+            "优先选择预计步行时间较低的方案；不代表现场绝对最短或无障碍路线。\n\n"
+            if profile.route_constraint == "minimize_walking"
+            else ""
+        )
+        +
         "提示：步行时间基于官网地图与已审核路线估算，现场通行、驻足和开放情况请以馆方安排为准。"
         "\n\n"
         + format_next_stop_navigation(next_stop_navigation(tour))
@@ -471,6 +479,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
             requested_minutes=minutes,
             interests=interests,
             detail_level=profile.detail_level,
+            route_constraint=profile.route_constraint,
             profile_source=profile_source,
             route_selection_reason=plan.selection_reason,
         ),

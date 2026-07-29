@@ -35,6 +35,30 @@ class ProfileDialogueTests(unittest.TestCase):
         self.assertEqual(fourth.status, "ready")
         self.assertEqual(fourth.collection.profile.detail_level, "deep")
 
+    def test_minimize_walking_persists_without_becoming_a_required_question(self):
+        first = collect_profile_input(
+            None, "帮我规划一条少走路的路线", start_collection=True
+        )
+        assert first is not None
+        self.assertEqual(first.collection.next_missing_field, "available_minutes")
+        self.assertEqual(
+            first.collection.profile.route_constraint, "minimize_walking"
+        )
+        second = collect_profile_input(first.collection.to_dict(), "30分钟")
+        assert second is not None
+        self.assertEqual(
+            second.collection.profile.route_constraint, "minimize_walking"
+        )
+        third = collect_profile_input(second.collection.to_dict(), "都可以")
+        assert third is not None
+        fourth = collect_profile_input(third.collection.to_dict(), "标准讲解")
+        assert fourth is not None
+        self.assertEqual(fourth.status, "ready")
+        self.assertEqual(
+            fourth.collection.profile.route_constraint, "minimize_walking"
+        )
+        self.assertIn("优先减少预计步行", fourth.message)
+
     def test_neutral_time_uses_explicit_default_without_guessing_interests(self):
         first = collect_profile_input(None, "规划路线", start_collection=True)
         assert first is not None

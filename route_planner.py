@@ -270,6 +270,7 @@ def recommend_route(
     available_minutes: int | None = None,
     interests: list[str] | None = None,
     detail_level: str = "standard",
+    route_constraint: str | None = None,
 ):
     """Return the v2 multi-objective reviewed-route selection result.
 
@@ -283,6 +284,7 @@ def recommend_route(
         available_minutes=available_minutes or 30,
         interests=interests,
         detail_level=detail_level,
+        route_constraint=route_constraint,
     )
 
 

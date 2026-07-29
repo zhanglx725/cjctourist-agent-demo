@@ -25,9 +25,11 @@ VALID_AUDIENCE_MODES = frozenset({"standard", "child_friendly", "family", "study
 VALID_KNOWLEDGE_LEVELS = frozenset({"general", "enthusiast", "professional"})
 VALID_EXPLANATION_STYLES = frozenset({"standard", "story", "technical", "interactive", "expert"})
 VALID_INTERACTION_MODES = frozenset({"listen_only", "normal", "interactive_tasks"})
+VALID_ROUTE_CONSTRAINTS = frozenset({"minimize_walking"})
 FUTURE_OPTIONAL_FIELDS = frozenset(
     {"language", "photo_preference", "accessibility_need"}
 )
+OPTIONAL_ROUTE_FIELDS = frozenset({"route_constraint"})
 ACTIVE_FIELDS = frozenset({"available_minutes", "interests", "detail_level"})
 # C2 deliberately continues to collect only ACTIVE_FIELDS.  C5 adds a
 # separate, explicit-confirmation contract rather than silently making four
@@ -35,7 +37,12 @@ ACTIVE_FIELDS = frozenset({"available_minutes", "interests", "detail_level"})
 C5_PREFERENCE_FIELDS = frozenset(
     {"audience_mode", "knowledge_level", "explanation_style", "interaction_mode"}
 )
-ALL_FIELDS = ACTIVE_FIELDS | C5_PREFERENCE_FIELDS | FUTURE_OPTIONAL_FIELDS
+ALL_FIELDS = (
+    ACTIVE_FIELDS
+    | C5_PREFERENCE_FIELDS
+    | FUTURE_OPTIONAL_FIELDS
+    | OPTIONAL_ROUTE_FIELDS
+)
 LEGACY_IGNORED_FIELDS = frozenset({"visitor_type"})
 
 
@@ -114,6 +121,21 @@ def _normalize_optional_flag(name: str, value: Any) -> bool | None:
     return value
 
 
+def _normalize_optional_route_constraint(value: Any) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise VisitorProfileError(
+            "route_constraint 必须是 minimize_walking 或 None。"
+        )
+    normalized = value.strip().lower()
+    if normalized not in VALID_ROUTE_CONSTRAINTS:
+        raise VisitorProfileError(
+            "route_constraint 必须是 minimize_walking 或 None。"
+        )
+    return normalized
+
+
 @dataclass(frozen=True)
 class VisitorProfile:
     """Validated current-session preference record.
@@ -136,6 +158,10 @@ class VisitorProfile:
     language: str | None = None
     photo_preference: bool | None = None
     accessibility_need: bool | None = None
+    # Optional, explicit route preference.  It is not a required C2 question
+    # and does not imply accessibility, physical ability or an absolute
+    # shortest-path guarantee.
+    route_constraint: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "available_minutes", _normalize_minutes(self.available_minutes))
@@ -148,6 +174,11 @@ class VisitorProfile:
         object.__setattr__(self, "language", _normalize_optional_text("language", self.language))
         object.__setattr__(self, "photo_preference", _normalize_optional_flag("photo_preference", self.photo_preference))
         object.__setattr__(self, "accessibility_need", _normalize_optional_flag("accessibility_need", self.accessibility_need))
+        object.__setattr__(
+            self,
+            "route_constraint",
+            _normalize_optional_route_constraint(self.route_constraint),
+        )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize active fields and only explicitly present future fields."""
@@ -157,6 +188,7 @@ class VisitorProfile:
             "available_minutes", "interests", "detail_level",
             "audience_mode", "knowledge_level", "explanation_style", "interaction_mode",
             "language", "photo_preference", "accessibility_need",
+            "route_constraint",
         ) if value[key] is not None}
 
     def to_json(self) -> str:

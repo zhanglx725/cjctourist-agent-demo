@@ -51,6 +51,27 @@ class AgentProfileRouteIntegrationTests(unittest.TestCase):
         self.assertEqual(result["tour_state"]["interests"], ["灰塑"])
         self.assertEqual(result["tour_state"]["detail_level"], "standard")
 
+    def test_minimize_walking_constraint_reaches_audited_route_selection(self):
+        graph = build_agent_graph(with_checkpointer=False)
+        result = graph.invoke(_state(
+            "我有30分钟，喜欢灰塑，标准讲解，"
+            "请给我规划一条少走路的路线"
+        ))
+        self.assertEqual(
+            result["visitor_profile"]["route_constraint"], "minimize_walking"
+        )
+        self.assertEqual(
+            result["active_route_plan"]["route_constraint"], "minimize_walking"
+        )
+        reason = result["active_route_plan"]["selection_reason"]
+        self.assertEqual(
+            reason["selected_estimated_walk_seconds"],
+            min(reason["candidate_walk_seconds"].values()),
+        )
+        answer = result["messages"][-1].content
+        self.assertIn("少走路优先", answer)
+        self.assertIn("不代表现场绝对最短或无障碍路线", answer)
+
     def test_profile_time_drives_dynamic_route_and_plaster_interest_drives_selection(self):
         collected = self._collected("我有45分钟，喜欢灰塑，标准讲解，帮我规划路线")
         route = direct_route_node(collected)

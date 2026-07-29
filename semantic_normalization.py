@@ -131,9 +131,10 @@ def canonical_control_text(candidate: SemanticCandidate) -> str | None:
         return f"我有{candidate.minutes}分钟"
     if candidate.candidate_kind == "remaining_duration":
         return f"我还剩{candidate.minutes}分钟"
-    if candidate.candidate_kind in {"route_request", "route_request_minimize_walking"}:
-        # The latter retains its requested constraint in the audit candidate.
-        # P1-06 must add a reviewed route-policy field before it can affect a
-        # route; do not imply that the current planner honours it.
+    if candidate.candidate_kind == "route_request":
         return "帮我规划路线"
+    if candidate.candidate_kind == "route_request_minimize_walking":
+        # Preserve the approved route preference in the deterministic C2
+        # vocabulary; C2 still owns validation and persistence.
+        return "帮我规划一条少走路的路线"
     return None

@@ -73,7 +73,9 @@ class SemanticNormalizationTests(unittest.TestCase):
             "candidate_kind": "route_request_minimize_walking", "evidence_text": "少走路的路线",
             "confidence": "high", "minutes": None,
         })
-        self.assertEqual(canonical_control_text(candidate), "帮我规划路线")
+        self.assertEqual(
+            canonical_control_text(candidate), "帮我规划一条少走路的路线"
+        )
         self.assertEqual(candidate.to_dict()["candidate_kind"], "route_request_minimize_walking")
 
     def test_normalized_arrival_still_uses_existing_pending_stop_guard(self):

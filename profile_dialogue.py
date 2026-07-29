@@ -29,6 +29,15 @@ INTEREST_TERMS = (
 )
 NEUTRAL_TERMS = ("都可以", "不确定", "随便", "没特别偏好")
 QUESTION_TERMS = ("什么", "为什么", "介绍", "特点", "怎么", "如何", "？", "?")
+MINIMIZE_WALKING_TERMS = (
+    "少走路",
+    "少走一点",
+    "少走些",
+    "尽量少走",
+    "步行最少",
+    "不想走太多",
+    "不要走太多",
+)
 
 
 class ProfileDialogueError(ValueError):
@@ -145,6 +154,10 @@ def _extract_patch(text: str) -> tuple[dict[str, Any], set[str], str | None]:
     if detail:
         patch["detail_level"] = next(iter(detail))
         fields.add("detail_level")
+    if any(term in text for term in MINIMIZE_WALKING_TERMS):
+        # This optional route preference is stored in the one VisitorProfile
+        # but never becomes a fourth required collection question.
+        patch["route_constraint"] = "minimize_walking"
     return patch, fields, None
 
 
@@ -219,7 +232,12 @@ def collect_profile_input(
         "已记录您的导览偏好："
         f"{profile.available_minutes} 分钟，"
         f"兴趣：{'、'.join(profile.interests) if profile.interests else '无特别偏好'}，"
-        f"讲解深度：{profile.detail_level}。",
+        f"讲解深度：{profile.detail_level}。"
+        + (
+            " 路线偏好：在已审核候选中优先减少预计步行。"
+            if profile.route_constraint == "minimize_walking"
+            else ""
+        ),
         patch,
         "profile_ready",
     )

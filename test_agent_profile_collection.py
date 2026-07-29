@@ -25,6 +25,20 @@ class AgentProfileCollectionTests(unittest.TestCase):
         self.assertNotIn("tour_state", update)
         self.assertNotIn("active_route_plan", update)
 
+    def test_minimize_walking_request_asks_time_and_keeps_constraint(self):
+        state = _state("给我规划一条少走路的路线")
+        self.assertEqual(route_initial_request(state), "profile_collection")
+        update = profile_collection_node(state)
+        self.assertEqual(
+            update["profile_collection"]["next_missing_field"],
+            "available_minutes",
+        )
+        self.assertEqual(
+            update["visitor_profile"]["route_constraint"], "minimize_walking"
+        )
+        self.assertIn("多少分钟", update["messages"][0].content)
+        self.assertNotIn("tour_state", update)
+
     def test_complete_profile_is_saved_without_starting_route(self):
         state = _state("我有30分钟，喜欢灰塑和木雕，简单讲讲，帮我规划路线")
         update = profile_collection_node(state)

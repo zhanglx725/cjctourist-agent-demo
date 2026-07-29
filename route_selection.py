@@ -52,6 +52,7 @@ class RouteSelection:
     route_strategy: str
     requested_minutes: int
     detail_level: str
+    route_constraint: str | None
     guide_stop_ids: tuple[str, ...]
     selection_reason: dict[str, Any]
 
@@ -111,6 +112,7 @@ class RouteSelection:
                 "route_strategy": self.route_strategy,
                 "requested_minutes": self.requested_minutes,
                 "detail_level": self.detail_level,
+                "route_constraint": self.route_constraint,
                 "guide_stop_ids": list(self.guide_stop_ids),
                 "selection_reason": self.selection_reason,
             }
@@ -276,6 +278,7 @@ def _anchor_candidates(available_minutes: int) -> list[tuple[str, RoutePlan]]:
 
 def _select_highest_scored_candidate(
     qualified: list[tuple[RouteCandidateEvaluation, RoutePlan | DynamicRoutePlan]],
+    route_constraint: str | None = None,
 ) -> tuple[RouteCandidateEvaluation, RoutePlan | DynamicRoutePlan]:
     """Select the highest total-score candidate from all qualified plans.
 
@@ -285,6 +288,16 @@ def _select_highest_scored_candidate(
     anchor-margin policy may deliberately select a near-optimal anchor, but no
     such exception exists in E4-3B1.
     """
+    if route_constraint == "minimize_walking":
+        return sorted(
+            qualified,
+            key=lambda pair: (
+                int(pair[1].estimated_walk_seconds or 0),
+                -pair[0].total_score,
+                -pair[0].components["time_utilization"],
+                pair[0].candidate_id,
+            ),
+        )[0]
     return sorted(
         qualified,
         key=lambda pair: (
@@ -302,12 +315,15 @@ def recommend_route(
     available_minutes: int,
     interests: list[str] | None = None,
     detail_level: str = "standard",
+    route_constraint: str | None = None,
 ) -> RouteSelectionResult:
     """Select the best strict-budget reviewed anchor or dynamic route.
 
     This is the v2 replacement for title-theme-first anchor selection.  It is
     deterministic and purely reads reviewed route/card data.
     """
+    if route_constraint not in {None, "minimize_walking"}:
+        raise RouteSelectionError("未知路线约束，无法选择路线。")
     interests = sorted({item.strip() for item in (interests or []) if item.strip()})
     weights, time_band, minimum_stops = _detail_policy(detail_level)
     budget_seconds = int(available_minutes) * 60
@@ -387,7 +403,9 @@ def recommend_route(
 
     # All strict-budget candidates are comparable.  Time-band fit influences
     # their score but is not a hidden rejection rule.
-    evaluation, plan = _select_highest_scored_candidate(qualified)
+    evaluation, plan = _select_highest_scored_candidate(
+        qualified, route_constraint=route_constraint
+    )
     best_total_score = evaluation.total_score
     evaluations = [
         replace(
@@ -397,7 +415,11 @@ def recommend_route(
         for item in evaluations
     ]
     reason = {
-        "selection_version": "mult_objective_v1",
+        "selection_version": (
+            "mult_objective_v1_minimize_walking"
+            if route_constraint == "minimize_walking"
+            else "mult_objective_v1"
+        ),
         "selected_candidate_id": evaluation.candidate_id,
         "route_strategy": evaluation.route_strategy,
         "requested_minutes": available_minutes,
@@ -416,6 +438,17 @@ def recommend_route(
             interest for interest, items in evaluation.interest_evidence.items() if not items
         ],
         "strict_budget_seconds": budget_seconds,
+        "route_constraint": route_constraint,
+        "route_constraint_policy": (
+            "minimize_estimated_walk_seconds_among_qualified_reviewed_candidates"
+            if route_constraint == "minimize_walking"
+            else None
+        ),
+        "candidate_walk_seconds": {
+            item.candidate_id: int(candidate_plan.estimated_walk_seconds or 0)
+            for item, candidate_plan in qualified
+        },
+        "selected_estimated_walk_seconds": int(plan.estimated_walk_seconds or 0),
         "time_utilization_band": list(time_band),
         "selected_within_target_time_band": (
             time_band[0] <= evaluation.estimated_total_seconds / budget_seconds <= time_band[1]
@@ -429,6 +462,7 @@ def recommend_route(
             route_strategy=evaluation.route_strategy,
             requested_minutes=available_minutes,
             detail_level=detail_level,
+            route_constraint=route_constraint,
             guide_stop_ids=evaluation.guide_stop_ids,
             selection_reason=reason,
         ),
