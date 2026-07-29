@@ -56,8 +56,12 @@ backlog:
       On 2026-07-29, LangSmith verified the one-hour explicit-route request
       with Three Kingdoms/craft interests: the complete-profile path created a
       60-minute route and the incomplete-profile path asked only for narration
-      depth.  Two-hour initial and follow-up paths, plus remaining-time
-      replanning, remain pending LangSmith verification.
+      depth.  On 2026-07-29, LangSmith also verified three initial 120-minute
+      forms: “两个小时”, “2小时”, and “120分钟” all created a route showing
+      available_minutes=120; the latter two wood-carving inputs selected the
+      same 103-minute route.  The two-hour follow-up answer to an existing
+      duration prompt and remaining-time replanning remain pending LangSmith
+      verification.
     summary: Natural-language hour durations, retained preferences, and remaining-time replanning are inconsistent.
     owner: route_owner
     contract_impact: none

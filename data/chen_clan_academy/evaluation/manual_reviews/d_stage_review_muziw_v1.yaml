@@ -27,6 +27,27 @@ verification_runs:
       - "本次只验证“一小时 + 比较词 + 路线动作”的路由路径。"
       - "未验证 rvw_muziw_002 中“两个小时”的初始输入与追问输入。"
       - "路线保留了故事/工艺兴趣；并未请求或验证在路线中自动输出独立比较卡。"
+  - verification_id: langsmith_rvw_muziw_002_initial_20260729
+    finding_id: rvw_muziw_002
+    reviewer: muziw
+    tested_branch: main
+    tested_commit: 98beb7e
+    test_date: "2026-07-29"
+    test_environment: "LangGraph Studio + LangSmith"
+    inputs:
+      - "我想参观两个小时，喜欢灰塑，标准讲解，帮我规划路线。"
+      - "我有2小时，喜欢木雕，详细讲解，帮我规划路线。"
+      - "我有120分钟，喜欢木雕，帮我规划路线。"
+    observed_result: >-
+      三种首轮时长表达均创建了“120分钟个性化讲解线”，并明确显示可用时间
+      为 120 分钟；没有重复询问游览时长。其中“2小时”和“120分钟”的木雕输入
+      输出相同的约 103 分钟路线，说明二者进入相同的规范化预算路径。
+    result: partial_passed
+    evidence_refs:
+      - "User-supplied LangSmith screenshots, 2026-07-29; trace URL not provided."
+    limitations:
+      - "尚未在画像收集已经追问时长的第二轮单独输入“两个小时”。"
+      - "尚未复验游览中“只剩/改成两个小时”的重规划路径。"
 findings:
   - finding_id: rvw_muziw_001
     reviewer: muziw
@@ -890,4 +911,4 @@ findings:
       '两个小时' to a duration prompt. Both must set the same 120-minute profile value and must
       not repeat the duration question. The next prompt may ask only for a missing preference,
       and planning must use the normalized 120-minute budget.
-    status: new
+    status: fixed_pending_verification
