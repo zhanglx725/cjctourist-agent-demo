@@ -17,10 +17,16 @@ from tour_state import start_tour
 
 
 EVIDENCE = {
-    "document": "08_ornament_items.md",
-    "title_path": ["装饰", "测试条目"],
-    "content": "测试资料说明了灰塑装饰的工艺特点。",
-    "source_ids": ["S01"],
+    "document": "07_ornament_crafts.md",
+    "title_path": ["陈家祠建筑装饰工艺总览", "灰塑：岭南建筑的现场堆塑艺术"],
+    "content": (
+        "- **工艺性质与位置**：灰塑是珠江三角洲传统建筑中广泛使用的装饰艺术，"
+        "民间称“灰批”，常见于门额窗框、山墙顶端、屋檐瓦脊、亭台牌坊等部位。 "
+        "- **材料与流程**：艺人以石灰为主料，加入发酵后的稻草或草纸，经反复锤炼制成"
+        "草筋灰或纸筋灰；通常先用草筋灰堆塑造型，再用纸筋灰细塑表面，干燥到一定程度后施彩。 "
+        "- **文化表达**：灰塑题材常通过谐音、象征和通俗的画面组合表达对美好生活的祈盼。"
+    ),
+    "source_ids": ["S10"],
 }
 
 
@@ -116,7 +122,7 @@ class QaFollowUpTests(unittest.TestCase):
         )
         self.assertEqual(result["mode"], "qa_follow_up_global_craft")
         self.assertIn("灰塑", result["message"])
-        self.assertEqual(result["retrieval_query"], "灰塑 是什么 材料 制作流程 陈家祠 题材")
+        self.assertEqual(result["retrieval_query"], "灰塑 工艺性质 材料与流程 陈家祠")
 
     def test_whole_site_craft_detail_filters_unrelated_service_evidence(self):
         payload = json.dumps(
@@ -143,7 +149,9 @@ class QaFollowUpTests(unittest.TestCase):
 
     def test_whole_site_term_definition_then_detail_retains_the_craft_topic(self):
         first = answer_tour_question("灰塑是什么？", None, None, self._search)
-        self.assertEqual(first["mode"], "term_card")
+        self.assertEqual(first["mode"], "whole_site_craft_overview")
+        self.assertIn("草筋灰或纸筋灰", first["message"])
+        self.assertNotIn("08_ornament_items.md", first["message"])
         context = build_qa_context_from_answer("灰塑是什么？", first, None)
         self.assertIsNotNone(context)
         self.assertEqual(context["origin"], "whole_site")
@@ -157,11 +165,41 @@ class QaFollowUpTests(unittest.TestCase):
 
         detailed = answer_qa_follow_up_detail("详细讲讲", context, None, None, search)
         self.assertEqual(detailed["mode"], "qa_follow_up_global_craft")
-        self.assertEqual(calls, ["灰塑 是什么 材料 制作流程 陈家祠 题材"])
+        self.assertEqual(calls, ["灰塑 工艺性质 材料与流程 陈家祠"])
         self.assertIn("灰塑", detailed["message"])
-        self.assertIn("来源：S01", detailed["message"])
+        self.assertIn("来源：S10", detailed["message"])
+        self.assertIn("草筋灰或纸筋灰", detailed["message"])
         self.assertNotIn("根据本地知识库检索到的资料", detailed["message"])
         self.assertNotIn("08_ornament_items.md", detailed["message"])
+
+    def test_whole_site_craft_answer_excludes_other_documents_and_raw_chunk_format(self):
+        payload = json.dumps(
+            {
+                "evidence": [
+                    EVIDENCE,
+                    {
+                        "document": "08_ornament_items.md",
+                        "title_path": ["装饰条目", "独角狮"],
+                        "content": "独角狮是一件灰塑装饰。",
+                        "source_ids": ["S11"],
+                    },
+                    {
+                        "document": "09_ornament_locations.md",
+                        "title_path": ["装饰位置", "前院"],
+                        "content": "灰塑位置待现场复核。",
+                        "source_ids": ["S11"],
+                    },
+                ]
+            },
+            ensure_ascii=False,
+        )
+        result = answer_tour_question("灰塑是什么？", None, None, lambda _: payload)
+        self.assertEqual(result["mode"], "whole_site_craft_overview")
+        self.assertEqual([item["document"] for item in result["evidence"]], ["07_ornament_crafts.md"])
+        self.assertIn("草筋灰或纸筋灰", result["message"])
+        self.assertNotIn("08_ornament_items.md", result["message"])
+        self.assertNotIn("09_ornament_locations.md", result["message"])
+        self.assertNotIn("- **", result["message"])
 
     def test_whole_site_term_follow_up_does_not_mutate_active_tour(self):
         first = answer_tour_question("灰塑是什么？", None, None, self._search)

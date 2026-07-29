@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable
@@ -35,8 +36,17 @@ DEICTIC_POINT_TERMS = ("这里", "此处", "眼前", "当前点", "当前站", "
 CRAFT_TERMS = ("石雕", "灰塑", "木雕", "砖雕", "陶塑", "铜铁铸")
 FEATURE_TERMS = ("特点", "特征", "工艺", "怎么做", "有什么")
 TERM_EXPLANATION_TERMS = ("是什么", "什么意思", "指什么", "怎么理解")
-WHOLE_SITE_CRAFT_DOCUMENTS = frozenset(
-    {"07_ornament_crafts.md", "08_ornament_items.md", "09_ornament_locations.md"}
+# A whole-site question such as "灰塑是什么" asks about the craft itself,
+# rather than a named ornament or a location.  Keep it closed over the craft
+# overview: the other two documents are for separately named objects and
+# reviewed locations, not for expanding a generic craft definition.
+WHOLE_SITE_CRAFT_DOCUMENT = "07_ornament_crafts.md"
+CRAFT_OVERVIEW_SECTION_LABELS = (
+    "工艺性质与位置",
+    "材料与流程",
+    "发展与代表性",
+    "陈家祠规模与题材",
+    "文化表达",
 )
 
 
@@ -270,6 +280,20 @@ def _current_point_craft_feature_request(user_query: str) -> str | None:
 def _current_point_craft_term_request(user_query: str) -> str | None:
     """Recognize a deictic craft definition only when it names the craft."""
     if not any(term in user_query for term in DEICTIC_POINT_TERMS):
+        return None
+    if not any(term in user_query for term in TERM_EXPLANATION_TERMS):
+        return None
+    return next((craft for craft in CRAFT_TERMS if craft in user_query), None)
+
+
+def _whole_site_craft_term_request(user_query: str) -> str | None:
+    """Recognize a generic craft definition without claiming a current object.
+
+    Deictic requests remain on the current-point path because they explicitly
+    ask about a verified physical context.  A generic “灰塑是什么” should use
+    the craft overview instead of a one-line glossary card.
+    """
+    if any(term in user_query for term in DEICTIC_POINT_TERMS):
         return None
     if not any(term in user_query for term in TERM_EXPLANATION_TERMS):
         return None
@@ -515,14 +539,22 @@ def build_qa_context_from_answer(
     term_craft = next((craft for craft in CRAFT_TERMS if term.get("zh") == craft), None)
     is_definition = any(token in user_query for token in TERM_EXPLANATION_TERMS)
     is_whole_site_term = mode == "term_card" and term_craft is not None and is_definition
-    is_whole_site_craft_follow_up = mode == "qa_follow_up_global_craft"
+    is_whole_site_craft_follow_up = mode in {
+        "whole_site_craft_overview",
+        "qa_follow_up_global_craft",
+    }
     if mode not in {"inventory", "current_point_craft_features", "rag"} and not is_whole_site_term and not is_whole_site_craft_follow_up:
         return None
     # A craft explanation without retrieved evidence is a safe fallback, but
     # it is not a trustworthy basis for a later omitted follow-up.  Inventory
     # is intentionally different: it is a successful deterministic reviewed
     # association list rather than an attempted RAG explanation.
-    if mode in {"rag", "current_point_craft_features", "qa_follow_up_global_craft"} and not evidence:
+    if mode in {
+        "rag",
+        "current_point_craft_features",
+        "whole_site_craft_overview",
+        "qa_follow_up_global_craft",
+    } and not evidence:
         return None
 
     try:
@@ -604,7 +636,7 @@ def _is_whole_site_craft_evidence(item: dict[str, Any], craft: str) -> bool:
     returned them.  The document boundary is deterministic and intentionally
     fails closed for future documents until they are explicitly reviewed here.
     """
-    if str(item.get("document") or "") not in WHOLE_SITE_CRAFT_DOCUMENTS:
+    if str(item.get("document") or "") != WHOLE_SITE_CRAFT_DOCUMENT:
         return False
     title_path = item.get("title_path") or []
     searchable = " ".join(
@@ -616,14 +648,70 @@ def _is_whole_site_craft_evidence(item: dict[str, Any], craft: str) -> bool:
     return craft in searchable
 
 
+def _craft_overview_sections(evidence: list[dict[str, Any]]) -> dict[str, tuple[str, list[str]]]:
+    """Extract labelled facts from the reviewed craft overview only.
+
+    RAG chunks preserve markdown headings inconsistently, so this deliberately
+    accepts plain or bold labels but never fills a missing section from model
+    knowledge.  Each value carries its own source IDs for later rendering.
+    """
+    found: dict[str, tuple[str, list[str]]] = {}
+    labels_pattern = "|".join(re.escape(label) for label in CRAFT_OVERVIEW_SECTION_LABELS)
+    for item in evidence:
+        content = " ".join(str(item.get("content") or "").split())
+        if not content:
+            continue
+        normalized = content.replace("**", "")
+        for label in CRAFT_OVERVIEW_SECTION_LABELS:
+            if label in found:
+                continue
+            match = re.search(
+                rf"{re.escape(label)}\s*[：:]\s*(.*?)(?=\s*-?\s*(?:{labels_pattern})\s*[：:]|$)",
+                normalized,
+            )
+            if match and match.group(1).strip():
+                found[label] = (match.group(1).strip(" -"), list(item.get("source_ids") or []))
+    return found
+
+
+def _craft_overview_message(
+    craft: str,
+    evidence: list[dict[str, Any]],
+    *,
+    detailed: bool,
+) -> str:
+    """Turn reviewed craft fields into concise visitor-facing narration."""
+    sections = _craft_overview_sections(evidence)
+    source_text = "、".join(dict.fromkeys(
+        source for _, sources in sections.values() for source in sources
+    )) or "未标注来源编号"
+    ordered_labels = ["工艺性质与位置", "材料与流程"]
+    if detailed:
+        ordered_labels.extend(["发展与代表性", "陈家祠规模与题材", "文化表达"])
+    facts = [sections[label][0] for label in ordered_labels if label in sections]
+    if not facts:
+        return f"本次只检索到与“{craft}”相关的资料片段，但其中没有可安全整理的工艺说明。"
+
+    if detailed:
+        lead = f"如果把“{craft}”拆开来看，先要理解它是什么，再看它怎样做出来："
+    else:
+        lead = f"“{craft}”不只是一个装饰名称，它是一种建筑现场塑造工艺："
+    # Preserve the source statements while removing RAG file names, headings,
+    # bullet markers, and raw chunk boundaries from the visitor answer.
+    return lead + "\n\n" + "\n\n".join(facts) + f"\n\n（以上依据工艺总览资料，来源：{source_text}）"
+
+
 def _answer_whole_site_craft_follow_up(
     craft: str,
     tour_state: dict[str, Any] | None,
     interaction_state: dict[str, Any] | None,
     rag_search: Callable[[str], str],
+    *,
+    detailed: bool = True,
+    mode: str = "qa_follow_up_global_craft",
 ) -> dict[str, Any]:
     """Expand one reviewed craft term with freshly retrieved, scoped evidence."""
-    retrieval_query = f"{craft} 是什么 材料 制作流程 陈家祠 题材"
+    retrieval_query = f"{craft} 工艺性质 材料与流程 陈家祠"
     try:
         payload = parse_rag_payload(rag_search(retrieval_query))
     except Exception as exc:
@@ -634,10 +722,7 @@ def _answer_whole_site_craft_follow_up(
         if isinstance(item, dict) and _is_whole_site_craft_evidence(item, craft)
     ]
     if evidence:
-        lines = [f"下面继续展开“{craft}”："]
-        lines.extend(f"- {_follow_up_evidence_line(item)}" for item in evidence[:3])
-        lines.append("以上只依据本次重新检索到的资料；如果想继续了解具体作品，请直接说出作品名称或点位。")
-        message = "\n".join(lines)
+        message = _craft_overview_message(craft, evidence, detailed=detailed)
     else:
         detail = payload.get("error") or f"当前本地知识库没有检索到足以展开“{craft}”的资料。"
         message = f"暂时不能安全展开“{craft}”：{detail}"
@@ -647,13 +732,13 @@ def _answer_whole_site_craft_follow_up(
         presentation = {
             **presentation,
             "message": message,
-            "code": "qa_follow_up_global_craft" if evidence else "qa_follow_up_global_craft_no_evidence",
+            "code": mode if evidence else f"{mode}_no_evidence",
             "ok": bool(evidence),
             "evidence_count": len(evidence),
         }
     return {
         "message": message,
-        "mode": "qa_follow_up_global_craft",
+        "mode": mode,
         "evidence": evidence,
         "point_context": None,
         "presentation": presentation,
@@ -761,6 +846,16 @@ def answer_tour_question(
     if explicit_detail_craft and is_qa_follow_up_detail_request(user_query):
         return _answer_whole_site_craft_follow_up(
             explicit_detail_craft, tour_state, interaction_state, rag_search
+        )
+    whole_site_craft = _whole_site_craft_term_request(user_query)
+    if whole_site_craft:
+        return _answer_whole_site_craft_follow_up(
+            whole_site_craft,
+            tour_state,
+            interaction_state,
+            rag_search,
+            detailed=False,
+            mode="whole_site_craft_overview",
         )
     if is_explicit_photo_request(user_query):
         context, error_code = resolve_point_context(user_query, tour_state)

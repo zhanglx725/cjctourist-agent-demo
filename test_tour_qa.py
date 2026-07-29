@@ -166,11 +166,29 @@ class TourQaTests(unittest.TestCase):
         self.assertEqual(self_arrival["tour_state"]["visited_stop_ids"], [])
         self.assertEqual(self_arrival["interaction_state"]["pending_stop_id"], "stop_front_courtyard_center")
 
-    def test_no_active_tour_uses_reviewed_term_card_without_presentation(self):
-        result = answer_tour_question("灰塑是什么？", None, None, self._success_search)
-        self.assertEqual(result["mode"], "term_card")
-        self.assertIsNone(result["retrieval_query"])
+    def test_no_active_tour_uses_reviewed_craft_overview_without_presentation(self):
+        craft_payload = json.dumps(
+            {
+                "evidence": [
+                    {
+                        "document": "07_ornament_crafts.md",
+                        "title_path": ["陈家祠建筑装饰工艺总览", "灰塑：岭南建筑的现场堆塑艺术"],
+                        "source_ids": ["S10"],
+                        "content": (
+                            "- **工艺性质与位置**：灰塑是珠江三角洲传统建筑中广泛使用的装饰艺术。 "
+                            "- **材料与流程**：艺人以石灰为主料，加入发酵后的稻草或草纸，"
+                            "制成草筋灰或纸筋灰；通常先用草筋灰堆塑造型，再用纸筋灰细塑表面。"
+                        ),
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        )
+        result = answer_tour_question("灰塑是什么？", None, None, lambda _: craft_payload)
+        self.assertEqual(result["mode"], "whole_site_craft_overview")
+        self.assertEqual(result["retrieval_query"], "灰塑 工艺性质 材料与流程 陈家祠")
         self.assertIn("以石灰为主料", result["message"])
+        self.assertIn("草筋灰或纸筋灰", result["message"])
         self.assertIsNone(result["presentation"])
 
     def test_unknown_point_and_missing_point_card_fail_safely(self):

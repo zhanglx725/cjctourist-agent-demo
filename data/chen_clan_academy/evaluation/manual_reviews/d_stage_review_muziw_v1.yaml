@@ -158,6 +158,27 @@ verification_runs:
     limitations:
       - "截图未包含未规划路线的“灰塑是什么 → 详细讲讲”完整两轮状态展开；该链路依据用户的同线程复测报告记录。"
       - "截图未提供运行服务所加载的精确 Git 提交，不能将该结果归因于某一特定代码版本。"
+  - verification_id: langsmith_rvw_muziw_010_craft_overview_rendering_20260729
+    finding_id: rvw_muziw_010
+    reviewer: muziw
+    tested_branch: main
+    tested_commit: unknown_local_server
+    test_date: "2026-07-29"
+    test_environment: "LangGraph Studio + LangSmith"
+    inputs:
+      - "灰塑是什么？ -> 详细讲讲。"
+      - "在已规划路线、游览过程中：什么是灰塑？"
+    observed_result: >-
+      未规划路线的首问只返回术语卡的一句定义，没有使用工艺总览中已有的材料与制作流程。
+      游览中提问虽检索到 07_ornament_crafts.md，但同时输出了 02_history_architecture.md 与
+      08_ornament_items.md，并以“根据本地知识库检索到的资料”逐条展示原始文件名、标题和
+      长片段，而不是将灰塑的定义、材料与流程组织成自然讲解。
+    result: failed
+    evidence_refs:
+      - "User-supplied LangSmith screenshots, 2026-07-29; trace URL not provided."
+    limitations:
+      - "截图未提供运行服务所加载的精确 Git 提交。"
+      - "本记录描述的是本次修复前的复测结果；修复后的 LangSmith 对照尚未执行。"
 findings:
   - finding_id: rvw_muziw_001
     reviewer: muziw
