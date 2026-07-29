@@ -75,6 +75,7 @@ HISTORY_PAYLOAD = json.dumps(
     {
         "evidence": [
             {
+                "category": "history_architecture",
                 "document": "02_history_architecture.md",
                 "title_path": ["历史、建筑与文化特色", "历史沿革"],
                 "source_ids": ["S02", "S04"],
@@ -130,7 +131,7 @@ class AgentTourQaTests(unittest.TestCase):
             retrieval = direct_rag_node(request)
         rag.invoke.assert_called_once_with(
             {
-                "query": "陈家祠什么时候建成？",
+                "query": "陈家祠 1888年筹建 1893年落成 1894年建成 来源差异",
                 "categories": ["history_architecture"],
             }
         )
@@ -161,7 +162,7 @@ class AgentTourQaTests(unittest.TestCase):
             update = tour_qa_node(request)
         rag.invoke.assert_called_once_with(
             {
-                "query": "陈家祠哪一年建成？",
+                "query": "陈家祠 1888年筹建 1893年落成 1894年建成 来源差异",
                 "categories": ["history_architecture"],
             }
         )

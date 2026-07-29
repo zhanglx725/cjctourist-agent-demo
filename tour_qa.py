@@ -34,7 +34,7 @@ from craft_knowledge import (
     parse_craft_explanation_request,
     render_craft_explanation,
 )
-from single_fact_answer import render_single_fact_answer
+from single_fact_answer import render_single_fact_answer, single_fact_categories
 
 
 GUIDE_CARDS_FILE = Path("data/chen_clan_academy/routes/node_guide_cards_v1.json")
@@ -246,10 +246,12 @@ def format_tour_qa_answer(
 
     presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
     if presentation:
-        point_name = context["name"] if context else "当前导览位置"
-        phase = interaction_state.get("stop_phase")
-        answer += f"\n\n导览上下文：您当前位于{point_name}，阶段为 {phase}。"
-        answer += " 可继续使用下方现有导览操作；本次问答未改变路线进度。"
+        if fact_answer is None:
+            point_name = context["name"] if context else "当前导览位置"
+            answer += (
+                f"\n\n您当前位于{point_name}。"
+                "本次问答未改变路线进度，可继续使用现有导览操作。"
+            )
         presentation = {
             **presentation,
             "message": answer,
@@ -748,6 +750,22 @@ def answer_tour_question(
     visitor_profile: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Use one injected existing RAG callable and leave both state snapshots untouched."""
+    if single_fact_categories(user_query) is not None:
+        try:
+            payload = parse_rag_payload(rag_search(user_query))
+        except Exception as exc:
+            payload = {
+                "evidence": [],
+                "error": f"本地知识检索暂时不可用：{exc}",
+            }
+        result = format_tour_qa_answer(
+            user_query, payload, tour_state, interaction_state
+        )
+        return {
+            **result,
+            "retrieval_query": user_query,
+            "point_context": current_stop_context(tour_state),
+        }
     craft_request = parse_craft_explanation_request(user_query)
     scoped_context, _ = resolve_point_context(user_query, tour_state)
     if craft_request and scoped_context is None:

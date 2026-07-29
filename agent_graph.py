@@ -48,7 +48,11 @@ from research_card_retrieval import is_explicit_research_question
 from comparison_retrieval import is_explicit_comparison_question
 from photo_spot_runtime import is_explicit_photo_request, is_unsafe_photo_request
 from semantic_normalization import canonical_control_text, recognize_semantic_candidate
-from single_fact_answer import render_single_fact_answer, single_fact_categories
+from single_fact_answer import (
+    render_single_fact_answer,
+    single_fact_categories,
+    single_fact_retrieval_query,
+)
 from guide_program_evidence import build_stop_guidance, reexpress_current_stop_guidance
 from profile_dialogue import collect_profile_input
 from profile_update import apply_profile_update, is_profile_update_request
@@ -329,7 +333,9 @@ def llm_think_node(state: AgentState) -> dict[str, Any]:
         "你是陈家祠导游助手。使用用户的语言回答。涉及陈家祠的历史、建筑、装饰、"
         "工艺、服务、票务、开放或公告等事实，必须先调用 chen_clan_academy_rag_search。"
         "最终回答只能基于工具返回的 evidence；不得把模型常识补成景区事实。"
-        "每项关键事实后简要标注文档名和 source_ids。若没有证据、证据有冲突，或状态为"
+        "来源信息只用“馆方公开资料”“本地参考快照”等游客可理解的短语说明；"
+        "不得显示文件名、资料标题、原始段落、source_ids、URL、节点名或内部字段。"
+        "若没有证据、证据有冲突，或状态为"
         "snapshot/已过期/待确认，清楚说明限制；对于实时信息，提示以馆方最新官方信息为准。"
         "可直接回答问候和与陈家祠无关的常识问题。"
         "默认采用金牌导游的简洁讲解：先直接回答，再给不超过 3 个必要要点；"
@@ -449,22 +455,40 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
     stop_lines = []
     for index, node_id in enumerate(guide_stop_ids, start=1):
         card = catalog[node_id]
+        themes = {
+            theme.strip()
+            for theme in str(card.get("themes") or "").split(";")
+            if theme.strip()
+        }
+        interest_focus = [
+            interest for interest in interests if interest in themes
+        ]
+        interest_note = (
+            f"；偏好看点：{'、'.join(interest_focus)}"
+            if interest_focus
+            else ""
+        )
+        depth_note = (
+            "；详细讲解将围绕工艺、构件、题材和可核验证据展开"
+            if profile.detail_level == "deep"
+            else ""
+        )
         stop_lines.append(
-            f"{index}. {card['stop_name']}：{card['guide_focus']}"
+            f"{index}. {card['stop_name']}（建议停留 "
+            f"{card['recommended_visit_minutes']} 分钟）：{card['guide_focus']}"
+            f"{interest_note}{depth_note}"
         )
     total_minutes = total_seconds / 60
     message = (
         f"为您推荐“{plan.display_name}”。预计总时长约 {total_minutes:.0f} 分钟"
-        f"（可用时间 {minutes} 分钟；策略：{'人工审核锚点' if route_strategy == 'anchor' else '动态组合'}）。\n\n"
+        f"（可用时间 {minutes} 分钟）。路线已结合您的时间、兴趣和讲解深度安排。\n\n"
         "讲解停留顺序：\n"
         + "\n".join(stop_lines)
         + "\n\n"
-        f"路线会经过 {len(plan.full_path_node_ids)} 个已审核空间节点、"
-        f"使用 {len(plan.edge_ids)} 条已审核双向边。"
         f"时间包含讲解 {explanation_seconds // 60} 分钟、"
         f"观察 {observation_seconds // 60} 分钟、"
         f"互动 {interaction_seconds // 60} 分钟和步行约 {walk_seconds} 秒。\n"
-        f"结束后将沿已审核路径回到前院出口区（{exit_node_id}），已预留约 {exit_return_seconds} 秒。\n\n"
+        f"结束后将沿已核对路线回到前院出口区，已预留约 {exit_return_seconds} 秒。\n\n"
         + (
             "本次采用少走路优先：只在当前时间预算内的已审核候选路线中，"
             "优先选择预计步行时间较低的方案；不代表现场绝对最短或无障碍路线。\n\n"
@@ -472,7 +496,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
             else ""
         )
         +
-        "提示：步行时间基于官网地图与已审核路线估算，现场通行、驻足和开放情况请以馆方安排为准。"
+        "提示：步行时间基于官网地图与已核对路线估算，现场通行、驻足和开放情况请以馆方安排为准。"
         "\n\n"
         + format_next_stop_navigation(next_stop_navigation(tour))
     )
@@ -812,15 +836,70 @@ def clarification_node(state: AgentState) -> dict[str, Any]:
     }
 
 
+def _search_controlled_fact_evidence(user_query: str) -> str:
+    """Retrieve each reviewed fact category independently, then merge evidence.
+
+    A shared top-k across several categories can let a broad basic-information
+    chunk crowd out the ticketing snapshot that contains the requested cutoff.
+    Per-category retrieval keeps the existing tool and index unchanged while
+    giving both QA modes the same deterministic evidence boundary.
+    """
+
+    categories = single_fact_categories(user_query)
+    retrieval_query = single_fact_retrieval_query(user_query)
+    if categories is None:
+        return str(
+            chen_clan_academy_rag_search.invoke({"query": retrieval_query})
+        )
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    errors: list[str] = []
+    for category in categories:
+        content = str(
+            chen_clan_academy_rag_search.invoke(
+                {"query": retrieval_query, "categories": [category]}
+            )
+        )
+        try:
+            payload = json.loads(content)
+        except json.JSONDecodeError:
+            errors.append(f"{category}:invalid_payload")
+            continue
+        if payload.get("error"):
+            errors.append(f"{category}:{payload['error']}")
+        for item in payload.get("evidence", []):
+            if not isinstance(item, dict):
+                continue
+            identity = str(
+                item.get("chunk_id")
+                or (
+                    item.get("category"),
+                    item.get("document"),
+                    tuple(item.get("title_path") or ()),
+                    item.get("content"),
+                )
+            )
+            if identity in seen:
+                continue
+            seen.add(identity)
+            merged.append(item)
+    return json.dumps(
+        {
+            "query": retrieval_query,
+            "knowledge_base": "local_snapshot_v1",
+            "evidence": merged,
+            "errors": errors,
+        },
+        ensure_ascii=False,
+    )
+
+
 def direct_rag_node(state: AgentState) -> dict[str, Any]:
     """Retrieve clearly in-domain facts without an unnecessary tool-selection LLM."""
     query = _latest_user_text(state)
     started = time.perf_counter()
     categories = single_fact_categories(query)
-    tool_input: dict[str, Any] = {"query": query}
-    if categories is not None:
-        tool_input["categories"] = categories
-    content = str(chen_clan_academy_rag_search.invoke(tool_input))
+    content = _search_controlled_fact_evidence(query)
     try:
         evidence = json.loads(content).get("evidence", [])
     except json.JSONDecodeError:
@@ -846,6 +925,14 @@ def direct_rag_node(state: AgentState) -> dict[str, Any]:
             evidence_count=len(evidence),
             fact_kind=fact_answer.fact_kind if fact_answer is not None else None,
             fact_answer_ok=fact_answer.ok if fact_answer is not None else None,
+            evidence_categories=(
+                list(fact_answer.evidence_categories)
+                if fact_answer is not None
+                else []
+            ),
+            deterministic_calculation=bool(
+                fact_answer is not None and fact_answer.calculation
+            ),
             retrieval_methods=sorted(
                 {
                     method
@@ -869,10 +956,11 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
     categories = single_fact_categories(query)
 
     def scoped_rag_search(retrieval_query: str) -> str:
-        tool_input: dict[str, Any] = {"query": retrieval_query}
         if categories is not None:
-            tool_input["categories"] = categories
-        return str(chen_clan_academy_rag_search.invoke(tool_input))
+            return _search_controlled_fact_evidence(query)
+        return str(
+            chen_clan_academy_rag_search.invoke({"query": retrieval_query})
+        )
 
     result = answer_tour_question(
         query,
@@ -890,6 +978,16 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
             time.perf_counter() - started,
             evidence_count=len(result["evidence"]),
             current_stop_id=(result.get("point_context") or {}).get("node_id"),
+            fact_kind=(result.get("single_fact") or {}).get("fact_kind"),
+            evidence_categories=(
+                list(
+                    (result.get("single_fact") or {}).get("evidence_categories")
+                    or []
+                )
+            ),
+            deterministic_calculation=bool(
+                (result.get("single_fact") or {}).get("calculation")
+            ),
         ),
         "qa_context": build_qa_context_from_answer(
             query, result, state.get("tour_state")
@@ -991,6 +1089,26 @@ def route_initial_request(state: AgentState) -> str:
     # The D6 handler performs the deterministic refusal without state writes.
     if is_unsafe_photo_request(raw_text):
         return "tour_qa"
+    # Reviewed single facts use the same scoped retrieval and deterministic
+    # renderer in both modes.  Decide this before glossary/follow-up heuristics,
+    # which must not reinterpret wording such as “是什么时候建成的”.
+    if single_fact_categories(raw_text) is not None:
+        return (
+            "tour_qa"
+            if state.get("tour_state") and state.get("tour_interaction_state")
+            else "direct_rag"
+        )
+    # D6 photo handling retains priority over route keywords.  A mixed request
+    # such as “把这个打卡点加入路线” must receive the existing no-partial-
+    # mutation clarification rather than silently starting a new profile.
+    if is_explicit_photo_request(raw_text):
+        return "tour_qa"
+    strong_route_action = any(
+        term in raw_text
+        for term in ("路线", "规划", "怎么逛", "参观顺序", "带我逛")
+    )
+    if strong_route_action:
+        return "profile_collection"
     # All seven generic craft explanations use one deterministic, evidence-
     # backed path before generic RAG or LLM routing.  The parser is anchored,
     # so comparisons and concrete ornament/story questions remain with their
@@ -1031,14 +1149,10 @@ def route_initial_request(state: AgentState) -> str:
         return "clarification"
     if state.get("tour_state") and state.get("tour_interaction_state") and is_profile_update_request(text):
         return "profile_update"
-    # D6 photo handling retains priority because a mixed photo/route request
-    # must receive its existing no-partial-mutation clarification.  By
-    # contrast, a genuine route action may contain comparison or research
-    # words as *planning preferences* (for example, “一小时，想看三国工艺
-    # 比较，请规划路线”).  Do not let those words divert a route request into
-    # D3/D4 knowledge Q&A before C2 can collect the route profile.
-    if is_explicit_photo_request(raw_text):
-        return "tour_qa"
+    # A genuine route action may contain comparison or research words as
+    # planning preferences (for example, “一小时，想看三国工艺比较，请规划
+    # 路线”).  Do not let those words divert a route request into D3/D4
+    # knowledge Q&A before C2 can collect the route profile.
     if decision.route_kind == "route_request" or should_direct_route(text):
         return "profile_collection"
     # D3/D4 are deterministic sub-routes of tour_qa.  They are checked after

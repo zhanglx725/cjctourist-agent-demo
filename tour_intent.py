@@ -194,7 +194,28 @@ def _looks_like_question(text: str) -> bool:
     return (
         "？" in text
         or "?" in text
-        or any(term in text for term in ("什么", "为什么", "有什么", "介绍", "怎么走", "如何", "特点", "讲讲"))
+        or any(
+            term in text
+            for term in (
+                "什么",
+                "为什么",
+                "有什么",
+                "谁",
+                "哪里",
+                "在哪",
+                "哪年",
+                "哪一年",
+                "何时",
+                "几点",
+                "多久",
+                "多少年",
+                "介绍",
+                "怎么走",
+                "如何",
+                "特点",
+                "讲讲",
+            )
+        )
     )
 
 

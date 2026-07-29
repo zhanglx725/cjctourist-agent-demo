@@ -86,7 +86,7 @@ def next_stop_navigation(
         edge_ids=spatial.edge_ids,
         estimated_walk_seconds=spatial.estimated_walk_seconds,
         walk_time_basis=spatial.walk_time_basis,
-        warning="预计步行时间基于官网地图和已审核空间边估算，待现场复核。",
+        warning="预计步行时间基于官网地图和已核对路线估算，现场请以馆方指引为准。",
     )
 
 

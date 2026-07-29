@@ -10,6 +10,7 @@ from single_fact_answer import (
 
 
 HISTORY_EVIDENCE = {
+    "category": "history_architecture",
     "document": "02_history_architecture.md",
     "title_path": ["历史、建筑与文化特色", "历史沿革"],
     "source_ids": ["S02", "S04"],
@@ -20,6 +21,7 @@ HISTORY_EVIDENCE = {
     ),
 }
 ADDRESS_EVIDENCE = {
+    "category": "basic_info",
     "document": "01_basic_info.md",
     "title_path": ["基础信息", "信息卡"],
     "source_ids": ["S01"],
@@ -52,6 +54,10 @@ class SingleFactAnswerTests(unittest.TestCase):
         self.assertEqual(
             identify_single_fact_kind("陈家祠具体地址在哪里？"),
             "site_address",
+        )
+        self.assertEqual(
+            identify_single_fact_kind("陈家祠从筹建到落成大约经历了多久？"),
+            "construction_duration",
         )
         self.assertIsNone(identify_single_fact_kind("铜雀台是什么时候建成的？"))
         self.assertIsNone(identify_single_fact_kind("详细讲讲陈家祠"))
@@ -86,7 +92,7 @@ class SingleFactAnswerTests(unittest.TestCase):
         self.assertTrue(result.ok)
         self.assertEqual(
             result.message,
-            "陈家祠于 1888 年开始筹建。（来源：S02、S04）",
+            "陈家祠于 1888 年开始筹建。这一年份指筹建启动，不是落成年份。",
         )
 
     def test_address_answer_is_compact_and_evidence_bounded(self):
@@ -97,8 +103,20 @@ class SingleFactAnswerTests(unittest.TestCase):
         self.assertEqual(result.source_ids, ("S01",))
         self.assertEqual(
             result.message,
-            "陈家祠的地址是广州市荔湾区中山七路恩龙里 34 号。（来源：S01）",
+            "陈家祠的地址是广州市荔湾区中山七路恩龙里 34 号。",
         )
+
+    def test_duration_is_a_deterministic_evidence_bounded_year_difference(self):
+        result = render_single_fact_answer(
+            "陈家祠从筹建到落成大约经历了多久？", [HISTORY_EVIDENCE]
+        )
+        self.assertTrue(result.ok)
+        self.assertIn("5 至 6 年", result.message)
+        self.assertIn("1893 年口径约 5 年", result.message)
+        self.assertIn("1894 年口径约 6 年", result.message)
+        self.assertEqual(result.calculation["operation"], "year_difference")
+        self.assertTrue(result.calculation["deterministic"])
+        self.assertNotRegex(result.message, r"(?<![A-Za-z0-9])S\d+")
 
     def test_recognized_fact_fails_closed_without_matching_evidence(self):
         result = render_single_fact_answer(
@@ -107,7 +125,7 @@ class SingleFactAnswerTests(unittest.TestCase):
         )
         self.assertIsNotNone(result)
         self.assertFalse(result.ok)
-        self.assertIn("检索证据不足", result.message)
+        self.assertIn("资料不足", result.message)
         self.assertNotIn("独角狮", result.message)
 
 
