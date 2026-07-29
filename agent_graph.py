@@ -47,6 +47,7 @@ from term_card_runtime import is_explicit_term_question
 from research_card_retrieval import is_explicit_research_question
 from comparison_retrieval import is_explicit_comparison_question
 from photo_spot_runtime import is_explicit_photo_request, is_unsafe_photo_request
+from visit_safety_rules import is_visit_safety_question
 from semantic_normalization import (
     canonical_control_text,
     canonical_fact_kind,
@@ -262,6 +263,7 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
     specialized_knowledge = (
         parse_craft_explanation_request(raw_text) is not None
         or is_explicit_photo_request(raw_text)
+        or is_visit_safety_question(raw_text)
         or is_explicit_comparison_question(raw_text)
         or is_explicit_research_question(raw_text)
         or is_explicit_term_question(raw_text)
@@ -1298,6 +1300,8 @@ def route_initial_request(state: AgentState) -> str:
     # photo request must never record an arrival first or reach D5 candidates.
     # The D6 handler performs the deterministic refusal without state writes.
     if is_unsafe_photo_request(raw_text):
+        return "tour_qa"
+    if is_visit_safety_question(raw_text):
         return "tour_qa"
     # Reviewed single facts use the same scoped retrieval and deterministic
     # renderer in both modes.  Decide this before glossary/follow-up heuristics,

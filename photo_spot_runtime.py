@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from photo_spot_validation import EDITORIAL_ON_SITE_DISCLAIMER, query_available_photo_spots, validate_photo_spot_cards
+from visit_safety_rules import answer_visit_safety_question, is_visit_safety_question
 
 
 PHOTO_CUES = ("拍照", "拍一张", "拍", "怎么拍", "打卡", "机位", "构图", "合影", "自拍", "拍哪里", "值得拍", "拍摄建议")
@@ -33,18 +34,23 @@ def has_photo_route_conflict(user_query: str) -> bool:
 
 
 def is_unsafe_photo_request(user_query: str) -> bool:
-    """Return whether a photo request proposes contact with a protected feature.
+    """Return whether a photo request violates a reviewed safety boundary.
 
-    This is intentionally a narrow, deterministic gate: an action word alone
-    (for example, ``踩点拍照`` or sitting in a rest area) is not enough.  A
-    refusal is emitted only when a listed dangerous action and a listed
-    architectural/heritage feature occur in the same request.
+    Contact actions still require a protected feature, so ordinary wording
+    such as ``踩点拍照`` is not rejected.  Reviewed equipment and conduct
+    restrictions (for example drone or flash use) are independently sufficient
+    and are checked before any editorial candidate lookup.
     """
-    return (
+    protected_contact = (
         is_explicit_photo_request(user_query)
         and any(cue in user_query for cue in UNSAFE_PHOTO_ACTION_CUES)
         and any(cue in user_query for cue in PROTECTED_FEATURE_CUES)
     )
+    restricted_photo_method = (
+        is_explicit_photo_request(user_query)
+        and is_visit_safety_question(user_query)
+    )
+    return protected_contact or restricted_photo_method
 
 
 def _photo_safety_refusal_message() -> str:
@@ -170,6 +176,14 @@ def answer_photo_request(
     # This check is intentionally before every D5 validation, selection, and
     # rendering call.  A dangerous action is never eligible for a candidate,
     # pose, route suggestion, or other photo guidance.
+    safety_answer = answer_visit_safety_question(user_query)
+    if is_explicit_photo_request(user_query) and safety_answer is not None:
+        return {
+            "message": safety_answer["message"],
+            "mode": "photo_safety_restriction",
+            "photo_spots": [],
+            "point_context": point_context,
+        }
     if is_unsafe_photo_request(user_query):
         return {
             "message": _photo_safety_refusal_message(),

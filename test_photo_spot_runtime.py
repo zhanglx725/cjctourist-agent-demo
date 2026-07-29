@@ -166,6 +166,33 @@ class PhotoSpotRuntimeTests(unittest.TestCase):
         self.assertEqual(tour, before_tour)
         self.assertEqual(profile, before_profile)
 
+    def test_restricted_photo_methods_refuse_before_candidate_lookup(self) -> None:
+        candidate_validator = Mock(side_effect=AssertionError("must not validate candidates"))
+        query_selector = Mock(side_effect=AssertionError("must not query candidates"))
+
+        cases = {
+            "我想带无人机去拍陈家祠，可以直接飞吗？": "全域禁飞",
+            "室内拍展柜可以开闪光灯吗？": "禁止使用闪光灯",
+            "我可以来这里商拍吗？": "未经报备",
+        }
+        for request, expected in cases.items():
+            with self.subTest(request=request):
+                self.assertTrue(is_unsafe_photo_request(request))
+                result = answer_photo_request(
+                    request,
+                    point_context=None,
+                    tour_state=None,
+                    visitor_profile=None,
+                    candidate_validator=candidate_validator,
+                    query_selector=query_selector,
+                )
+                self.assertEqual(result["mode"], "photo_safety_restriction")
+                self.assertEqual(result["photo_spots"], [])
+                self.assertIn(expected, result["message"])
+
+        candidate_validator.assert_not_called()
+        query_selector.assert_not_called()
+
     def test_safe_photo_requests_keep_existing_candidate_path(self) -> None:
         for request in ("栏杆怎么拍比较好？", "我想踩点拍照。", "让孩子坐在安全休息区拍照。"):
             result = answer_photo_request(

@@ -24,6 +24,7 @@ from comparison_retrieval import (
 from research_card_retrieval import format_research_answer, is_explicit_research_question, retrieve_research_cards
 from term_card_runtime import answer_term_question
 from photo_spot_runtime import answer_photo_request, is_explicit_photo_request
+from visit_safety_rules import answer_visit_safety_question
 from qa_context import create_qa_context, is_qa_follow_up_detail_request, validate_qa_context
 from tour_intent import resolve_reviewed_node
 from tour_presenter import present_tour_state
@@ -767,6 +768,28 @@ def answer_tour_question(
     ) = None,
 ) -> dict[str, Any]:
     """Use one injected existing RAG callable and leave both state snapshots untouched."""
+    safety_answer = answer_visit_safety_question(user_query)
+    if safety_answer is not None:
+        presentation = (
+            present_tour_state(tour_state, interaction_state)
+            if tour_state and interaction_state
+            else None
+        )
+        if presentation:
+            presentation = {
+                **presentation,
+                "message": safety_answer["message"],
+                "code": "tour_qa_visit_safety_answer",
+                "ok": safety_answer["verified"],
+            }
+        return {
+            "message": safety_answer["message"],
+            "mode": "visit_safety",
+            "evidence": [],
+            "point_context": current_stop_context(tour_state),
+            "presentation": presentation,
+            "retrieval_query": None,
+        }
     fact_kind = normalized_fact_kind or identify_single_fact_kind(user_query)
     fact_categories = (
         single_fact_categories_for_kind(fact_kind)
