@@ -41,9 +41,8 @@
 | 1 | P1-11 新位置后的重规划 | `open` | 在确认式重规划中使用已审核新位置作为候选起点 | 改动 A1 契约前需负责人确认 |
 | 2 | P1-19 E5 失败回退仍向游客展示内部来源编号 | `implemented_pending_langsmith_verification` | 在 LangSmith 复测 B3 回退、渲染失败回退与风格重述出口 | 内部审计 `used_source_ids` / `source_ids` 必须保留；不得删除失败关闭 |
 | 3 | P1-10 术语—实例关联 | `open` | 从审核对象/点位关联中受限选取实例 | 不把关联说成当前一定可见 |
-| 4 | P1-09 装饰故事和题材说明过浅 | `open` | 复用 E5 已接入的对象证据编排，补齐来源支持的场景、画面或寓意说明 | 不用模型记忆补写故事；不与 P1-08 的观察提示修复混合 |
-| 5 | P2 模式、卡片调度与界面 | `open` | 在 P1 控制层稳定后再写契约 | 不以聊天语气推断画像 |
-| 6 | P2-07 站点讲解列表层级与缩进可读性 | `new` | 区分游客文本 Markdown 结构与 Studio 渲染；在不改变事实、来源和状态边界的前提下修复 | 先保留实际界面取证；不得靠删除对象内容或改写知识事实规避 |
+| 4 | P2 模式、卡片调度与界面 | `open` | 在 P1 控制层稳定后再写契约 | 不以聊天语气推断画像 |
+| 5 | P2-07 站点讲解列表层级与缩进可读性 | `new` | 区分游客文本 Markdown 结构与 Studio 渲染；在不改变事实、来源和状态边界的前提下修复 | 先保留实际界面取证；不得靠删除对象内容或改写知识事实规避 |
 
 ### 2.2 已实现、待 LangSmith 人工验收（不与未修改问题混排）
 
@@ -54,6 +53,7 @@
 | P1-12 跨流程自然语言同义表达 | `implemented_pending_langsmith_verification` | 复测到达、时长、路线与低置信度回退 | 候选不能直接写 TourState |
 | P1-07 单一事实、访问服务与受控计算 | `implemented_pending_langsmith_verification` | 游览前后复测 11 项事实／计算 | 无证据失败关闭 |
 | P1-08 站点讲解观察提示与数量一致性 | `implemented_pending_langsmith_verification` | 复测前庭、后西庭、短预算、listen_only 与 E5 失败回退 | 当前 E5 主链路与旧回退均不得重复套话或误报数量 |
+| P1-09 装饰故事和题材说明过浅 | `implemented_pending_langsmith_verification` | 复测对象首次讲解、详细追问、短预算与 listen_only | 只使用同一对象的 `08_ornament_items.md` 审核证据；不以模型记忆补写故事 |
 | P1-02／P1-03 | `implemented_pending_langsmith_verification` | 完成修复后的 LangSmith 对照复测 | 自动化通过不等于真实链路通过 |
 | P1-13 至 P1-18 | `implemented_pending_langsmith_verification` | 分别按各问题已有同义问法、游览前后双模式复测 | 不得伪造 LangSmith 结论 |
 
@@ -184,9 +184,11 @@
 | 项目 | 内容 |
 | --- | --- |
 | 问题描述 | “踏雪寻梅”仅有一句出处；赤壁之战、三顾茅庐、三英战吕布只写“取材于《三国演义》”，追问后仍未讲对应场景。 |
-| 当前现状 | 问题池 `e3_015_stop_program_story_and_evidence_depth` 为 `open`。现有知识证据不足时的安全降级存在，但没有稳定的故事证据编排。 |
+| 当前现状 | E5 主链路已接入 `GuidanceEvidenceBundle`、`narration_rendering.py` 与 `NarrationCoverage`；旧 B3 回退和“再讲详细一点”仍经 `guide_narration.py` 渲染。原实现只稳定选择一个题材出处句，或在 B3 详细模式只选择一条后续句，不能保证保留同一对象证据中已有的场景/情节。 |
 | 期望状态 | 首次介绍对象至少包含名称、审核观察位置、工艺、一个可见细节和一项有来源的题材/故事；无法获得可靠材料时明确保留为简短鉴定。 |
-| 解决方案 | E5-A 优先检索 `08_ornament_items.md` 的对象证据与 `07_ornament_crafts.md` 的工艺证据；必要时补充并人工审核通用文化背景来源。禁止让 DeepSeek 用记忆补写“陈家祠该作品”的画面细节。 |
+| 本轮修复 | `narration_rendering.py` 在首次对象介绍中，当同一对象证据包含“故事/传说/源自/取材”等出处时，保留一个后续、已审核的场景或情节句；优先选择含画面、描绘、雕饰等标记的句，缺失时才选择紧随的上下文句。`guide_narration.py` 的详细 B3 回退同样输出出处加一条同一对象证据中的场景/上下文句。两处均不访问外部资料、不使用模型生成，且没有改变无证据关闭、Coverage、TourState、VisitorProfile、路线或 StopProgram。 |
+| 自动化验证 | 新增 E5 首讲和 B3 详细回退的定向用例：`踏雪寻梅` 的出处与“骑驴到霸陵赏梅”上下文；月台 `截江夺阿斗`、后西庭 `赤壁之战`、`三顾茅庐` 的审核故事场景；工艺总述证据不得虚构独角狮故事。运行 `test_e5_narration_rendering.py`、`test_e5_stop_guidance_coverage_integration.py`、`test_e5_narration_runtime_acceptance.py`、`test_guide_narration.py`、`test_guide_program_evidence.py`、`test_stage_b_e2e.py`，共 44 项通过。游客文本回归验证继续不显示“来源：S”、文件名、URL 或内部字段；内部 `used_source_ids` / `source_ids` 仍保留审计。 |
+| LangSmith 状态 | `implemented_pending_langsmith_verification`。本轮未执行 Studio。后续应独立线程复测：到月台首次讲“截江夺阿斗”；到后西庭首次讲“赤壁之战”或“三顾茅庐”；输入“再讲详细一点”；短预算；`listen_only`；以及只有工艺总述时不编造故事。确认游客文本无内部编号、Trace/结构化结果仍可审计来源，且 TourState 不变。 |
 | 验收 | 对象讲解比“题材标签”多至少一个来源支持的画面、寓意或故事要素；来源不足时不虚构。 |
 
 ### P1-10 术语解释没有把概念落到陈家祠实例

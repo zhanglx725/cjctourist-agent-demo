@@ -69,6 +69,90 @@ class NarrationRenderingTests(unittest.TestCase):
         self.assertIn("S08", result.used_source_ids)
         self.assertIn(self.primary.ornament_id, result.rendered_ornament_ids)
 
+    def test_story_origin_keeps_a_distinct_object_level_context_detail(self):
+        """A story title alone is not a sufficiently informative first introduction.
+
+        The two sentences are verbatim object-level facts from the audited
+        ``踏雪寻梅`` entry.  The test uses a reviewed front-courtyard item
+        mapping and verifies that the renderer keeps a later story detail,
+        rather than expanding it from model memory.
+        """
+        base = plan_stop_program("stop_front_courtyard_north", 360, detail_level="deep")
+        item = replace(
+            base.selected_items[0],
+            ornament_id="orn_051",
+            name="踏雪寻梅",
+            craft="木雕",
+            raw_location="首进中路",
+            observation_location="首进中路",
+        )
+        program = replace(base, selected_items=(item,))
+
+        def rag(query: str) -> str:
+            if "定义 材料 技法 建筑位置 特点" in query:
+                evidence = [_entry(
+                    "07_ornament_crafts.md", "木雕", "S10",
+                    "木雕是岭南传统建筑装饰工艺，可通过雕刻呈现人物和故事题材。",
+                )]
+            else:
+                evidence = [_entry(
+                    "08_ornament_items.md", "踏雪寻梅", "S11",
+                    "“踏雪寻梅”源自唐代诗人孟浩然的故事。孟浩然冒着大雪骑驴到霸陵赏梅，写下诗篇《南阳阻雪》。",
+                )]
+            return json.dumps({"evidence": evidence}, ensure_ascii=False)
+
+        result = render_guidance_evidence(program, build_guidance_evidence_bundle(program, None, rag))
+        self.assertIn("源自唐代诗人孟浩然的故事", result.visitor_message)
+        self.assertIn("骑驴到霸陵赏梅", result.visitor_message)
+        self.assertIn("S11", result.used_source_ids)
+        self.assertNotIn("来源：S", result.visitor_message)
+
+    def test_documented_story_scenes_are_kept_for_reviewed_objects_at_their_nodes(self):
+        """Story detail is allowed only when the same object packet supplies it."""
+        fixtures = (
+            (
+                "label_moon_platform", "orn_041", "截江夺阿斗", "木雕", "中进聚贤堂南面（檐板）",
+                "故事取材于《三国演义》。孙权用计骗取孙夫人携刘备的儿子阿斗回东吴探母。画面为张飞闻讯后，手持丈八蛇矛在江中拦截东吴船只夺阿斗的情景。",
+                "张飞闻讯后",
+            ),
+            (
+                "stop_rear_west_courtyard", "orn_034", "赤壁之战", "木雕", "中进聚贤堂屏风",
+                "故事取材于《三国演义》。刮东风之夜，周瑜部下黄盖假装降曹，带着装满柴草的战船驶向曹军。中部描绘了曹军士兵在“曹”字大旗下乘船逃窜的情景。",
+                "黄盖假装降曹",
+            ),
+            (
+                "stop_rear_west_courtyard", "orn_049", "三顾茅庐", "木雕", "中进西路屏风",
+                "故事取材于《三国演义》。刘备三顾茅庐，问计于诸葛亮。雕饰中下方是刘备、关羽和张飞冒风雪前往寻访的情景。",
+                "刘备、关羽和张飞",
+            ),
+        )
+        for node_id, ornament_id, name, craft, raw_location, content, required_detail in fixtures:
+            with self.subTest(ornament_id=ornament_id):
+                base = plan_stop_program(node_id, 360, detail_level="deep")
+                item = replace(
+                    base.selected_items[0], ornament_id=ornament_id, name=name, craft=craft,
+                    raw_location=raw_location, observation_location=raw_location,
+                )
+                program = replace(base, selected_items=(item,))
+
+                def rag(query: str) -> str:
+                    if "定义 材料 技法 建筑位置 特点" in query:
+                        evidence = [_entry(
+                            "07_ornament_crafts.md", craft, "S10",
+                            f"{craft}是岭南传统建筑装饰工艺，可通过雕刻或塑造呈现人物和故事题材。",
+                        )]
+                    else:
+                        evidence = [_entry("08_ornament_items.md", name, "S11", content)]
+                    return json.dumps({"evidence": evidence}, ensure_ascii=False)
+
+                result = render_guidance_evidence(program, build_guidance_evidence_bundle(program, None, rag))
+                self.assertIn(name, result.visitor_message)
+                self.assertIn(required_detail, result.visitor_message)
+                self.assertIn(raw_location, result.visitor_message)
+                self.assertEqual(result.rendered_ornament_ids, (ornament_id,))
+                self.assertIn("S11", result.used_source_ids)
+                self.assertNotIn("来源：S", result.visitor_message)
+
     def test_wrong_object_evidence_cannot_enter_primary_segment_or_candidate(self):
         result = render_guidance_evidence(self.program, self._bundle(wrong_primary=True))
         # 福禄寿 may still be the separately selected second reviewed object;

@@ -50,6 +50,41 @@ class GuideNarrationTests(unittest.TestCase):
         self.assertIn("再看细一点", detailed.visitor_message)
         self.assertIn("如果您愿意", detailed.visitor_message)
 
+    def test_detailed_fallback_keeps_story_origin_and_later_evidence_detail(self):
+        """The legacy detail path may quote only audited object evidence."""
+        item = SelectedItem(
+            "orn_051", "踏雪寻梅", "木雕", "核心观察", 120, "审核选择",
+            ("踏雪寻梅 木雕 特点",), raw_location="首进中路", observation_location="首进中路",
+            location_source="ornament_spatial_mapping_v1",
+        )
+        program = replace(self.program, selected_items=(item,))
+        evidence = {
+            "orn_051": [{
+                "document": "08_ornament_items.md", "source_ids": ["S11"],
+                "content": "“踏雪寻梅”源自唐代诗人孟浩然的故事。孟浩然冒着大雪骑驴到霸陵赏梅，写下诗篇《南阳阻雪》。",
+            }],
+        }
+        narration = compose_guide_narration(program, evidence, detailed=True)
+        self.assertIn("源自唐代诗人孟浩然的故事", narration.visitor_message)
+        self.assertIn("骑驴到霸陵赏梅", narration.visitor_message)
+        self.assertNotIn("来源：S", narration.visitor_message)
+        self.assertEqual(narration.source_ids, ("S11",))
+
+    def test_detailed_fallback_does_not_invent_a_story_from_craft_only_evidence(self):
+        item = replace(self.program.selected_items[0], ornament_id="orn_005", name="独角狮", craft="灰塑")
+        program = replace(self.program, selected_items=(item,))
+        evidence = {
+            "orn_005": [{
+                "document": "07_ornament_crafts.md", "source_ids": ["S07"],
+                "content": "灰塑是岭南传统建筑装饰工艺，常见于山墙和屋脊。制作时可用石灰等材料堆塑。",
+            }],
+        }
+        narration = compose_guide_narration(program, evidence, detailed=True)
+        self.assertIn("制作时可用石灰等材料堆塑", narration.visitor_message)
+        self.assertNotIn("民间传说", narration.visitor_message)
+        self.assertNotIn("辟邪保平安", narration.visitor_message)
+        self.assertEqual(narration.source_ids, ("S07",))
+
     def test_incomplete_chunk_is_not_emitted_as_a_cut_sentence(self):
         evidence = {"orn_001": [{"source_ids": ["S11"], "content": "这是一段没有终止符的原始内容"}], "orn_002": []}
         narration = compose_guide_narration(self.program, evidence)

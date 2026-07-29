@@ -20,6 +20,8 @@ RAW_DUMP_MARKERS = (
     ".md", "source_ids", "title_path", "核心观察", "计划约", "知识块",
     "审核位置", "类型：", "简介：",
 )
+STORY_ORIGIN_MARKERS = ("故事", "传说", "源自", "取材", "相传")
+STORY_DETAIL_MARKERS = ("画面", "图中", "描绘", "刻画", "表现", "场面", "冒着")
 
 
 @dataclass(frozen=True)
@@ -38,6 +40,44 @@ def _complete_sentence(content: str, index: int = 0) -> str | None:
         return None
     sentence = sentences[index]
     return sentence + "。"
+
+
+def _evidence_sentences(content: str) -> list[str]:
+    normalized = " ".join(content.split())
+    return [part.strip() + "。" for part in normalized.replace("！", "。").replace("？", "。").split("。") if part.strip()]
+
+
+def _facts_for_item(content: str, *, detailed: bool) -> tuple[str, ...]:
+    """Select compact, object-level evidence without inventing a story.
+
+    The ordinary B3 path stays concise.  A deliberate “再讲详细一点” may
+    retain an audited story-origin sentence plus one later scene/context
+    sentence from the same object evidence.  If the source has no such detail
+    this returns only what it actually supplies.
+    """
+    sentences = _evidence_sentences(content)
+    if not sentences:
+        return ()
+    if not detailed:
+        return (sentences[0],)
+    origin_index = next(
+        (index for index, sentence in enumerate(sentences) if any(marker in sentence for marker in STORY_ORIGIN_MARKERS)),
+        None,
+    )
+    if origin_index is None:
+        return (sentences[1] if len(sentences) > 1 else sentences[0],)
+    detail_index = next(
+        (
+            index
+            for index in range(origin_index + 1, len(sentences))
+            if any(marker in sentences[index] for marker in STORY_DETAIL_MARKERS)
+        ),
+        origin_index + 1 if origin_index + 1 < len(sentences) else None,
+    )
+    selected = [sentences[origin_index]]
+    if detail_index is not None and sentences[detail_index] != selected[0]:
+        selected.append(sentences[detail_index])
+    return tuple(selected)
 
 
 def _source_ids(evidence_by_item: dict[str, list[dict[str, Any]]]) -> tuple[str, ...]:
@@ -127,17 +167,14 @@ def _deterministic_message(
     lines = [_opening(program, policy, detailed)]
     for index, item in enumerate(items, start=1):
         evidence = evidence_by_item.get(item.ornament_id, [])
-        sentence_index = 1 if detailed else 0
-        fact = _complete_sentence(str(evidence[0].get("content", "")), sentence_index) if evidence else None
-        if fact is None and evidence:
-            fact = _complete_sentence(str(evidence[0].get("content", "")), 0)
+        facts = _facts_for_item(str(evidence[0].get("content", "")), detailed=detailed) if evidence else ()
         lines.append(
             f"{index}. {item.name}：{_observation_prompt(item.name, item.craft, item.observation_location, detailed=detailed, policy=policy)}"
         )
         if item.comparison_reason:
             lines.append(f"   这里特意选它作对照，{item.comparison_reason}。")
-        if fact:
-            lines.append(f"   {fact}")
+        if facts:
+            lines.extend(f"   {fact}" for fact in facts)
         else:
             lines.append("   当前未检索到可引用的事实资料，不据名称扩写其寓意或故事，我们先以现场观察为主。")
     lines.append(_closing(policy, detailed))

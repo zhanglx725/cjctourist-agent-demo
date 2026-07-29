@@ -25,6 +25,8 @@ CRAFT_DIMENSIONS = {
 }
 ORNAMENT_SHAPE_MARKERS = ("形", "造型", "构图", "描绘", "表现", "全身", "独角", "姿态", "组合", "图中")
 ORNAMENT_THEME_MARKERS = ("寓意", "象征", "故事", "传说", "题材", "人物", "祈盼", "辟邪", "保平安", "文化")
+ORNAMENT_STORY_ORIGIN_MARKERS = ("故事", "传说", "源自", "取材", "相传")
+ORNAMENT_STORY_DETAIL_MARKERS = ("画面", "图中", "描绘", "刻画", "表现", "场面", "雕饰", "冒着")
 
 
 @dataclass(frozen=True)
@@ -84,6 +86,37 @@ def _first_matching(
         if sentence not in used and any(marker in sentence for marker in markers):
             used.add(sentence)
             return sentence, source_ids
+    return None
+
+
+def _story_context(
+    sentences: list[tuple[str, tuple[str, ...]]],
+    theme: tuple[str, tuple[str, ...]] | None,
+    used: set[str],
+) -> tuple[str, tuple[str, ...]] | None:
+    """Keep one later, object-level story detail after an audited origin.
+
+    A source sentence such as “取材于《三国演义》” identifies a theme but
+    does not itself explain the depicted episode.  When the same accepted
+    object packet contains a following sentence, it can be rendered as the
+    minimal context detail.  The helper never looks outside that packet and
+    does not manufacture a detail when the source stops at a title.
+    """
+    if theme is None or not any(marker in theme[0] for marker in ORNAMENT_STORY_ORIGIN_MARKERS):
+        return None
+    try:
+        theme_index = next(index for index, entry in enumerate(sentences) if entry == theme)
+    except StopIteration:
+        return None
+    later = [entry for entry in sentences[theme_index + 1:] if entry[0] not in used]
+    for sentence, source_ids in later:
+        if any(marker in sentence for marker in ORNAMENT_STORY_DETAIL_MARKERS):
+            used.add(sentence)
+            return sentence, source_ids
+    if later:
+        sentence, source_ids = later[0]
+        used.add(sentence)
+        return sentence, source_ids
     return None
 
 
@@ -241,10 +274,15 @@ def _ornament_segment(
     used: set[str] = set()
     shape = _first_matching(sentences, ORNAMENT_SHAPE_MARKERS, used)
     theme = _first_matching(sentences, ORNAMENT_THEME_MARKERS, used)
+    story_context = _story_context(sentences, theme, used) if first else None
     fallback = next(((sentence, source_ids) for sentence, source_ids in sentences if sentence not in used), None)
-    chosen = [value for value in (shape, theme) if value]
+    chosen = [value for value in (shape, theme, story_context) if value]
     if not chosen and fallback:
         chosen.append(fallback)
+    # Preserve the source order in the visitor message.  Selection is by
+    # narrative role, not the order in which role matchers happen to run.
+    chosen_texts = {sentence for sentence, _ in chosen}
+    chosen = [entry for entry in sentences if entry[0] in chosen_texts]
     location_text = location.raw_location if getattr(location, "valid", False) and location.raw_location else "本点相关构件"
     evidence_fact = "".join(sentence for sentence, _ in chosen)
     template_key = "first_ornament_intro_style" if first else "repeat_ornament_style"
