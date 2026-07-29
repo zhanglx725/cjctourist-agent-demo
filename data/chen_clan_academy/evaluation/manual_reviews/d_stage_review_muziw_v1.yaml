@@ -955,3 +955,85 @@ findings:
       not repeat the duration question. The next prompt may ask only for a missing preference,
       and planning must use the normalized 120-minute budget.
     status: fixed_pending_verification
+
+  - finding_id: rvw_muziw_012
+    reviewer: muziw
+    tested_commit: 235238b
+    test_date: "2026-07-29"
+    module: route_planning
+    issue_type: state_error
+    severity: P1
+    reproducibility: once
+
+    preconditions:
+      thread_id: "LangSmith Studio thread after a route was planned and the visitor had progressed along it; trace URL pending"
+      current_node_id: "A route-external point was explicitly reported as 后庭西侧"
+      active_route: true
+      visitor_profile: {}
+      interaction_state: "Existing route still had 前院中部 as its formal next stop"
+
+    conversation:
+      - role: user
+        content: "我到后庭西侧了你能在这个点重新给我安排后续行程吗"
+
+    expected:
+      route: "resolve explicit current point -> prepare replan from that point -> request/handle existing confirmation before mutation"
+      state_change: >-
+        Resolve the explicit reviewed current point as the replan origin. Do not retain an
+        unrelated original-route pending stop as the proposed next stop. If the existing
+        confirmation contract requires confirmation, store only a replan proposal until the
+        visitor confirms; after confirmation, replace the remaining itinerary from the new
+        origin without reintroducing completed or skipped stops.
+      card_type: "none"
+      behavior: >-
+        An explicit current location plus a request to arrange the remaining itinerary is a
+        replan request, not merely a self-arrival acknowledgement. If the named location is
+        unresolved, unreviewed, or ambiguous, clarify rather than invent a node or route.
+
+    actual:
+      route: "Visible response acknowledged location but did not prepare a replan"
+      response_summary: >-
+        The agent said it had recorded the visitor as currently at 后庭西侧, but retained
+        前院中部 as the formal next stop. It did not provide a new remaining itinerary, a
+        route-choice proposal, or a confirmation step for replanning from 后庭西侧.
+      state_change: "The visible response reported a current location update while the old pending next stop remained unchanged."
+      selected_card_ids: []
+      source_ids: []
+
+    scores:
+      routing_score: 0
+      state_score: 0
+      factual_score: 2
+      source_score: 2
+      card_score: 2
+      spatial_score: 1
+      profile_score: 2
+      clarity_score: 1
+      safety_score: 2
+
+    problem_description: >-
+      During an active tour, an explicit route-external current point and an explicit request
+      to arrange the remaining itinerary were treated only as a location acknowledgement. The
+      system kept the old route's pending next stop instead of producing a controlled replan
+      whose origin is the newly stated point.
+    user_goal: >-
+      After walking independently to a known point, continue the visit efficiently from where
+      the visitor actually is, rather than backtracking to the original route's next stop.
+    evidence_refs:
+      - "User-supplied LangSmith screenshot: 后庭西侧 + explicit replan request retained 前院中部 as formal next stop; trace URL pending."
+
+    suspected_layer: intent_routing_and_replan_origin_selection
+    proposed_solution: >-
+      Reuse the existing deterministic replan proposal/confirmation path. When one turn
+      contains both a resolvable explicit current point and a clear remaining-itinerary action,
+      pass that reviewed node as the replan origin; do not silently mutate the route before the
+      established confirmation event. Preserve existing clarification for unresolved, pending,
+      or ambiguous locations and do not create a second current-location fact source.
+    acceptance_test: >-
+      With an active route whose original pending stop differs from a reviewed named current
+      point, send '我到后庭西侧了，你能在这个点重新给我安排后续行程吗'. The response must
+      either prepare a confirmation-gated route from 后庭西侧 or safely clarify an unresolved
+      mapping; it must not state the old pending stop as the formal next stop. After explicit
+      confirmation, verify the stored remaining route starts from that point and excludes
+      completed/skipped stops.
+    status: new

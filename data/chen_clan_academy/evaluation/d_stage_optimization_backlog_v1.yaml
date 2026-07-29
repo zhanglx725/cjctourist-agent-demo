@@ -420,6 +420,27 @@ backlog:
       unittest regression passed. Fixed score scenarios confirm strict-budget
       selection, object-derived coverage, and deterministic score gaps.
 
+  - backlog_id: e3_022_explicit_current_location_replan_origin
+    priority: P1
+    status: open
+    source_finding_ids: [rvw_muziw_012]
+    module: route_planning
+    issue_type: state_error
+    suspected_layer: intent_routing_and_replan_origin_selection
+    reproduction_status: confirmed_by_d_stage_langsmith_manual_evidence
+    summary: >-
+      An explicit route-external current location combined with an explicit request to arrange
+      the remaining itinerary is acknowledged but leaves the old route's pending stop active,
+      rather than preparing a controlled replan from the newly stated point.
+    owner: route_owner
+    contract_impact: reuse_existing_replan_confirmation_event; no_second_current_location_source
+    acceptance_test: >-
+      With an active route, “我到后庭西侧了，你能在这个点重新给我安排后续行程吗” either
+      prepares a confirmation-gated remaining route whose origin is the reviewed 后庭西侧 node,
+      or safely clarifies an unresolved/ambiguous mapping. It never retains the unrelated old
+      pending stop as the next stop; after confirmation it preserves completed/skipped-stop
+      semantics and starts subsequent navigation from the new origin.
+
 test_gaps:
   - gap_id: e3_gap_001_thread_isolation
     status: not_tested
