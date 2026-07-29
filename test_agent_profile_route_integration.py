@@ -51,6 +51,15 @@ class AgentProfileRouteIntegrationTests(unittest.TestCase):
         self.assertEqual(result["tour_state"]["interests"], ["灰塑"])
         self.assertEqual(result["tour_state"]["detail_level"], "standard")
 
+    def test_english_minute_route_input_starts_same_thirty_minute_route(self):
+        graph = build_agent_graph(with_checkpointer=False)
+        result = graph.invoke(_state("30min路线，木雕，详细"))
+        self.assertEqual(result["selected_route_id"], "highlights_30")
+        self.assertEqual(result["visitor_profile"]["available_minutes"], 30)
+        self.assertEqual(result["tour_state"]["available_minutes"], 30)
+        self.assertEqual(result["tour_state"]["interests"], ["木雕"])
+        self.assertEqual(result["tour_state"]["detail_level"], "deep")
+
     def test_minimize_walking_constraint_reaches_audited_route_selection(self):
         graph = build_agent_graph(with_checkpointer=False)
         result = graph.invoke(_state(

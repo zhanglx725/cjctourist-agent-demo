@@ -123,21 +123,32 @@ def _prompt(field: str) -> str:
     }[field]
 
 
-def _detail_candidates(text: str) -> set[str]:
+def _detail_candidates(text: str, *, allow_bare_detail: bool = False) -> set[str]:
     candidates: set[str] = set()
     if any(term in text for term in ("简单讲", "简要", "简短", "快一点")):
         candidates.add("short")
-    if any(term in text for term in ("深入学习", "深入", "深度", "详细讲", "讲细")):
+    deep_terms = ["深入学习", "深入", "深度", "详细讲", "讲细"]
+    if allow_bare_detail:
+        # A compact route profile such as “30min路线，木雕，详细” may use the
+        # adjective by itself.  Keep this shorthand inside C2 collection so it
+        # cannot turn “再讲详细一点” at a physical stop into a persistent C4
+        # profile update.
+        deep_terms.append("详细")
+    if any(term in text for term in deep_terms):
         candidates.add("deep")
     if any(term in text for term in ("标准讲", "正常讲", "适中")):
         candidates.add("standard")
     return candidates
 
 
-def _extract_patch(text: str) -> tuple[dict[str, Any], set[str], str | None]:
+def _extract_patch(
+    text: str,
+    *,
+    allow_bare_detail: bool = False,
+) -> tuple[dict[str, Any], set[str], str | None]:
     """Extract one atomic patch; conflicting fields reject the whole turn."""
     duration = parse_duration_minutes(text)
-    detail = _detail_candidates(text)
+    detail = _detail_candidates(text, allow_bare_detail=allow_bare_detail)
     if duration.reason_code == "ambiguous_duration":
         return {}, set(), "时间表达包含多个不同分钟数，请只确认一个可用时间。"
     if len(detail) > 1:
@@ -204,7 +215,10 @@ def collect_profile_input(
     if not start_collection and any(term in user_text for term in QUESTION_TERMS):
         return None
     collection = collection or new_profile_collection(initial_profile)
-    patch, fields, conflict = _extract_patch(user_text)
+    patch, fields, conflict = _extract_patch(
+        user_text,
+        allow_bare_detail=True,
+    )
     if conflict:
         return ProfileCollectionResult("clarification", collection, conflict, {}, "conflicting_profile_values")
 

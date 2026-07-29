@@ -1,4 +1,4 @@
-"""Offline unit tests for the one shared Chinese duration parser."""
+"""Offline unit tests for the one shared duration parser."""
 
 from __future__ import annotations
 
@@ -40,8 +40,29 @@ class DurationParserTests(unittest.TestCase):
     def test_two_hours_with_classifier_is_normalized(self):
         self.assertEqual(parse_duration_minutes("\u4e24\u4e2a\u5c0f\u65f6").minutes, 120)
 
+    def test_common_english_minute_units_are_normalized(self):
+        for text in ("30min", "30 mins", "30minute", "30 minutes", "30MIN"):
+            with self.subTest(text=text):
+                result = parse_duration_minutes(text)
+                self.assertTrue(result.ok)
+                self.assertEqual(result.minutes, 30)
+
+    def test_english_minute_units_keep_route_context_boundary(self):
+        self.assertTrue(has_route_duration_context("30min路线，木雕，详细"))
+        self.assertFalse(has_route_duration_context("30min 后闭馆"))
+        self.assertFalse(has_remaining_duration_context("30min 后闭馆"))
+
+    def test_english_minute_unit_does_not_match_longer_word(self):
+        result = parse_duration_minutes("30minimum")
+        self.assertEqual(result.reason_code, "no_duration")
+
     def test_conflicting_duration_is_not_silently_selected(self):
         result = parse_duration_minutes("我有三十分钟或一个小时")
+        self.assertEqual(result.reason_code, "ambiguous_duration")
+        self.assertIsNone(result.minutes)
+
+    def test_conflicting_english_durations_are_not_silently_selected(self):
+        result = parse_duration_minutes("30min还是60 minutes")
         self.assertEqual(result.reason_code, "ambiguous_duration")
         self.assertIsNone(result.minutes)
 

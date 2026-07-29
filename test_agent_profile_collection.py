@@ -48,6 +48,18 @@ class AgentProfileCollectionTests(unittest.TestCase):
         self.assertEqual(update["visitor_profile"]["detail_level"], "short")
         self.assertNotIn("tour_state", update)
 
+    def test_english_minute_route_input_does_not_ask_for_time_again(self):
+        state = _state("30min路线，木雕，详细")
+        self.assertEqual(route_initial_request(state), "profile_collection")
+        update = profile_collection_node(state)
+        self.assertEqual(update["visitor_profile"]["available_minutes"], 30)
+        self.assertEqual(update["visitor_profile"]["interests"], ["木雕"])
+        self.assertEqual(update["visitor_profile"]["detail_level"], "deep")
+        self.assertIn("available_minutes", update["profile_collection"]["resolved_fields"])
+        self.assertEqual(update["profile_collection"]["status"], "ready")
+        self.assertIsNone(update["profile_collection"]["next_missing_field"])
+        self.assertNotIn("多少分钟", update["messages"][0].content)
+
     def test_active_collection_accepts_next_answer_but_keeps_controlled_fact_routes(self):
         first = profile_collection_node(_state("帮我规划路线"))
         second_state = _state("30分钟", first)

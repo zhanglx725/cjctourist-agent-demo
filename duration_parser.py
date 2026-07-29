@@ -1,4 +1,4 @@
-"""Deterministic Chinese visit-duration parsing shared by route and tour flows.
+"""Deterministic visit-duration parsing shared by route and tour flows.
 
 This module only recognizes explicit duration expressions.  Callers decide
 whether their surrounding route/profile/update context permits using a parsed
@@ -26,8 +26,14 @@ _DURATION_RE = re.compile(
     # The numeric-minute form must not restart at the fractional tail of an
     # unsupported expression such as "1.5分钟" and silently parse it as 5 分钟.
     r"|(?P<minutes>(?<![.\d])(?:\d{1,3}|[零〇一二三四五六七八九十两]+)\s*分钟)"
+    # Common English minute units are accepted only with an explicit integer.
+    # The ASCII-letter boundary prevents a partial match inside unrelated text
+    # such as "30minimum" while still allowing Chinese text to follow the unit
+    # directly, as in "30min路线".
+    r"|(?P<english_minutes>(?<![.\d])\d{1,3}\s*(?:minutes?|mins?)(?![A-Za-z]))"
     r"|(?P<hours>(?:(?:\d{1,3}(?:\.\d+)?)\s*个?|一个|[零〇一二三四五六七八九十两]+)\s*小时)"
-    r")"
+    r")",
+    flags=re.IGNORECASE,
 )
 
 ROUTE_CONTEXT_TERMS = (
@@ -91,6 +97,16 @@ def _candidate_minutes(match: re.Match[str]) -> int | None:
     minutes = match.group("minutes")
     if minutes:
         value = minutes.removesuffix("分钟").strip()
+        numeric = _number_value(value)
+        return int(numeric) if numeric is not None and numeric == numeric.to_integral_value() else None
+    english_minutes = match.group("english_minutes")
+    if english_minutes:
+        value = re.sub(
+            r"\s*(?:minutes?|mins?)\s*$",
+            "",
+            english_minutes,
+            flags=re.IGNORECASE,
+        )
         numeric = _number_value(value)
         return int(numeric) if numeric is not None and numeric == numeric.to_integral_value() else None
     hours = match.group("hours")
