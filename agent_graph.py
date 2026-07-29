@@ -47,11 +47,19 @@ from term_card_runtime import is_explicit_term_question
 from research_card_retrieval import is_explicit_research_question
 from comparison_retrieval import is_explicit_comparison_question
 from photo_spot_runtime import is_explicit_photo_request, is_unsafe_photo_request
-from semantic_normalization import canonical_control_text, recognize_semantic_candidate
+from semantic_normalization import (
+    canonical_control_text,
+    canonical_fact_kind,
+    recognize_semantic_candidate,
+)
 from single_fact_answer import (
+    FACT_KINDS,
+    identify_single_fact_kind,
     render_single_fact_answer,
     single_fact_categories,
+    single_fact_categories_for_kind,
     single_fact_retrieval_query,
+    single_fact_retrieval_query_for_kind,
 )
 from guide_program_evidence import build_stop_guidance, reexpress_current_stop_guidance
 from profile_dialogue import collect_profile_input
@@ -102,6 +110,7 @@ class AgentState(TypedDict, total=False):
     # existing deterministic control parsers.
     semantic_candidate: dict[str, Any] | None
     semantic_control_text: str | None
+    semantic_fact_kind: str | None
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -195,6 +204,16 @@ def _effective_control_text(state: AgentState) -> str:
     return normalized if isinstance(normalized, str) and normalized else _latest_user_text(state)
 
 
+def _effective_fact_kind(state: AgentState) -> str | None:
+    """Prefer deterministic parsing, then one validated semantic fact proposal."""
+
+    direct = identify_single_fact_kind(_latest_user_text(state))
+    if direct is not None:
+        return direct
+    proposed = state.get("semantic_fact_kind")
+    return proposed if proposed in FACT_KINDS else None
+
+
 def _invoke_semantic_model(prompt: str) -> str:
     """Use the configured model only as a schema-bounded recognizer."""
     response = build_model(with_tools=False).invoke([
@@ -205,19 +224,35 @@ def _invoke_semantic_model(prompt: str) -> str:
 
 
 def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
-    """Propose a safe synonym normalization without executing any operation."""
+    """Propose a safe control or fact normalization without executing it."""
     started = time.perf_counter()
     raw_text = _latest_user_text(state)
     decision = classify_tour_intent(
         raw_text, state.get("tour_state"), state.get("tour_interaction_state")
     )
-    # Existing deterministic controls have precedence.  Safety is also kept
-    # entirely outside the model path.  A model is queried only when the
-    # current grammar has no control interpretation at all.
-    if not raw_text or decision.route_kind != "other" or is_unsafe_photo_request(raw_text):
+    deterministic_fact_kind = identify_single_fact_kind(raw_text)
+    specialized_knowledge = (
+        parse_craft_explanation_request(raw_text) is not None
+        or is_explicit_photo_request(raw_text)
+        or is_explicit_comparison_question(raw_text)
+        or is_explicit_research_question(raw_text)
+        or is_explicit_term_question(raw_text)
+        or is_point_inventory_request(raw_text, state.get("tour_state"))
+    )
+    # Existing deterministic controls/facts and specialized read-only paths
+    # retain precedence.  The model is only a closed classifier for text that
+    # those parsers did not already consume.
+    if (
+        not raw_text
+        or is_unsafe_photo_request(raw_text)
+        or deterministic_fact_kind is not None
+        or specialized_knowledge
+        or decision.route_kind not in {"other", "rag_question"}
+    ):
         return {
             "semantic_candidate": None,
             "semantic_control_text": None,
+            "semantic_fact_kind": None,
             "performance_metrics": _append_metric(
                 state, "semantic_normalization", time.perf_counter() - started,
                 status="not_needed",
@@ -225,13 +260,20 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
         }
     candidate = recognize_semantic_candidate(raw_text, _invoke_semantic_model)
     canonical = canonical_control_text(candidate)
+    fact_kind = canonical_fact_kind(candidate)
     return {
         "semantic_candidate": candidate.to_dict() if candidate.actionable else None,
         "semantic_control_text": canonical,
+        "semantic_fact_kind": fact_kind,
         "performance_metrics": _append_metric(
             state, "semantic_normalization", time.perf_counter() - started,
-            status="candidate" if canonical else "no_actionable_candidate",
+            status=(
+                "control_candidate"
+                if canonical
+                else ("fact_candidate" if fact_kind else "no_actionable_candidate")
+            ),
             candidate_kind=candidate.candidate_kind,
+            fact_kind=fact_kind,
         ),
     }
 
@@ -836,7 +878,10 @@ def clarification_node(state: AgentState) -> dict[str, Any]:
     }
 
 
-def _search_controlled_fact_evidence(user_query: str) -> str:
+def _search_controlled_fact_evidence(
+    user_query: str,
+    fact_kind: str | None = None,
+) -> str:
     """Retrieve each reviewed fact category independently, then merge evidence.
 
     A shared top-k across several categories can let a broad basic-information
@@ -845,8 +890,16 @@ def _search_controlled_fact_evidence(user_query: str) -> str:
     giving both QA modes the same deterministic evidence boundary.
     """
 
-    categories = single_fact_categories(user_query)
-    retrieval_query = single_fact_retrieval_query(user_query)
+    categories = (
+        single_fact_categories_for_kind(fact_kind)
+        if fact_kind is not None
+        else single_fact_categories(user_query)
+    )
+    retrieval_query = (
+        single_fact_retrieval_query_for_kind(fact_kind, fallback=user_query)
+        if fact_kind is not None
+        else single_fact_retrieval_query(user_query)
+    )
     if categories is None:
         return str(
             chen_clan_academy_rag_search.invoke({"query": retrieval_query})
@@ -898,13 +951,17 @@ def direct_rag_node(state: AgentState) -> dict[str, Any]:
     """Retrieve clearly in-domain facts without an unnecessary tool-selection LLM."""
     query = _latest_user_text(state)
     started = time.perf_counter()
-    categories = single_fact_categories(query)
-    content = _search_controlled_fact_evidence(query)
+    fact_kind = _effective_fact_kind(state)
+    content = _search_controlled_fact_evidence(query, fact_kind)
     try:
         evidence = json.loads(content).get("evidence", [])
     except json.JSONDecodeError:
         evidence = []
-    fact_answer = render_single_fact_answer(query, evidence)
+    fact_answer = render_single_fact_answer(
+        query,
+        evidence,
+        fact_kind=fact_kind,
+    )
     marker = AIMessage(
         content="本地检索已完成，正在根据证据整理回答。",
         additional_kwargs={
@@ -953,11 +1010,16 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
     """
     query = _latest_user_text(state)
     started = time.perf_counter()
-    categories = single_fact_categories(query)
+    fact_kind = _effective_fact_kind(state)
+    categories = (
+        single_fact_categories_for_kind(fact_kind)
+        if fact_kind is not None
+        else None
+    )
 
     def scoped_rag_search(retrieval_query: str) -> str:
         if categories is not None:
-            return _search_controlled_fact_evidence(query)
+            return _search_controlled_fact_evidence(query, fact_kind)
         return str(
             chen_clan_academy_rag_search.invoke({"query": retrieval_query})
         )
@@ -968,6 +1030,7 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
         state.get("tour_interaction_state"),
         scoped_rag_search,
         state.get("visitor_profile"),
+        normalized_fact_kind=fact_kind,
     )
     updates: dict[str, Any] = {
         "messages": [AIMessage(content=result["message"], additional_kwargs={"tour_qa_answer": True})],
@@ -1092,7 +1155,7 @@ def route_initial_request(state: AgentState) -> str:
     # Reviewed single facts use the same scoped retrieval and deterministic
     # renderer in both modes.  Decide this before glossary/follow-up heuristics,
     # which must not reinterpret wording such as “是什么时候建成的”.
-    if single_fact_categories(raw_text) is not None:
+    if _effective_fact_kind(state) is not None:
         return (
             "tour_qa"
             if state.get("tour_state") and state.get("tour_interaction_state")

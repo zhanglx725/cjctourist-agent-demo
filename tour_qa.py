@@ -34,7 +34,11 @@ from craft_knowledge import (
     parse_craft_explanation_request,
     render_craft_explanation,
 )
-from single_fact_answer import render_single_fact_answer, single_fact_categories
+from single_fact_answer import (
+    identify_single_fact_kind,
+    render_single_fact_answer,
+    single_fact_categories_for_kind,
+)
 
 
 GUIDE_CARDS_FILE = Path("data/chen_clan_academy/routes/node_guide_cards_v1.json")
@@ -226,11 +230,17 @@ def format_tour_qa_answer(
     payload: dict[str, Any],
     tour_state: dict[str, Any] | None,
     interaction_state: dict[str, Any] | None,
+    *,
+    fact_kind: str | None = None,
 ) -> dict[str, Any]:
     """Format RAG evidence plus an unchanged A1 guide context as one response."""
     evidence = payload.get("evidence") or []
     context = current_stop_context(tour_state)
-    fact_answer = render_single_fact_answer(user_query, evidence)
+    fact_answer = render_single_fact_answer(
+        user_query,
+        evidence,
+        fact_kind=fact_kind,
+    )
     if fact_answer is not None:
         answer = fact_answer.message
         mode = "single_fact"
@@ -748,9 +758,17 @@ def answer_tour_question(
     interaction_state: dict[str, Any] | None,
     rag_search: Callable[[str], str],
     visitor_profile: dict[str, Any] | None = None,
+    *,
+    normalized_fact_kind: str | None = None,
 ) -> dict[str, Any]:
     """Use one injected existing RAG callable and leave both state snapshots untouched."""
-    if single_fact_categories(user_query) is not None:
+    fact_kind = normalized_fact_kind or identify_single_fact_kind(user_query)
+    fact_categories = (
+        single_fact_categories_for_kind(fact_kind)
+        if fact_kind is not None
+        else None
+    )
+    if fact_categories is not None:
         try:
             payload = parse_rag_payload(rag_search(user_query))
         except Exception as exc:
@@ -759,7 +777,11 @@ def answer_tour_question(
                 "error": f"本地知识检索暂时不可用：{exc}",
             }
         result = format_tour_qa_answer(
-            user_query, payload, tour_state, interaction_state
+            user_query,
+            payload,
+            tour_state,
+            interaction_state,
+            fact_kind=fact_kind,
         )
         return {
             **result,

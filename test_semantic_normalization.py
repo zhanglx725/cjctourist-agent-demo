@@ -17,6 +17,7 @@ from agent_graph import (
 from semantic_normalization import (
     SemanticCandidate,
     canonical_control_text,
+    canonical_fact_kind,
     recognize_semantic_candidate,
     validate_candidate,
 )
@@ -58,6 +59,50 @@ class SemanticNormalizationTests(unittest.TestCase):
             "confidence": "high", "minutes": None, "node_id": "stop_front_courtyard_center",
         })
         self.assertEqual(candidate, SemanticCandidate())
+
+    def test_fact_candidate_maps_only_to_an_existing_reviewed_fact_kind(self):
+        text = "陈家祠最晚什么时候还能进入？"
+        candidate = validate_candidate(text, {
+            "candidate_kind": "fact_last_admission",
+            "evidence_text": "最晚什么时候还能进入",
+            "confidence": "high",
+            "minutes": None,
+        })
+        self.assertTrue(candidate.actionable)
+        self.assertEqual(canonical_fact_kind(candidate), "last_admission")
+        self.assertIsNone(canonical_control_text(candidate))
+
+    def test_fact_candidate_cannot_generate_query_category_or_minutes(self):
+        text = "陈家祠一般哪天歇着？"
+        generated_query = validate_candidate(text, {
+            "candidate_kind": "fact_closed_day",
+            "evidence_text": "哪天歇着",
+            "confidence": "high",
+            "minutes": None,
+            "query": "周二闭馆",
+        })
+        self.assertEqual(generated_query, SemanticCandidate())
+        invalid_minutes = validate_candidate(text, {
+            "candidate_kind": "fact_closed_day",
+            "evidence_text": "哪天歇着",
+            "confidence": "high",
+            "minutes": 2,
+        })
+        self.assertEqual(invalid_minutes, SemanticCandidate())
+
+    def test_unlisted_fact_paraphrase_is_stored_without_rewriting_user_text(self):
+        state = self._state("陈家祠一般哪天歇着？")
+        with patch(
+            "agent_graph.recognize_semantic_candidate",
+            return_value=SemanticCandidate(
+                "fact_closed_day", "哪天歇着", "high"
+            ),
+        ):
+            normalized = semantic_normalization_node(state)
+        state.update(normalized)
+        self.assertEqual(state["semantic_fact_kind"], "closed_day")
+        self.assertIsNone(state["semantic_control_text"])
+        self.assertEqual(route_initial_request(state), "direct_rag")
 
     def test_low_confidence_and_model_failures_are_no_ops(self):
         low = validate_candidate("带我随便逛逛", {

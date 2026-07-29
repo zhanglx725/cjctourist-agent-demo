@@ -1,6 +1,6 @@
 # 游客事实问答与路线路由验收记录 v1
 
-更新时间：2026-07-29
+更新时间：2026-07-30
 
 状态：实现完成，待 LangSmith 双模式人工复测
 
@@ -9,6 +9,7 @@
 - 游览前事实问答保持冻结节点路径 `semantic_normalization → direct_rag → llm_think`，但 `llm_think` 只读取受控事实结果，不再调用模型改写或补写事实。
 - 游览中事实问答使用 `semantic_normalization → tour_qa`。
 - 两种模式共享同一意图识别、类别范围、规范检索词、逐类别检索、证据筛选和结论优先渲染器。
+- 固定词表未覆盖但语义明确的表达，可以由受控语义归一层映射到下表已有事实类型；模型只提交“闭合枚举 + 原话证据 + 置信度”，不能生成检索词、类别、事实或游客答案。
 - 路线规划在两种模式下均使用 `semantic_normalization → profile_collection → direct_route`；已有路线时会用本轮明确给出的画像约束重新规划。
 - 七种传统工艺继续走已有工艺专用通道，本次未改变其事实源和字段策略。
 - 文件名、资料标题、原始 chunk、内部来源编号、URL、节点 ID、检索类别等只保留在内部审计，不进入游客答案。
@@ -32,6 +33,15 @@
 
 访问服务类答案统一附带：“开放安排可能调整，请以官方当日公告为准。”
 
+## 固定词表外的事实同义表达
+
+| 问题 | 固定解析结果 | 语义候选 | 规范事实类型 | 固定检索类别 | 双模式路径 | 结果 |
+|---|---|---|---|---|---|---|
+| 陈家祠最晚什么时候还能进入？ | 未命中 | `fact_last_admission` | `last_admission` | `basic_info`、`visit_service`、`ticketing_snapshot` | 游览前 `semantic_normalization → direct_rag → llm_think`；游览中 `semantic_normalization → tour_qa` | 两种模式使用同一固定检索改写并回答 17:00 常规停止入场及必要限定 |
+| 陈家祠一般哪天歇着？ | 未命中 | `fact_closed_day` | `closed_day` | `basic_info`、`visit_service`、`ticketing_snapshot` | 同上 | 两种模式使用同一固定检索改写并回答常规周二闭馆、法定节假日除外 |
+
+以上用例不把新说法加入手工同义词表，目的是验证语义候选确实能进入既有受控事实通道。低置信度、非法 schema、额外检索字段、非原文证据片段或模型不可用时一律不建立事实候选。
+
 ## 受控派生计算
 
 `controlled_derivation.py` 提供不依赖模型的三个受控操作：
@@ -47,10 +57,10 @@
 定向命令：
 
 ```text
-python -m unittest -v test_controlled_derivation.py test_single_fact_answer.py test_agent_tour_qa.py test_visitor_fact_route_acceptance.py test_agent_profile_route_integration.py test_craft_knowledge.py
+python -m unittest -v test_semantic_normalization.py test_single_fact_answer.py test_agent_tour_qa.py test_visitor_fact_route_acceptance.py test_tour_qa.py
 ```
 
-结果：51 项通过。
+结果：56 项通过。
 
 完整回归命令：
 
@@ -58,7 +68,7 @@ python -m unittest -v test_controlled_derivation.py test_single_fact_answer.py t
 python -m unittest discover -v
 ```
 
-结果：574 项通过。
+结果：578 项通过。
 
 ## 待人工复测
 
@@ -68,3 +78,4 @@ python -m unittest discover -v
 - 游客界面不出现文件名、原始段落、来源编号、URL、节点名和内部类别；
 - 路线请求不会落入普通 RAG；
 - 开放时间相关答案没有混淆闭馆日、停止入场、检票截止、售票截止和正式闭馆时间。
+- 未写入固定词表的事实同义表达，在两种模式下均先由 `semantic_normalization` 产生闭合候选，再进入既有固定类别检索和确定性答案；低置信度时不得强行归类。

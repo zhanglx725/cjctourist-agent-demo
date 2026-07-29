@@ -54,6 +54,19 @@ INTERNAL_TOKENS = (
 YEAR_PATTERN = r"(?:18|19|20)\d{2}"
 TIME_PATTERN = r"(?:[01]?\d|2[0-3]):[0-5]\d"
 VISIT_SERVICE_CATEGORIES = ("basic_info", "visit_service", "ticketing_snapshot")
+FACT_KINDS = frozenset(
+    {
+        "construction_start",
+        "construction_completion",
+        "construction_duration",
+        "site_address",
+        "closed_day",
+        "closing_time",
+        "last_admission",
+        "afternoon_entry_cutoff",
+        "designer_and_foundation_date",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -125,7 +138,12 @@ def identify_single_fact_kind(user_query: str) -> str | None:
 def single_fact_categories(user_query: str) -> list[str] | None:
     """Return the reviewed category scope shared by both QA modes."""
 
-    fact_kind = identify_single_fact_kind(user_query)
+    return single_fact_categories_for_kind(identify_single_fact_kind(user_query))
+
+
+def single_fact_categories_for_kind(fact_kind: str | None) -> list[str] | None:
+    """Return the reviewed category scope for a validated fact kind."""
+
     if fact_kind == "site_address":
         return ["basic_info"]
     if fact_kind in {
@@ -149,7 +167,16 @@ def single_fact_categories(user_query: str) -> list[str] | None:
 def single_fact_retrieval_query(user_query: str) -> str:
     """Use stable evidence terms instead of mode-dependent query expansion."""
 
-    fact_kind = identify_single_fact_kind(user_query)
+    return single_fact_retrieval_query_for_kind(
+        identify_single_fact_kind(user_query), fallback=user_query
+    )
+
+
+def single_fact_retrieval_query_for_kind(
+    fact_kind: str | None, *, fallback: str = ""
+) -> str:
+    """Return a deterministic query rewrite for a validated fact kind."""
+
     return {
         "construction_start": "陈家祠 1888年 开始筹建 建祠公所",
         "construction_completion": "陈家祠 1888年筹建 1893年落成 1894年建成 来源差异",
@@ -160,7 +187,7 @@ def single_fact_retrieval_query(user_query: str) -> str:
         "closing_time": "陈家祠 常规开放时间 闭馆时间 延时开放 18:00",
         "last_admission": "陈家祠 停止入场 停止入馆 17:00 延时开放",
         "afternoon_entry_cutoff": "陈家祠 下午场 检票时段 截止 17:00 17:30",
-    }.get(fact_kind, user_query)
+    }.get(fact_kind, fallback)
 
 
 def _source_ids(items: Iterable[dict[str, Any]]) -> tuple[str, ...]:
@@ -526,26 +553,29 @@ def _validate_visitor_message(message: str) -> None:
 
 
 def render_single_fact_answer(
-    user_query: str, evidence: list[dict[str, Any]] | None
+    user_query: str,
+    evidence: list[dict[str, Any]] | None,
+    *,
+    fact_kind: str | None = None,
 ) -> SingleFactAnswer | None:
     """Return a controlled answer, or ``None`` for an unreviewed question."""
 
-    fact_kind = identify_single_fact_kind(user_query)
-    if fact_kind is None:
+    resolved_fact_kind = fact_kind or identify_single_fact_kind(user_query)
+    if resolved_fact_kind not in FACT_KINDS:
         return None
     normalized_evidence = [
         item for item in (evidence or []) if isinstance(item, dict)
     ]
-    if fact_kind == "site_address":
+    if resolved_fact_kind == "site_address":
         result = _address_answer(normalized_evidence)
-    elif fact_kind in {
+    elif resolved_fact_kind in {
         "construction_start",
         "construction_completion",
         "construction_duration",
         "designer_and_foundation_date",
     }:
-        result = _construction_answer(fact_kind, normalized_evidence)
+        result = _construction_answer(resolved_fact_kind, normalized_evidence)
     else:
-        result = _service_answer(fact_kind, normalized_evidence)
+        result = _service_answer(resolved_fact_kind, normalized_evidence)
     _validate_visitor_message(result.message)
     return result

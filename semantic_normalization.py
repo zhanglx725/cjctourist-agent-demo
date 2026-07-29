@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 
-VALID_CANDIDATE_KINDS = frozenset(
+CONTROL_CANDIDATE_KINDS = frozenset(
     {
         "none",
         "generic_arrival",
@@ -24,6 +24,20 @@ VALID_CANDIDATE_KINDS = frozenset(
         "route_request",
         "route_request_minimize_walking",
     }
+)
+FACT_CANDIDATE_TO_KIND = {
+    "fact_construction_start": "construction_start",
+    "fact_construction_completion": "construction_completion",
+    "fact_construction_duration": "construction_duration",
+    "fact_site_address": "site_address",
+    "fact_closed_day": "closed_day",
+    "fact_closing_time": "closing_time",
+    "fact_last_admission": "last_admission",
+    "fact_afternoon_entry_cutoff": "afternoon_entry_cutoff",
+    "fact_designer_and_foundation_date": "designer_and_foundation_date",
+}
+VALID_CANDIDATE_KINDS = frozenset(
+    {*CONTROL_CANDIDATE_KINDS, *FACT_CANDIDATE_TO_KIND}
 )
 VALID_CONFIDENCES = frozenset({"high", "low"})
 _MAX_MINUTES = 720
@@ -53,16 +67,33 @@ class SemanticCandidate:
 
 def recognition_prompt(user_text: str) -> str:
     """Return a strict, fact-free prompt for one model classification call."""
-    return f"""你是受控语义识别器，不是导游。只判断用户这句话是否表达以下一种操作；
-不能回答问题、不能补充事实、不能猜测地点、不能生成 node_id、路线或画像。
+    return f"""你是受控语义识别器，不是导游。只判断用户这句话是否明确表达以下一个操作或事实问题；
+不能回答问题、不能补充事实、不能猜测地点、不能生成检索词、类别、node_id、路线或画像。
 
-候选类型：
+操作候选：
 - generic_arrival：用户明确表示自己已经抵达，但没有明确点位。
 - available_duration：用户明确给出本次可用于游览的时长。
 - remaining_duration：用户明确给出游览途中剩余时长。
 - route_request：用户请求规划游览路线。
 - route_request_minimize_walking：用户请求规划路线，并明确要求少走路/步行最少。
-- none：其他所有情况，包括知识问题、模糊时间、未明确到达、地点猜测。
+
+审核事实问题候选：
+- fact_construction_start：询问陈家祠开始筹建、始建或启动建设的年份。
+- fact_construction_completion：询问陈家祠落成、建成或竣工年份。
+- fact_construction_duration：询问从筹建到落成经历多久。
+- fact_site_address：询问陈家祠地址或位于哪里。
+- fact_closed_day：询问固定哪天、星期几、什么时候不开放或休馆；没有“几点”等钟点表达。
+- fact_closing_time：询问开放日几点闭馆、关门或结束开放。
+- fact_last_admission：询问最晚几点还能进入、几点以后不能进、停止入场或入馆时间。
+- fact_afternoon_entry_cutoff：明确询问下午场的检票、入场或入馆截止时间。
+- fact_designer_and_foundation_date：询问设计者或确切奠基日期。
+- none：其他所有情况，包括多意图问题、模糊问题、未列出的知识主题和地点猜测。
+
+区分边界：
+- “哪天/星期几/休息日/啥时候不开放”且没有钟点表达，属于 fact_closed_day。
+- “几点闭馆/几点关门”属于 fact_closing_time。
+- “最晚几点能进/几点后不能进入”属于 fact_last_admission，不等同于闭馆时间。
+- 同一句同时要求两个不同候选时输出 none/low，不自行拆分。
 
 只输出一行 JSON，严格只含 candidate_kind、evidence_text、confidence、minutes 四个键。
 evidence_text 必须是用户原话中连续出现的最短片段；confidence 只能是 high 或 low。
@@ -138,3 +169,11 @@ def canonical_control_text(candidate: SemanticCandidate) -> str | None:
         # vocabulary; C2 still owns validation and persistence.
         return "帮我规划一条少走路的路线"
     return None
+
+
+def canonical_fact_kind(candidate: SemanticCandidate) -> str | None:
+    """Map one validated semantic proposal to an existing reviewed fact kind."""
+
+    if not candidate.actionable:
+        return None
+    return FACT_CANDIDATE_TO_KIND.get(candidate.candidate_kind)

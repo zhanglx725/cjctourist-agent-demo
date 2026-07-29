@@ -15,12 +15,16 @@ from agent_graph import (
     direct_route_node,
     llm_think_node,
     route_initial_request,
+    semantic_normalization_node,
     tour_qa_node,
 )
+from semantic_normalization import SemanticCandidate
 from single_fact_answer import (
     identify_single_fact_kind,
     single_fact_categories,
+    single_fact_categories_for_kind,
     single_fact_retrieval_query,
+    single_fact_retrieval_query_for_kind,
 )
 
 
@@ -234,6 +238,92 @@ class VisitorFactRouteAcceptanceTests(unittest.TestCase):
         self.assertFalse(audit["ok"])
         self.assertIsNone(audit["calculation"])
         self.assertIn("资料不足", audit["message"])
+
+    def test_unlisted_fact_paraphrases_share_one_controlled_path_in_both_modes(self):
+        cases = (
+            (
+                "陈家祠最晚什么时候还能进入？",
+                SemanticCandidate(
+                    "fact_last_admission", "最晚什么时候还能进入", "high"
+                ),
+                "last_admission",
+                "17:00",
+            ),
+            (
+                "陈家祠一般哪天歇着？",
+                SemanticCandidate("fact_closed_day", "哪天歇着", "high"),
+                "closed_day",
+                "周二",
+            ),
+        )
+        for query, candidate, fact_kind, expected in cases:
+            with self.subTest(query=query):
+                self.assertIsNone(identify_single_fact_kind(query))
+                no_route = _state(query)
+                with patch(
+                    "agent_graph.recognize_semantic_candidate",
+                    return_value=candidate,
+                ):
+                    no_route.update(semantic_normalization_node(no_route))
+                self.assertEqual(no_route["semantic_fact_kind"], fact_kind)
+                self.assertEqual(route_initial_request(no_route), "direct_rag")
+
+                with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+                    rag.invoke.return_value = PAYLOAD
+                    retrieval = direct_rag_node(no_route)
+                expected_calls = [
+                    {
+                        "query": single_fact_retrieval_query_for_kind(
+                            fact_kind, fallback=query
+                        ),
+                        "categories": [category],
+                    }
+                    for category in single_fact_categories_for_kind(fact_kind)
+                ]
+                self.assertEqual(
+                    [call.args[0] for call in rag.invoke.call_args_list],
+                    expected_calls,
+                )
+                no_route_next = {
+                    **no_route,
+                    **retrieval,
+                    "messages": [
+                        *no_route["messages"],
+                        *retrieval["messages"],
+                    ],
+                }
+                with patch("agent_graph.build_model") as build_model:
+                    no_route_answer = llm_think_node(no_route_next)
+                build_model.assert_not_called()
+                no_route_message = no_route_answer["messages"][0].content
+
+                active = _state(query, self.active)
+                with patch(
+                    "agent_graph.recognize_semantic_candidate",
+                    return_value=candidate,
+                ):
+                    active.update(semantic_normalization_node(active))
+                self.assertEqual(route_initial_request(active), "tour_qa")
+                with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+                    rag.invoke.return_value = PAYLOAD
+                    active_update = tour_qa_node(active)
+                self.assertEqual(
+                    [call.args[0] for call in rag.invoke.call_args_list],
+                    expected_calls,
+                )
+                active_message = active_update["messages"][0].content
+
+                self.assertEqual(no_route_message, active_message)
+                self.assertIn(expected, active_message)
+                self._assert_visitor_safe(active_message)
+                self.assertEqual(
+                    retrieval["performance_metrics"][-1]["fact_kind"],
+                    fact_kind,
+                )
+                self.assertEqual(
+                    active_update["performance_metrics"][-1]["fact_kind"],
+                    fact_kind,
+                )
 
     def test_two_hour_woodcarving_deep_request_uses_route_planner(self):
         text = "给我规划两小时路线，喜欢木雕，详细讲解。"
