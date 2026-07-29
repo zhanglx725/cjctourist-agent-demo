@@ -137,7 +137,7 @@ class AgentTourQaTests(unittest.TestCase):
         with patch("agent_graph.chen_clan_academy_rag_search") as rag:
             rag.invoke.return_value = CRAFT_PAYLOAD
             update = tour_qa_node(request)
-        rag.invoke.assert_called_once_with({"query": "灰塑 工艺性质 材料 技法"})
+        rag.invoke.assert_not_called()
         self.assertIn("珠江三角洲传统建筑", update["messages"][0].content)
         self.assertIn("草筋灰或纸筋灰", update["messages"][0].content)
         self.assertNotIn("07_ornament_crafts.md", update["messages"][0].content)
@@ -148,7 +148,7 @@ class AgentTourQaTests(unittest.TestCase):
         with patch("agent_graph.chen_clan_academy_rag_search") as rag:
             rag.invoke.return_value = CRAFT_PAYLOAD
             update = tour_qa_node(request)
-        rag.invoke.assert_called_once_with({"query": "灰塑 工艺性质 材料 技法 陈家祠"})
+        rag.invoke.assert_not_called()
         self.assertIn("灰塑", update["messages"][0].content)
         self.assertEqual(update["qa_context"]["origin"], "whole_site")
 
@@ -169,7 +169,7 @@ class AgentTourQaTests(unittest.TestCase):
         with patch("agent_graph.chen_clan_academy_rag_search") as rag:
             rag.invoke.return_value = CRAFT_PAYLOAD
             update = qa_follow_up_detail_node(follow)
-        rag.invoke.assert_called_once_with({"query": "灰塑 工艺性质 材料 技法 陈家祠"})
+        rag.invoke.assert_not_called()
         self.assertIn("灰塑", update["messages"][0].content)
         self.assertNotIn("08_ornament_items.md", update["messages"][0].content)
         self.assertNotIn("tour_state", update)
@@ -193,7 +193,7 @@ class AgentTourQaTests(unittest.TestCase):
             rag.invoke.return_value = COLOR_PAINTING_PAYLOAD
             detailed = tour_qa_node(_message_state("请详细讲讲彩绘"))
         self.assertIn("楹联", detailed["messages"][0].content)
-        self.assertIn("按工艺性质、材料技法", detailed["messages"][0].content)
+        self.assertIn("完整来看", detailed["messages"][0].content)
         self.assertNotIn("07_ornament_crafts.md", detailed["messages"][0].content)
 
     def test_unsafe_photo_request_still_enters_controlled_photo_qa_path(self):

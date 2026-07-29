@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import csv
 import json
-import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable
@@ -28,29 +27,20 @@ from photo_spot_runtime import answer_photo_request, is_explicit_photo_request
 from qa_context import create_qa_context, is_qa_follow_up_detail_request, validate_qa_context
 from tour_intent import resolve_reviewed_node
 from tour_presenter import present_tour_state
+from craft_knowledge import (
+    CRAFT_TERMS,
+    CraftKnowledgeError,
+    load_craft_record,
+    parse_craft_explanation_request,
+    render_craft_explanation,
+)
 
 
 GUIDE_CARDS_FILE = Path("data/chen_clan_academy/routes/node_guide_cards_v1.json")
 MARKERS_FILE = Path("data/chen_clan_academy/spatial/marker_inventory_v0.csv")
 DEICTIC_POINT_TERMS = ("这里", "此处", "眼前", "当前点", "当前站", "本点")
-CRAFT_TERMS = ("陶塑", "灰塑", "木雕", "石雕", "砖雕", "铜铁铸", "彩绘")
 FEATURE_TERMS = ("特点", "特征", "工艺", "怎么做", "有什么")
 TERM_EXPLANATION_TERMS = ("是什么", "什么意思", "指什么", "怎么理解")
-# A whole-site question such as "灰塑是什么" asks about the craft itself,
-# rather than a named ornament or a location.  Keep it closed over the craft
-# overview: the other two documents are for separately named objects and
-# reviewed locations, not for expanding a generic craft definition.
-WHOLE_SITE_CRAFT_DOCUMENT = "07_ornament_crafts.md"
-# The seven reviewed craft entries do not use one identical heading set.  Keep
-# these groups only for ordering a visitor-facing explanation; all actual text
-# still has to be extracted from the relevant craft entry in 07.
-CRAFT_NATURE_LABELS = ("工艺性质与位置", "工艺性质", "工艺地位", "工艺特点")
-CRAFT_MATERIAL_TECHNIQUE_LABELS = (
-    "材料与流程", "材料与技法", "制作与视觉处理", "主要技法与内容",
-    "材料与功能", "施彩与耐候性",
-)
-
-
 @lru_cache(maxsize=1)
 def load_guide_cards() -> dict[str, dict[str, Any]]:
     """Load reviewed point guide cards for A2 and later guide-program stages."""
@@ -281,20 +271,6 @@ def _current_point_craft_feature_request(user_query: str) -> str | None:
 def _current_point_craft_term_request(user_query: str) -> str | None:
     """Recognize a deictic craft definition only when it names the craft."""
     if not any(term in user_query for term in DEICTIC_POINT_TERMS):
-        return None
-    if not any(term in user_query for term in TERM_EXPLANATION_TERMS):
-        return None
-    return next((craft for craft in CRAFT_TERMS if craft in user_query), None)
-
-
-def _whole_site_craft_term_request(user_query: str) -> str | None:
-    """Recognize a generic craft definition without claiming a current object.
-
-    Deictic requests remain on the current-point path because they explicitly
-    ask about a verified physical context.  A generic “灰塑是什么” should use
-    the craft overview instead of a one-line glossary card.
-    """
-    if any(term in user_query for term in DEICTIC_POINT_TERMS):
         return None
     if not any(term in user_query for term in TERM_EXPLANATION_TERMS):
         return None
@@ -618,125 +594,6 @@ def build_qa_context_from_answer(
     )
 
 
-def _follow_up_evidence_line(item: dict[str, Any]) -> str:
-    """Render a concise evidence sentence without exposing a raw RAG chunk."""
-    content = " ".join(str(item.get("content") or "").split())
-    sentence = next(
-        (part.strip() for part in content.replace("！", "。").replace("？", "。").split("。") if part.strip()),
-        "",
-    )
-    sources = "、".join(item.get("source_ids") or []) or "未标注来源编号"
-    return f"{sentence or '该条资料未提供可直接概括的内容。'}（来源：{sources}）"
-
-
-def _is_whole_site_craft_evidence(item: dict[str, Any], craft: str) -> bool:
-    """Keep craft expansion closed over the reviewed ornament knowledge set.
-
-    A craft-detail follow-up must never turn venue, ticketing, contact, or
-    route-service chunks into facts merely because a broad semantic retrieval
-    returned them.  The document boundary is deterministic and intentionally
-    fails closed for future documents until they are explicitly reviewed here.
-    """
-    if str(item.get("document") or "") != WHOLE_SITE_CRAFT_DOCUMENT:
-        return False
-    title_path = item.get("title_path") or []
-    searchable = " ".join(
-        [
-            str(item.get("content") or ""),
-            *(str(part) for part in title_path if isinstance(part, str)),
-        ]
-    )
-    return craft in searchable
-
-
-def _craft_overview_sections(evidence: list[dict[str, Any]]) -> dict[str, tuple[str, list[str]]]:
-    """Extract labelled facts from the reviewed craft overview only.
-
-    RAG chunks preserve markdown headings inconsistently, so this deliberately
-    accepts plain or bold labels but never fills a missing section from model
-    knowledge.  Each value carries its own source IDs for later rendering.
-    """
-    found: dict[str, tuple[str, list[str]]] = {}
-    for item in evidence:
-        content = " ".join(str(item.get("content") or "").split())
-        if not content:
-            continue
-        normalized = content.replace("**", "")
-        # The RAG chunk retains the source file's bullet structure.  Parse it
-        # into labelled facts first, rather than displaying that chunk as a
-        # visitor answer.  The label itself is also evidence-backed text.
-        matches = list(re.finditer(
-            r"(?:^|\s)-\s*([^：:]{2,24})\s*[：:]\s*(.*?)(?=\s+-\s*[^：:]{2,24}\s*[：:]|$)",
-            normalized,
-        ))
-        for match in matches:
-            label = match.group(1).strip(" -")
-            fact = match.group(2).strip(" -")
-            if label and fact and label not in found:
-                found[label] = (fact, list(item.get("source_ids") or []))
-    return found
-
-
-def _first_section(
-    sections: dict[str, tuple[str, list[str]]], labels: tuple[str, ...]
-) -> tuple[str, tuple[str, list[str]]] | None:
-    return next(((label, sections[label]) for label in labels if label in sections), None)
-
-
-def _narrative_fact(value: str) -> str:
-    """Keep evidence wording while preventing raw-bullet punctuation seams."""
-    return value.strip().rstrip("。；;，, ")
-
-
-def _craft_overview_message(
-    craft: str,
-    evidence: list[dict[str, Any]],
-    *,
-    detailed: bool,
-) -> str:
-    """Turn reviewed craft fields into concise visitor-facing narration."""
-    sections = _craft_overview_sections(evidence)
-    if not sections:
-        return f"本次只检索到与“{craft}”相关的资料片段，但其中没有可安全整理的工艺说明。"
-    source_text = "、".join(dict.fromkeys(
-        source for _, sources in sections.values() for source in sources
-    )) or "未标注来源编号"
-    nature = _first_section(sections, CRAFT_NATURE_LABELS)
-    technique = _first_section(sections, CRAFT_MATERIAL_TECHNIQUE_LABELS)
-    if not detailed:
-        # A concise definition must still answer both "what is it" and "how
-        # is it made/handled" when the craft entry provides that information.
-        # 彩绘 has no generic craft-property heading in the reviewed source,
-        # so retain its complete short entry rather than manufacture one.
-        chosen: list[tuple[str, tuple[str, list[str]]]] = []
-        for section in (nature, technique):
-            if section and section not in chosen:
-                chosen.append(section)
-        if not chosen:
-            chosen = list(sections.items())
-        clauses = [f"{label}方面，{_narrative_fact(value[0])}" for label, value in chosen]
-        return (
-            f"“{craft}”可以先从工艺本身和做法来理解：" + "；".join(clauses)
-            + f"。（以上依据工艺总览资料，来源：{source_text}）"
-        )
-
-    # Detailed answers retain every extracted fact, but use a stable narrative
-    # sequence instead of raw retrieval bullets or file fragments.
-    ordered: list[tuple[str, tuple[str, list[str]]]] = []
-    for section in (nature, technique):
-        if section and section not in ordered:
-            ordered.append(section)
-    ordered.extend(section for section in sections.items() if section not in ordered)
-    paragraphs = [
-        f"从“{label}”看，{_narrative_fact(value[0])}"
-        for label, value in ordered
-    ]
-    return (
-        f"要详细理解“{craft}”，可以按工艺性质、材料技法和在陈家祠中的呈现来读。"
-        + "\n\n" + "。\n\n".join(paragraphs) + f"。\n\n（以上依据工艺总览资料，来源：{source_text}）"
-    )
-
-
 def _answer_whole_site_craft_follow_up(
     craft: str,
     tour_state: dict[str, Any] | None,
@@ -746,26 +603,18 @@ def _answer_whole_site_craft_follow_up(
     detailed: bool = True,
     mode: str = "qa_follow_up_global_craft",
 ) -> dict[str, Any]:
-    """Expand one reviewed craft term with freshly retrieved, scoped evidence."""
-    retrieval_query = (
-        f"{craft} 工艺性质 材料 技法"
-        if not detailed
-        else f"{craft} 工艺性质 材料 技法 陈家祠"
-    )
+    """Render one canonical reviewed craft section without vector ranking."""
     try:
-        payload = parse_rag_payload(rag_search(retrieval_query))
-    except Exception as exc:
-        payload = {"evidence": [], "error": f"本地知识检索暂时不可用：{exc}"}
-    evidence = [
-        item
-        for item in payload.get("evidence", [])
-        if isinstance(item, dict) and _is_whole_site_craft_evidence(item, craft)
-    ]
-    if evidence:
-        message = _craft_overview_message(craft, evidence, detailed=detailed)
-    else:
-        detail = payload.get("error") or f"当前本地知识库没有检索到足以展开“{craft}”的资料。"
-        message = f"暂时不能安全展开“{craft}”：{detail}"
+        record = load_craft_record(craft)
+        evidence = [record.as_evidence()]
+        message = render_craft_explanation(
+            record, "detailed" if detailed else "brief"
+        )
+        error = None
+    except CraftKnowledgeError as exc:
+        evidence = []
+        error = str(exc)
+        message = f"暂时不能安全展开“{craft}”：{error}"
     presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
     if presentation:
         message += "\n\n本次术语展开未改变路线进度，您可继续使用现有导览操作。"
@@ -782,8 +631,13 @@ def _answer_whole_site_craft_follow_up(
         "evidence": evidence,
         "point_context": None,
         "presentation": presentation,
-        "retrieval_query": retrieval_query,
-        "term": {"zh": craft, "source_ids": []},
+        "retrieval_query": None,
+        "retrieval_strategy": "canonical_craft_section",
+        "term": {
+            "zh": craft,
+            "source_ids": list(evidence[0]["source_ids"]) if evidence else [],
+        },
+        "error": error,
     }
 
 
@@ -882,20 +736,20 @@ def answer_tour_question(
     visitor_profile: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Use one injected existing RAG callable and leave both state snapshots untouched."""
-    explicit_detail_craft = next((craft for craft in CRAFT_TERMS if craft in user_query), None)
-    if explicit_detail_craft and is_qa_follow_up_detail_request(user_query):
+    craft_request = parse_craft_explanation_request(user_query)
+    scoped_context, _ = resolve_point_context(user_query, tour_state)
+    if craft_request and scoped_context is None:
         return _answer_whole_site_craft_follow_up(
-            explicit_detail_craft, tour_state, interaction_state, rag_search
-        )
-    whole_site_craft = _whole_site_craft_term_request(user_query)
-    if whole_site_craft:
-        return _answer_whole_site_craft_follow_up(
-            whole_site_craft,
+            craft_request.craft,
             tour_state,
             interaction_state,
             rag_search,
-            detailed=False,
-            mode="whole_site_craft_overview",
+            detailed=craft_request.detail_level == "detailed",
+            mode=(
+                "qa_follow_up_global_craft"
+                if craft_request.detail_level == "detailed"
+                else "whole_site_craft_overview"
+            ),
         )
     if is_explicit_photo_request(user_query):
         context, error_code = resolve_point_context(user_query, tour_state)

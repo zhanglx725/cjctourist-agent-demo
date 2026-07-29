@@ -35,6 +35,7 @@ from tour_qa import (
     build_qa_context_from_answer,
     is_point_inventory_request,
 )
+from craft_knowledge import parse_craft_explanation_request
 from qa_context import (
     clear_qa_context,
     is_qa_follow_up_detail_request,
@@ -937,6 +938,12 @@ def route_initial_request(state: AgentState) -> str:
     # photo request must never record an arrival first or reach D5 candidates.
     # The D6 handler performs the deterministic refusal without state writes.
     if is_unsafe_photo_request(raw_text):
+        return "tour_qa"
+    # All seven generic craft explanations use one deterministic, evidence-
+    # backed path before generic RAG or LLM routing.  The parser is anchored,
+    # so comparisons and concrete ornament/story questions remain with their
+    # existing handlers.
+    if parse_craft_explanation_request(raw_text):
         return "tour_qa"
     # A1 reserves request_stop_detail for the active physical StopProgram.
     # The same wording may instead follow a successful knowledge answer; that

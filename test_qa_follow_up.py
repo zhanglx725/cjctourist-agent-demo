@@ -118,11 +118,15 @@ class QaFollowUpTests(unittest.TestCase):
 
     def test_explicit_craft_detail_without_context_uses_whole_site_craft_path(self):
         result = answer_qa_follow_up_detail(
-            "请详细讲讲灰塑", None, None, None, self._search
+            "请详细讲讲灰塑",
+            None,
+            None,
+            None,
+            lambda _: self.fail("canonical craft detail must not call vector RAG"),
         )
         self.assertEqual(result["mode"], "qa_follow_up_global_craft")
         self.assertIn("灰塑", result["message"])
-        self.assertEqual(result["retrieval_query"], "灰塑 工艺性质 材料 技法 陈家祠")
+        self.assertIsNone(result["retrieval_query"])
 
     def test_whole_site_craft_detail_filters_unrelated_service_evidence(self):
         payload = json.dumps(
@@ -158,14 +162,15 @@ class QaFollowUpTests(unittest.TestCase):
         self.assertIsNone(context["query_node_id"])
         self.assertEqual(context["subject_terms"], ("灰塑",))
 
-        calls = []
-        def search(query: str) -> str:
-            calls.append(query)
-            return self._search(query)
-
-        detailed = answer_qa_follow_up_detail("详细讲讲", context, None, None, search)
+        detailed = answer_qa_follow_up_detail(
+            "详细讲讲",
+            context,
+            None,
+            None,
+            lambda _: self.fail("canonical craft detail must not call vector RAG"),
+        )
         self.assertEqual(detailed["mode"], "qa_follow_up_global_craft")
-        self.assertEqual(calls, ["灰塑 工艺性质 材料 技法 陈家祠"])
+        self.assertIsNone(detailed["retrieval_query"])
         self.assertIn("灰塑", detailed["message"])
         self.assertIn("来源：S10", detailed["message"])
         self.assertIn("草筋灰或纸筋灰", detailed["message"])

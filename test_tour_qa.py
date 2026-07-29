@@ -140,11 +140,19 @@ class TourQaTests(unittest.TestCase):
         self.assertEqual(result["mode"], "current_craft_absent")
         self.assertIn("没有灰塑", result["message"])
 
-    def test_museum_wide_craft_question_keeps_base_rag_behavior(self):
-        result = answer_tour_question("陈家祠灰塑有什么特点？", self.tour, self.interaction, self._success_search)
-        self.assertEqual(result["mode"], "rag")
-        self.assertEqual(result["retrieval_query"], "陈家祠灰塑有什么特点？")
-        self.assertEqual(result["evidence"], [EVIDENCE])
+    def test_museum_wide_craft_question_uses_canonical_craft_section(self):
+        result = answer_tour_question(
+            "陈家祠灰塑有什么特点？",
+            self.tour,
+            self.interaction,
+            lambda _: self.fail("generic craft questions must not call vector RAG"),
+        )
+        self.assertEqual(result["mode"], "whole_site_craft_overview")
+        self.assertIsNone(result["retrieval_query"])
+        self.assertEqual(
+            [item["document"] for item in result["evidence"]],
+            ["07_ornament_crafts.md"],
+        )
 
     def test_question_never_mutates_tour_or_interaction_state(self):
         before_tour = deepcopy(self.tour)
@@ -184,9 +192,15 @@ class TourQaTests(unittest.TestCase):
             },
             ensure_ascii=False,
         )
-        result = answer_tour_question("灰塑是什么？", None, None, lambda _: craft_payload)
+        result = answer_tour_question(
+            "灰塑是什么？",
+            None,
+            None,
+            lambda _: self.fail("generic craft questions must not call vector RAG"),
+        )
         self.assertEqual(result["mode"], "whole_site_craft_overview")
-        self.assertEqual(result["retrieval_query"], "灰塑 工艺性质 材料 技法")
+        self.assertIsNone(result["retrieval_query"])
+        self.assertEqual(result["retrieval_strategy"], "canonical_craft_section")
         self.assertIn("珠江三角洲传统建筑", result["message"])
         self.assertIn("草筋灰或纸筋灰", result["message"])
         self.assertIsNone(result["presentation"])
