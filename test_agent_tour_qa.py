@@ -11,7 +11,9 @@ from langchain_core.messages import HumanMessage
 
 import agent_graph
 from agent_graph import (
+    direct_rag_node,
     direct_route_node,
+    llm_think_node,
     qa_follow_up_detail_node,
     route_initial_request,
     tour_event_node,
@@ -69,6 +71,23 @@ COLOR_PAINTING_PAYLOAD = json.dumps(
     },
     ensure_ascii=False,
 )
+HISTORY_PAYLOAD = json.dumps(
+    {
+        "evidence": [
+            {
+                "document": "02_history_architecture.md",
+                "title_path": ["历史、建筑与文化特色", "历史沿革"],
+                "source_ids": ["S02", "S04"],
+                "content": (
+                    "1888 年，陈氏书院建祠公所成立并开始筹建。"
+                    "馆方历史页面写“1893 年落成”；"
+                    "广州市文化广电旅游局页面写“1888 年筹建、1894 年建成”。"
+                ),
+            }
+        ]
+    },
+    ensure_ascii=False,
+)
 
 
 def _message_state(text: str, initial: dict | None = None) -> dict:
@@ -102,6 +121,59 @@ class AgentTourQaTests(unittest.TestCase):
         self.assertIn("S11", update["messages"][0].content)
         self.assertIn("工艺特点", update["messages"][0].content)
         self.assertNotIn("根据本地知识库检索到的资料：", update["messages"][0].content)
+
+    def test_no_route_single_fact_keeps_direct_rag_path_but_skips_llm_rendering(self):
+        request = _message_state("陈家祠什么时候建成？")
+        self.assertEqual(route_initial_request(request), "direct_rag")
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            rag.invoke.return_value = HISTORY_PAYLOAD
+            retrieval = direct_rag_node(request)
+        rag.invoke.assert_called_once_with(
+            {
+                "query": "陈家祠什么时候建成？",
+                "categories": ["history_architecture"],
+            }
+        )
+        next_state = {
+            **request,
+            **retrieval,
+            "messages": [*request["messages"], *retrieval["messages"]],
+        }
+        with patch("agent_graph.build_model") as build_model:
+            answer = llm_think_node(next_state)
+        build_model.assert_not_called()
+        message = answer["messages"][0].content
+        self.assertIn("1888 年开始筹建", message)
+        self.assertIn("1893 年落成", message)
+        self.assertIn("1894 年建成", message)
+        self.assertNotIn("02_history_architecture.md", message)
+        self.assertEqual(
+            answer["performance_metrics"][-1]["phase"],
+            "deterministic_single_fact_answer",
+        )
+
+    def test_active_tour_single_fact_uses_same_answer_first_renderer(self):
+        state = self._arrived_tour()
+        request = _message_state("陈家祠哪一年建成？", state)
+        self.assertEqual(route_initial_request(request), "tour_qa")
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            rag.invoke.return_value = HISTORY_PAYLOAD
+            update = tour_qa_node(request)
+        rag.invoke.assert_called_once_with(
+            {
+                "query": "陈家祠哪一年建成？",
+                "categories": ["history_architecture"],
+            }
+        )
+        message = update["messages"][0].content
+        self.assertIn("1888 年开始筹建", message)
+        self.assertIn("1893 年落成", message)
+        self.assertIn("1894 年建成", message)
+        self.assertNotIn("02_history_architecture.md", message)
+        self.assertEqual(
+            update["tour_presentation"]["code"],
+            "tour_qa_single_fact_answer",
+        )
 
     def test_explicit_point_inventory_routes_to_tour_qa_without_active_route(self):
         request = _message_state("月台有哪些装饰？")

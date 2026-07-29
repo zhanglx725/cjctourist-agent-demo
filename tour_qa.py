@@ -34,6 +34,7 @@ from craft_knowledge import (
     parse_craft_explanation_request,
     render_craft_explanation,
 )
+from single_fact_answer import render_single_fact_answer
 
 
 GUIDE_CARDS_FILE = Path("data/chen_clan_academy/routes/node_guide_cards_v1.json")
@@ -229,13 +230,19 @@ def format_tour_qa_answer(
     """Format RAG evidence plus an unchanged A1 guide context as one response."""
     evidence = payload.get("evidence") or []
     context = current_stop_context(tour_state)
-    if evidence:
+    fact_answer = render_single_fact_answer(user_query, evidence)
+    if fact_answer is not None:
+        answer = fact_answer.message
+        mode = "single_fact"
+    elif evidence:
         answer = "根据本地知识库检索到的资料：\n" + "\n".join(
             _evidence_line(item) for item in evidence[:3] if isinstance(item, dict)
         )
+        mode = "rag"
     else:
         detail = payload.get("error") or "当前本地知识库没有检索到足以支持该问题的资料。"
         answer = f"资料不足：{detail} 我不会根据当前点位补造事实。"
+        mode = "rag"
 
     presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
     if presentation:
@@ -246,8 +253,12 @@ def format_tour_qa_answer(
         presentation = {
             **presentation,
             "message": answer,
-            "code": "tour_qa_answer" if evidence else "tour_qa_no_evidence",
-            "ok": True,
+            "code": (
+                "tour_qa_single_fact_answer"
+                if fact_answer is not None
+                else ("tour_qa_answer" if evidence else "tour_qa_no_evidence")
+            ),
+            "ok": fact_answer.ok if fact_answer is not None else True,
             "evidence_count": len(evidence),
         }
     return {
@@ -255,7 +266,8 @@ def format_tour_qa_answer(
         "evidence": evidence,
         "point_context": context,
         "presentation": presentation,
-        "mode": "rag",
+        "mode": mode,
+        "single_fact": fact_answer.to_dict() if fact_answer is not None else None,
     }
 
 

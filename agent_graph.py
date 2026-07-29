@@ -48,6 +48,7 @@ from research_card_retrieval import is_explicit_research_question
 from comparison_retrieval import is_explicit_comparison_question
 from photo_spot_runtime import is_explicit_photo_request, is_unsafe_photo_request
 from semantic_normalization import canonical_control_text, recognize_semantic_candidate
+from single_fact_answer import render_single_fact_answer, single_fact_categories
 from guide_program_evidence import build_stop_guidance, reexpress_current_stop_guidance
 from profile_dialogue import collect_profile_input
 from profile_update import apply_profile_update, is_profile_update_request
@@ -291,6 +292,28 @@ def build_model(with_tools: bool = True):
 
 def llm_think_node(state: AgentState) -> dict[str, Any]:
     """ReAct reasoning node: answer directly or request a knowledge-base tool call."""
+    latest = state["messages"][-1] if state.get("messages") else None
+    direct_fact_answer = (
+        latest.additional_kwargs.get("direct_single_fact_answer")
+        if isinstance(latest, AIMessage)
+        else None
+    )
+    if isinstance(direct_fact_answer, dict) and direct_fact_answer.get("message"):
+        return {
+            "messages": [AIMessage(
+                content=direct_fact_answer["message"],
+                additional_kwargs={"direct_single_fact_answer": True},
+            )],
+            "qa_context": clear_qa_context(state.get("qa_context")),
+            "performance_metrics": _append_metric(
+                state,
+                "llm_think",
+                0.0,
+                phase="deterministic_single_fact_answer",
+                fact_kind=direct_fact_answer.get("fact_kind"),
+                evidence_count=len(state.get("retrieved_evidence", [])),
+            ),
+        }
     reached_limit = state.get("tool_loops", 0) >= MAX_TOOL_LOOPS
     # Only a ToolMessage immediately preceding this node belongs to the current
     # turn.  ``retrieved_evidence`` may be retained in a multi-turn checkpoint,
@@ -793,14 +816,24 @@ def direct_rag_node(state: AgentState) -> dict[str, Any]:
     """Retrieve clearly in-domain facts without an unnecessary tool-selection LLM."""
     query = _latest_user_text(state)
     started = time.perf_counter()
-    content = str(chen_clan_academy_rag_search.invoke({"query": query}))
+    categories = single_fact_categories(query)
+    tool_input: dict[str, Any] = {"query": query}
+    if categories is not None:
+        tool_input["categories"] = categories
+    content = str(chen_clan_academy_rag_search.invoke(tool_input))
     try:
         evidence = json.loads(content).get("evidence", [])
     except json.JSONDecodeError:
         evidence = []
+    fact_answer = render_single_fact_answer(query, evidence)
     marker = AIMessage(
         content="本地检索已完成，正在根据证据整理回答。",
-        additional_kwargs={"direct_rag_evidence": True},
+        additional_kwargs={
+            "direct_rag_evidence": True,
+            "direct_single_fact_answer": (
+                fact_answer.to_dict() if fact_answer is not None else None
+            ),
+        },
     )
     return {
         "messages": [marker],
@@ -811,6 +844,8 @@ def direct_rag_node(state: AgentState) -> dict[str, Any]:
             "direct_rag",
             time.perf_counter() - started,
             evidence_count=len(evidence),
+            fact_kind=fact_answer.fact_kind if fact_answer is not None else None,
+            fact_answer_ok=fact_answer.ok if fact_answer is not None else None,
             retrieval_methods=sorted(
                 {
                     method
@@ -831,11 +866,19 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
     """
     query = _latest_user_text(state)
     started = time.perf_counter()
+    categories = single_fact_categories(query)
+
+    def scoped_rag_search(retrieval_query: str) -> str:
+        tool_input: dict[str, Any] = {"query": retrieval_query}
+        if categories is not None:
+            tool_input["categories"] = categories
+        return str(chen_clan_academy_rag_search.invoke(tool_input))
+
     result = answer_tour_question(
         query,
         state.get("tour_state"),
         state.get("tour_interaction_state"),
-        lambda retrieval_query: str(chen_clan_academy_rag_search.invoke({"query": retrieval_query})),
+        scoped_rag_search,
         state.get("visitor_profile"),
     )
     updates: dict[str, Any] = {

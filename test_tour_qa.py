@@ -19,6 +19,16 @@ EVIDENCE = {
     "source_ids": ["S11"],
     "content": "独角狮为陈家祠建筑装饰题材之一。",
 }
+HISTORY_EVIDENCE = {
+    "document": "02_history_architecture.md",
+    "title_path": ["历史、建筑与文化特色", "历史沿革"],
+    "source_ids": ["S02", "S04"],
+    "content": (
+        "1888 年，陈氏书院建祠公所成立并开始筹建。"
+        "馆方历史页面写“1893 年落成”；"
+        "广州市文化广电旅游局页面写“1888 年筹建、1894 年建成”。"
+    ),
+}
 
 
 class TourQaTests(unittest.TestCase):
@@ -92,6 +102,26 @@ class TourQaTests(unittest.TestCase):
         )
         self.assertEqual(result["retrieval_query"], "陈家祠什么时候建成？")
         self.assertEqual(result["evidence"], [EVIDENCE])
+
+    def test_single_date_fact_is_rendered_before_raw_rag_excerpt(self):
+        def search(query: str) -> str:
+            return json.dumps(
+                {"query": query, "evidence": [HISTORY_EVIDENCE]},
+                ensure_ascii=False,
+            )
+
+        result = answer_tour_question(
+            "陈家祠什么时候建成？", self.tour, self.interaction, search
+        )
+        self.assertEqual(result["mode"], "single_fact")
+        self.assertIn("1888 年开始筹建", result["message"])
+        self.assertIn("1893 年落成", result["message"])
+        self.assertIn("1894 年建成", result["message"])
+        self.assertNotIn("02_history_architecture.md", result["message"])
+        self.assertNotIn("根据本地知识库检索到的资料", result["message"])
+        self.assertEqual(
+            result["presentation"]["code"], "tour_qa_single_fact_answer"
+        )
 
     def test_same_deictic_craft_question_changes_local_examples_by_current_node(self):
         moon_tour = start_tour(plan_template("highlights_30"))
