@@ -46,6 +46,7 @@ from term_card_runtime import is_explicit_term_question
 from research_card_retrieval import is_explicit_research_question
 from comparison_retrieval import is_explicit_comparison_question
 from photo_spot_runtime import is_explicit_photo_request, is_unsafe_photo_request
+from semantic_normalization import canonical_control_text, recognize_semantic_candidate
 from guide_program_evidence import build_stop_guidance, reexpress_current_stop_guidance
 from profile_dialogue import collect_profile_input
 from profile_update import apply_profile_update, is_profile_update_request
@@ -90,6 +91,11 @@ class AgentState(TypedDict, total=False):
     profile_collection: dict[str, Any]
     last_profile_update: dict[str, Any]
     last_extended_profile_control: dict[str, Any]
+    # Per-turn, auditable input normalization.  This is not TourState or a
+    # VisitorProfile: it is reset on every user message and can only map into
+    # existing deterministic control parsers.
+    semantic_candidate: dict[str, Any] | None
+    semantic_control_text: str | None
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -170,6 +176,58 @@ def _latest_user_text(state: AgentState) -> str:
         return ""
     content = state["messages"][-1].content
     return content if isinstance(content, str) else str(content)
+
+
+def _effective_control_text(state: AgentState) -> str:
+    """Return a bounded canonical control phrase, otherwise the raw message.
+
+    The raw message remains the sole input for RAG and presentation.  Only
+    control routing may consume this field, after the semantic candidate has
+    been validated and converted into vocabulary the existing parser owns.
+    """
+    normalized = state.get("semantic_control_text")
+    return normalized if isinstance(normalized, str) and normalized else _latest_user_text(state)
+
+
+def _invoke_semantic_model(prompt: str) -> str:
+    """Use the configured model only as a schema-bounded recognizer."""
+    response = build_model(with_tools=False).invoke([
+        {"role": "system", "content": "只执行受控语义分类；不得回答用户。"},
+        {"role": "user", "content": prompt},
+    ])
+    return response.content if isinstance(response.content, str) else str(response.content)
+
+
+def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
+    """Propose a safe synonym normalization without executing any operation."""
+    started = time.perf_counter()
+    raw_text = _latest_user_text(state)
+    decision = classify_tour_intent(
+        raw_text, state.get("tour_state"), state.get("tour_interaction_state")
+    )
+    # Existing deterministic controls have precedence.  Safety is also kept
+    # entirely outside the model path.  A model is queried only when the
+    # current grammar has no control interpretation at all.
+    if not raw_text or decision.route_kind != "other" or is_unsafe_photo_request(raw_text):
+        return {
+            "semantic_candidate": None,
+            "semantic_control_text": None,
+            "performance_metrics": _append_metric(
+                state, "semantic_normalization", time.perf_counter() - started,
+                status="not_needed",
+            ),
+        }
+    candidate = recognize_semantic_candidate(raw_text, _invoke_semantic_model)
+    canonical = canonical_control_text(candidate)
+    return {
+        "semantic_candidate": candidate.to_dict() if candidate.actionable else None,
+        "semantic_control_text": canonical,
+        "performance_metrics": _append_metric(
+            state, "semantic_normalization", time.perf_counter() - started,
+            status="candidate" if canonical else "no_actionable_candidate",
+            candidate_kind=candidate.candidate_kind,
+        ),
+    }
 
 
 def _last_assistant_response_kind(state: AgentState) -> str | None:
@@ -420,7 +478,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
 
 def profile_collection_node(state: AgentState) -> dict[str, Any]:
     """Collect explicit C2 preferences without starting or changing a tour."""
-    query = _latest_user_text(state)
+    query = _effective_control_text(state)
     decision = classify_tour_intent(
         query, state.get("tour_state"), state.get("tour_interaction_state")
     )
@@ -459,7 +517,7 @@ def profile_collection_node(state: AgentState) -> dict[str, Any]:
 
 def profile_update_node(state: AgentState) -> dict[str, Any]:
     """Apply a C4 preference update without allowing an LLM to write state."""
-    query = _latest_user_text(state)
+    query = _effective_control_text(state)
     started = time.perf_counter()
     intent = classify_tour_intent(
         query, state.get("tour_state"), state.get("tour_interaction_state")
@@ -569,7 +627,7 @@ def tour_event_node(state: AgentState) -> dict[str, Any]:
     """Execute one already-classified tour event only through A1-1 adapter."""
     started = time.perf_counter()
     decision = classify_tour_intent(
-        _latest_user_text(state), state.get("tour_state"), state.get("tour_interaction_state")
+        _effective_control_text(state), state.get("tour_state"), state.get("tour_interaction_state")
     )
     if decision.route_kind != "tour_event" or not decision.event_type:
         return {
@@ -706,7 +764,7 @@ def stop_guidance_node(state: AgentState) -> dict[str, Any]:
 def clarification_node(state: AgentState) -> dict[str, Any]:
     """Reply to low-confidence or multi-intent text without changing TourState."""
     decision = classify_tour_intent(
-        _latest_user_text(state), state.get("tour_state"), state.get("tour_interaction_state")
+        _effective_control_text(state), state.get("tour_state"), state.get("tour_interaction_state")
     )
     presentation = present_clarification(
         decision.clarification_message or "请换一种更明确的说法。",
@@ -873,20 +931,21 @@ def route_after_llm(state: AgentState) -> str:
 
 def route_initial_request(state: AgentState) -> str:
     """Apply A1-2 priority before route/RAG/LLM fallbacks."""
-    text = _latest_user_text(state)
+    raw_text = _latest_user_text(state)
+    text = _effective_control_text(state)
     # Safety is evaluated before event/multi-intent arbitration.  A dangerous
     # photo request must never record an arrival first or reach D5 candidates.
     # The D6 handler performs the deterministic refusal without state writes.
-    if is_unsafe_photo_request(text):
+    if is_unsafe_photo_request(raw_text):
         return "tour_qa"
     # A1 reserves request_stop_detail for the active physical StopProgram.
     # The same wording may instead follow a successful knowledge answer; that
     # read-only path is selected only from explicit message metadata.
-    if is_qa_follow_up_detail_request(text) or is_qa_subject_follow_up_request(text):
+    if is_qa_follow_up_detail_request(raw_text) or is_qa_subject_follow_up_request(raw_text):
         # A craft named in this turn is a complete question, not an omitted
         # subject that depends on the previous QA response.  This keeps
         # “请详细讲讲灰塑” usable before any route has started.
-        if any(craft in text for craft in CRAFT_TERMS):
+        if any(craft in raw_text for craft in CRAFT_TERMS):
             return "tour_qa"
         previous_kind = _last_assistant_response_kind(state)
         if previous_kind == "tour_qa":
@@ -896,7 +955,7 @@ def route_initial_request(state: AgentState) -> str:
     decision = classify_tour_intent(
         text, state.get("tour_state"), state.get("tour_interaction_state")
     )
-    extended = parse_extended_profile_control(text)
+    extended = parse_extended_profile_control(raw_text)
     # A physical tour event and a preference change are separate atomic turns;
     # never let the preference half silently suppress arrival/skip semantics.
     if extended.kind != "none" and decision.route_kind in {"tour_event", "clarification"}:
@@ -919,7 +978,7 @@ def route_initial_request(state: AgentState) -> str:
     # words as *planning preferences* (for example, “一小时，想看三国工艺
     # 比较，请规划路线”).  Do not let those words divert a route request into
     # D3/D4 knowledge Q&A before C2 can collect the route profile.
-    if is_explicit_photo_request(text):
+    if is_explicit_photo_request(raw_text):
         return "tour_qa"
     if decision.route_kind == "route_request" or should_direct_route(text):
         return "profile_collection"
@@ -936,7 +995,7 @@ def route_initial_request(state: AgentState) -> str:
     if decision.route_kind == "rag_question" or should_direct_rag(text):
         # An explicit audited point inventory is structured data even before a
         # route starts. Other no-route facts retain the established RAG path.
-        if is_point_inventory_request(text, state.get("tour_state")) or is_explicit_photo_request(text) or is_explicit_comparison_question(text) or is_explicit_research_question(text) or is_explicit_term_question(text):
+        if is_point_inventory_request(raw_text, state.get("tour_state")) or is_explicit_photo_request(raw_text) or is_explicit_comparison_question(raw_text) or is_explicit_research_question(raw_text) or is_explicit_term_question(raw_text):
             return "tour_qa"
         return "tour_qa" if state.get("tour_state") and state.get("tour_interaction_state") else "direct_rag"
     return "llm_think"
@@ -966,6 +1025,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     the command-line ``chat`` helper retains MemorySaver for local conversations.
     """
     workflow = StateGraph(AgentState)
+    workflow.add_node("semantic_normalization", semantic_normalization_node)
     workflow.add_node("llm_think", llm_think_node)
     workflow.add_node("rag_tool", rag_tool_node)
     workflow.add_node("direct_rag", direct_rag_node)
@@ -978,8 +1038,9 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("tour_event", tour_event_node)
     workflow.add_node("stop_guidance", stop_guidance_node)
     workflow.add_node("clarification", clarification_node)
+    workflow.add_edge(START, "semantic_normalization")
     workflow.add_conditional_edges(
-        START,
+        "semantic_normalization",
         route_initial_request,
         {
             "direct_rag": "direct_rag", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "tour_event": "tour_event",

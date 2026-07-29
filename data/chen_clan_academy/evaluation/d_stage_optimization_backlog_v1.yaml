@@ -468,12 +468,14 @@ backlog:
 
   - backlog_id: e3_023_controlled_semantic_normalization
     priority: P1
-    status: open
+    status: implemented_pending_langsmith_verification
     source_finding_ids: [rvw_muziw_013]
     module: cross_flow_intent_normalization
     issue_type: semantic_routing
     suspected_layer: intent_routing_and_value_extraction
-    reproduction_status: user_reported_in_LangSmith_testing; concrete_variant_traces_pending
+    reproduction_status: >-
+      Offline contract and integration tests passed on main after implementation;
+      concrete LangSmith variant traces remain pending.
     summary: >-
       Fixed keyword and synonym lists cannot recognize many ordinary paraphrases of arrival,
       visit duration, remaining time, route requests, and other tour controls; unmatched text
@@ -485,6 +487,12 @@ backlog:
       unique pending stop; duration still requires an unambiguous valid minute value; nodes
       must resolve through the reviewed registry; an unavailable or low-confidence semantic
       component falls back to clarification or the current deterministic parser.
+    implementation_note: >-
+      semantic_normalization.py now validates exact user evidence, a closed candidate enum,
+      confidence, and bounded minutes before agent_graph.py maps a candidate to the existing
+      deterministic parser. It does not create node IDs, route data, facts, or state patches.
+      The "少走路" candidate is auditable only; P1-06 must add a reviewed route constraint
+      before it can change route selection.
 
 test_gaps:
   - gap_id: e3_gap_001_thread_isolation
