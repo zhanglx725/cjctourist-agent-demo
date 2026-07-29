@@ -110,6 +110,41 @@ class QaFollowUpTests(unittest.TestCase):
         self.assertEqual(result["evidence"], [])
         self.assertEqual(self.front_tour, before)
 
+    def test_whole_site_term_definition_then_detail_retains_the_craft_topic(self):
+        first = answer_tour_question("灰塑是什么？", None, None, self._search)
+        self.assertEqual(first["mode"], "term_card")
+        context = build_qa_context_from_answer("灰塑是什么？", first, None)
+        self.assertIsNotNone(context)
+        self.assertEqual(context["origin"], "whole_site")
+        self.assertIsNone(context["query_node_id"])
+        self.assertEqual(context["subject_terms"], ("灰塑",))
+
+        calls = []
+        def search(query: str) -> str:
+            calls.append(query)
+            return self._search(query)
+
+        detailed = answer_qa_follow_up_detail("详细讲讲", context, None, None, search)
+        self.assertEqual(detailed["mode"], "qa_follow_up_global_craft")
+        self.assertEqual(calls, ["灰塑 是什么 材料 制作流程 陈家祠 题材"])
+        self.assertIn("灰塑", detailed["message"])
+        self.assertIn("来源：S01", detailed["message"])
+        self.assertNotIn("根据本地知识库检索到的资料", detailed["message"])
+        self.assertNotIn("08_ornament_items.md", detailed["message"])
+
+    def test_whole_site_term_follow_up_does_not_mutate_active_tour(self):
+        first = answer_tour_question("灰塑是什么？", None, None, self._search)
+        context = build_qa_context_from_answer("灰塑是什么？", first, None)
+        before_tour = deepcopy(self.front_tour)
+        before_interaction = deepcopy(self.front_interaction)
+        result = answer_qa_follow_up_detail(
+            "再讲详细一点", context, self.front_tour, self.front_interaction, self._search
+        )
+        self.assertEqual(result["mode"], "qa_follow_up_global_craft")
+        self.assertEqual(self.front_tour, before_tour)
+        self.assertEqual(self.front_interaction, before_interaction)
+        self.assertEqual(result["presentation"]["code"], "qa_follow_up_global_craft")
+
     def test_no_evidence_craft_answer_does_not_create_follow_up_context(self):
         no_evidence = answer_tour_question(
             "这里的灰塑有什么特点？",

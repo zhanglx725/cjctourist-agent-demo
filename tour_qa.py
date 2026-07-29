@@ -498,25 +498,54 @@ def build_qa_context_from_answer(
     tour_state: dict[str, Any] | None,
     previous_context: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    """Create one follow-up context only for a successful bounded QA result."""
+    """Create one follow-up context only for a successful bounded QA result.
+
+    A reviewed whole-site craft definition is also bounded: it carries one
+    explicit craft name from the terminology registry, but deliberately no
+    physical node.  This lets ``灰塑是什么 → 详细讲讲`` keep its topic while
+    preventing an unrelated or deictic location from being inferred.
+    """
     mode = result.get("mode")
     context = result.get("point_context")
     evidence = result.get("evidence") or []
-    if mode not in {"inventory", "current_point_craft_features", "rag"}:
+    term = result.get("term") if isinstance(result.get("term"), dict) else {}
+    term_craft = next((craft for craft in CRAFT_TERMS if term.get("zh") == craft), None)
+    is_definition = any(token in user_query for token in TERM_EXPLANATION_TERMS)
+    is_whole_site_term = mode == "term_card" and term_craft is not None and is_definition
+    is_whole_site_craft_follow_up = mode == "qa_follow_up_global_craft"
+    if mode not in {"inventory", "current_point_craft_features", "rag"} and not is_whole_site_term and not is_whole_site_craft_follow_up:
         return None
     # A craft explanation without retrieved evidence is a safe fallback, but
     # it is not a trustworthy basis for a later omitted follow-up.  Inventory
     # is intentionally different: it is a successful deterministic reviewed
     # association list rather than an attempted RAG explanation.
-    if mode in {"rag", "current_point_craft_features"} and not evidence:
-        return None
-    if not isinstance(context, dict) or not context.get("node_id"):
+    if mode in {"rag", "current_point_craft_features", "qa_follow_up_global_craft"} and not evidence:
         return None
 
     try:
         previous = validate_qa_context(previous_context) if previous_context else None
     except ValueError:
         previous = None
+
+    if is_whole_site_term or is_whole_site_craft_follow_up:
+        craft = term_craft or next(
+            (value for value in (previous or {}).get("subject_terms", ()) if value in CRAFT_TERMS),
+            None,
+        )
+        if not craft:
+            return None
+        return create_qa_context(
+            query_node_id=None,
+            origin="whole_site",
+            subject_kind="craft",
+            subject_terms=[craft],
+            answer_mode=mode,
+            follow_up_allowed=True,
+            physical_node_id_snapshot=(tour_state or {}).get("current_stop_id"),
+        )
+
+    if not isinstance(context, dict) or not context.get("node_id"):
+        return None
     resolution = resolve_reviewed_node(user_query)
     origin = (
         previous["origin"]
@@ -553,6 +582,59 @@ def build_qa_context_from_answer(
     )
 
 
+def _follow_up_evidence_line(item: dict[str, Any]) -> str:
+    """Render a concise evidence sentence without exposing a raw RAG chunk."""
+    content = " ".join(str(item.get("content") or "").split())
+    sentence = next(
+        (part.strip() for part in content.replace("！", "。").replace("？", "。").split("。") if part.strip()),
+        "",
+    )
+    sources = "、".join(item.get("source_ids") or []) or "未标注来源编号"
+    return f"{sentence or '该条资料未提供可直接概括的内容。'}（来源：{sources}）"
+
+
+def _answer_whole_site_craft_follow_up(
+    craft: str,
+    tour_state: dict[str, Any] | None,
+    interaction_state: dict[str, Any] | None,
+    rag_search: Callable[[str], str],
+) -> dict[str, Any]:
+    """Expand one reviewed craft term with freshly retrieved, scoped evidence."""
+    retrieval_query = f"{craft} 是什么 材料 制作流程 陈家祠 题材"
+    try:
+        payload = parse_rag_payload(rag_search(retrieval_query))
+    except Exception as exc:
+        payload = {"evidence": [], "error": f"本地知识检索暂时不可用：{exc}"}
+    evidence = [item for item in payload.get("evidence", []) if isinstance(item, dict)]
+    if evidence:
+        lines = [f"下面继续展开“{craft}”："]
+        lines.extend(f"- {_follow_up_evidence_line(item)}" for item in evidence[:3])
+        lines.append("以上只依据本次重新检索到的资料；如果想继续了解具体作品，请直接说出作品名称或点位。")
+        message = "\n".join(lines)
+    else:
+        detail = payload.get("error") or f"当前本地知识库没有检索到足以展开“{craft}”的资料。"
+        message = f"暂时不能安全展开“{craft}”：{detail}"
+    presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
+    if presentation:
+        message += "\n\n本次术语展开未改变路线进度，您可继续使用现有导览操作。"
+        presentation = {
+            **presentation,
+            "message": message,
+            "code": "qa_follow_up_global_craft" if evidence else "qa_follow_up_global_craft_no_evidence",
+            "ok": bool(evidence),
+            "evidence_count": len(evidence),
+        }
+    return {
+        "message": message,
+        "mode": "qa_follow_up_global_craft",
+        "evidence": evidence,
+        "point_context": None,
+        "presentation": presentation,
+        "retrieval_query": retrieval_query,
+        "term": {"zh": craft, "source_ids": []},
+    }
+
+
 def answer_qa_follow_up_detail(
     user_query: str,
     qa_context: dict[str, Any] | None,
@@ -567,7 +649,33 @@ def answer_qa_follow_up_detail(
         context = validate_qa_context(qa_context)
     except ValueError:
         context = None
-    if not context or not context["follow_up_allowed"] or not context["query_node_id"]:
+    if not context or not context["follow_up_allowed"]:
+        return {
+            "message": "我没有可安全继续展开的上一轮点位问答。请说明想了解哪个点位或哪类装饰。",
+            "mode": "qa_follow_up_clarification",
+            "evidence": [],
+            "point_context": None,
+            "presentation": present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None,
+            "retrieval_query": None,
+        }
+
+    requested_craft = next((craft for craft in CRAFT_TERMS if craft in user_query), None)
+    craft = requested_craft or next(
+        (term for term in context["subject_terms"] if term in CRAFT_TERMS), None
+    )
+    if context["origin"] == "whole_site" and context["query_node_id"] is None:
+        if not craft:
+            return {
+                "message": "上一轮术语说明没有唯一可展开的工艺名称，请说明想继续了解哪一种装饰。",
+                "mode": "qa_follow_up_clarification",
+                "evidence": [],
+                "point_context": None,
+                "presentation": present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None,
+                "retrieval_query": None,
+            }
+        return _answer_whole_site_craft_follow_up(craft, tour_state, interaction_state, rag_search)
+
+    if not context["query_node_id"]:
         return {
             "message": "我没有可安全继续展开的上一轮点位问答。请说明想了解哪个点位或哪类装饰。",
             "mode": "qa_follow_up_clarification",
@@ -578,10 +686,6 @@ def answer_qa_follow_up_detail(
         }
 
     point_context = point_context_for_node(context["query_node_id"])
-    requested_craft = next((craft for craft in CRAFT_TERMS if craft in user_query), None)
-    craft = requested_craft or next(
-        (term for term in context["subject_terms"] if term in CRAFT_TERMS), None
-    )
     if not craft:
         return {
             "message": f"上一轮问答限定在{point_context['name']}，但没有唯一可展开的对象。请说明想继续了解哪一种装饰。",

@@ -163,15 +163,29 @@ backlog:
 
   - backlog_id: e3_006_followup_topic_and_spatial_scope_memory
     priority: P1
-    status: open
+    status: fixed_pending_verification
     source_finding_ids: [rvw_muziw_010, e2_d_003]
     module: memory
     issue_type: routing
     suspected_layer: memory
-    reproduction_status: confirmed_by_e2_manual_evidence; independent_reproduction_not_run
+    reproduction_status: >-
+      Confirmed by E2 manual evidence.  The former implementation retained
+      context only for bounded point QA, so a whole-site reviewed terminology
+      answer such as “灰塑是什么” cleared its topic before “详细讲讲”.
+      The repair preserves one explicit reviewed craft term as a whole-site,
+      read-only qa_context, recognizes the real wording “详细讲讲”, and
+      re-retrieves only that craft's scoped evidence.  Targeted automated
+      regression passed on 2026-07-29; LangSmith verification is pending.
     summary: Elliptical follow-ups lose their immediate term or point qualifier.
     owner: integration_owner
     contract_impact: none
+    repair_files:
+      - qa_context.py
+      - tour_qa.py
+    verification_tests:
+      - test_qa_context.py
+      - test_qa_follow_up.py
+      - test_agent_tour_qa.py
     acceptance_test: >-
       "灰塑是什么" then "详细讲讲" expands 灰塑, and "月台上的石雕" then
       "石雕" remains scoped to 月台 without changing TourState.

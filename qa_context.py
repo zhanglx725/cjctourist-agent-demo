@@ -27,7 +27,13 @@ REQUIRED_FIELDS = frozenset(
         "physical_node_id_snapshot",
     }
 )
-DETAIL_FOLLOW_UP_TERMS = ("再讲详细", "详细一点", "讲细一点", "展开讲解")
+DETAIL_FOLLOW_UP_TERMS = (
+    "再讲详细",
+    "详细一点",
+    "详细讲讲",
+    "讲细一点",
+    "展开讲解",
+)
 
 
 def create_qa_context(

@@ -10,7 +10,13 @@ from unittest.mock import patch
 from langchain_core.messages import HumanMessage
 
 import agent_graph
-from agent_graph import direct_route_node, route_initial_request, tour_event_node, tour_qa_node
+from agent_graph import (
+    direct_route_node,
+    qa_follow_up_detail_node,
+    route_initial_request,
+    tour_event_node,
+    tour_qa_node,
+)
 
 
 FAKE_PAYLOAD = json.dumps(
@@ -95,6 +101,27 @@ class AgentTourQaTests(unittest.TestCase):
             update = tour_qa_node(request)
         rag.invoke.assert_not_called()
         self.assertIn("以石灰为主料", update["messages"][0].content)
+
+    def test_whole_site_term_detail_follow_up_keeps_subject_without_a_route(self):
+        first = tour_qa_node(_message_state("灰塑是什么？"))
+        self.assertEqual(first["qa_context"]["subject_terms"], ("灰塑",))
+        follow = {
+            **first,
+            "messages": [
+                first["messages"][0],
+                HumanMessage(content="详细讲讲"),
+            ],
+            "performance_metrics": [],
+        }
+        self.assertEqual(route_initial_request(follow), "qa_follow_up_detail")
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            rag.invoke.return_value = FAKE_PAYLOAD
+            update = qa_follow_up_detail_node(follow)
+        rag.invoke.assert_called_once_with({"query": "灰塑 是什么 材料 制作流程 陈家祠 题材"})
+        self.assertIn("灰塑", update["messages"][0].content)
+        self.assertNotIn("08_ornament_items.md", update["messages"][0].content)
+        self.assertNotIn("tour_state", update)
+        self.assertNotIn("tour_interaction_state", update)
 
     def test_unsafe_photo_request_still_enters_controlled_photo_qa_path(self):
         request = _message_state("我想踩在栏杆上拍照，怎么拍？")
