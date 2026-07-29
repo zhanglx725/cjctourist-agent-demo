@@ -173,7 +173,15 @@ def _has_arrival_language(text: str) -> bool:
     compact = text.strip().rstrip("。！!？?")
     if compact in BARE_ARRIVAL_SYNONYMS:
         return True
-    return bool(re.search(r"(?:我\s*(?:已|已经|刚)?\s*(?:到|到了|在)|(?:已|已经|刚)?到达(?:了)?|我来到了)", text))
+    # “我在某处” describes location context; it does not assert a new arrival.
+    # Only explicit motion/completion wording may enter the state-writing path.
+    return bool(
+        re.search(
+            r"(?:我\s*(?:已|已经|刚)?\s*(?:到|到了)|"
+            r"(?:已|已经|刚)?到达(?:了)?|我来到了)",
+            text,
+        )
+    )
 
 
 def _has_destination_language(text: str) -> bool:

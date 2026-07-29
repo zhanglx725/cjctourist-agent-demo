@@ -118,6 +118,7 @@ def is_point_inventory_request(user_query: str, tour_state: dict[str, Any] | Non
     inventory_terms = (
         "这里有什么", "这里呢", "此处呢", "眼前呢", "当前点", "当前站", "本点",
         "哪些装饰", "有哪些装饰", "主要看什么", "有什么值得看",
+        "能看到什么", "可以看到什么",
     )
     if any(term in user_query for term in inventory_terms):
         return True

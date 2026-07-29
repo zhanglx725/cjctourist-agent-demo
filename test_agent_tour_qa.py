@@ -357,6 +357,17 @@ class AgentTourQaTests(unittest.TestCase):
         request = _message_state("月台有什么？")
         self.assertEqual(route_initial_request(request), "tour_qa")
 
+    def test_static_location_context_question_uses_point_inventory_without_state_write(self):
+        state = self._arrived_tour()
+        request = _message_state("我在月台能看到什么？", state)
+        self.assertEqual(route_initial_request(request), "tour_qa")
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            update = tour_qa_node(request)
+        rag.invoke.assert_not_called()
+        self.assertIn("月台", update["messages"][0].content)
+        self.assertNotIn("tour_state", update)
+        self.assertNotIn("tour_interaction_state", update)
+
     def test_arrival_text_remains_event_not_rag(self):
         state = self._arrived_tour()
         self.assertEqual(route_initial_request(_message_state("我到月台了", state)), "tour_event")

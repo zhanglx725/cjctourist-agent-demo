@@ -53,6 +53,16 @@ class TourIntentTests(unittest.TestCase):
         self.assertEqual(decision.route_kind, "rag_question")
         self.assertIsNone(decision.event_type)
 
+    def test_static_location_context_question_is_not_arrival(self):
+        decision = self.classify("我在月台能看到什么？")
+        self.assertEqual(decision.route_kind, "rag_question")
+        self.assertIsNone(decision.event_type)
+
+    def test_static_location_food_question_is_not_arrival(self):
+        decision = self.classify("我在庭院休息区吃点东西可以吗？")
+        self.assertNotEqual(decision.route_kind, "tour_event")
+        self.assertIsNone(decision.event_type)
+
     def test_navigation_question_is_not_arrival(self):
         decision = self.classify("月台怎么走？")
         self.assertEqual(decision.route_kind, "rag_question")

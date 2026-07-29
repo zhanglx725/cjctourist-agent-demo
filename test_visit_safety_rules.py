@@ -63,6 +63,26 @@ class VisitSafetyRulesTests(unittest.TestCase):
         self.assertIn("不能带入展厅内部", answer["message"])
         self.assertIn("庭院休息区", answer["message"])
 
+    def test_commercial_promo_wording_maps_to_reported_shooting_boundary(self) -> None:
+        query = "我带相机来拍商业宣传片，需要提前办什么手续？"
+        self.assertTrue(is_visit_safety_question(query))
+        answer = answer_visit_safety_question(query)
+        self.assertEqual(answer["rule_ids"], ("commercial_photo",))
+        self.assertTrue(answer["message"].startswith("未经报备，不可以进行商业拍摄"))
+        self.assertIn("提前向馆方报备并确认具体手续", answer["message"])
+
+    def test_courtyard_rest_area_food_question_returns_the_allowed_exception(self) -> None:
+        query = "我在庭院休息区吃点东西可以吗？"
+        self.assertTrue(is_visit_safety_question(query))
+        answer = answer_visit_safety_question(query)
+        self.assertEqual(answer["rule_ids"], ("food",))
+        self.assertTrue(answer["message"].startswith("可以在庭院休息区饮食"))
+        self.assertIn("不能带入展厅内部", answer["message"])
+
+    def test_unspecified_courtyard_does_not_expand_the_reviewed_exception(self) -> None:
+        answer = answer_visit_safety_question("我能在庭院吃饭吗？")
+        self.assertIn("资料明确允许饮食的是庭院休息区", answer["message"])
+
     def test_unrelated_question_is_not_claimed(self) -> None:
         self.assertFalse(is_visit_safety_question("木雕是怎么制作的？"))
         self.assertIsNone(answer_visit_safety_question("木雕是怎么制作的？"))

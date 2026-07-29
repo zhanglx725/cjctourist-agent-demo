@@ -29,13 +29,32 @@ SAFETY_QUERY_CUES: dict[str, tuple[str, ...]] = {
         "触碰",
     ),
     "flash": ("闪光灯", "开闪光", "用闪光"),
-    "commercial_photo": ("商业拍摄", "商业摄影", "商拍"),
+    "commercial_photo": (
+        "商业拍摄",
+        "商业摄影",
+        "商拍",
+        "商业宣传片",
+        "商业摄制",
+        "商业广告片",
+        "广告拍摄",
+        "拍广告片",
+        "商用拍摄",
+    ),
     "drone": ("无人机", "航拍", "飞行器"),
     "food": (
         "带食物",
         "带饮料",
         "吃东西",
+        "吃点东西",
+        "吃点儿东西",
+        "吃一点东西",
+        "吃些东西",
+        "吃饭",
+        "用餐",
+        "就餐",
+        "进食",
         "喝饮料",
+        "喝点东西",
         "奶茶",
         "零食",
         "含糖饮料",
@@ -118,6 +137,17 @@ def is_visit_safety_question(user_query: str) -> bool:
     return bool(matched_visit_safety_rule_ids(user_query))
 
 
+def _food_location_scope(user_query: str) -> str:
+    """Return only source-supported dining location scopes."""
+    if "庭院休息区" in user_query:
+        return "courtyard_rest_area"
+    if "展厅" in user_query or "室内" in user_query:
+        return "exhibition_hall"
+    if "庭院" in user_query:
+        return "courtyard_unspecified"
+    return "unspecified"
+
+
 def answer_visit_safety_question(user_query: str) -> dict[str, Any] | None:
     """Render a concise, conclusion-first answer without exposing internals."""
     rule_ids = matched_visit_safety_rule_ids(user_query)
@@ -135,13 +165,18 @@ def answer_visit_safety_question(user_query: str) -> dict[str, Any] | None:
             "verified": False,
         }
 
+    food_scope = _food_location_scope(user_query)
     introductions = {
         "smoking": "不可以在陈家祠内吸烟。",
         "touching": "不可以触摸建筑构件或展品。",
         "flash": "室内文物展柜禁止使用闪光灯。",
         "commercial_photo": "未经报备，不可以进行商业拍摄。",
         "drone": "不可以直接使用无人机航拍，景区全域禁飞。",
-        "food": "含糖饮料和食物不能带入展厅内部。",
+        "food": (
+            "可以在庭院休息区饮食，但含糖饮料和食物不能带入展厅内部。"
+            if food_scope == "courtyard_rest_area"
+            else "含糖饮料和食物不能带入展厅内部。"
+        ),
     }
     lines: list[str] = []
     for rule_id in rule_ids:
@@ -149,7 +184,13 @@ def answer_visit_safety_question(user_query: str) -> dict[str, Any] | None:
         detail = rules[rule_id]
         if detail.rstrip("。") not in introductions[rule_id]:
             lines.append(detail)
-    if "food" in rule_ids:
+    if "commercial_photo" in rule_ids and any(
+        cue in user_query for cue in ("手续", "报备", "申请", "审批", "许可")
+    ):
+        lines.append("如确有商业拍摄需求，请提前向馆方报备并确认具体手续。")
+    if "food" in rule_ids and food_scope == "courtyard_unspecified":
+        lines.append("资料明确允许饮食的是庭院休息区，请不要将食物或含糖饮料带入展厅。")
+    elif "food" in rule_ids and food_scope not in {"courtyard_rest_area"}:
         lines.append("如需饮食，可前往庭院休息区。")
     lines.append("请同时遵守现场标识和工作人员要求。")
     return {

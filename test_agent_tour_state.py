@@ -122,6 +122,13 @@ class AgentTourStateTests(unittest.TestCase):
         initial = self._started()
         self.assertEqual(route_initial_request(_message_state("月台有什么？", initial)), "tour_qa")
 
+    def test_static_location_context_routes_to_qa_not_arrival(self):
+        initial = self._started()
+        self.assertEqual(
+            route_initial_request(_message_state("我在月台能看到什么？", initial)),
+            "tour_qa",
+        )
+
     def test_open_conversation_keeps_llm_path(self):
         self.assertEqual(route_initial_request(_message_state("你好")), "llm_think")
 
