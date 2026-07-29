@@ -18,6 +18,7 @@ from semantic_normalization import (
     SemanticCandidate,
     canonical_control_text,
     canonical_fact_kind,
+    canonical_knowledge_plan,
     recognize_semantic_candidate,
     validate_candidate,
 )
@@ -89,6 +90,70 @@ class SemanticNormalizationTests(unittest.TestCase):
             "minutes": 2,
         })
         self.assertEqual(invalid_minutes, SemanticCandidate())
+
+    def test_broad_knowledge_candidate_maps_to_a_closed_read_only_plan(self):
+        text = "三顾茅庐讲了什么故事？"
+        candidate = validate_candidate(text, {
+            "candidate_kind": "knowledge_query",
+            "evidence_text": "三顾茅庐",
+            "confidence": "high",
+            "minutes": None,
+            "knowledge_domain": "ornament_item",
+            "question_type": "story",
+            "detail_level": "brief",
+        })
+        plan = canonical_knowledge_plan(candidate)
+        self.assertIsNotNone(plan)
+        self.assertEqual(plan.subject_text, "三顾茅庐")
+        self.assertEqual(plan.categories, ("ornament_item",))
+
+    def test_knowledge_candidate_cannot_generate_query_categories_or_nodes(self):
+        base = {
+            "candidate_kind": "knowledge_query",
+            "evidence_text": "建筑布局",
+            "confidence": "high",
+            "minutes": None,
+            "knowledge_domain": "history_architecture",
+            "question_type": "composition",
+            "detail_level": "brief",
+        }
+        for extra in (
+            {"query": "三路三进"},
+            {"categories": ["history_architecture"]},
+            {"node_id": "stop_front_courtyard_center"},
+        ):
+            self.assertEqual(
+                validate_candidate("建筑布局有什么特点？", {**base, **extra}),
+                SemanticCandidate(),
+            )
+        self.assertEqual(
+            validate_candidate(
+                "建筑布局有什么特点？",
+                {**base, "knowledge_domain": "unreviewed_domain"},
+            ),
+            SemanticCandidate(),
+        )
+
+    def test_broad_knowledge_plan_routes_equally_before_and_during_a_tour(self):
+        state = self._state("陈家祠为什么又叫书院？")
+        candidate = SemanticCandidate(
+            "knowledge_query",
+            "又叫书院",
+            "high",
+            None,
+            "history_architecture",
+            "reason",
+            "brief",
+        )
+        with patch(
+            "agent_graph.recognize_semantic_candidate",
+            return_value=candidate,
+        ):
+            state.update(semantic_normalization_node(state))
+        self.assertEqual(route_initial_request(state), "direct_rag")
+        state["tour_state"] = {"current_stop_id": "stop_front_courtyard_center"}
+        state["tour_interaction_state"] = {"phase": "explaining"}
+        self.assertEqual(route_initial_request(state), "tour_qa")
 
     def test_unlisted_fact_paraphrase_is_stored_without_rewriting_user_text(self):
         state = self._state("陈家祠一般哪天歇着？")

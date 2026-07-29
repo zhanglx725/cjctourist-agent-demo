@@ -39,6 +39,7 @@ from single_fact_answer import (
     render_single_fact_answer,
     single_fact_categories_for_kind,
 )
+from controlled_knowledge_query import ControlledKnowledgePlan
 
 
 GUIDE_CARDS_FILE = Path("data/chen_clan_academy/routes/node_guide_cards_v1.json")
@@ -760,6 +761,10 @@ def answer_tour_question(
     visitor_profile: dict[str, Any] | None = None,
     *,
     normalized_fact_kind: str | None = None,
+    normalized_knowledge_plan: ControlledKnowledgePlan | None = None,
+    grounded_knowledge_renderer: (
+        Callable[[ControlledKnowledgePlan, list[dict[str, Any]]], str] | None
+    ) = None,
 ) -> dict[str, Any]:
     """Use one injected existing RAG callable and leave both state snapshots untouched."""
     fact_kind = normalized_fact_kind or identify_single_fact_kind(user_query)
@@ -787,6 +792,46 @@ def answer_tour_question(
             **result,
             "retrieval_query": user_query,
             "point_context": current_stop_context(tour_state),
+        }
+    if normalized_knowledge_plan is not None:
+        try:
+            payload = parse_rag_payload(rag_search(user_query))
+        except Exception as exc:
+            payload = {
+                "evidence": [],
+                "error": f"本地知识检索暂时不可用：{exc}",
+            }
+        evidence = payload.get("evidence") or []
+        if grounded_knowledge_renderer is None:
+            message = (
+                "当前受控知识回答器不可用，我不会直接展示检索原文或使用无关资料补答。"
+            )
+        else:
+            message = grounded_knowledge_renderer(
+                normalized_knowledge_plan,
+                evidence,
+            )
+        presentation = (
+            present_tour_state(tour_state, interaction_state)
+            if tour_state and interaction_state
+            else None
+        )
+        if presentation:
+            presentation = {
+                **presentation,
+                "message": message,
+                "code": "tour_qa_controlled_knowledge_answer",
+                "ok": bool(evidence),
+                "evidence_count": len(evidence),
+            }
+        return {
+            "message": message,
+            "mode": "controlled_knowledge",
+            "evidence": evidence,
+            "knowledge_plan": normalized_knowledge_plan.to_dict(),
+            "point_context": current_stop_context(tour_state),
+            "presentation": presentation,
+            "retrieval_query": user_query,
         }
     craft_request = parse_craft_explanation_request(user_query)
     scoped_context, _ = resolve_point_context(user_query, tour_state)

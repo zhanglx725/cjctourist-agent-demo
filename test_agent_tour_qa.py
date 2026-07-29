@@ -16,9 +16,11 @@ from agent_graph import (
     llm_think_node,
     qa_follow_up_detail_node,
     route_initial_request,
+    semantic_normalization_node,
     tour_event_node,
     tour_qa_node,
 )
+from semantic_normalization import SemanticCandidate
 
 
 FAKE_PAYLOAD = json.dumps(
@@ -85,6 +87,26 @@ HISTORY_PAYLOAD = json.dumps(
                     "广州市文化广电旅游局页面写“1888 年筹建、1894 年建成”。"
                 ),
             }
+        ]
+    },
+    ensure_ascii=False,
+)
+ORNAMENT_STORY_PAYLOAD = json.dumps(
+    {
+        "evidence": [
+            {
+                "category": "ornament_item",
+                "document": "08_ornament_items.md",
+                "title_path": ["陈家祠建筑装饰条目知识库", "三顾茅庐"],
+                "source_ids": ["S11"],
+                "content": "三顾茅庐讲述刘备三次拜访诸葛亮，请其出山辅佐的故事。",
+            },
+            {
+                "category": "history_architecture",
+                "document": "02_history_architecture.md",
+                "source_ids": ["S02"],
+                "content": "无关历史段落。",
+            },
         ]
     },
     ensure_ascii=False,
@@ -174,6 +196,84 @@ class AgentTourQaTests(unittest.TestCase):
         self.assertEqual(
             update["tour_presentation"]["code"],
             "tour_qa_single_fact_answer",
+        )
+
+    @staticmethod
+    def _normalize_story_question(initial: dict | None = None) -> dict:
+        request = _message_state("三顾茅庐讲了什么故事？", initial)
+        candidate = SemanticCandidate(
+            "knowledge_query",
+            "三顾茅庐",
+            "high",
+            None,
+            "ornament_item",
+            "story",
+            "brief",
+        )
+        with patch(
+            "agent_graph.recognize_semantic_candidate",
+            return_value=candidate,
+        ):
+            request.update(semantic_normalization_node(request))
+        return request
+
+    def test_no_route_broad_knowledge_uses_scoped_retrieval_and_grounded_answer(self):
+        request = self._normalize_story_question()
+        self.assertEqual(route_initial_request(request), "direct_rag")
+        with (
+            patch("agent_graph.chen_clan_academy_rag_search") as rag,
+            patch(
+                "agent_graph._invoke_grounded_knowledge_model",
+                return_value="“三顾茅庐”讲的是刘备三次拜访诸葛亮，诚请他出山辅佐的故事。",
+            ) as model,
+        ):
+            rag.invoke.return_value = ORNAMENT_STORY_PAYLOAD
+            retrieval = direct_rag_node(request)
+        rag.invoke.assert_called_once_with(
+            {
+                "query": "三顾茅庐 陈家祠 建筑装饰 题材 寓意 故事 情节 典故",
+                "categories": ["ornament_item"],
+            }
+        )
+        model.assert_called_once()
+        next_state = {
+            **request,
+            **retrieval,
+            "messages": [*request["messages"], *retrieval["messages"]],
+        }
+        with patch("agent_graph.build_model") as build_model:
+            answer = llm_think_node(next_state)
+        build_model.assert_not_called()
+        message = answer["messages"][0].content
+        self.assertIn("刘备三次拜访诸葛亮", message)
+        self.assertNotIn(".md", message)
+        self.assertNotIn("S11", message)
+
+    def test_active_tour_broad_knowledge_has_the_same_scope_and_answer_quality(self):
+        state = self._arrived_tour()
+        request = self._normalize_story_question(state)
+        self.assertEqual(route_initial_request(request), "tour_qa")
+        with (
+            patch("agent_graph.chen_clan_academy_rag_search") as rag,
+            patch(
+                "agent_graph._invoke_grounded_knowledge_model",
+                return_value="“三顾茅庐”讲的是刘备三次拜访诸葛亮，诚请他出山辅佐的故事。",
+            ),
+        ):
+            rag.invoke.return_value = ORNAMENT_STORY_PAYLOAD
+            update = tour_qa_node(request)
+        rag.invoke.assert_called_once_with(
+            {
+                "query": "三顾茅庐 陈家祠 建筑装饰 题材 寓意 故事 情节 典故",
+                "categories": ["ornament_item"],
+            }
+        )
+        self.assertIn("刘备三次拜访诸葛亮", update["messages"][0].content)
+        self.assertNotIn("tour_state", update)
+        self.assertNotIn("tour_interaction_state", update)
+        self.assertEqual(
+            update["tour_presentation"]["code"],
+            "tour_qa_controlled_knowledge_answer",
         )
 
     def test_explicit_point_inventory_routes_to_tour_qa_without_active_route(self):

@@ -50,7 +50,13 @@ from photo_spot_runtime import is_explicit_photo_request, is_unsafe_photo_reques
 from semantic_normalization import (
     canonical_control_text,
     canonical_fact_kind,
+    canonical_knowledge_plan,
     recognize_semantic_candidate,
+)
+from controlled_knowledge_query import (
+    ControlledKnowledgePlan,
+    build_controlled_retrieval_query,
+    render_controlled_knowledge_answer,
 )
 from single_fact_answer import (
     FACT_KINDS,
@@ -111,6 +117,7 @@ class AgentState(TypedDict, total=False):
     semantic_candidate: dict[str, Any] | None
     semantic_control_text: str | None
     semantic_fact_kind: str | None
+    knowledge_query_plan: dict[str, Any] | None
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -214,10 +221,31 @@ def _effective_fact_kind(state: AgentState) -> str | None:
     return proposed if proposed in FACT_KINDS else None
 
 
+def _effective_knowledge_plan(state: AgentState) -> ControlledKnowledgePlan | None:
+    """Return the current turn's validated, read-only knowledge plan."""
+
+    return ControlledKnowledgePlan.from_dict(state.get("knowledge_query_plan"))
+
+
 def _invoke_semantic_model(prompt: str) -> str:
     """Use the configured model only as a schema-bounded recognizer."""
     response = build_model(with_tools=False).invoke([
         {"role": "system", "content": "只执行受控语义分类；不得回答用户。"},
+        {"role": "user", "content": prompt},
+    ])
+    return response.content if isinstance(response.content, str) else str(response.content)
+
+
+def _invoke_grounded_knowledge_model(prompt: str) -> str:
+    """Use the model only to organize facts already present in evidence."""
+
+    response = build_model(with_tools=False).invoke([
+        {
+            "role": "system",
+            "content": (
+                "只按给定证据组织陈家祠游客回答；不得调用工具、补写事实或输出内部字段。"
+            ),
+        },
         {"role": "user", "content": prompt},
     ])
     return response.content if isinstance(response.content, str) else str(response.content)
@@ -253,6 +281,7 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
             "semantic_candidate": None,
             "semantic_control_text": None,
             "semantic_fact_kind": None,
+            "knowledge_query_plan": None,
             "performance_metrics": _append_metric(
                 state, "semantic_normalization", time.perf_counter() - started,
                 status="not_needed",
@@ -261,19 +290,37 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
     candidate = recognize_semantic_candidate(raw_text, _invoke_semantic_model)
     canonical = canonical_control_text(candidate)
     fact_kind = canonical_fact_kind(candidate)
+    knowledge_plan = canonical_knowledge_plan(candidate)
     return {
         "semantic_candidate": candidate.to_dict() if candidate.actionable else None,
         "semantic_control_text": canonical,
         "semantic_fact_kind": fact_kind,
+        "knowledge_query_plan": (
+            knowledge_plan.to_dict() if knowledge_plan is not None else None
+        ),
         "performance_metrics": _append_metric(
             state, "semantic_normalization", time.perf_counter() - started,
             status=(
                 "control_candidate"
                 if canonical
-                else ("fact_candidate" if fact_kind else "no_actionable_candidate")
+                else (
+                    "fact_candidate"
+                    if fact_kind
+                    else (
+                        "knowledge_candidate"
+                        if knowledge_plan is not None
+                        else "no_actionable_candidate"
+                    )
+                )
             ),
             candidate_kind=candidate.candidate_kind,
             fact_kind=fact_kind,
+            knowledge_domain=(
+                knowledge_plan.domain if knowledge_plan is not None else None
+            ),
+            knowledge_question_type=(
+                knowledge_plan.question_type if knowledge_plan is not None else None
+            ),
         ),
     }
 
@@ -357,6 +404,28 @@ def llm_think_node(state: AgentState) -> dict[str, Any]:
                 0.0,
                 phase="deterministic_single_fact_answer",
                 fact_kind=direct_fact_answer.get("fact_kind"),
+                evidence_count=len(state.get("retrieved_evidence", [])),
+            ),
+        }
+    direct_knowledge_answer = (
+        latest.additional_kwargs.get("direct_controlled_knowledge_answer")
+        if isinstance(latest, AIMessage)
+        else None
+    )
+    if isinstance(direct_knowledge_answer, dict) and direct_knowledge_answer.get("message"):
+        return {
+            "messages": [AIMessage(
+                content=direct_knowledge_answer["message"],
+                additional_kwargs={"direct_controlled_knowledge_answer": True},
+            )],
+            "qa_context": clear_qa_context(state.get("qa_context")),
+            "performance_metrics": _append_metric(
+                state,
+                "llm_think",
+                0.0,
+                phase="controlled_knowledge_answer",
+                knowledge_domain=direct_knowledge_answer.get("domain"),
+                knowledge_question_type=direct_knowledge_answer.get("question_type"),
                 evidence_count=len(state.get("retrieved_evidence", [])),
             ),
         }
@@ -947,12 +1016,37 @@ def _search_controlled_fact_evidence(
     )
 
 
+def _search_controlled_knowledge_evidence(
+    plan: ControlledKnowledgePlan,
+) -> str:
+    """Retrieve broad knowledge through one reviewed category boundary."""
+
+    retrieval_query = build_controlled_retrieval_query(plan)
+    return str(
+        chen_clan_academy_rag_search.invoke(
+            {
+                "query": retrieval_query,
+                "categories": list(plan.categories),
+            }
+        )
+    )
+
+
 def direct_rag_node(state: AgentState) -> dict[str, Any]:
     """Retrieve clearly in-domain facts without an unnecessary tool-selection LLM."""
     query = _latest_user_text(state)
     started = time.perf_counter()
     fact_kind = _effective_fact_kind(state)
-    content = _search_controlled_fact_evidence(query, fact_kind)
+    knowledge_plan = (
+        _effective_knowledge_plan(state)
+        if fact_kind is None
+        else None
+    )
+    content = (
+        _search_controlled_knowledge_evidence(knowledge_plan)
+        if knowledge_plan is not None
+        else _search_controlled_fact_evidence(query, fact_kind)
+    )
     try:
         evidence = json.loads(content).get("evidence", [])
     except json.JSONDecodeError:
@@ -962,12 +1056,30 @@ def direct_rag_node(state: AgentState) -> dict[str, Any]:
         evidence,
         fact_kind=fact_kind,
     )
+    knowledge_answer = (
+        render_controlled_knowledge_answer(
+            knowledge_plan,
+            evidence,
+            _invoke_grounded_knowledge_model,
+        )
+        if knowledge_plan is not None
+        else None
+    )
     marker = AIMessage(
         content="本地检索已完成，正在根据证据整理回答。",
         additional_kwargs={
             "direct_rag_evidence": True,
             "direct_single_fact_answer": (
                 fact_answer.to_dict() if fact_answer is not None else None
+            ),
+            "direct_controlled_knowledge_answer": (
+                {
+                    "message": knowledge_answer,
+                    "domain": knowledge_plan.domain,
+                    "question_type": knowledge_plan.question_type,
+                }
+                if knowledge_plan is not None and knowledge_answer is not None
+                else None
             ),
         },
     )
@@ -982,6 +1094,12 @@ def direct_rag_node(state: AgentState) -> dict[str, Any]:
             evidence_count=len(evidence),
             fact_kind=fact_answer.fact_kind if fact_answer is not None else None,
             fact_answer_ok=fact_answer.ok if fact_answer is not None else None,
+            knowledge_domain=(
+                knowledge_plan.domain if knowledge_plan is not None else None
+            ),
+            knowledge_question_type=(
+                knowledge_plan.question_type if knowledge_plan is not None else None
+            ),
             evidence_categories=(
                 list(fact_answer.evidence_categories)
                 if fact_answer is not None
@@ -1011,17 +1129,38 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
     query = _latest_user_text(state)
     started = time.perf_counter()
     fact_kind = _effective_fact_kind(state)
+    knowledge_plan = (
+        _effective_knowledge_plan(state)
+        if fact_kind is None
+        else None
+    )
     categories = (
         single_fact_categories_for_kind(fact_kind)
         if fact_kind is not None
-        else None
+        else (
+            knowledge_plan.categories
+            if knowledge_plan is not None
+            else None
+        )
     )
 
     def scoped_rag_search(retrieval_query: str) -> str:
+        if knowledge_plan is not None:
+            return _search_controlled_knowledge_evidence(knowledge_plan)
         if categories is not None:
             return _search_controlled_fact_evidence(query, fact_kind)
         return str(
             chen_clan_academy_rag_search.invoke({"query": retrieval_query})
+        )
+
+    def grounded_renderer(
+        plan: ControlledKnowledgePlan,
+        evidence: list[dict[str, Any]],
+    ) -> str:
+        return render_controlled_knowledge_answer(
+            plan,
+            evidence,
+            _invoke_grounded_knowledge_model,
         )
 
     result = answer_tour_question(
@@ -1031,6 +1170,8 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
         scoped_rag_search,
         state.get("visitor_profile"),
         normalized_fact_kind=fact_kind,
+        normalized_knowledge_plan=knowledge_plan,
+        grounded_knowledge_renderer=grounded_renderer,
     )
     updates: dict[str, Any] = {
         "messages": [AIMessage(content=result["message"], additional_kwargs={"tour_qa_answer": True})],
@@ -1050,6 +1191,12 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
             ),
             deterministic_calculation=bool(
                 (result.get("single_fact") or {}).get("calculation")
+            ),
+            knowledge_domain=(
+                (result.get("knowledge_plan") or {}).get("domain")
+            ),
+            knowledge_question_type=(
+                (result.get("knowledge_plan") or {}).get("question_type")
             ),
         ),
         "qa_context": build_qa_context_from_answer(
@@ -1156,6 +1303,15 @@ def route_initial_request(state: AgentState) -> str:
     # renderer in both modes.  Decide this before glossary/follow-up heuristics,
     # which must not reinterpret wording such as “是什么时候建成的”.
     if _effective_fact_kind(state) is not None:
+        return (
+            "tour_qa"
+            if state.get("tour_state") and state.get("tour_interaction_state")
+            else "direct_rag"
+        )
+    # Broad knowledge questions use the same reviewed category boundary and
+    # evidence-grounded renderer before and during a tour.  The plan contains
+    # no facts and cannot mutate route or visitor state.
+    if _effective_knowledge_plan(state) is not None:
         return (
             "tour_qa"
             if state.get("tour_state") and state.get("tour_interaction_state")

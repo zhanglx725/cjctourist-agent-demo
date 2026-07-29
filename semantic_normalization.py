@@ -14,6 +14,13 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from controlled_knowledge_query import (
+    DETAIL_LEVELS,
+    KNOWLEDGE_DOMAINS,
+    QUESTION_TYPES,
+    ControlledKnowledgePlan,
+)
+
 
 CONTROL_CANDIDATE_KINDS = frozenset(
     {
@@ -23,6 +30,7 @@ CONTROL_CANDIDATE_KINDS = frozenset(
         "remaining_duration",
         "route_request",
         "route_request_minimize_walking",
+        "knowledge_query",
     }
 )
 FACT_CANDIDATE_TO_KIND = {
@@ -51,18 +59,30 @@ class SemanticCandidate:
     evidence_text: str = ""
     confidence: str = "low"
     minutes: int | None = None
+    knowledge_domain: str | None = None
+    question_type: str | None = None
+    detail_level: str | None = None
 
     @property
     def actionable(self) -> bool:
         return self.candidate_kind != "none" and self.confidence == "high"
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        value = {
             "candidate_kind": self.candidate_kind,
             "evidence_text": self.evidence_text,
             "confidence": self.confidence,
             "minutes": self.minutes,
         }
+        if self.candidate_kind == "knowledge_query":
+            value.update(
+                {
+                    "knowledge_domain": self.knowledge_domain,
+                    "question_type": self.question_type,
+                    "detail_level": self.detail_level,
+                }
+            )
+        return value
 
 
 def recognition_prompt(user_text: str) -> str:
@@ -87,15 +107,32 @@ def recognition_prompt(user_text: str) -> str:
 - fact_last_admission：询问最晚几点还能进入、几点以后不能进、停止入场或入馆时间。
 - fact_afternoon_entry_cutoff：明确询问下午场的检票、入场或入馆截止时间。
 - fact_designer_and_foundation_date：询问设计者或确切奠基日期。
-- none：其他所有情况，包括多意图问题、模糊问题、未列出的知识主题和地点猜测。
+
+通用知识问题候选：
+- knowledge_query：问题属于陈家祠现有知识库，但不属于上面的审核单一事实，也没有被工艺、术语、研究、比较、拍照或点位专项通道覆盖。
+  knowledge_domain 只能是：site_overview、history_architecture、visit_service、ticketing、event_notice、ornament_craft、ornament_item、ornament_location。
+  领域含义：
+  - site_overview：场馆名称、身份、总体概况及概览类问题；
+  - history_architecture：历史沿革、营建背景、建筑格局、空间形制与文化解释；
+  - visit_service：讲解、寄存、交通、停车、设施、参观规则和到访服务；
+  - ticketing：门票、预约、优惠、适用人群和入馆票务规则；
+  - event_notice：临时公告、展览、活动及带有效期的信息；
+  - ornament_craft：装饰工艺的材料、制作流程、技法与工艺特点；
+  - ornament_item：具体装饰作品、人物题材、故事、寓意与构图；
+  - ornament_location：具体装饰对象或题材位于哪里、哪个建筑部位。
+  question_type 只能是：definition、time、location、person、material、process、technique、feature、story、meaning、function、composition、list、count、reason、rule、eligibility、method、availability、other。
+  detail_level 只能是 brief 或 detailed；只有用户明确要求详细、深入、展开时才选 detailed，否则选 brief。
+- none：其他所有情况，包括多意图问题、模糊问题、无法判断知识领域、地点猜测和与陈家祠无关的问题。
 
 区分边界：
 - “哪天/星期几/休息日/啥时候不开放”且没有钟点表达，属于 fact_closed_day。
 - “几点闭馆/几点关门”属于 fact_closing_time。
 - “最晚几点能进/几点后不能进入”属于 fact_last_admission，不等同于闭馆时间。
 - 同一句同时要求两个不同候选时输出 none/low，不自行拆分。
+- knowledge_query 的 evidence_text 必须是原话中表示询问对象的最短连续片段，例如“三顾茅庐”“建筑布局”“无障碍设施”；不能自行改写对象，也不能只填“它”“这个”“这里”等脱离上下文无法确定的代词。
 
-只输出一行 JSON，严格只含 candidate_kind、evidence_text、confidence、minutes 四个键。
+普通候选只输出一行 JSON，严格只含 candidate_kind、evidence_text、confidence、minutes 四个键。
+knowledge_query 严格只含 candidate_kind、evidence_text、confidence、minutes、knowledge_domain、question_type、detail_level 七个键。
 evidence_text 必须是用户原话中连续出现的最短片段；confidence 只能是 high 或 low。
 只有明确时长的两个 duration 类型才填写 minutes（正整数分钟）；其他类型 minutes 为 null。
 有疑义时输出 none/low。
@@ -116,9 +153,17 @@ def _decode_json(model_output: str) -> dict[str, Any] | None:
 
 def validate_candidate(user_text: str, value: dict[str, Any] | None) -> SemanticCandidate:
     """Fail closed unless the proposed candidate is small and auditable."""
-    if not isinstance(value, dict) or set(value) != {
-        "candidate_kind", "evidence_text", "confidence", "minutes"
-    }:
+    base_keys = {"candidate_kind", "evidence_text", "confidence", "minutes"}
+    knowledge_keys = {
+        *base_keys,
+        "knowledge_domain",
+        "question_type",
+        "detail_level",
+    }
+    if not isinstance(value, dict):
+        return SemanticCandidate()
+    actual_keys = frozenset(value)
+    if actual_keys not in {frozenset(base_keys), frozenset(knowledge_keys)}:
         return SemanticCandidate()
     kind = value.get("candidate_kind")
     evidence_text = value.get("evidence_text")
@@ -131,6 +176,29 @@ def validate_candidate(user_text: str, value: dict[str, Any] | None) -> Semantic
     if evidence_text not in user_text:
         return SemanticCandidate()
     if confidence not in VALID_CONFIDENCES:
+        return SemanticCandidate()
+    if kind == "knowledge_query":
+        if set(value) != knowledge_keys or minutes is not None:
+            return SemanticCandidate()
+        domain = value.get("knowledge_domain")
+        question_type = value.get("question_type")
+        detail_level = value.get("detail_level")
+        if (
+            domain not in KNOWLEDGE_DOMAINS
+            or question_type not in QUESTION_TYPES
+            or detail_level not in DETAIL_LEVELS
+        ):
+            return SemanticCandidate()
+        return SemanticCandidate(
+            kind,
+            evidence_text,
+            confidence,
+            None,
+            domain,
+            question_type,
+            detail_level,
+        )
+    if set(value) != base_keys:
         return SemanticCandidate()
     if kind in {"available_duration", "remaining_duration"}:
         if not isinstance(minutes, int) or isinstance(minutes, bool) or not 0 < minutes <= _MAX_MINUTES:
@@ -177,3 +245,22 @@ def canonical_fact_kind(candidate: SemanticCandidate) -> str | None:
     if not candidate.actionable:
         return None
     return FACT_CANDIDATE_TO_KIND.get(candidate.candidate_kind)
+
+
+def canonical_knowledge_plan(
+    candidate: SemanticCandidate,
+) -> ControlledKnowledgePlan | None:
+    """Map one validated semantic proposal to a read-only knowledge plan."""
+
+    if not candidate.actionable or candidate.candidate_kind != "knowledge_query":
+        return None
+    try:
+        return ControlledKnowledgePlan(
+            domain=str(candidate.knowledge_domain),
+            question_type=str(candidate.question_type),
+            subject_text=candidate.evidence_text,
+            detail_level=str(candidate.detail_level),
+            confidence=candidate.confidence,
+        )
+    except ValueError:
+        return None
