@@ -112,6 +112,31 @@ verification_runs:
       - "截图未提供运行服务所加载的精确 Git 提交，不能将该结果归因于某一特定代码版本。"
       - "本次未展开 retrieved_evidence，尚未逐条核对无关服务信息来自哪个文档片段。"
       - "未在新线程复测裸输入“详细讲讲”的安全澄清行为。"
+  - verification_id: langsmith_rvw_muziw_010_pre_route_context_and_explicit_term_20260729
+    finding_id: rvw_muziw_010
+    reviewer: muziw
+    tested_branch: main
+    tested_commit: unknown_local_server
+    test_date: "2026-07-29"
+    test_environment: "LangGraph Studio + LangSmith"
+    inputs:
+      - "灰塑是什么？ -> 详细讲讲。"
+      - "请详细讲讲灰塑"
+      - "请给我详细讲讲灰塑是什么"
+    preconditions: >-
+      用户报告第一组在尚未规划路线的同一线程中执行；后两组为尚未规划路线时
+      当前轮已明确给出“灰塑”的请求。
+    observed_result: >-
+      未规划路线时，定义后的“详细讲讲”不能继续灰塑主题；对当前轮已明确含有
+      “灰塑”的两种请求，系统仍回复“没有可安全继续展开的上一轮点位问答，请说明想
+      了解哪个点位或哪类装饰”，并显示 qa_context 为 null。相反，已规划路线且游览中
+      的同类追问可保留灰塑上下文。
+    result: failed
+    evidence_refs:
+      - "User-supplied LangSmith screenshot and user report, 2026-07-29; trace URL not provided."
+    limitations:
+      - "截图未包含未规划路线的“灰塑是什么 → 详细讲讲”完整两轮状态展开；该链路依据用户的同线程复测报告记录。"
+      - "截图未提供运行服务所加载的精确 Git 提交，不能将该结果归因于某一特定代码版本。"
 findings:
   - finding_id: rvw_muziw_001
     reviewer: muziw
