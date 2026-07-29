@@ -29,15 +29,19 @@ class TourIntentTests(unittest.TestCase):
         self.assertEqual(decision.arguments["node_id"], "stop_front_courtyard_center")
 
     def test_generic_arrival_uses_only_pending_stop_while_navigating(self):
-        decision = self.classify("我到了")
-        self.assertEqual(decision.route_kind, "tour_event")
-        self.assertEqual(decision.event_type, "arrive_at_stop")
-        self.assertEqual(decision.arguments, {"node_id": "stop_front_courtyard_center"})
+        for wording in ("我到了", "到了"):
+            with self.subTest(wording=wording):
+                decision = self.classify(wording)
+                self.assertEqual(decision.route_kind, "tour_event")
+                self.assertEqual(decision.event_type, "arrive_at_stop")
+                self.assertEqual(decision.arguments, {"node_id": "stop_front_courtyard_center"})
 
     def test_generic_arrival_without_active_pending_stop_still_clarifies(self):
-        decision = classify_tour_intent("我到了")
-        self.assertEqual(decision.route_kind, "clarification")
-        self.assertEqual(decision.reason_code, "arrival_node_unresolved")
+        for wording in ("我到了", "到了"):
+            with self.subTest(wording=wording):
+                decision = classify_tour_intent(wording)
+                self.assertEqual(decision.route_kind, "clarification")
+                self.assertEqual(decision.reason_code, "arrival_node_unresolved")
 
     def test_self_arrival_can_resolve_non_route_spatial_node(self):
         decision = self.classify("我到首进正厅了")

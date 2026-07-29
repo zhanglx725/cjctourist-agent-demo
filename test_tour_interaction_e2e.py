@@ -149,6 +149,12 @@ class TourInteractionE2ETests(unittest.TestCase):
         self.assertEqual(arrived["tour_state"]["visited_stop_ids"], [])
         self.assertEqual(arrived["tour_interaction_state"]["stop_phase"], "explaining")
 
+        bare_initial = self._started()
+        bare_arrived, bare_update = self._agent_event(bare_initial, "到了")
+        self.assertEqual(bare_update["last_tour_intent"]["event_type"], "arrive_at_stop")
+        self.assertEqual(bare_arrived["tour_state"]["current_stop_id"], "stop_front_courtyard_center")
+        self.assertEqual(bare_arrived["tour_state"]["visited_stop_ids"], [])
+
         # Textual lifecycle completion changes only the interaction phase.
         awaiting, update = self._agent_event(arrived, "本点讲解结束")
         self.assertEqual(update["last_tour_intent"]["event_type"], "explanation_finished")

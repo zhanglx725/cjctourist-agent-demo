@@ -149,6 +149,12 @@ def validate_event_suggestion(
 
 
 def _has_arrival_language(text: str) -> bool:
+    # A bare “到了” is a common completion of the prior navigation prompt.
+    # Treat it as arrival only when it is the entire turn; longer phrases still
+    # pass through the existing explicit-location and multi-intent guards.
+    compact = text.strip().rstrip("。！!？?")
+    if compact == "到了":
+        return True
     return bool(re.search(r"(?:我\s*(?:已|已经|刚)?\s*(?:到|到了|在)|(?:已|已经|刚)?到达(?:了)?|我来到了)", text))
 
 
