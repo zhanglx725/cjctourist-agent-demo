@@ -52,16 +52,16 @@ def _observation_prompt(
     detailed: bool,
     policy: GuidancePolicy | None,
 ) -> str:
-    where = f"在{observation_location}，" if observation_location else ""
+    target = f"{observation_location}处的{name}" if observation_location else f"{name}的{craft}造型"
     if policy and policy.audience_mode == "child_friendly":
-        return f"{where}先找到{name}，看看它的轮廓和周围的装饰有什么不同。"
+        return f"可以先找一找{target}。"
     if policy and policy.audience_mode == "family":
-        return f"{where}大家可以一起找到{name}，再看看它和周围装饰有什么呼应。"
+        return f"大家可以一起留意{target}。"
     if policy and policy.audience_mode == "study":
-        return f"{where}观察目标是{name}的造型、细部层次及其与周围构件的关系。"
+        return f"可将{target}作为本件的观察线索。"
     if detailed:
-        return f"{where}这是一处{craft}装饰。请把视线停在{name}的造型和细部层次上，再与周围构件作对照。"
-    return f"{where}这是一处{craft}装饰。找到{name}后，留意它与周围构件的关系。"
+        return f"这是一处{craft}装饰，可先辨认{target}。"
+    return f"这是一处{craft}装饰，可先看向{target}。"
 
 
 def _policy_from_program(program: StopProgram) -> GuidancePolicy | None:
@@ -76,21 +76,22 @@ def _policy_from_program(program: StopProgram) -> GuidancePolicy | None:
 
 
 def _opening(program: StopProgram, policy: GuidancePolicy | None, detailed: bool) -> str:
+    count = len(program.selected_items)
     if policy is None:
-        return f"我们把{program.display_name}再看细一点：" if detailed else f"现在来到{program.display_name}，先抓住两个观察重点："
+        return f"我们把{program.display_name}再看细一点：" if detailed else f"现在来到{program.display_name}，先抓住{count}个观察重点："
     if policy.audience_mode == "child_friendly":
         return f"现在来到{program.display_name}，我们用简单的观察任务认识这里："
     if policy.audience_mode == "family":
-        return f"现在来到{program.display_name}，大家可以一起观察两个重点："
+        return f"现在来到{program.display_name}，大家可以一起观察{count}个重点："
     if policy.audience_mode == "study":
         return f"现在来到{program.display_name}，本点先完成以下观察目标："
     if policy.audience_mode == "mixed_group":
-        return f"现在来到{program.display_name}，先用通俗方式看两个重点："
+        return f"现在来到{program.display_name}，先用通俗方式看{count}个重点："
     if policy.narrative_mode == "story":
         return f"现在来到{program.display_name}，我们从画面与题材的线索进入："
     if policy.narrative_mode in {"technical", "expert"}:
-        return f"现在来到{program.display_name}，从工艺与构件关系看两个重点："
-    return f"我们把{program.display_name}再看细一点：" if detailed else f"现在来到{program.display_name}，先抓住两个观察重点："
+        return f"现在来到{program.display_name}，从工艺与构件关系看{count}个重点："
+    return f"我们把{program.display_name}再看细一点：" if detailed else f"现在来到{program.display_name}，先抓住{count}个观察重点："
 
 
 def _closing(policy: GuidancePolicy | None, detailed: bool) -> str:

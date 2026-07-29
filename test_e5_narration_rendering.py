@@ -24,17 +24,26 @@ class NarrationRenderingTests(unittest.TestCase):
         self.primary = self.program.selected_items[0]
         self.second = self.program.selected_items[1]
 
-    def _bundle(self, *, coverage=None, no_craft: bool = False, wrong_primary: bool = False):
+    def _bundle(self, program=None, *, coverage=None, no_craft: bool = False, no_ornaments: bool = False, wrong_primary: bool = False):
+        program = program or self.program
         def rag(query: str) -> str:
             if "定义 材料 技法 建筑位置 特点" in query:
-                evidence = [] if no_craft else [_entry("07_ornament_crafts.md", "灰塑", "S07", "灰塑是岭南传统建筑装饰工艺，常见于山墙和屋脊。制作时可用石灰等材料堆塑，形成有层次的造型。")]
-            elif self.primary.name in query:
-                title = "福禄寿" if wrong_primary else self.primary.name
-                evidence = [_entry("08_ornament_items.md", title, "S08", f"{title}全身朱红色，独角，造型凌空而下。这个题材源自民间传说，寓意辟邪保平安。")]
+                craft = next(item.craft for item in program.selected_items if query.startswith(item.craft))
+                evidence = [] if no_craft else [_entry("07_ornament_crafts.md", craft, "S07", f"{craft}是岭南传统建筑装饰工艺，常见于山墙和屋脊。制作时可用石灰等材料堆塑，形成有层次的造型。")]
             else:
-                evidence = [_entry("08_ornament_items.md", self.second.name, "S09", f"{self.second.name}表现吉祥题材，构图具有装饰层次。其寓意寄托对美好生活的祈盼。")]
+                item = next(candidate for candidate in program.selected_items if candidate.name in query)
+                title = "福禄寿" if wrong_primary and item.ornament_id == self.primary.ornament_id else item.name
+                content = (
+                    f"{title}全身朱红色，独角，造型凌空而下。这个题材源自民间传说，寓意辟邪保平安。"
+                    if item.ornament_id == self.primary.ornament_id
+                    else f"{title}的构图呈现鲜明的造型层次。这个题材寄托对美好生活的祈盼。"
+                )
+                evidence = [] if no_ornaments else [_entry(
+                    "08_ornament_items.md", title, "S08",
+                    content,
+                )]
             return json.dumps({"evidence": evidence}, ensure_ascii=False)
-        return build_guidance_evidence_bundle(self.program, coverage, rag)
+        return build_guidance_evidence_bundle(program, coverage, rag)
 
     def test_first_craft_precedes_object_and_is_not_repeated(self):
         result = render_guidance_evidence(self.program, self._bundle())
@@ -83,12 +92,33 @@ class NarrationRenderingTests(unittest.TestCase):
         self.assertEqual(result.omitted_ornament_ids, (self.second.ornament_id,))
         self.assertLessEqual(result.allocated_content_seconds, result.content_budget_seconds)
         self.assertFalse(any(candidate.subject_id == self.second.ornament_id for candidate in result.eligible_coverage_candidates))
+        self.assertNotIn("两个观察重点", result.visitor_message)
+
+    def test_three_item_stops_use_evidence_specific_observation_cues_without_fixed_count(self):
+        for node_id in ("stop_front_courtyard_north", "stop_rear_west_courtyard"):
+            with self.subTest(node_id=node_id):
+                program = plan_stop_program(node_id, 360, detail_level="deep")
+                result = render_guidance_evidence(program, self._bundle(program))
+                self.assertEqual(len(result.rendered_ornament_ids), 3)
+                self.assertNotIn("两个观察重点", result.visitor_message)
+                self.assertNotIn("轮廓、细部与周围构件的关系", result.visitor_message)
+                for item in program.selected_items:
+                    self.assertIn(f"{item.name}的构图呈现", result.visitor_message)
+
+    def test_missing_ornament_evidence_omits_generic_observation_and_coverage(self):
+        result = render_guidance_evidence(self.program, self._bundle(no_ornaments=True))
+        self.assertEqual(result.rendered_ornament_ids, ())
+        self.assertFalse(any(candidate.subject_kind == "ornament" for candidate in result.eligible_coverage_candidates))
+        self.assertNotIn("轮廓、细部与周围构件的关系", result.visitor_message)
+        self.assertTrue(any("没有合格的单件文物证据" in warning for warning in result.warnings))
 
     def test_listen_only_has_no_task_or_question(self):
         profile = create_visitor_profile(interests=["灰塑"], detail_level="standard", interaction_mode="listen_only")
         result = render_guidance_evidence(self.program, self._bundle(), build_guidance_policy(profile))
         self.assertNotIn("无需回答", result.visitor_message)
         self.assertNotIn("？", result.visitor_message)
+        self.assertNotIn("任务", result.visitor_message)
+        self.assertNotIn("说说", result.visitor_message)
 
     def test_paths_are_hidden_sources_are_only_used_when_rendered_and_inputs_are_unchanged(self):
         bundle = self._bundle()
@@ -96,6 +126,7 @@ class NarrationRenderingTests(unittest.TestCase):
         before_bundle = bundle.to_dict()
         result = render_guidance_evidence(self.program, bundle)
         self.assertNotIn(".md", result.visitor_message)
+        self.assertNotIn("来源：S", result.visitor_message)
         self.assertEqual(self.program.to_dict(), before_program)
         self.assertEqual(bundle.to_dict(), before_bundle)
         self.assertEqual(result.used_source_ids, tuple(sorted(set(result.used_source_ids))))

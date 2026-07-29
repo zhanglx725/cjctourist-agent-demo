@@ -141,6 +141,42 @@ def _style_observation(style_id: str, visible_detail: str) -> str:
     return prompts.get(style_id, f"观察时，可留意{visible_detail}。")
 
 
+def _ornament_observation(
+    style_id: str,
+    item: Any,
+    location: Any,
+    shape: tuple[str, tuple[str, ...]] | None,
+) -> str | None:
+    """Give one object-specific cue without inventing a visual detail.
+
+    A reviewed raw location is the preferred cue because it distinguishes
+    objects at the same stop without asking the renderer to infer features.
+    When that mapping is unavailable, a returned shape sentence may serve as
+    the cue.  With neither, the caller must omit a prompt rather than fall
+    back to a generic "surrounding components" sentence.
+    """
+    if getattr(location, "valid", False) and location.raw_location:
+        detail = f"{location.raw_location}处的{item.name}"
+        if style_id == "listen_only":
+            return f"本件的观察位置是{detail}。"
+        verbs = {
+            "child": "可以先找一找",
+            "family": "可以一起留意",
+            "student_research": "可将",
+            "professional": "可核对",
+            "mixed_group": "先留意",
+        }
+        verb = verbs.get(style_id, "可先看向")
+        suffix = "作为观察线索" if style_id == "student_research" else ""
+        return f"{verb}{detail}{suffix}。"
+    if shape:
+        sentence = shape[0]
+        if style_id == "listen_only":
+            return f"本件可观察的造型线索是：{sentence}"
+        return f"可将这条造型信息作为观察线索：{sentence}"
+    return None
+
+
 def _template(style: NarrationStylePolicy | None, key: str, slots: dict[str, str]) -> str | None:
     if style is None or style.style_id == "neutral":
         return None
@@ -229,7 +265,8 @@ def _ornament_segment(
         else:
             lines.append("可先在本点的相关构件上寻找它的造型细节。")
         lines.extend(sentence for sentence, _ in chosen)
-    lines.append(_style_observation(style_id, f"{item.name}的轮廓、细部与周围构件的关系"))
+    if observation := _ornament_observation(style_id, item, location, shape):
+        lines.append(observation)
     source_ids = tuple(sorted({source for _, values in chosen for source in values}))
     complete = bool(shape and theme and source_ids)
     if first and not complete:
@@ -312,8 +349,6 @@ def render_guidance_evidence(
         warnings.append("本站预算优先保留核心对象，后续对象留待需要时再展开")
     if policy and policy.interaction_mode != "listen_only" and policy.interaction_task_enabled:
         lines.append("您可以留意其中一处造型细部；无需回答也不影响继续导览。")
-    if used_sources:
-        lines.append(f"来源：{'、'.join(sorted(used_sources))}。")
     lines.append("讲解结束后，您可确认是否完成本点参观。")
     allocated = sum(item.planned_seconds for item in rendered_items)
     return NarrationRenderResult(

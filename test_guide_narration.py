@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import unittest
 
 from guide_narration import compose_guide_narration
@@ -60,6 +61,23 @@ class GuideNarrationTests(unittest.TestCase):
         self.assertFalse(narration.used_llm)
         self.assertEqual(narration.fallback_reason, "narrator_output_rejected")
         self.assertNotIn("08_ornament_items.md", narration.visitor_message)
+
+    def test_fallback_derives_observation_count_and_avoids_generic_repeated_cue(self):
+        third = replace(
+            self.program.selected_items[1],
+            ornament_id="orn_003", name="福禄寿", craft="木雕", observation_location="首进中路",
+        )
+        evidence = {
+            **self.evidence,
+            "orn_003": [{"source_ids": ["S11"], "content": "福禄寿表现吉祥题材，构图层次清晰。"}],
+        }
+        for count in (1, 2, 3):
+            with self.subTest(count=count):
+                program = replace(self.program, selected_items=(self.program.selected_items + (third,))[:count])
+                narration = compose_guide_narration(program, evidence)
+                self.assertIn(f"{count}个观察重点", narration.visitor_message)
+                self.assertNotIn("两个观察重点", narration.visitor_message)
+                self.assertNotIn("留意它与周围构件的关系", narration.visitor_message)
 
 
 if __name__ == "__main__":

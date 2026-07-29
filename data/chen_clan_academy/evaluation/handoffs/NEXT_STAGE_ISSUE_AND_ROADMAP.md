@@ -33,28 +33,28 @@
 | P3 | 增强到点触发与产品界面 | 地图点击、扫码、定位、UI 选择器 | 否，先完成前述基础能力 |
 | P4 | 长期与多模态能力 | GPS、蓝牙、图像识别、长期画像与推荐 | 否，不属于当前 Demo 的阻塞项 |
 
-### 2.1 当前未关闭问题与处理顺序（2026-07-29 更新）
+### 2.1 当前未修改／未解决问题的实施顺序（2026-07-30 更新）
 
 | 顺序 | 问题 | 当前状态 | 下一步 | 依赖/边界 |
 | ---: | --- | --- | --- | --- |
-| 0 | P0-02 馆方安全禁令及允许例外没有覆盖自然改写 | `implemented_pending_langsmith_verification` | 在 LangSmith 复测“商业宣传片”和“庭院休息区吃点东西”，确认安全结论先于拍照与到达流程 | 安全规则只来自现有审核知识文件；不得由打卡卡覆盖 |
-| 1 | P0-01 危险拍照安全门控 | 代码已关闭，LangSmith 对抗复测待完成 | 只补真实复测，不放宽门控 | 不得把危险动作交给语义猜测直接执行 |
-| 2 | P1-04 空间节点冲突 | `blocked_pending_owner_confirmation` | 等空间负责人确认“后西庭/后庭西侧”的权威节点与别名 | 禁止模型或代码自建点位别名 |
-| 3 | P1-12 跨流程自然语言同义表达 | `implemented_pending_langsmith_verification` | 用 LangSmith 复测未预设到达、时长和路线表达；记录每个 trace | 候选意图不能直接写 TourState；节点仍须审核解析 |
-| 4 | P1-06 少走路等路线约束 | `verified_fixed` | 保留路线约束解析、候选排序和安全边界回归 | 需时长；不得承诺现场最短或无障碍 |
-| 5 | P1-11 新位置后的重规划 | `open` | 在确认式重规划中使用已审核新位置作为候选起点 | 改动 A1 契约前需负责人确认 |
-| 6 | P1-07 单一事实、访问服务与受控计算 | `implemented_pending_langsmith_verification` | 用 LangSmith 分别复测游览前与游览中的 11 项事实/计算问题 | 不输出原始 chunk；无证据失败关闭 |
-| 7 | P1-08 / P1-09 站点讲解质量与故事深度 | `open` | 接入 E5-A/C 的证据编排与风格计划 | 不用模型记忆补写故事 |
-| 8 | P1-10 术语—实例关联 | `open` | 从审核对象/点位关联中受限选取实例 | 不把关联说成当前一定可见 |
-| 9 | P1-02 / P1-03 | `implemented_pending_langsmith_verification` | 完成修复后的 LangSmith 对照复测 | 自动化通过不等于真实链路通过 |
-| 10 | P1-05 连续工艺追问 | `verified_fixed` | 保留七工艺简要/详细、新线程/连续线程回归 | 已完成自动化与 LangSmith 对照复测 |
-| 11 | P1-13 忘带身份证的替代检票方式被跨文件冲突覆盖 | `implemented_pending_langsmith_verification` | 用 LangSmith 分别复测游览前、游览中及证件丢失等同义问法 | 不得把“预约所需证件”误写成“现场绝无替代方式” |
-| 12 | P1-14 多工艺位置问答在拒答与原文泄漏间摆动 | `implemented_pending_langsmith_verification` | 用 LangSmith 复测不同工艺组合、顺序和游览前后两种模式 | 不显示文件名、chunk、来源编号或 URL |
-| 13 | P1-15 博物馆成立、复馆与更名时间意图混淆 | `implemented_pending_langsmith_verification` | 用 LangSmith 复测成立、复馆、更名及自然语言改写，比较游览前后答案 | 不把馆址身份介绍代替年份 |
-| 14 | P1-16 团队电子发票标题式问法未进入票务检索 | `implemented_pending_langsmith_verification` | 用 LangSmith 复测标题式、方法式和限制式问法，比较游览前后答案 | 不让模型自由生成检索类别 |
-| 15 | P1-17 `30min` 等中英混合时长没有归一 | `implemented_pending_langsmith_verification` | 已扩展唯一时长解析器并保留范围、语境与歧义校验 | 不另建第二套时长事实源 |
-| 16 | P1-18 “我在某处 + 问题”被误判为到达事件 | `implemented_pending_langsmith_verification` | 在 LangSmith 复测位置背景问句与明确到达对照组 | 不放宽裸“到了”的唯一待到达点门控 |
-| 17 | P2 模式、卡片调度与界面 | `open` | 在 P1 控制层稳定后再写契约 | 不以聊天语气推断画像 |
+| 0 | P1-04 空间节点冲突 | `blocked_pending_owner_confirmation` | 等空间负责人确认“后西庭/后庭西侧”的权威节点与别名 | 禁止模型或代码自建点位别名 |
+| 1 | P1-11 新位置后的重规划 | `open` | 在确认式重规划中使用已审核新位置作为候选起点 | 改动 A1 契约前需负责人确认 |
+| 2 | P1-19 E5 失败回退仍向游客展示内部来源编号 | `new` | 单独审计 B3 回退包装层的游客文本与引用边界 | 不改变 E5 成功链路的内部审计 `used_source_ids`；不得删除失败关闭 |
+| 3 | P1-10 术语—实例关联 | `open` | 从审核对象/点位关联中受限选取实例 | 不把关联说成当前一定可见 |
+| 4 | P1-09 装饰故事和题材说明过浅 | `open` | 复用 E5 已接入的对象证据编排，补齐来源支持的场景、画面或寓意说明 | 不用模型记忆补写故事；不与 P1-08 的观察提示修复混合 |
+| 5 | P2 模式、卡片调度与界面 | `open` | 在 P1 控制层稳定后再写契约 | 不以聊天语气推断画像 |
+
+### 2.2 已实现、待 LangSmith 人工验收（不与未修改问题混排）
+
+| 问题 | 当前状态 | LangSmith 下一步 | 边界 |
+| --- | --- | --- | --- |
+| P0-02 馆方安全禁令及允许例外自然改写 | `implemented_pending_langsmith_verification` | 复测“商业宣传片”“庭院休息区吃点东西” | 安全结论须先于拍照与到达流程 |
+| P0-01 危险拍照安全门控 | `implemented_pending_langsmith_verification` | 对抗复测危险动作改写 | 不放宽门控 |
+| P1-12 跨流程自然语言同义表达 | `implemented_pending_langsmith_verification` | 复测到达、时长、路线与低置信度回退 | 候选不能直接写 TourState |
+| P1-07 单一事实、访问服务与受控计算 | `implemented_pending_langsmith_verification` | 游览前后复测 11 项事实／计算 | 无证据失败关闭 |
+| P1-08 站点讲解观察提示与数量一致性 | `implemented_pending_langsmith_verification` | 复测前庭、后西庭、短预算、listen_only 与 E5 失败回退 | 当前 E5 主链路与旧回退均不得重复套话或误报数量 |
+| P1-02／P1-03 | `implemented_pending_langsmith_verification` | 完成修复后的 LangSmith 对照复测 | 自动化通过不等于真实链路通过 |
+| P1-13 至 P1-18 | `implemented_pending_langsmith_verification` | 分别按各问题已有同义问法、游览前后双模式复测 | 不得伪造 LangSmith 结论 |
 
 ## 3. P0：安全边界（保持关闭，不为体验功能放宽）
 
@@ -159,10 +159,22 @@
 | 项目 | 内容 |
 | --- | --- |
 | 问题描述 | 多件文物都重复“留意它与周围构件的关系”；前庭/后西庭实际列出三件，却说“两个观察要点”。 |
-| 当前现状 | `guide_narration.py` 仍保留通用观察句式和“两个观察要点”硬编码；问题池为 `open`。E5-B 已提供七种语言风格素材，但尚未接入真实讲解渲染。 |
+| 当前现状 | E5 主链路已接入 `NarrationCoverage`、`guidance_evidence_bundle.py`、`narration_rendering.py` 和风格策略；首次到点讲解优先走该链路，旧 `guide_narration.py` 仅在 E5 证据或渲染不合格时回退。2026-07-30 已修复两条渲染路径：E5 对象提示优先使用审核 `raw_location`，映射缺失时才使用返回的造型证据；没有两者时省略提示，不再逐件输出“轮廓、细部与周围构件的关系”。旧回退开场与相关风格开场改为按最终 `selected_items` 数量生成，不再硬编码“两个观察重点”。E5 讲解游客文本不再显示来源编号，内部 `used_source_ids` 仍保留用于审计。新增前庭、后西庭三对象、短预算、无单件证据、listen_only 和回退数量测试；定向 15 项、相关 E5／到点回归 18 项均通过。LangSmith 尚未执行。 |
 | 期望状态 | 开场数量由实际 `selected_items` 决定；每件对象采用其已审核位置、工艺、可见细节或题材形成不同观察提示，避免空泛套话。 |
-| 解决方案 | 由 E5-A 将 StopProgram、对象证据和首次/重复介绍状态编排为 `NarrationPlan`；E5-B 仅改变表达方式，不能补事实；E5-C 添加数量一致性与重复措辞评测。 |
-| 验收 | 输出对象数与开场承诺一致；同一站多对象的提示可区分；无证据时明确资料不足而非套话。 |
+| 解决方案 | 以当前 E5 渲染主链路为准：对象专属提示只从审核位置或已返回的造型证据生成；风格策略只改语气，不补事实；预算裁剪后只对最终渲染对象输出内容。旧 B3 回退同步按实际对象列表生成开场数量，避免 E5 失败时重现旧问题。E5-C 保持数量一致性和重复措辞的 LangSmith 人工验收。 |
+| 验收 | 输出对象数与开场承诺一致；同一站多对象的提示可区分；无证据时明确资料不足而非套话；游客文本不显示文件名、原始 chunk、来源编号、URL 或内部字段；LangSmith 尚未执行，不得标记为 `verified_fixed`。 |
+
+### P1-19 E5 失败回退仍向游客展示内部来源编号
+
+| 项目 | 内容 |
+| --- | --- |
+| 问题描述 | E5 主链路因单件文物证据不足而安全回退到 B3 时，包装层仍将内部 `source_ids` 直接渲染到游客文本。例如在前院中部仅返回灰塑工艺证据、没有合格单件证据的复现中，回答末尾显示“来源：S07”。 |
+| 复现证据 | 2026-07-30 使用 `test_e5_stop_guidance_coverage_integration.StopGuidanceCoverageIntegrationTests._arrived()` 建立已到达前院中部状态，并让 RAG 只返回 `07_ornament_crafts.md` 的灰塑证据；`stop_guidance_node` 返回旧 B3 回退消息，实际文本包含“来源：S07”。对应既有回归为 `test_craft_only_evidence_keeps_b3_object_guidance_and_does_not_commit`，但该测试此前只检查 Coverage 不提交，未检查游客文本泄漏。 |
+| 实际结果 | E5 成功链路已隐藏来源编号，但 B3 回退仍由 `guide_program_evidence.py` 的引用包装追加来源编号。 |
+| 期望结果 | 内部来源编号继续保留在审计字段、`GuideNarration.source_ids` 与 trace 中；游客文本不显示 `S07` 等内部编号，也不显示文件名、URL 或原始 chunk。 |
+| 影响范围 | 仅在 E5 证据包或渲染不合格、系统安全回退到旧 B3 的站点讲解场景出现；不应通过删除回退或放宽 E5 证据门控来规避。 |
+| 建议负责人 | 导览渲染／证据边界负责人。 |
+| LangSmith 状态 | `not_run`；本记录来自本地可复现调用，未执行 LangSmith。 |
 
 ### P1-09 装饰故事和题材说明过浅
 
