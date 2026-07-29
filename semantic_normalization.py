@@ -43,6 +43,9 @@ FACT_CANDIDATE_TO_KIND = {
     "fact_last_admission": "last_admission",
     "fact_afternoon_entry_cutoff": "afternoon_entry_cutoff",
     "fact_designer_and_foundation_date": "designer_and_foundation_date",
+    "fact_museum_establishment": "museum_establishment",
+    "fact_museum_reopening": "museum_reopening",
+    "fact_museum_renaming": "museum_renaming",
 }
 VALID_CANDIDATE_KINDS = frozenset(
     {*CONTROL_CANDIDATE_KINDS, *FACT_CANDIDATE_TO_KIND}
@@ -107,6 +110,9 @@ def recognition_prompt(user_text: str) -> str:
 - fact_last_admission：询问最晚几点还能进入、几点以后不能进、停止入场或入馆时间。
 - fact_afternoon_entry_cutoff：明确询问下午场的检票、入场或入馆截止时间。
 - fact_designer_and_foundation_date：询问设计者或确切奠基日期。
+- fact_museum_establishment：询问广东民间工艺馆或现博物馆的机构成立时间。
+- fact_museum_reopening：询问广东民间工艺馆复馆、重新对外开放的时间。
+- fact_museum_renaming：询问广东民间工艺馆何时更名为广东民间工艺博物馆。
 
 通用知识问题候选：
 - knowledge_query：问题属于陈家祠现有知识库，但不属于上面的审核单一事实，也没有被工艺、术语、研究、比较、拍照或点位专项通道覆盖。

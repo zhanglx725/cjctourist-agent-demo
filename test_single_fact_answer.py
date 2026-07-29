@@ -48,6 +48,17 @@ IDENTITY_ORIGINAL_ONLY_EVIDENCE = {
     "source_ids": ["S05"],
     "content": "预约游客入馆时须出示本人有效身份证原件核验。",
 }
+MUSEUM_HISTORY_EVIDENCE = {
+    "category": "history_architecture",
+    "document": "02_history_architecture.md",
+    "title_path": ["历史、建筑与文化特色", "百年历史时间线"],
+    "source_ids": ["S02"],
+    "content": (
+        "1959 年以陈氏书院为馆址成立广东民间工艺馆。"
+        "广东民间工艺馆于 1983 年 2 月 13 日复馆并重新对外开放。"
+        "1994 年“广东民间工艺馆”更名为“广东民间工艺博物馆”。"
+    ),
+}
 
 
 class SingleFactAnswerTests(unittest.TestCase):
@@ -85,6 +96,33 @@ class SingleFactAnswerTests(unittest.TestCase):
         self.assertEqual(
             single_fact_categories("陈家祠在哪里？"),
             ["basic_info"],
+        )
+        museum_cases = (
+            (
+                "广东民间工艺博物馆是什么时候在这里成立的？",
+                "museum_establishment",
+            ),
+            ("广东民间工艺馆哪一年设立？", "museum_establishment"),
+            ("广东民间工艺馆何时复馆？", "museum_reopening"),
+            (
+                "广东民间工艺馆什么时候重新对外开放？",
+                "museum_reopening",
+            ),
+            (
+                "广东民间工艺馆什么时候更名为广东民间工艺博物馆？",
+                "museum_renaming",
+            ),
+        )
+        for query, expected_kind in museum_cases:
+            with self.subTest(query=query):
+                self.assertEqual(
+                    identify_single_fact_kind(query), expected_kind
+                )
+                self.assertEqual(
+                    single_fact_categories(query), ["history_architecture"]
+                )
+        self.assertIsNone(
+            identify_single_fact_kind("广东民间工艺博物馆是什么？")
         )
         for query in (
             "订了票忘带身份证，能不能进？",
@@ -161,6 +199,50 @@ class SingleFactAnswerTests(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertIn("资料不足", result.message)
         self.assertNotIn("独角狮", result.message)
+
+    def test_museum_history_milestones_are_kept_distinct(self):
+        establishment = render_single_fact_answer(
+            "广东民间工艺博物馆是什么时候在这里成立的？",
+            [MUSEUM_HISTORY_EVIDENCE],
+        )
+        self.assertTrue(establishment.ok)
+        self.assertIn("前身“广东民间工艺馆”于 1959 年", establishment.message)
+        self.assertIn("1994 年", establishment.message)
+        self.assertIn("机构成立时间", establishment.message)
+        self.assertIn("现名启用时间", establishment.message)
+
+        reopening = render_single_fact_answer(
+            "广东民间工艺馆何时复馆？", [MUSEUM_HISTORY_EVIDENCE]
+        )
+        self.assertTrue(reopening.ok)
+        self.assertIn("1983 年 2 月 13 日", reopening.message)
+        self.assertIn("不是机构最初成立或更名的日期", reopening.message)
+
+        renaming = render_single_fact_answer(
+            "广东民间工艺馆哪一年更名？", [MUSEUM_HISTORY_EVIDENCE]
+        )
+        self.assertTrue(renaming.ok)
+        self.assertIn("1994 年", renaming.message)
+        self.assertIn("1959 年是机构成立时间", renaming.message)
+        for result in (establishment, reopening, renaming):
+            self.assertEqual(result.source_ids, ("S02",))
+            self.assertNotIn(".md", result.message)
+            self.assertNotRegex(result.message, r"(?<![A-Za-z0-9])S\d+")
+
+    def test_museum_history_question_fails_closed_on_generic_definition(self):
+        result = render_single_fact_answer(
+            "广东民间工艺博物馆是什么时候成立的？",
+            [
+                {
+                    "category": "basic_info",
+                    "source_ids": ["S01"],
+                    "content": "广东民间工艺博物馆是以陈家祠为馆址的博物馆。",
+                }
+            ],
+        )
+        self.assertFalse(result.ok)
+        self.assertIn("资料不足", result.message)
+        self.assertNotIn("以陈家祠为馆址的博物馆", result.message)
 
     def test_missing_identity_answer_uses_reviewed_service_desk_workaround(self):
         result = render_single_fact_answer(

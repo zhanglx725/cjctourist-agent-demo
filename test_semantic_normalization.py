@@ -73,6 +73,18 @@ class SemanticNormalizationTests(unittest.TestCase):
         self.assertEqual(canonical_fact_kind(candidate), "last_admission")
         self.assertIsNone(canonical_control_text(candidate))
 
+        museum_text = "这个民间工艺馆究竟哪年才设立？"
+        museum_candidate = validate_candidate(museum_text, {
+            "candidate_kind": "fact_museum_establishment",
+            "evidence_text": "哪年才设立",
+            "confidence": "high",
+            "minutes": None,
+        })
+        self.assertTrue(museum_candidate.actionable)
+        self.assertEqual(
+            canonical_fact_kind(museum_candidate), "museum_establishment"
+        )
+
     def test_fact_candidate_cannot_generate_query_category_or_minutes(self):
         text = "陈家祠一般哪天歇着？"
         generated_query = validate_candidate(text, {

@@ -20,6 +20,12 @@ from controlled_derivation import (
 
 
 SITE_NAMES = ("陈家祠", "陈氏书院")
+MUSEUM_NAMES = (
+    "广东民间工艺馆",
+    "广东民间工艺博物馆",
+    "民间工艺馆",
+    "民间工艺博物馆",
+)
 CONSTRUCTION_START_TERMS = ("始建", "筹建", "开始建")
 CONSTRUCTION_COMPLETION_TERMS = (
     "建成",
@@ -66,6 +72,9 @@ FACT_KINDS = frozenset(
         "afternoon_entry_cutoff",
         "identity_admission_workaround",
         "designer_and_foundation_date",
+        "museum_establishment",
+        "museum_reopening",
+        "museum_renaming",
     }
 )
 
@@ -98,6 +107,28 @@ def identify_single_fact_kind(user_query: str) -> str | None:
         return None
 
     has_site = any(name in text for name in SITE_NAMES)
+    has_museum = any(name in text for name in MUSEUM_NAMES)
+    if has_museum:
+        asks_time = any(
+            term in text
+            for term in (
+                "什么时候",
+                "何时",
+                "哪年",
+                "哪一年",
+                "几几年",
+                "时间",
+                "日期",
+            )
+        )
+        if asks_time and any(term in text for term in ("更名", "改名", "改称")):
+            return "museum_renaming"
+        if asks_time and any(
+            term in text for term in ("复馆", "重新开放", "重新对外开放")
+        ):
+            return "museum_reopening"
+        if asks_time and any(term in text for term in ("成立", "设立", "创立")):
+            return "museum_establishment"
     if has_site and (
         any(term in text for term in ("由谁设计", "谁设计", "设计者", "设计人"))
         or any(term in text for term in ("奠基", "动工日期"))
@@ -194,6 +225,9 @@ def single_fact_categories_for_kind(fact_kind: str | None) -> list[str] | None:
         "construction_completion",
         "construction_duration",
         "designer_and_foundation_date",
+        "museum_establishment",
+        "museum_reopening",
+        "museum_renaming",
     }:
         return ["history_architecture"]
     if fact_kind == "closed_day":
@@ -227,6 +261,17 @@ def single_fact_retrieval_query_for_kind(
         "construction_completion": "陈家祠 1888年筹建 1893年落成 1894年建成 来源差异",
         "construction_duration": "陈家祠 1888年筹建 1893年落成 1894年建成",
         "designer_and_foundation_date": "陈家祠 设计者 奠基日期 历史沿革",
+        "museum_establishment": (
+            "广东民间工艺馆 1959年 陈氏书院 馆址 成立 "
+            "1994年 更名 广东民间工艺博物馆"
+        ),
+        "museum_reopening": (
+            "广东民间工艺馆 1983年2月13日 复馆 重新对外开放"
+        ),
+        "museum_renaming": (
+            "广东民间工艺馆 1994年 更名 广东民间工艺博物馆 "
+            "1959年 成立"
+        ),
         "site_address": "陈家祠 地址 馆址 恩龙里34号",
         "closed_day": "陈家祠 常规闭馆日 周二 法定节假日",
         "closing_time": "陈家祠 常规开放时间 闭馆时间 延时开放 18:00",
@@ -443,6 +488,112 @@ def _construction_answer(
         evidence_indexes=evidence_indexes,
         evidence_categories=categories,
         ok=False,
+    )
+
+
+def _museum_history_answer(
+    fact_kind: str, evidence: list[dict[str, Any]]
+) -> SingleFactAnswer:
+    """Render the three reviewed museum-history milestones without conflating them."""
+
+    establishment: list[tuple[int, dict[str, Any]]] = []
+    reopening: list[tuple[int, dict[str, Any]]] = []
+    renaming: list[tuple[int, dict[str, Any]]] = []
+    for index, item in enumerate(evidence):
+        content = str(item.get("content") or "")
+        compact = _compact(content)
+        if (
+            "1959年" in compact
+            and "广东民间工艺馆" in compact
+            and (
+                "以陈氏书院为馆址成立" in compact
+                or "辟为广东民间工艺馆" in compact
+            )
+        ):
+            establishment.append((index, item))
+        if (
+            "1983年2月13日" in compact
+            and "广东民间工艺馆" in compact
+            and "复馆" in compact
+            and "重新对外开放" in compact
+        ):
+            reopening.append((index, item))
+        if (
+            "1994年" in compact
+            and "广东民间工艺馆" in compact
+            and "广东民间工艺博物馆" in compact
+            and "更名" in compact
+        ):
+            renaming.append((index, item))
+
+    selected = {
+        "museum_establishment": establishment,
+        "museum_reopening": reopening,
+        "museum_renaming": renaming,
+    }[fact_kind]
+    relevant = list(selected)
+    if fact_kind == "museum_establishment":
+        relevant.extend(item for item in renaming if item not in relevant)
+    elif fact_kind == "museum_renaming":
+        relevant.extend(item for item in establishment if item not in relevant)
+    elif fact_kind == "museum_reopening":
+        relevant.extend(item for item in establishment if item not in relevant)
+    relevant_items = [item for _, item in relevant]
+    source_ids = _source_ids(relevant_items)
+    evidence_indexes = tuple(dict.fromkeys(index for index, _ in relevant))
+    categories = _categories(relevant_items)
+
+    if not selected or not source_ids:
+        subject = {
+            "museum_establishment": "成立时间",
+            "museum_reopening": "复馆时间",
+            "museum_renaming": "更名时间",
+        }[fact_kind]
+        return SingleFactAnswer(
+            fact_kind=fact_kind,
+            message=f"现有资料不足以确认广东民间工艺博物馆的{subject}，因此不作推测。",
+            source_ids=source_ids,
+            evidence_indexes=evidence_indexes,
+            evidence_categories=categories,
+            ok=False,
+        )
+
+    if fact_kind == "museum_establishment":
+        message = (
+            "广东民间工艺博物馆的前身“广东民间工艺馆”于 1959 年"
+            "以陈氏书院为馆址成立。"
+        )
+        if renaming:
+            message += (
+                "1994 年，该馆更名为现名“广东民间工艺博物馆”。"
+                "前者是机构成立时间，后者是现名启用时间。"
+            )
+        else:
+            message += "这里的 1959 年指前身机构成立时间，不是现名启用时间。"
+    elif fact_kind == "museum_reopening":
+        message = (
+            "广东民间工艺馆于 1983 年 2 月 13 日复馆并重新对外开放。"
+            "这是复馆日期，不是机构最初成立或更名的日期。"
+        )
+    else:
+        message = (
+            "1994 年，“广东民间工艺馆”更名为"
+            "“广东民间工艺博物馆”。"
+        )
+        if establishment:
+            message += (
+                "其前身于 1959 年以陈氏书院为馆址成立。"
+                "1959 年是机构成立时间，1994 年是更名时间。"
+            )
+        else:
+            message += "这里的 1994 年指更名时间，不是机构最初成立时间。"
+    return SingleFactAnswer(
+        fact_kind=fact_kind,
+        message=message,
+        source_ids=source_ids,
+        evidence_indexes=evidence_indexes,
+        evidence_categories=categories,
+        ok=True,
     )
 
 
@@ -687,6 +838,14 @@ def render_single_fact_answer(
         result = _address_answer(normalized_evidence)
     elif resolved_fact_kind == "identity_admission_workaround":
         result = _identity_admission_answer(normalized_evidence)
+    elif resolved_fact_kind in {
+        "museum_establishment",
+        "museum_reopening",
+        "museum_renaming",
+    }:
+        result = _museum_history_answer(
+            resolved_fact_kind, normalized_evidence
+        )
     elif resolved_fact_kind in {
         "construction_start",
         "construction_completion",
