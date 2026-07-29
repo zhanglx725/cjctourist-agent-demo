@@ -62,6 +62,7 @@ class CraftKnowledgeTests(unittest.TestCase):
             "彩绘是怎么做的": ("彩绘", "brief"),
             "灰塑有什么工艺特点": ("灰塑", "brief"),
             "详细讲讲灰塑": ("灰塑", "detailed"),
+            "详细讲解陶塑": ("陶塑", "detailed"),
             "详细介绍砖雕": ("砖雕", "detailed"),
             "深入讲讲木雕": ("木雕", "detailed"),
             "展开讲讲陶塑": ("陶塑", "detailed"),

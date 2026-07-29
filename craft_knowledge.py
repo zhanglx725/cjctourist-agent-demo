@@ -39,6 +39,7 @@ BRIEF_FIELD_LABELS: dict[str, tuple[str, ...]] = {
 
 _DETAIL_MARKERS = (
     "详细讲讲",
+    "详细讲解",
     "详细介绍",
     "深入讲讲",
     "展开讲讲",

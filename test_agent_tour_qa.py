@@ -175,6 +175,31 @@ class AgentTourQaTests(unittest.TestCase):
         self.assertNotIn("tour_state", update)
         self.assertNotIn("tour_interaction_state", update)
 
+    def test_pottery_detail_explanation_follow_up_uses_canonical_craft_path(self):
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            rag.invoke.return_value = CRAFT_PAYLOAD
+            first = tour_qa_node(_message_state("陶塑是什么？"))
+        rag.invoke.assert_not_called()
+        self.assertEqual(first["qa_context"]["subject_terms"], ("陶塑",))
+        follow = {
+            **first,
+            "messages": [
+                first["messages"][0],
+                HumanMessage(content="详细讲解"),
+            ],
+            "performance_metrics": [],
+        }
+        self.assertEqual(route_initial_request(follow), "qa_follow_up_detail")
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            rag.invoke.return_value = CRAFT_PAYLOAD
+            update = qa_follow_up_detail_node(follow)
+        rag.invoke.assert_not_called()
+        answer = update["messages"][0].content
+        self.assertIn("陶塑", answer)
+        self.assertIn("十一条陶塑脊饰", answer)
+        self.assertNotIn("07_ornament_crafts.md", answer)
+        self.assertNotIn("DSML", answer)
+
     def test_all_seven_crafts_use_the_scoped_craft_path(self):
         from tour_qa import CRAFT_TERMS
         self.assertEqual(
