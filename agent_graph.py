@@ -29,6 +29,7 @@ from tour_intent import classify_tour_intent
 from tour_presenter import present_clarification, present_tour_event, present_tour_state
 from tour_state import start_tour
 from tour_qa import (
+    CRAFT_TERMS,
     answer_qa_follow_up_detail,
     answer_tour_question,
     build_qa_context_from_answer,
@@ -882,6 +883,11 @@ def route_initial_request(state: AgentState) -> str:
     # The same wording may instead follow a successful knowledge answer; that
     # read-only path is selected only from explicit message metadata.
     if is_qa_follow_up_detail_request(text) or is_qa_subject_follow_up_request(text):
+        # A craft named in this turn is a complete question, not an omitted
+        # subject that depends on the previous QA response.  This keeps
+        # “请详细讲讲灰塑” usable before any route has started.
+        if any(craft in text for craft in CRAFT_TERMS):
+            return "tour_qa"
         previous_kind = _last_assistant_response_kind(state)
         if previous_kind == "tour_qa":
             return "qa_follow_up_detail"

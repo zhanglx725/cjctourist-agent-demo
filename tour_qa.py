@@ -24,7 +24,7 @@ from comparison_retrieval import (
 from research_card_retrieval import format_research_answer, is_explicit_research_question, retrieve_research_cards
 from term_card_runtime import answer_term_question
 from photo_spot_runtime import answer_photo_request, is_explicit_photo_request
-from qa_context import create_qa_context, validate_qa_context
+from qa_context import create_qa_context, is_qa_follow_up_detail_request, validate_qa_context
 from tour_intent import resolve_reviewed_node
 from tour_presenter import present_tour_state
 
@@ -35,6 +35,9 @@ DEICTIC_POINT_TERMS = ("这里", "此处", "眼前", "当前点", "当前站", "
 CRAFT_TERMS = ("石雕", "灰塑", "木雕", "砖雕", "陶塑", "铜铁铸")
 FEATURE_TERMS = ("特点", "特征", "工艺", "怎么做", "有什么")
 TERM_EXPLANATION_TERMS = ("是什么", "什么意思", "指什么", "怎么理解")
+WHOLE_SITE_CRAFT_DOCUMENTS = frozenset(
+    {"07_ornament_crafts.md", "08_ornament_items.md", "09_ornament_locations.md"}
+)
 
 
 @lru_cache(maxsize=1)
@@ -593,6 +596,26 @@ def _follow_up_evidence_line(item: dict[str, Any]) -> str:
     return f"{sentence or '该条资料未提供可直接概括的内容。'}（来源：{sources}）"
 
 
+def _is_whole_site_craft_evidence(item: dict[str, Any], craft: str) -> bool:
+    """Keep craft expansion closed over the reviewed ornament knowledge set.
+
+    A craft-detail follow-up must never turn venue, ticketing, contact, or
+    route-service chunks into facts merely because a broad semantic retrieval
+    returned them.  The document boundary is deterministic and intentionally
+    fails closed for future documents until they are explicitly reviewed here.
+    """
+    if str(item.get("document") or "") not in WHOLE_SITE_CRAFT_DOCUMENTS:
+        return False
+    title_path = item.get("title_path") or []
+    searchable = " ".join(
+        [
+            str(item.get("content") or ""),
+            *(str(part) for part in title_path if isinstance(part, str)),
+        ]
+    )
+    return craft in searchable
+
+
 def _answer_whole_site_craft_follow_up(
     craft: str,
     tour_state: dict[str, Any] | None,
@@ -605,7 +628,11 @@ def _answer_whole_site_craft_follow_up(
         payload = parse_rag_payload(rag_search(retrieval_query))
     except Exception as exc:
         payload = {"evidence": [], "error": f"本地知识检索暂时不可用：{exc}"}
-    evidence = [item for item in payload.get("evidence", []) if isinstance(item, dict)]
+    evidence = [
+        item
+        for item in payload.get("evidence", [])
+        if isinstance(item, dict) and _is_whole_site_craft_evidence(item, craft)
+    ]
     if evidence:
         lines = [f"下面继续展开“{craft}”："]
         lines.extend(f"- {_follow_up_evidence_line(item)}" for item in evidence[:3])
@@ -645,11 +672,19 @@ def answer_qa_follow_up_detail(
     detailed: bool = True,
 ) -> dict[str, Any]:
     """Re-retrieve a single bounded QA follow-up without changing tour progress."""
+    requested_craft = next((craft for craft in CRAFT_TERMS if craft in user_query), None)
     try:
         context = validate_qa_context(qa_context)
     except ValueError:
         context = None
     if not context or not context["follow_up_allowed"]:
+        # An explicit reviewed craft in the current turn is sufficient.  It is
+        # not an omitted-subject follow-up, so it must not be blocked merely
+        # because no prior point or route context exists.
+        if requested_craft:
+            return _answer_whole_site_craft_follow_up(
+                requested_craft, tour_state, interaction_state, rag_search
+            )
         return {
             "message": "我没有可安全继续展开的上一轮点位问答。请说明想了解哪个点位或哪类装饰。",
             "mode": "qa_follow_up_clarification",
@@ -659,7 +694,6 @@ def answer_qa_follow_up_detail(
             "retrieval_query": None,
         }
 
-    requested_craft = next((craft for craft in CRAFT_TERMS if craft in user_query), None)
     craft = requested_craft or next(
         (term for term in context["subject_terms"] if term in CRAFT_TERMS), None
     )
@@ -723,6 +757,11 @@ def answer_tour_question(
     visitor_profile: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Use one injected existing RAG callable and leave both state snapshots untouched."""
+    explicit_detail_craft = next((craft for craft in CRAFT_TERMS if craft in user_query), None)
+    if explicit_detail_craft and is_qa_follow_up_detail_request(user_query):
+        return _answer_whole_site_craft_follow_up(
+            explicit_detail_craft, tour_state, interaction_state, rag_search
+        )
     if is_explicit_photo_request(user_query):
         context, error_code = resolve_point_context(user_query, tour_state)
         if error_code in {"ambiguous_node_name", "multiple_node_mentions", "unknown_point"}:

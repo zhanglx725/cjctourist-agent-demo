@@ -26,7 +26,7 @@ FAKE_PAYLOAD = json.dumps(
                 "document": "08_ornament_items.md",
                 "title_path": ["陈家祠建筑装饰条目知识库", "独角狮"],
                 "source_ids": ["S11"],
-                "content": "独角狮为建筑装饰题材。",
+                "content": "独角狮为灰塑建筑装饰题材。",
             }
         ]
     },
@@ -101,6 +101,16 @@ class AgentTourQaTests(unittest.TestCase):
             update = tour_qa_node(request)
         rag.invoke.assert_not_called()
         self.assertIn("以石灰为主料", update["messages"][0].content)
+
+    def test_explicit_craft_detail_routes_to_tour_qa_without_prior_context(self):
+        request = _message_state("请详细讲讲灰塑")
+        self.assertEqual(route_initial_request(request), "tour_qa")
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            rag.invoke.return_value = FAKE_PAYLOAD
+            update = tour_qa_node(request)
+        rag.invoke.assert_called_once_with({"query": "灰塑 是什么 材料 制作流程 陈家祠 题材"})
+        self.assertIn("灰塑", update["messages"][0].content)
+        self.assertEqual(update["qa_context"]["origin"], "whole_site")
 
     def test_whole_site_term_detail_follow_up_keeps_subject_without_a_route(self):
         first = tour_qa_node(_message_state("灰塑是什么？"))

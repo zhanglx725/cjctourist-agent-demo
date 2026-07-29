@@ -173,7 +173,7 @@ backlog:
 
   - backlog_id: e3_006_followup_topic_and_spatial_scope_memory
     priority: P1
-    status: open
+    status: fixed_pending_verification
     source_finding_ids: [rvw_muziw_010, e2_d_003]
     module: memory
     issue_type: routing
@@ -192,7 +192,12 @@ backlog:
       pre-route LangSmith reproduction reports that whole-site term context is
       not retained without an active tour, and even explicit current-turn
       requests such as “请详细讲讲灰塑” are wrongly blocked for lacking a prior
-      point-QA context.
+      point-QA context.  The follow-up router now gives an explicit reviewed
+      craft in the current turn priority over the omitted-subject guard;
+      whole-site craft expansion also filters evidence to the reviewed
+      ornament-craft/item/location documents and the named craft.  The
+      31-case targeted regression passed on 2026-07-29; LangSmith recheck is
+      still required against the restarted local server.
     summary: >-
       Elliptical follow-ups can lose their immediate term or point qualifier;
       even after topic retention, whole-site craft expansion can mix in

@@ -373,7 +373,7 @@ findings:
       In one thread, ask '灰塑是什么' then '详细讲讲'. The second response must remain about 灰塑,
       use relevant approved evidence, and remain read-only. In a new thread, '详细讲讲' must not
       retrieve broad visitor-service content; it should request the missing topic.
-    status: new
+    status: fixed_pending_verification
 
   - finding_id: rvw_muziw_009
     reviewer: muziw

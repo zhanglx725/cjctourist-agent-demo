@@ -19,7 +19,7 @@ from tour_state import start_tour
 EVIDENCE = {
     "document": "08_ornament_items.md",
     "title_path": ["装饰", "测试条目"],
-    "content": "测试资料说明了该装饰的工艺特点。",
+    "content": "测试资料说明了灰塑装饰的工艺特点。",
     "source_ids": ["S01"],
 }
 
@@ -109,6 +109,37 @@ class QaFollowUpTests(unittest.TestCase):
         self.assertEqual(result["mode"], "qa_follow_up_clarification")
         self.assertEqual(result["evidence"], [])
         self.assertEqual(self.front_tour, before)
+
+    def test_explicit_craft_detail_without_context_uses_whole_site_craft_path(self):
+        result = answer_qa_follow_up_detail(
+            "请详细讲讲灰塑", None, None, None, self._search
+        )
+        self.assertEqual(result["mode"], "qa_follow_up_global_craft")
+        self.assertIn("灰塑", result["message"])
+        self.assertEqual(result["retrieval_query"], "灰塑 是什么 材料 制作流程 陈家祠 题材")
+
+    def test_whole_site_craft_detail_filters_unrelated_service_evidence(self):
+        payload = json.dumps(
+            {
+                "evidence": [
+                    EVIDENCE,
+                    {
+                        "document": "01_basic_info.md",
+                        "title_path": ["基础信息", "场馆名称"],
+                        "content": "广东民间工艺博物馆提供预约和票务服务。",
+                        "source_ids": ["S01"],
+                    },
+                ]
+            },
+            ensure_ascii=False,
+        )
+        result = answer_qa_follow_up_detail(
+            "请详细讲讲灰塑", None, None, None, lambda _: payload
+        )
+        self.assertEqual(len(result["evidence"]), 1)
+        self.assertIn("灰塑", result["message"])
+        self.assertNotIn("票务", result["message"])
+        self.assertNotIn("场馆名称", result["message"])
 
     def test_whole_site_term_definition_then_detail_retains_the_craft_topic(self):
         first = answer_tour_question("灰塑是什么？", None, None, self._search)
