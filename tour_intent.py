@@ -25,6 +25,24 @@ NODE_ALIASES = {
     "后进中厅": ("label_rear_main_hall",),
 }
 
+# Visitor wording is normalized only for contract-whitelisted actions.  These
+# are not place aliases and never create a node ID: the pending-stop guard
+# below still decides whether a generic arrival is safe to execute.
+BARE_ARRIVAL_SYNONYMS = frozenset(
+    {
+        "到了",
+        "到啦",
+        "到咯",
+        "我到了",
+        "我到啦",
+        "我到咯",
+        "我已到了",
+        "我已经到了",
+        "我到这了",
+        "我到这儿了",
+    }
+)
+
 
 @dataclass(frozen=True)
 class TourIntentDecision:
@@ -153,7 +171,7 @@ def _has_arrival_language(text: str) -> bool:
     # Treat it as arrival only when it is the entire turn; longer phrases still
     # pass through the existing explicit-location and multi-intent guards.
     compact = text.strip().rstrip("。！!？?")
-    if compact == "到了":
+    if compact in BARE_ARRIVAL_SYNONYMS:
         return True
     return bool(re.search(r"(?:我\s*(?:已|已经|刚)?\s*(?:到|到了|在)|(?:已|已经|刚)?到达(?:了)?|我来到了)", text))
 
@@ -233,6 +251,9 @@ def _pending_arrival_fallback(
 
 def _is_generic_arrival_phrase(text: str) -> bool:
     """Return whether arrival wording contains no named or unknown destination."""
+    compact = text.strip().rstrip("。！!？?")
+    if compact in BARE_ARRIVAL_SYNONYMS:
+        return True
     return bool(re.fullmatch(
         r"(?:我\s*)?(?:(?:已|已经|刚)\s*)?(?:到了|到达了?|到)\s*[。！!？?]?",
         text.strip(),

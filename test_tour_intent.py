@@ -29,7 +29,7 @@ class TourIntentTests(unittest.TestCase):
         self.assertEqual(decision.arguments["node_id"], "stop_front_courtyard_center")
 
     def test_generic_arrival_uses_only_pending_stop_while_navigating(self):
-        for wording in ("我到了", "到了"):
+        for wording in ("我到了", "到了", "到啦", "到咯", "我到这儿了"):
             with self.subTest(wording=wording):
                 decision = self.classify(wording)
                 self.assertEqual(decision.route_kind, "tour_event")
@@ -37,7 +37,7 @@ class TourIntentTests(unittest.TestCase):
                 self.assertEqual(decision.arguments, {"node_id": "stop_front_courtyard_center"})
 
     def test_generic_arrival_without_active_pending_stop_still_clarifies(self):
-        for wording in ("我到了", "到了"):
+        for wording in ("我到了", "到了", "到啦", "到咯", "我到这儿了"):
             with self.subTest(wording=wording):
                 decision = classify_tour_intent(wording)
                 self.assertEqual(decision.route_kind, "clarification")
