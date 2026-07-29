@@ -48,6 +48,27 @@ verification_runs:
     limitations:
       - "尚未在画像收集已经追问时长的第二轮单独输入“两个小时”。"
       - "尚未复验游览中“只剩/改成两个小时”的重规划路径。"
+  - verification_id: langsmith_rvw_muziw_003_generic_arrival_20260729
+    finding_id: rvw_muziw_003
+    reviewer: muziw
+    tested_branch: main
+    tested_commit: 25f3b63
+    test_date: "2026-07-29"
+    test_environment: "LangGraph Studio + LangSmith"
+    inputs:
+      - "我到了"
+    preconditions: >-
+      同一线程已成功创建路线，当前处于前往唯一待到达首站“前院中部”的阶段。
+    observed_result: >-
+      系统将“我到了”解析为到达“前院中部”，直接输出“现在来到前院中部”及本站
+      讲解，没有要求用户重复点位名称；输出包含 active_guidance 的证据与渲染审计字段。
+    result: partial_passed
+    evidence_refs:
+      - "User-supplied LangSmith screenshot, 2026-07-29; trace URL not provided."
+    limitations:
+      - "本次未单独复测同义表达“我已到达”。"
+      - "本次未复测无活动路线、无唯一 pending_stop_id 或显式歧义点位时是否仍安全澄清。"
+      - "截图未展开状态快照，尚未人工确认到达时 visited_stop_ids 未被提前写入。"
 findings:
   - finding_id: rvw_muziw_001
     reviewer: muziw
@@ -827,7 +848,7 @@ findings:
       tour_event, arrive at the stored pending_stop_id, and produce stop guidance while keeping
       visited_stop_ids unchanged. In a fresh thread with no route, the same phrase must still
       request clarification; an explicitly ambiguous named point must also still clarify.
-    status: new
+    status: fixed_pending_verification
 
   - finding_id: rvw_muziw_002
     reviewer: muziw

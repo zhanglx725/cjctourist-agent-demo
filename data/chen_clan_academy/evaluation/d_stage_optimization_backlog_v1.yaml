@@ -122,7 +122,11 @@ backlog:
     module: route_planning
     issue_type: content_quality
     suspected_layer: unknown
-    reproduction_status: confirmed_by_e2_manual_evidence; independent_reproduction_not_run
+    reproduction_status: >-
+      confirmed_by_e2_manual_evidence; 2026-07-29 LangSmith partial verification:
+      with a planned route and one pending first stop, “我到了” entered that stop's
+      guidance without asking for a location name; no-route, ambiguity, and state-snapshot
+      controls remain pending
     summary: A route requested for 60 minutes was presented as 61 minutes.
     owner: route_owner
     contract_impact: none
