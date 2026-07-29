@@ -59,9 +59,11 @@ backlog:
       depth.  On 2026-07-29, LangSmith also verified three initial 120-minute
       forms: “两个小时”, “2小时”, and “120分钟” all created a route showing
       available_minutes=120; the latter two wood-carving inputs selected the
-      same 103-minute route.  The two-hour follow-up answer to an existing
-      duration prompt and remaining-time replanning remain pending LangSmith
-      verification.
+      same 103-minute route.  LangSmith also recognized “我现在就剩下30分钟了”
+      during an active tour and proposed a 25–28 minute compression candidate,
+      then requested an explicit route-choice confirmation.  The two-hour
+      follow-up answer to an existing duration prompt and confirmation/persistence
+      of a remaining-time replan remain pending LangSmith verification.
     summary: Natural-language hour durations, retained preferences, and remaining-time replanning are inconsistent.
     owner: route_owner
     contract_impact: none

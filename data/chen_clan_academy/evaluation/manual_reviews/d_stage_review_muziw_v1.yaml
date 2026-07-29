@@ -47,7 +47,29 @@ verification_runs:
       - "User-supplied LangSmith screenshots, 2026-07-29; trace URL not provided."
     limitations:
       - "尚未在画像收集已经追问时长的第二轮单独输入“两个小时”。"
-      - "尚未复验游览中“只剩/改成两个小时”的重规划路径。"
+      - "尚未复验游览中确认候选压缩路线后，是否真正更新路线与后续到达顺序。"
+  - verification_id: langsmith_rvw_muziw_002_remaining_30min_20260729
+    finding_id: rvw_muziw_002
+    reviewer: muziw
+    tested_branch: main
+    tested_commit: e1b6a08
+    test_date: "2026-07-29"
+    test_environment: "LangGraph Studio + LangSmith"
+    inputs:
+      - "我现在就剩下30分钟了"
+    preconditions: >-
+      同一线程已有进行中的路线，截图显示当前正在前东庭的讲解阶段。
+    observed_result: >-
+      系统识别到 30 分钟剩余时间，保留当前前东庭的三个核心看点，提出结束后
+      直接前往后庭、跳过后东庭和后西庭、再由中路返回出口的候选压缩路线，估计
+      步行加讲解约 25–28 分钟；随后询问用户选择继续前东庭还是直接跳去后庭。
+    result: partial_passed
+    evidence_refs:
+      - "User-supplied LangSmith screenshot, 2026-07-29; trace URL not provided."
+    limitations:
+      - "本次只验证剩余时间识别和候选压缩方案，不代表 TourState 已经完成重规划。"
+      - "尚未发送“直接跳去后庭”等确认回复，未验证确认后路线、跳过站点和后续到达顺序。"
+      - "尚未验证压缩路线完成后是否按当前路线语义正确返回出口。"
   - verification_id: langsmith_rvw_muziw_003_generic_arrival_20260729
     finding_id: rvw_muziw_003
     reviewer: muziw
