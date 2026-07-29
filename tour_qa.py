@@ -685,9 +685,11 @@ def _craft_overview_message(
     source_text = "、".join(dict.fromkeys(
         source for _, sources in sections.values() for source in sources
     )) or "未标注来源编号"
-    ordered_labels = ["工艺性质与位置", "材料与流程"]
+    # A first definition answers only “what is it?”.  Material and process are
+    # intentionally deferred until the visitor explicitly asks to go deeper.
+    ordered_labels = ["工艺性质与位置"]
     if detailed:
-        ordered_labels.extend(["发展与代表性", "陈家祠规模与题材", "文化表达"])
+        ordered_labels.extend(["材料与流程", "发展与代表性", "陈家祠规模与题材", "文化表达"])
     facts = [sections[label][0] for label in ordered_labels if label in sections]
     if not facts:
         return f"本次只检索到与“{craft}”相关的资料片段，但其中没有可安全整理的工艺说明。"
@@ -711,7 +713,11 @@ def _answer_whole_site_craft_follow_up(
     mode: str = "qa_follow_up_global_craft",
 ) -> dict[str, Any]:
     """Expand one reviewed craft term with freshly retrieved, scoped evidence."""
-    retrieval_query = f"{craft} 工艺性质 材料与流程 陈家祠"
+    retrieval_query = (
+        f"{craft} 工艺性质与位置"
+        if not detailed
+        else f"{craft} 工艺性质 材料与流程 陈家祠"
+    )
     try:
         payload = parse_rag_payload(rag_search(retrieval_query))
     except Exception as exc:

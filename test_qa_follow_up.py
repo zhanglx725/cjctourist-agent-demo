@@ -150,7 +150,7 @@ class QaFollowUpTests(unittest.TestCase):
     def test_whole_site_term_definition_then_detail_retains_the_craft_topic(self):
         first = answer_tour_question("灰塑是什么？", None, None, self._search)
         self.assertEqual(first["mode"], "whole_site_craft_overview")
-        self.assertIn("草筋灰或纸筋灰", first["message"])
+        self.assertNotIn("草筋灰或纸筋灰", first["message"])
         self.assertNotIn("08_ornament_items.md", first["message"])
         context = build_qa_context_from_answer("灰塑是什么？", first, None)
         self.assertIsNotNone(context)
@@ -196,7 +196,7 @@ class QaFollowUpTests(unittest.TestCase):
         result = answer_tour_question("灰塑是什么？", None, None, lambda _: payload)
         self.assertEqual(result["mode"], "whole_site_craft_overview")
         self.assertEqual([item["document"] for item in result["evidence"]], ["07_ornament_crafts.md"])
-        self.assertIn("草筋灰或纸筋灰", result["message"])
+        self.assertNotIn("草筋灰或纸筋灰", result["message"])
         self.assertNotIn("08_ornament_items.md", result["message"])
         self.assertNotIn("09_ornament_locations.md", result["message"])
         self.assertNotIn("- **", result["message"])

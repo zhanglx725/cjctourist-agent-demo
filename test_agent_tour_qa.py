@@ -119,9 +119,9 @@ class AgentTourQaTests(unittest.TestCase):
         with patch("agent_graph.chen_clan_academy_rag_search") as rag:
             rag.invoke.return_value = CRAFT_PAYLOAD
             update = tour_qa_node(request)
-        rag.invoke.assert_called_once_with({"query": "灰塑 工艺性质 材料与流程 陈家祠"})
-        self.assertIn("以石灰为主料", update["messages"][0].content)
-        self.assertIn("草筋灰或纸筋灰", update["messages"][0].content)
+        rag.invoke.assert_called_once_with({"query": "灰塑 工艺性质与位置"})
+        self.assertIn("珠江三角洲传统建筑", update["messages"][0].content)
+        self.assertNotIn("草筋灰或纸筋灰", update["messages"][0].content)
 
     def test_explicit_craft_detail_routes_to_tour_qa_without_prior_context(self):
         request = _message_state("请详细讲讲灰塑")
