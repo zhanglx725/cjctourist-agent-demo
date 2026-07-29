@@ -11,6 +11,7 @@ from agent_graph import (
     direct_route_node,
     profile_collection_node,
     route_after_profile_collection,
+    route_initial_request,
 )
 from guide_program_planner import plan_stop_program
 from route_planner import plan_template
@@ -87,6 +88,30 @@ class AgentProfileRouteIntegrationTests(unittest.TestCase):
         self.assertEqual(result["tour_state"]["available_minutes"], 30)
         self.assertEqual(result["tour_state"]["detail_level"], "standard")
         self.assertEqual(result["selected_route_id"], "highlights_30")
+
+    def test_route_action_with_comparison_interest_enters_profile_collection(self):
+        """Comparison words are route preferences when planning is explicit."""
+        text = "我要参观一个小时，我对三国故事相关的工艺比较感兴趣，请帮我规划路线"
+        state = _state(text)
+        self.assertEqual(route_initial_request(state), "profile_collection")
+
+        collected = profile_collection_node(state)
+        self.assertEqual(collected["visitor_profile"]["available_minutes"], 60)
+        self.assertIn("三国", collected["visitor_profile"]["interests"])
+        self.assertIn("故事", collected["visitor_profile"]["interests"])
+        self.assertIn("工艺", collected["visitor_profile"]["interests"])
+        self.assertEqual(collected["profile_collection"]["next_missing_field"], "detail_level")
+
+    def test_complete_route_action_with_comparison_interest_starts_sixty_minute_route(self):
+        text = "我要参观一个小时，我对三国故事相关的工艺比较感兴趣，标准讲解，请帮我规划路线"
+        state = _state(text)
+        self.assertEqual(route_initial_request(state), "profile_collection")
+
+        graph = build_agent_graph(with_checkpointer=False)
+        result = graph.invoke(state)
+        self.assertEqual(result["visitor_profile"]["available_minutes"], 60)
+        self.assertEqual(result["tour_state"]["available_minutes"], 60)
+        self.assertIn("三国", result["tour_state"]["interests"])
 
 
 if __name__ == "__main__":

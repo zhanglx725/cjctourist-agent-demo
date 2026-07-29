@@ -907,16 +907,25 @@ def route_initial_request(state: AgentState) -> str:
         return "clarification"
     if state.get("tour_state") and state.get("tour_interaction_state") and is_profile_update_request(text):
         return "profile_update"
-    # D3 is a deterministic sub-route of tour_qa.  It is checked after all
-    # event/profile controls, but before generic route/RAG/LLM fallbacks.
-    if is_explicit_photo_request(text) or is_explicit_comparison_question(text) or is_explicit_research_question(text):
+    # D6 photo handling retains priority because a mixed photo/route request
+    # must receive its existing no-partial-mutation clarification.  By
+    # contrast, a genuine route action may contain comparison or research
+    # words as *planning preferences* (for example, “一小时，想看三国工艺
+    # 比较，请规划路线”).  Do not let those words divert a route request into
+    # D3/D4 knowledge Q&A before C2 can collect the route profile.
+    if is_explicit_photo_request(text):
+        return "tour_qa"
+    if decision.route_kind == "route_request" or should_direct_route(text):
+        return "profile_collection"
+    # D3/D4 are deterministic sub-routes of tour_qa.  They are checked after
+    # all event/profile controls and explicit route actions, but before generic
+    # RAG/LLM fallbacks.
+    if is_explicit_comparison_question(text) or is_explicit_research_question(text):
         return "tour_qa"
     # C2 collects only explicit preferences before C3 later consumes them for
     # route selection. Control events and factual questions retain priority.
     profile_turn = collect_profile_input(state.get("profile_collection"), text)
     if profile_turn is not None:
-        return "profile_collection"
-    if decision.route_kind == "route_request" or should_direct_route(text):
         return "profile_collection"
     if decision.route_kind == "rag_question" or should_direct_rag(text):
         # An explicit audited point inventory is structured data even before a
