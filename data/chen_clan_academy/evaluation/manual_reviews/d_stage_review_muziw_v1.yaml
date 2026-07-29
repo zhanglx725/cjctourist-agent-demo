@@ -179,7 +179,94 @@ verification_runs:
     limitations:
       - "截图未提供运行服务所加载的精确 Git 提交。"
       - "本记录描述的是本次修复前的复测结果；修复后的 LangSmith 对照尚未执行。"
+  - verification_id: langsmith_rvw_muziw_013_unlisted_synonym_gap_20260729
+    finding_id: rvw_muziw_013
+    reviewer: muziw
+    tested_branch: main
+    tested_commit: unknown_local_server
+    test_date: "2026-07-29"
+    test_environment: "LangGraph Studio + LangSmith"
+    inputs:
+      - "未预设的到达同义表达。"
+      - "未预设的可用时长或剩余时长口语表达。"
+    observed_result: >-
+      用户报告：系统可识别的到达与时间表达主要限于已写入词表或正则的形式；
+      其余语义等价表达不能稳定进入到达、时长收集或重规划等受控流程，可能被当作
+      普通问答检索或要求重复表述。
+    result: failed
+    evidence_refs:
+      - "User report from LangSmith testing, 2026-07-29; concrete trace URLs pending."
+    limitations:
+      - "尚未提供每一种未识别表达的完整 trace、服务提交哈希和状态快照。"
+      - "本条记录只确认跨流程能力缺口，不能据此允许模型自由映射空间点位。"
 findings:
+  - finding_id: rvw_muziw_013
+    reviewer: muziw
+    tested_commit: unknown_local_server
+    test_date: "2026-07-29"
+    module: cross_flow_intent_normalization
+    issue_type: semantic_routing
+    severity: P1
+    reproducibility: frequent
+
+    preconditions:
+      thread_id: "LangSmith traces pending"
+      current_node_id: null
+      active_route: unknown
+      visitor_profile: {}
+
+    conversation:
+      - role: user
+        content: "使用未列入当前固定词表的、语义等价的到达或时长表达。"
+
+    expected:
+      route: "bounded semantic candidate -> existing deterministic validator -> controlled workflow or clarification"
+      state_change: "Only existing validated events may change state."
+      card_type: "none"
+      behavior: >-
+        Recognize a clearly expressed common paraphrase when it can be safely normalized;
+        otherwise ask a concise clarification without running unrelated broad retrieval.
+
+    actual:
+      route: "often falls through from fixed-keyword parsing"
+      response_summary: >-
+        User reports that unlisted paraphrases of arrival and duration are not reliably
+        recognized, leading to repeated prompts or answers unrelated to the requested control.
+      state_change: "Exact state snapshots pending."
+      selected_card_ids: []
+      source_ids: []
+
+    scores:
+      routing_score: 0
+      state_score: 1
+      factual_score: 2
+      source_score: 2
+      card_score: 2
+      spatial_score: 1
+      profile_score: 1
+      clarity_score: 0
+      safety_score: 1
+
+    problem_description: >-
+      The current workflow has independent fixed synonym lists and regular expressions but no
+      shared, bounded semantic normalization step for ordinary paraphrases of control intent.
+    user_goal: >-
+      Speak naturally throughout route creation and tour progress without memorizing a fixed
+      vocabulary, while retaining reliable, safe route and state behavior.
+    evidence_refs:
+      - "User report from LangSmith testing, 2026-07-29; concrete trace URLs pending."
+
+    suspected_layer: intent_routing_and_value_extraction
+    proposed_solution: >-
+      Add a whitelisted semantic-candidate adapter that cannot create nodes, facts, routes, or
+      state changes. Existing reviewed-node resolution, duration validation, event validation,
+      confirmation, and safety gates remain the execution authority.
+    acceptance_test: >-
+      Representative unlisted paraphrases route to a valid candidate only when all deterministic
+      guards pass; ambiguous duration and unknown locations still clarify; semantic unavailability
+      fails closed and does not invoke broad RAG for a control request.
+    status: open
+
   - finding_id: rvw_muziw_001
     reviewer: muziw
     tested_commit: d003969

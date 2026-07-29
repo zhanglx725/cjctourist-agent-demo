@@ -466,6 +466,26 @@ backlog:
       pending stop as the next stop; after confirmation it preserves completed/skipped-stop
       semantics and starts subsequent navigation from the new origin.
 
+  - backlog_id: e3_023_controlled_semantic_normalization
+    priority: P1
+    status: open
+    source_finding_ids: [rvw_muziw_013]
+    module: cross_flow_intent_normalization
+    issue_type: semantic_routing
+    suspected_layer: intent_routing_and_value_extraction
+    reproduction_status: user_reported_in_LangSmith_testing; concrete_variant_traces_pending
+    summary: >-
+      Fixed keyword and synonym lists cannot recognize many ordinary paraphrases of arrival,
+      visit duration, remaining time, route requests, and other tour controls; unmatched text
+      can fall through to broad QA instead of the intended controlled workflow.
+    owner: integration_owner
+    contract_impact: requires_bounded_semantic_candidate_contract; must_not_change_tour_state_directly
+    acceptance_test: >-
+      A semantic candidate may only select a whitelisted action. Arrival still requires the
+      unique pending stop; duration still requires an unambiguous valid minute value; nodes
+      must resolve through the reviewed registry; an unavailable or low-confidence semantic
+      component falls back to clarification or the current deterministic parser.
+
 test_gaps:
   - gap_id: e3_gap_001_thread_isolation
     status: not_tested
