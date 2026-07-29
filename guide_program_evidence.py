@@ -112,11 +112,15 @@ def reexpress_current_stop_guidance(
         return {"ok": False, "message": f"当前讲解包无法安全重新组织：{exc}"}
     values = evidence_by_item or {}
     narration = compose_guide_narration(program, values, detailed=False)
-    message = narration.visitor_message + f"\n{_citation_text(narration.source_ids, policy)}"
+    # Source IDs remain structured audit data.  They must never be appended to
+    # the visitor-facing re-expression, which uses the same legacy renderer as
+    # the B3 fallback path.
+    message = narration.visitor_message
     return {
         "ok": True, "message": message, "stop_program": program.to_dict(),
         "evidence_by_item": values,
         "evidence": [entry for entries in values.values() for entry in entries],
+        "source_ids": list(narration.source_ids),
         "guidance_policy": policy.to_dict(),
         "presentation": {**present_tour_state(tour_state, interaction_state, message=message),
                          "code": "stop_guidance_reexpressed", "ok": True},
@@ -139,15 +143,6 @@ def _guidance_policy_for_tour(
         interests=tour_state.get("interests", []),
         detail_level=tour_state.get("detail_level", "standard"),
     ))
-
-
-def _citation_text(source_ids: tuple[str, ...], policy: GuidancePolicy) -> str:
-    ids = "、".join(source_ids) or "当前没有可引用的来源编号"
-    if policy.citation_detail == "detailed":
-        return f"参考资料编号：{ids}（本地知识快照）"
-    if policy.citation_detail == "standard":
-        return f"参考来源：{ids}"
-    return f"来源：{ids}"
 
 
 def build_stop_guidance(
@@ -300,7 +295,9 @@ def build_stop_guidance(
         evidence.extend(item_evidence)
         evidence_by_item[item.ornament_id] = item_evidence
     narration = compose_guide_narration(program, evidence_by_item, detailed=detailed)
-    message = narration.visitor_message + f"\n{_citation_text(narration.source_ids, guidance_policy)}。"
+    # B3 is a safety fallback, not an exception to the visitor-text boundary.
+    # Keep traceable IDs in the structured response below, never in message.
+    message = narration.visitor_message
     view = present_tour_state(tour_state, interaction_state, message=message)
     return {
         "message": message,

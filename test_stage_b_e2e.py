@@ -94,7 +94,11 @@ class StageBEndToEndTests(unittest.TestCase):
         self.assertEqual(state["tour_interaction_state"]["stop_phase"], "explaining")
         self.assertEqual(state["tour_state"]["visited_stop_ids"], [])
         self.assertEqual(state["active_stop_program"]["node_id"], "stop_front_courtyard_center")
-        self.assertIn("S10", state["messages"][-1].content)
+        self.assertNotIn("S10", state["messages"][-1].content)
+        self.assertIn(
+            "S10",
+            {source for entry in state["retrieved_evidence"] for source in entry["source_ids"]},
+        )
 
         before_tour = deepcopy(state["tour_state"])
         before_interaction = deepcopy(state["tour_interaction_state"])

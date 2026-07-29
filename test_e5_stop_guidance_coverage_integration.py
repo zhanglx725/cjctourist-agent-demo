@@ -11,6 +11,7 @@ from langchain_core.messages import HumanMessage
 
 import agent_graph
 from agent_graph import direct_route_node, stop_guidance_node, tour_event_node
+from guide_program_evidence import reexpress_current_stop_guidance
 from narration_coverage import empty_narration_coverage
 
 
@@ -75,6 +76,54 @@ class StopGuidanceCoverageIntegrationTests(unittest.TestCase):
             update = stop_guidance_node(state)
         self.assertEqual(update["narration_coverage"], empty_narration_coverage().to_dict())
         self.assertNotIn("active_narration_render_audit", update)
+
+    def test_b3_fallback_hides_internal_source_ids_but_retains_structured_evidence(self):
+        state = self._arrived()
+        payloads = {
+            "S07": json.dumps({"evidence": [{
+                "document": "07_ornament_crafts.md", "title_path": ["工艺", "灰塑"],
+                "source_ids": ["S07"],
+                "content": "灰塑是岭南传统建筑装饰工艺，常见于山墙和屋脊。",
+            }]}, ensure_ascii=False),
+            "S11": json.dumps({"evidence": [{
+                "document": "08_ornament_items.md", "title_path": ["条目", "独角狮"],
+                "source_ids": ["S11"],
+                "content": "独角狮造型凌空而下，题材寓意辟邪保平安。",
+            }]}, ensure_ascii=False),
+        }
+        for source_id, payload in payloads.items():
+            with self.subTest(source_id=source_id):
+                before_tour = deepcopy(state["tour_state"])
+                before_profile = deepcopy(state["visitor_profile"])
+                with patch("guide_program_evidence.render_guidance_evidence", side_effect=RuntimeError("render failed")):
+                    with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+                        rag.invoke.return_value = payload
+                        update = stop_guidance_node(state)
+                visitor_message = update["messages"][-1].content
+                self.assertEqual(update["narration_coverage"], empty_narration_coverage().to_dict())
+                self.assertEqual(state["tour_state"], before_tour)
+                self.assertEqual(state["visitor_profile"], before_profile)
+                self.assertIn(source_id, {item for entry in update["retrieved_evidence"] for item in entry["source_ids"]})
+                self.assertNotIn("来源：S", visitor_message)
+                self.assertNotIn("source_ids", visitor_message)
+                self.assertNotIn(".md", visitor_message)
+                self.assertNotIn("http", visitor_message)
+
+    def test_reexpressed_b3_guidance_hides_source_ids_but_retains_structured_evidence(self):
+        state = self._arrived()
+        with patch("guide_program_evidence.render_guidance_evidence", side_effect=RuntimeError("render failed")):
+            with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+                rag.invoke.side_effect = lambda args: self._payload(args["query"])
+                initial = stop_guidance_node(state)
+        rewritten = reexpress_current_stop_guidance(
+            state["tour_state"], state["tour_interaction_state"], initial["active_stop_program"],
+            initial["active_guidance_evidence_by_item"], state["visitor_profile"],
+        )
+        self.assertTrue(rewritten["ok"])
+        self.assertTrue(initial["retrieved_evidence"])
+        self.assertTrue(rewritten["source_ids"])
+        self.assertNotIn("来源：S", rewritten["message"])
+        self.assertNotIn("source_ids", rewritten["message"])
 
     def test_repeat_delivery_is_idempotent_and_new_route_clears_coverage(self):
         state = self._arrived()

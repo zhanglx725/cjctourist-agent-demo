@@ -47,7 +47,8 @@ class AgentStopGuidanceTests(unittest.TestCase):
         self.assertEqual(state["tour_state"], before_tour)
         self.assertEqual(state["tour_interaction_state"], before_interaction)
         self.assertEqual(update["tour_presentation"]["phase"], "explaining")
-        self.assertIn("S10", update["messages"][0].content)
+        self.assertNotIn("S10", update["messages"][0].content)
+        self.assertIn("S10", {source for entry in update["retrieved_evidence"] for source in entry["source_ids"]})
         self.assertTrue(update["active_stop_program"]["guidance_policy"]["fact_evidence_required"])
         self.assertEqual(
             update["active_stop_program"]["guidance_policy"]["budget_cap_mode"],

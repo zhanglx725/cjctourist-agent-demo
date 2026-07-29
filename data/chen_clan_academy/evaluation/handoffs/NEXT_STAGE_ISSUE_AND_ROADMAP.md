@@ -39,7 +39,7 @@
 | ---: | --- | --- | --- | --- |
 | 0 | P1-04 空间节点冲突 | `blocked_pending_owner_confirmation` | 等空间负责人确认“后西庭/后庭西侧”的权威节点与别名 | 禁止模型或代码自建点位别名 |
 | 1 | P1-11 新位置后的重规划 | `open` | 在确认式重规划中使用已审核新位置作为候选起点 | 改动 A1 契约前需负责人确认 |
-| 2 | P1-19 E5 失败回退仍向游客展示内部来源编号 | `reproduced_in_langsmith_pending_fix` | 单独审计 B3 回退包装层的游客文本与引用边界 | 不改变 E5 成功链路的内部审计 `used_source_ids`；不得删除失败关闭 |
+| 2 | P1-19 E5 失败回退仍向游客展示内部来源编号 | `implemented_pending_langsmith_verification` | 在 LangSmith 复测 B3 回退、渲染失败回退与风格重述出口 | 内部审计 `used_source_ids` / `source_ids` 必须保留；不得删除失败关闭 |
 | 3 | P1-10 术语—实例关联 | `open` | 从审核对象/点位关联中受限选取实例 | 不把关联说成当前一定可见 |
 | 4 | P1-09 装饰故事和题材说明过浅 | `open` | 复用 E5 已接入的对象证据编排，补齐来源支持的场景、画面或寓意说明 | 不用模型记忆补写故事；不与 P1-08 的观察提示修复混合 |
 | 5 | P2 模式、卡片调度与界面 | `open` | 在 P1 控制层稳定后再写契约 | 不以聊天语气推断画像 |
@@ -175,7 +175,9 @@
 | 期望结果 | 内部来源编号继续保留在审计字段、`GuideNarration.source_ids` 与 trace 中；游客文本不显示 `S07` 等内部编号，也不显示文件名、URL 或原始 chunk。 |
 | 影响范围 | 仅在 E5 证据包或渲染不合格、系统安全回退到旧 B3 的站点讲解场景出现；不应通过删除回退或放宽 E5 证据门控来规避。 |
 | 建议负责人 | 导览渲染／证据边界负责人。 |
-| LangSmith 状态 | `reproduced_failed`。2026-07-30 在 Studio thread `019fb008-50d1-7cc3-8dfd-17d6a82f1ea6` 的实际游客回复末尾出现“来源：S11”。该现象与本地复现的 B3 回退泄漏一致，但实际来源编号会随返回证据变化；未执行修复后的 LangSmith 复测。用户提供的会话截图为本轮证据。 |
+| 当前现状 | 2026-07-30 已在 `guide_program_evidence.py` 移除 B3 回退和当前点重述出口向游客消息追加 `_citation_text(...)` 的行为。`GuideNarration.source_ids`、`build_stop_guidance(...)["source_ids"]`、结构化 `evidence`、E5 `used_source_ids` 与 LangSmith trace 仍保留内部可追溯来源；只移除了游客可见文本中的编号。未删除 B3 回退，且无证据时仍不提交 NarrationCoverage。 |
+| 自动化验证 | 新增 `test_b3_fallback_hides_internal_source_ids_but_retains_structured_evidence`，以 S07 和 S11 两组真实形态的 RAG evidence 强制 E5 渲染失败后进入 B3，验证游客消息不含“来源：S”、`source_ids`、文件名或 URL，而 `retrieved_evidence` 仍保留对应来源；新增当前点重述出口测试。定向及直接回归运行 `test_guide_program_evidence.py`、`test_agent_stop_guidance.py`、`test_guidance_policy_integration.py`、`test_e5_stop_guidance_coverage_integration.py`、`test_e5_narration_rendering.py`、`test_e5_narration_runtime_acceptance.py`、`test_guide_narration.py`、`test_stage_b_e2e.py`，共 46 项通过。 |
+| LangSmith 状态 | `implemented_pending_langsmith_verification`。2026-07-30 在 Studio thread `019fb008-50d1-7cc3-8dfd-17d6a82f1ea6` 的实际游客回复末尾曾出现“来源：S11”。修复后尚未执行 LangSmith；后续应在已到达点位后分别复测单件证据不足的 B3 回退、强制 E5 渲染失败回退和当前点风格重述，确认游客文本不含“来源：Sxx”，同时确认 Trace/结构化结果仍保留来源且 TourState 不变。 |
 
 ### P1-09 装饰故事和题材说明过浅
 
