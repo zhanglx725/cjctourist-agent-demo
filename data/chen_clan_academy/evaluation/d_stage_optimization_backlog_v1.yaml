@@ -52,8 +52,12 @@ backlog:
     suspected_layer: duration_parsing_and_intent_routing
     reproduction_status: >-
       confirmed_by_e2_manual_evidence; deterministic E4-3 regression coverage
-      added; project-owner local targeted and full unittest verification passed;
-      LangSmith verification pending
+      added; project-owner local targeted and full unittest verification passed.
+      On 2026-07-29, LangSmith verified the one-hour explicit-route request
+      with Three Kingdoms/craft interests: the complete-profile path created a
+      60-minute route and the incomplete-profile path asked only for narration
+      depth.  Two-hour initial and follow-up paths, plus remaining-time
+      replanning, remain pending LangSmith verification.
     summary: Natural-language hour durations, retained preferences, and remaining-time replanning are inconsistent.
     owner: route_owner
     contract_impact: none

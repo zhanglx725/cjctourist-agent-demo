@@ -5,6 +5,28 @@ tested_commit: d003969
 test_date: "2026-07-27"
 python_version: "3.12.x"
 test_environment: "LangGraph Studio local dev + LangSmith"
+verification_runs:
+  - verification_id: langsmith_rvw_muziw_001_20260729
+    finding_id: rvw_muziw_001
+    reviewer: muziw
+    tested_branch: main
+    tested_commit: fbd15d7
+    test_date: "2026-07-29"
+    test_environment: "LangGraph Studio + LangSmith"
+    inputs:
+      - "我要参观一个小时，我对三国故事相关的工艺比较感兴趣，标准讲解，请帮我规划路线"
+      - "我要参观一个小时，我对三国故事相关的工艺比较感兴趣，请帮我规划路线"
+    observed_result: >-
+      完整画像输入创建了“60分钟装饰工艺与故事线”，报告预计总时长约 60 分钟，
+      并给出前院中部、前庭、前西庭、后西庭、后庭五个讲解停留点。缺少讲解深度的
+      输入只追问该字段，未返回原始 RAG 摘录。
+    result: passed
+    evidence_refs:
+      - "User-supplied LangSmith screenshots, 2026-07-29; trace URL not provided."
+    limitations:
+      - "本次只验证“一小时 + 比较词 + 路线动作”的路由路径。"
+      - "未验证 rvw_muziw_002 中“两个小时”的初始输入与追问输入。"
+      - "路线保留了故事/工艺兴趣；并未请求或验证在路线中自动输出独立比较卡。"
 findings:
   - finding_id: rvw_muziw_001
     reviewer: muziw
@@ -86,7 +108,7 @@ findings:
       clarification or creates a route with a 60-minute-compatible budget; it must not present
       the retrieved half-hour route as the answer. The route must retain the interests as
       preferences, and no unsupported Three Kingdoms object/location may be invented.
-    status: new
+    status: verified_fixed
 
   - finding_id: rvw_muziw_011
     reviewer: muziw
