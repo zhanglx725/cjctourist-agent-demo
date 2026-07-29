@@ -79,7 +79,9 @@ EVIDENCE = [
             "下午场检票时段：13:00–17:00。\n"
             "常规当日门票销售截止时间：17:00。\n"
             "4 月 15 日至 10 月 15 日实行延时开放：闭馆时间延至 18:00，"
-            "下午场检票截止和当日售票截止延至 17:30。"
+            "下午场检票截止和当日售票截止延至 17:30。\n"
+            "未携带身份证件者，可到综合服务处出示电子身份证或其他有效证件"
+            "换取实体票。使用优惠票或免票入场者，应按要求出示相应证件供查验。"
         ),
     },
 ]
@@ -174,6 +176,12 @@ class VisitorFactRouteAcceptanceTests(unittest.TestCase):
             ("陈家祠周二开放吗？", "closed_day", "每周二闭馆", False),
             ("陈家祠几点停止入场？", "last_admission", "停止入场时间为 17:00", False),
             ("陈家祠下午场检票到几点？", "afternoon_entry_cutoff", "常规检票截止到 17:00", False),
+            (
+                "订了票忘带身份证，能不能进？",
+                "identity_admission_workaround",
+                "有替代处理方式",
+                False,
+            ),
             (
                 "陈家祠由谁设计、在哪一天奠基？",
                 "designer_and_foundation_date",

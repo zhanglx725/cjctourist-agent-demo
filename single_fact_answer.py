@@ -64,6 +64,7 @@ FACT_KINDS = frozenset(
         "closing_time",
         "last_admission",
         "afternoon_entry_cutoff",
+        "identity_admission_workaround",
         "designer_and_foundation_date",
     }
 )
@@ -114,6 +115,48 @@ def identify_single_fact_kind(user_query: str) -> str | None:
 
     # Service questions are safe to resolve without repeating the site name:
     # the application has one fixed venue, and these phrases are unambiguous.
+    if (
+        any(term in text for term in ("身份证", "身份证件", "证件"))
+        and (
+            any(
+                term in text
+                for term in (
+                    "忘带",
+                    "没带",
+                    "未带",
+                    "没有带",
+                    "没拿",
+                    "未携带",
+                    "丢了",
+                )
+            )
+            or any(
+                term in text
+                for term in (
+                    "电子身份证",
+                    "电子证件",
+                    "身份证照片",
+                    "照片代替",
+                    "替代证件",
+                    "其他证件",
+                )
+            )
+        )
+        and any(
+            term in text
+            for term in (
+                "能不能进",
+                "可以进",
+                "入馆",
+                "进馆",
+                "入场",
+                "检票",
+                "订了票",
+                "怎么办",
+            )
+        )
+    ):
+        return "identity_admission_workaround"
     if "周二" in text and any(term in text for term in ("开放", "闭馆", "休馆", "开门")):
         return "closed_day"
     if "下午场" in text and any(term in text for term in ("检票", "入场", "入馆")):
@@ -161,6 +204,8 @@ def single_fact_categories_for_kind(fact_kind: str | None) -> list[str] | None:
         return list(VISIT_SERVICE_CATEGORIES)
     if fact_kind == "afternoon_entry_cutoff":
         return ["ticketing_snapshot"]
+    if fact_kind == "identity_admission_workaround":
+        return ["ticketing_snapshot", "visit_service"]
     return None
 
 
@@ -187,6 +232,10 @@ def single_fact_retrieval_query_for_kind(
         "closing_time": "陈家祠 常规开放时间 闭馆时间 延时开放 18:00",
         "last_admission": "陈家祠 停止入场 停止入馆 17:00 延时开放",
         "afternoon_entry_cutoff": "陈家祠 下午场 检票时段 截止 17:00 17:30",
+        "identity_admission_workaround": (
+            "陈家祠 忘带身份证 未携带身份证件 综合服务处 "
+            "电子身份证 其他有效证件 换取实体票 入馆"
+        ),
     }.get(fact_kind, fallback)
 
 
@@ -545,6 +594,74 @@ def _service_answer(
     )
 
 
+def _identity_admission_answer(
+    evidence: list[dict[str, Any]],
+) -> SingleFactAnswer:
+    """Render the reviewed workaround without treating a normal rule as a ban."""
+
+    required_terms = (
+        "未携带身份证件",
+        "综合服务处",
+        "换取实体票",
+    )
+    relevant: list[tuple[int, dict[str, Any]]] = []
+    workaround_found = False
+    for index, item in enumerate(evidence):
+        content = str(item.get("content") or "")
+        if any(
+            term in content
+            for term in (
+                "身份证原件",
+                "身份证件",
+                "电子身份证",
+                "其他有效证件",
+                "综合服务处",
+                "实体票",
+            )
+        ):
+            relevant.append((index, item))
+        if (
+            all(term in content for term in required_terms)
+            and any(term in content for term in ("电子身份证", "其他有效证件"))
+        ):
+            workaround_found = True
+
+    relevant_items = [item for _, item in relevant]
+    source_ids = _source_ids(relevant_items)
+    indexes = tuple(index for index, _ in relevant)
+    categories = _categories(relevant_items)
+    freshness = "具体核验安排可能调整，请以馆方当日要求为准。"
+
+    if workaround_found and source_ids:
+        message = (
+            "有替代处理方式。已完成订票但未携带身份证件时，可到综合服务处"
+            "出示电子身份证或其他有效证件，换取实体票后按现场流程入馆。"
+            "使用优惠票或免票的游客，仍应按要求出示相应有效证件供查验。"
+            + freshness
+        )
+        return SingleFactAnswer(
+            fact_kind="identity_admission_workaround",
+            message=message,
+            source_ids=source_ids,
+            evidence_indexes=indexes,
+            evidence_categories=categories,
+            ok=True,
+        )
+
+    return SingleFactAnswer(
+        fact_kind="identity_admission_workaround",
+        message=(
+            "现有资料不足以确认忘带身份证后的替代入馆方式，"
+            "不能仅凭通常要求携带身份证原件就得出否定结论。"
+            + freshness
+        ),
+        source_ids=source_ids,
+        evidence_indexes=indexes,
+        evidence_categories=categories,
+        ok=False,
+    )
+
+
 def _validate_visitor_message(message: str) -> None:
     if any(token in message for token in INTERNAL_TOKENS):
         raise ValueError("游客文本包含内部检索字段或链接。")
@@ -568,6 +685,8 @@ def render_single_fact_answer(
     ]
     if resolved_fact_kind == "site_address":
         result = _address_answer(normalized_evidence)
+    elif resolved_fact_kind == "identity_admission_workaround":
+        result = _identity_admission_answer(normalized_evidence)
     elif resolved_fact_kind in {
         "construction_start",
         "construction_completion",

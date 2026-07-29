@@ -31,6 +31,23 @@ ADDRESS_EVIDENCE = {
         "- 地址：广州市荔湾区中山七路恩龙里 34 号"
     ),
 }
+IDENTITY_WORKAROUND_EVIDENCE = {
+    "category": "ticketing_snapshot",
+    "document": "06_ticketing_rules.md",
+    "title_path": ["购票、预约与入馆规则", "检票方式"],
+    "source_ids": ["S07"],
+    "content": (
+        "未携带身份证件者，可到综合服务处出示电子身份证或其他有效证件"
+        "换取实体票。使用优惠票或免票入场者，应按要求出示相应证件供查验。"
+    ),
+}
+IDENTITY_ORIGINAL_ONLY_EVIDENCE = {
+    "category": "visit_service",
+    "document": "03_visit_services.md",
+    "title_path": ["游览服务与参观提示", "服务设施"],
+    "source_ids": ["S05"],
+    "content": "预约游客入馆时须出示本人有效身份证原件核验。",
+}
 
 
 class SingleFactAnswerTests(unittest.TestCase):
@@ -69,6 +86,23 @@ class SingleFactAnswerTests(unittest.TestCase):
             single_fact_categories("陈家祠在哪里？"),
             ["basic_info"],
         )
+        for query in (
+            "订了票忘带身份证，能不能进？",
+            "没有带身份证可以入馆吗？",
+            "证件丢了还能检票进馆吗？",
+            "可以用电子身份证入馆吗？",
+            "身份证照片能代替原件检票吗？",
+            "没带身份证怎么办？",
+        ):
+            with self.subTest(query=query):
+                self.assertEqual(
+                    identify_single_fact_kind(query),
+                    "identity_admission_workaround",
+                )
+                self.assertEqual(
+                    single_fact_categories(query),
+                    ["ticketing_snapshot", "visit_service"],
+                )
         self.assertIsNone(single_fact_categories("详细讲讲陈家祠"))
 
     def test_completion_answer_leads_with_conclusion_and_preserves_source_conflict(self):
@@ -127,6 +161,32 @@ class SingleFactAnswerTests(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertIn("资料不足", result.message)
         self.assertNotIn("独角狮", result.message)
+
+    def test_missing_identity_answer_uses_reviewed_service_desk_workaround(self):
+        result = render_single_fact_answer(
+            "订了票忘带身份证，能不能进？",
+            [IDENTITY_ORIGINAL_ONLY_EVIDENCE, IDENTITY_WORKAROUND_EVIDENCE],
+        )
+        self.assertIsNotNone(result)
+        self.assertTrue(result.ok)
+        self.assertIn("有替代处理方式", result.message)
+        self.assertIn("综合服务处", result.message)
+        self.assertIn("电子身份证或其他有效证件", result.message)
+        self.assertIn("换取实体票", result.message)
+        self.assertIn("优惠票或免票", result.message)
+        self.assertNotIn(".md", result.message)
+        self.assertNotRegex(result.message, r"(?<![A-Za-z0-9])S\d+")
+
+    def test_missing_identity_answer_does_not_turn_original_rule_into_a_ban(self):
+        result = render_single_fact_answer(
+            "订了票忘带身份证，能不能进？",
+            [IDENTITY_ORIGINAL_ONLY_EVIDENCE],
+        )
+        self.assertIsNotNone(result)
+        self.assertFalse(result.ok)
+        self.assertIn("资料不足", result.message)
+        self.assertIn("不能仅凭", result.message)
+        self.assertNotIn("无法入馆", result.message)
 
 
 if __name__ == "__main__":
