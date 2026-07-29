@@ -33,7 +33,7 @@ from tour_presenter import present_tour_state
 GUIDE_CARDS_FILE = Path("data/chen_clan_academy/routes/node_guide_cards_v1.json")
 MARKERS_FILE = Path("data/chen_clan_academy/spatial/marker_inventory_v0.csv")
 DEICTIC_POINT_TERMS = ("这里", "此处", "眼前", "当前点", "当前站", "本点")
-CRAFT_TERMS = ("石雕", "灰塑", "木雕", "砖雕", "陶塑", "铜铁铸")
+CRAFT_TERMS = ("陶塑", "灰塑", "木雕", "石雕", "砖雕", "铜铁铸", "彩绘")
 FEATURE_TERMS = ("特点", "特征", "工艺", "怎么做", "有什么")
 TERM_EXPLANATION_TERMS = ("是什么", "什么意思", "指什么", "怎么理解")
 # A whole-site question such as "灰塑是什么" asks about the craft itself,
@@ -41,12 +41,13 @@ TERM_EXPLANATION_TERMS = ("是什么", "什么意思", "指什么", "怎么理�
 # overview: the other two documents are for separately named objects and
 # reviewed locations, not for expanding a generic craft definition.
 WHOLE_SITE_CRAFT_DOCUMENT = "07_ornament_crafts.md"
-CRAFT_OVERVIEW_SECTION_LABELS = (
-    "工艺性质与位置",
-    "材料与流程",
-    "发展与代表性",
-    "陈家祠规模与题材",
-    "文化表达",
+# The seven reviewed craft entries do not use one identical heading set.  Keep
+# these groups only for ordering a visitor-facing explanation; all actual text
+# still has to be extracted from the relevant craft entry in 07.
+CRAFT_NATURE_LABELS = ("工艺性质与位置", "工艺性质", "工艺地位", "工艺特点")
+CRAFT_MATERIAL_TECHNIQUE_LABELS = (
+    "材料与流程", "材料与技法", "制作与视觉处理", "主要技法与内容",
+    "材料与功能", "施彩与耐候性",
 )
 
 
@@ -656,22 +657,35 @@ def _craft_overview_sections(evidence: list[dict[str, Any]]) -> dict[str, tuple[
     knowledge.  Each value carries its own source IDs for later rendering.
     """
     found: dict[str, tuple[str, list[str]]] = {}
-    labels_pattern = "|".join(re.escape(label) for label in CRAFT_OVERVIEW_SECTION_LABELS)
     for item in evidence:
         content = " ".join(str(item.get("content") or "").split())
         if not content:
             continue
         normalized = content.replace("**", "")
-        for label in CRAFT_OVERVIEW_SECTION_LABELS:
-            if label in found:
-                continue
-            match = re.search(
-                rf"{re.escape(label)}\s*[：:]\s*(.*?)(?=\s*-?\s*(?:{labels_pattern})\s*[：:]|$)",
-                normalized,
-            )
-            if match and match.group(1).strip():
-                found[label] = (match.group(1).strip(" -"), list(item.get("source_ids") or []))
+        # The RAG chunk retains the source file's bullet structure.  Parse it
+        # into labelled facts first, rather than displaying that chunk as a
+        # visitor answer.  The label itself is also evidence-backed text.
+        matches = list(re.finditer(
+            r"(?:^|\s)-\s*([^：:]{2,24})\s*[：:]\s*(.*?)(?=\s+-\s*[^：:]{2,24}\s*[：:]|$)",
+            normalized,
+        ))
+        for match in matches:
+            label = match.group(1).strip(" -")
+            fact = match.group(2).strip(" -")
+            if label and fact and label not in found:
+                found[label] = (fact, list(item.get("source_ids") or []))
     return found
+
+
+def _first_section(
+    sections: dict[str, tuple[str, list[str]]], labels: tuple[str, ...]
+) -> tuple[str, tuple[str, list[str]]] | None:
+    return next(((label, sections[label]) for label in labels if label in sections), None)
+
+
+def _narrative_fact(value: str) -> str:
+    """Keep evidence wording while preventing raw-bullet punctuation seams."""
+    return value.strip().rstrip("。；;，, ")
 
 
 def _craft_overview_message(
@@ -682,25 +696,45 @@ def _craft_overview_message(
 ) -> str:
     """Turn reviewed craft fields into concise visitor-facing narration."""
     sections = _craft_overview_sections(evidence)
+    if not sections:
+        return f"本次只检索到与“{craft}”相关的资料片段，但其中没有可安全整理的工艺说明。"
     source_text = "、".join(dict.fromkeys(
         source for _, sources in sections.values() for source in sources
     )) or "未标注来源编号"
-    # A first definition answers only “what is it?”.  Material and process are
-    # intentionally deferred until the visitor explicitly asks to go deeper.
-    ordered_labels = ["工艺性质与位置"]
-    if detailed:
-        ordered_labels.extend(["材料与流程", "发展与代表性", "陈家祠规模与题材", "文化表达"])
-    facts = [sections[label][0] for label in ordered_labels if label in sections]
-    if not facts:
-        return f"本次只检索到与“{craft}”相关的资料片段，但其中没有可安全整理的工艺说明。"
+    nature = _first_section(sections, CRAFT_NATURE_LABELS)
+    technique = _first_section(sections, CRAFT_MATERIAL_TECHNIQUE_LABELS)
+    if not detailed:
+        # A concise definition must still answer both "what is it" and "how
+        # is it made/handled" when the craft entry provides that information.
+        # 彩绘 has no generic craft-property heading in the reviewed source,
+        # so retain its complete short entry rather than manufacture one.
+        chosen: list[tuple[str, tuple[str, list[str]]]] = []
+        for section in (nature, technique):
+            if section and section not in chosen:
+                chosen.append(section)
+        if not chosen:
+            chosen = list(sections.items())
+        clauses = [f"{label}方面，{_narrative_fact(value[0])}" for label, value in chosen]
+        return (
+            f"“{craft}”可以先从工艺本身和做法来理解：" + "；".join(clauses)
+            + f"。（以上依据工艺总览资料，来源：{source_text}）"
+        )
 
-    if detailed:
-        lead = f"如果把“{craft}”拆开来看，先要理解它是什么，再看它怎样做出来："
-    else:
-        lead = f"“{craft}”不只是一个装饰名称，它是一种建筑现场塑造工艺："
-    # Preserve the source statements while removing RAG file names, headings,
-    # bullet markers, and raw chunk boundaries from the visitor answer.
-    return lead + "\n\n" + "\n\n".join(facts) + f"\n\n（以上依据工艺总览资料，来源：{source_text}）"
+    # Detailed answers retain every extracted fact, but use a stable narrative
+    # sequence instead of raw retrieval bullets or file fragments.
+    ordered: list[tuple[str, tuple[str, list[str]]]] = []
+    for section in (nature, technique):
+        if section and section not in ordered:
+            ordered.append(section)
+    ordered.extend(section for section in sections.items() if section not in ordered)
+    paragraphs = [
+        f"从“{label}”看，{_narrative_fact(value[0])}"
+        for label, value in ordered
+    ]
+    return (
+        f"要详细理解“{craft}”，可以按工艺性质、材料技法和在陈家祠中的呈现来读。"
+        + "\n\n" + "。\n\n".join(paragraphs) + f"。\n\n（以上依据工艺总览资料，来源：{source_text}）"
+    )
 
 
 def _answer_whole_site_craft_follow_up(
@@ -714,9 +748,9 @@ def _answer_whole_site_craft_follow_up(
 ) -> dict[str, Any]:
     """Expand one reviewed craft term with freshly retrieved, scoped evidence."""
     retrieval_query = (
-        f"{craft} 工艺性质与位置"
+        f"{craft} 工艺性质 材料 技法"
         if not detailed
-        else f"{craft} 工艺性质 材料与流程 陈家祠"
+        else f"{craft} 工艺性质 材料 技法 陈家祠"
     )
     try:
         payload = parse_rag_payload(rag_search(retrieval_query))

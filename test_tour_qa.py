@@ -186,9 +186,9 @@ class TourQaTests(unittest.TestCase):
         )
         result = answer_tour_question("灰塑是什么？", None, None, lambda _: craft_payload)
         self.assertEqual(result["mode"], "whole_site_craft_overview")
-        self.assertEqual(result["retrieval_query"], "灰塑 工艺性质与位置")
+        self.assertEqual(result["retrieval_query"], "灰塑 工艺性质 材料 技法")
         self.assertIn("珠江三角洲传统建筑", result["message"])
-        self.assertNotIn("草筋灰或纸筋灰", result["message"])
+        self.assertIn("草筋灰或纸筋灰", result["message"])
         self.assertIsNone(result["presentation"])
 
     def test_unknown_point_and_missing_point_card_fail_safely(self):

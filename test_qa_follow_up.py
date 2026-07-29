@@ -122,7 +122,7 @@ class QaFollowUpTests(unittest.TestCase):
         )
         self.assertEqual(result["mode"], "qa_follow_up_global_craft")
         self.assertIn("灰塑", result["message"])
-        self.assertEqual(result["retrieval_query"], "灰塑 工艺性质 材料与流程 陈家祠")
+        self.assertEqual(result["retrieval_query"], "灰塑 工艺性质 材料 技法 陈家祠")
 
     def test_whole_site_craft_detail_filters_unrelated_service_evidence(self):
         payload = json.dumps(
@@ -150,7 +150,7 @@ class QaFollowUpTests(unittest.TestCase):
     def test_whole_site_term_definition_then_detail_retains_the_craft_topic(self):
         first = answer_tour_question("灰塑是什么？", None, None, self._search)
         self.assertEqual(first["mode"], "whole_site_craft_overview")
-        self.assertNotIn("草筋灰或纸筋灰", first["message"])
+        self.assertIn("草筋灰或纸筋灰", first["message"])
         self.assertNotIn("08_ornament_items.md", first["message"])
         context = build_qa_context_from_answer("灰塑是什么？", first, None)
         self.assertIsNotNone(context)
@@ -165,7 +165,7 @@ class QaFollowUpTests(unittest.TestCase):
 
         detailed = answer_qa_follow_up_detail("详细讲讲", context, None, None, search)
         self.assertEqual(detailed["mode"], "qa_follow_up_global_craft")
-        self.assertEqual(calls, ["灰塑 工艺性质 材料与流程 陈家祠"])
+        self.assertEqual(calls, ["灰塑 工艺性质 材料 技法 陈家祠"])
         self.assertIn("灰塑", detailed["message"])
         self.assertIn("来源：S10", detailed["message"])
         self.assertIn("草筋灰或纸筋灰", detailed["message"])
@@ -196,7 +196,7 @@ class QaFollowUpTests(unittest.TestCase):
         result = answer_tour_question("灰塑是什么？", None, None, lambda _: payload)
         self.assertEqual(result["mode"], "whole_site_craft_overview")
         self.assertEqual([item["document"] for item in result["evidence"]], ["07_ornament_crafts.md"])
-        self.assertNotIn("草筋灰或纸筋灰", result["message"])
+        self.assertIn("草筋灰或纸筋灰", result["message"])
         self.assertNotIn("08_ornament_items.md", result["message"])
         self.assertNotIn("09_ornament_locations.md", result["message"])
         self.assertNotIn("- **", result["message"])
