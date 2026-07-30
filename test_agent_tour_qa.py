@@ -390,8 +390,11 @@ class AgentTourQaTests(unittest.TestCase):
             rag.invoke.return_value = CRAFT_PAYLOAD
             update = tour_qa_node(request)
         rag.invoke.assert_not_called()
-        self.assertIn("珠江三角洲传统建筑", update["messages"][0].content)
-        self.assertIn("草筋灰或纸筋灰", update["messages"][0].content)
+        self.assertIn("以石灰为主料", update["messages"][0].content)
+        self.assertIn("杏林春燕", update["messages"][0].content)
+        self.assertIn("松鹤延年", update["messages"][0].content)
+        self.assertNotIn("你眼前", update["messages"][0].content)
+        self.assertNotIn("S10", update["messages"][0].content)
         self.assertNotIn("07_ornament_crafts.md", update["messages"][0].content)
 
     def test_explicit_craft_detail_routes_to_tour_qa_without_prior_context(self):

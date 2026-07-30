@@ -161,6 +161,29 @@ class TourQaTests(unittest.TestCase):
         self.assertEqual(self.tour, before_tour)
         self.assertEqual(self.interaction, before_interaction)
 
+    def test_nonlocal_term_definition_uses_reviewed_examples_without_claiming_current_visibility(self):
+        before_tour, before_interaction = deepcopy(self.tour), deepcopy(self.interaction)
+        result = answer_tour_question(
+            "石雕是什么？", self.tour, self.interaction,
+            lambda _: self.fail("eligible term answer should not need RAG"),
+        )
+        self.assertEqual(result["mode"], "term_card")
+        self.assertEqual(result["term"]["card_id"], "term_stone_carving")
+        self.assertEqual(result["term_instances"][0]["ornament_id"], "orn_080")
+        self.assertIn("当前点与上述实例存在审核关联", result["message"])
+        self.assertIn("以现场为准", result["message"])
+        self.assertNotIn("一定能看到", result["message"])
+        self.assertNotIn("S10", result["message"])
+        self.assertEqual(self.tour, before_tour)
+        self.assertEqual(self.interaction, before_interaction)
+
+    def test_explicit_research_question_is_not_hijacked_by_term_examples(self):
+        result = answer_tour_question(
+            "从学术研究角度，灰塑是什么？", self.tour, self.interaction,
+            self._success_search,
+        )
+        self.assertNotIn(result["mode"], {"term_card", "current_point_term_card"})
+
         absent = deepcopy(self.tour)
         absent["current_stop_id"] = "stop_rear_courtyard_west"
         result = answer_tour_question(
@@ -204,7 +227,7 @@ class TourQaTests(unittest.TestCase):
         self.assertEqual(self_arrival["tour_state"]["visited_stop_ids"], [])
         self.assertEqual(self_arrival["interaction_state"]["pending_stop_id"], "stop_front_courtyard_center")
 
-    def test_no_active_tour_uses_reviewed_craft_overview_without_presentation(self):
+    def test_no_active_tour_uses_reviewed_term_examples_without_presentation(self):
         craft_payload = json.dumps(
             {
                 "evidence": [
@@ -228,11 +251,12 @@ class TourQaTests(unittest.TestCase):
             None,
             lambda _: self.fail("generic craft questions must not call vector RAG"),
         )
-        self.assertEqual(result["mode"], "whole_site_craft_overview")
+        self.assertEqual(result["mode"], "term_card")
         self.assertIsNone(result["retrieval_query"])
-        self.assertEqual(result["retrieval_strategy"], "canonical_craft_section")
-        self.assertIn("珠江三角洲传统建筑", result["message"])
-        self.assertIn("草筋灰或纸筋灰", result["message"])
+        self.assertEqual(result["term"]["card_id"], "term_lime_plaster_relief")
+        self.assertEqual(result["term_instances"][0]["ornament_id"], "orn_026")
+        self.assertIn("杏林春燕", result["message"])
+        self.assertNotIn("S10", result["message"])
         self.assertIsNone(result["presentation"])
 
     def test_unknown_point_and_missing_point_card_fail_safely(self):

@@ -42,8 +42,32 @@ class TermCardRuntimeTests(unittest.TestCase):
         self.assertEqual(definition["mode"], "term_card")
         self.assertEqual(definition["term"]["card_id"], "term_lime_plaster_relief")
         self.assertIn("以石灰为主料", definition["message"])
-        self.assertIn("S10", definition["message"])
+        self.assertIn("松鹤延年", definition["message"])
+        self.assertNotIn("S10", definition["message"])
+        self.assertEqual(definition["term"]["source_ids"], ["S10"])
         self.assertIn("lime-plaster relief", english["message"])
+        self.assertNotIn("S10", english["message"])
+
+    def test_definition_uses_at_most_two_reviewed_instances_without_claiming_visibility(self) -> None:
+        result = answer_term_question("灰塑是什么？", None, None)
+        self.assertIn("陈家祠", result["message"])
+        self.assertIn("杏林春燕", result["message"])
+        self.assertIn("松鹤延年", result["message"])
+        self.assertNotIn("你眼前", result["message"])
+        self.assertNotIn("S10", result["message"])
+        self.assertLessEqual(len(result["term_instances"]), 2)
+        self.assertEqual(
+            [(item["ornament_id"], item["craft"]) for item in result["term_instances"]],
+            [("orn_026", "灰塑"), ("orn_022", "灰塑")],
+        )
+
+    def test_current_node_instance_is_ranked_first_and_is_limited_by_visibility_boundary(self) -> None:
+        result = answer_term_question("石雕是什么？", self.tour, self.interaction)
+        self.assertEqual(result["term_instances"][0]["ornament_id"], "orn_080")
+        self.assertIn("当前点与上述实例存在审核关联", result["message"])
+        self.assertIn("以现场为准", result["message"])
+        self.assertNotIn("一定能看到", result["message"])
+        self.assertNotIn("source_ids", result["message"])
 
     def test_pinyin_domain_and_aliases_only_use_approved_fields(self) -> None:
         pinyin = answer_term_question("灰塑的拼音是什么？", self.tour, self.interaction)
@@ -64,7 +88,8 @@ class TermCardRuntimeTests(unittest.TestCase):
         self.assertIn("审核关联", result["message"])
         self.assertIn("以现场为准", result["message"])
         no_tour = answer_term_question("灰塑是什么？", None, None)
-        self.assertNotIn("审核关联", no_tour["message"])
+        self.assertNotIn("当前点与上述实例", no_tour["message"])
+        self.assertNotIn("以现场为准", no_tour["message"])
 
     def test_ambiguous_terms_clarify_instead_of_selecting_randomly(self) -> None:
         cards = {"term_a": _card("term_a", "同名术语"), "term_b": _card("term_b", "同名术语")}

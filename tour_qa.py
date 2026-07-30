@@ -22,7 +22,7 @@ from comparison_retrieval import (
     retrieve_gated_comparison,
 )
 from research_card_retrieval import format_research_answer, is_explicit_research_question, retrieve_research_cards
-from term_card_runtime import answer_term_question
+from term_card_runtime import answer_term_question, is_explicit_term_question
 from photo_spot_runtime import answer_photo_request, is_explicit_photo_request
 from visit_safety_rules import answer_visit_safety_question
 from qa_context import create_qa_context, is_qa_follow_up_detail_request, validate_qa_context
@@ -888,6 +888,28 @@ def answer_tour_question(
             "presentation": presentation,
             "retrieval_query": user_query,
         }
+    # A reviewed term definition is a narrower, eligibility-gated request than
+    # the broader whole-site craft overview.  Resolve it first so “灰塑是
+    # 什么” can add its audited academy examples, while “灰塑有什么特点” and
+    # “详细讲讲灰塑” keep the existing evidence-backed craft path.
+    current_term_craft = _current_point_craft_term_request(user_query)
+    if current_term_craft:
+        return _current_point_craft_term_answer(
+            user_query, current_term_craft, tour_state, interaction_state, rag_search,
+        )
+    if (
+        is_explicit_term_question(user_query)
+        and not is_explicit_research_question(user_query)
+        and not is_explicit_comparison_question(user_query)
+    ):
+        term_answer = answer_term_question(user_query, tour_state, interaction_state)
+        if term_answer is not None:
+            return {
+                **term_answer,
+                "retrieval_query": None,
+                "point_context": current_stop_context(tour_state),
+            }
+
     craft_request = parse_craft_explanation_request(user_query)
     scoped_context, _ = resolve_point_context(user_query, tour_state)
     if craft_request and scoped_context is None:

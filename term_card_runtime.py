@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from glossary_retrieval import point_glossary_context
+from glossary_retrieval import point_glossary_context, reviewed_term_instances
 from knowledge_card_contract import KnowledgeCard
 from knowledge_card_registry import build_registry
 from tour_presenter import present_tour_state
@@ -84,10 +84,6 @@ def rank_term_candidates(
     return sorted(matches, key=lambda card: (card.card_id not in associated_ids, card.card_id))
 
 
-def _sources(card: KnowledgeCard) -> str:
-    return "、".join(card.source_refs) or "未标注来源编号"
-
-
 def _presentation_message(message: str, tour_state: dict[str, Any] | None, interaction_state: dict[str, Any] | None) -> dict[str, Any] | None:
     if not (tour_state and interaction_state):
         return None
@@ -102,6 +98,7 @@ def answer_term_question(
     *,
     registry_loader: Callable[[], dict[str, KnowledgeCard]] = build_registry,
     association_reader: Callable[[str | None, str], dict[str, Any]] = point_glossary_context,
+    instance_reader: Callable[..., list[dict[str, Any]]] = reviewed_term_instances,
 ) -> dict[str, Any] | None:
     """Answer one explicit, eligible terminology query or return ``None``.
 
@@ -149,19 +146,19 @@ def answer_term_question(
     raw = card.raw_payload
     capabilities = set(card.allowed_capabilities)
     zh = raw.get("zh") or card.card_id
-    source_text = _sources(card)
+    term_instances: list[dict[str, Any]] = []
     if kind == "english":
         if "en_translation" not in capabilities or not raw.get("en"):
             message = f"“{zh}”当前没有可输出的已审核英文译法。"
         else:
             aliases = [item for item in raw.get("aliases_en", []) if isinstance(item, str) and item]
             suffix = f"；已审核英文别名包括 {', '.join(aliases)}" if aliases else ""
-            message = f"“{zh}”常用英文为 {raw['en']}{suffix}（来源：{source_text}）。"
+            message = f"“{zh}”常用英文为 {raw['en']}{suffix}。"
     elif kind == "pinyin":
         if "pinyin" not in capabilities or not raw.get("pinyin"):
             message = f"“{zh}”当前没有可输出的已审核拼音。"
         else:
-            message = f"“{zh}”的拼音为 {raw['pinyin']}（来源：{source_text}）。"
+            message = f"“{zh}”的拼音为 {raw['pinyin']}。"
     elif kind == "domain":
         if not raw.get("domain"):
             return None
@@ -173,27 +170,38 @@ def answer_term_question(
             "heritage_protection": "文物保护",
         }
         domain = domain_labels.get(str(raw["domain"]), str(raw["domain"]))
-        message = f"“{zh}”在术语卡中归入{domain}领域（来源：{source_text}）。"
+        message = f"“{zh}”在术语卡中归入{domain}领域。"
     elif kind == "aliases":
         if "en_translation" not in capabilities:
             message = f"“{zh}”当前没有可输出的已审核英文别名。"
         else:
             aliases = [raw.get("en"), *(raw.get("aliases_en") or ())]
             aliases = [item for item in aliases if isinstance(item, str) and item]
-            message = f"“{zh}”的已审核英文名称为 {', '.join(dict.fromkeys(aliases)) or '暂无'}（来源：{source_text}）。"
+            message = f"“{zh}”的已审核英文名称为 {', '.join(dict.fromkeys(aliases)) or '暂无'}。"
     else:
         if "definition_zh" not in capabilities or not raw.get("short_definition_zh"):
             return None
-        message = f"“{zh}”是{raw['short_definition_zh']}（来源：{source_text}）。"
+        message = f"“{zh}”是{str(raw['short_definition_zh']).rstrip('。')}。"
+        try:
+            term_instances = instance_reader(card.card_id, current_node_id=current_node, limit=2)
+        except Exception:
+            term_instances = []
+        if term_instances:
+            examples = "；".join(
+                f"{item['point_name']}的“{item['ornament_name']}”（{item['craft']}）"
+                for item in term_instances
+            )
+            message += f" 陈家祠的审核关联实例可参考：{examples}。"
 
     if card.card_id in associated_ids and current_node:
-        message += " 您当前所在点位与该术语存在审核关联；是否能清楚看到仍以现场为准。"
+        message += " 当前点与上述实例存在审核关联；能否清楚看到请以现场为准。"
     if tour_state and interaction_state:
         message += "\n\n本次术语说明未改变路线进度，您可继续使用现有导览操作。"
     return {
         "message": message,
         "mode": "term_card",
         "term": {"card_id": card.card_id, "zh": zh, "source_ids": list(card.source_refs)},
+        "term_instances": term_instances,
         "evidence": [],
         "presentation": _presentation_message(message, tour_state, interaction_state),
     }

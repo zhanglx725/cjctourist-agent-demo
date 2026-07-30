@@ -39,10 +39,8 @@
 | ---: | --- | --- | --- | --- |
 | 0 | P1-04 空间节点冲突 | `blocked_pending_owner_confirmation` | 等空间负责人确认“后西庭/后庭西侧”的权威节点与别名 | 禁止模型或代码自建点位别名 |
 | 1 | P1-11 新位置后的重规划 | `open` | 在确认式重规划中使用已审核新位置作为候选起点 | 改动 A1 契约前需负责人确认 |
-| 2 | P1-19 E5 失败回退仍向游客展示内部来源编号 | `implemented_pending_langsmith_verification` | 在 LangSmith 复测 B3 回退、渲染失败回退与风格重述出口 | 内部审计 `used_source_ids` / `source_ids` 必须保留；不得删除失败关闭 |
-| 3 | P1-10 术语—实例关联 | `open` | 从审核对象/点位关联中受限选取实例 | 不把关联说成当前一定可见 |
-| 4 | P2 模式、卡片调度与界面 | `open` | 在 P1 控制层稳定后再写契约 | 不以聊天语气推断画像 |
-| 5 | P2-07 站点讲解列表层级与缩进可读性 | `new` | 区分游客文本 Markdown 结构与 Studio 渲染；在不改变事实、来源和状态边界的前提下修复 | 先保留实际界面取证；不得靠删除对象内容或改写知识事实规避 |
+| 2 | P2 模式、卡片调度与界面 | `open` | 在 P1 控制层稳定后再写契约 | 不以聊天语气推断画像 |
+| 3 | P2-07 站点讲解列表层级与缩进可读性 | `new` | 区分游客文本 Markdown 结构与 Studio 渲染；在不改变事实、来源和状态边界的前提下修复 | 先保留实际界面取证；不得靠删除对象内容或改写知识事实规避 |
 
 ### 2.2 已实现、待 LangSmith 人工验收（不与未修改问题混排）
 
@@ -54,6 +52,8 @@
 | P1-07 单一事实、访问服务与受控计算 | `implemented_pending_langsmith_verification` | 游览前后复测 11 项事实／计算 | 无证据失败关闭 |
 | P1-08 站点讲解观察提示与数量一致性 | `implemented_pending_langsmith_verification` | 复测前庭、后西庭、短预算、listen_only 与 E5 失败回退 | 当前 E5 主链路与旧回退均不得重复套话或误报数量 |
 | P1-09 装饰故事和题材说明过浅 | `implemented_pending_langsmith_verification` | 复测对象首次讲解、详细追问、短预算与 listen_only | 只使用同一对象的 `08_ornament_items.md` 审核证据；不以模型记忆补写故事 |
+| P1-10 术语—实例关联 | `implemented_pending_langsmith_verification` | 复测定义问法、当前点排序、草稿英文、研究/比较边界与无实例关闭 | 当前点只提升审核实例排序；不保证现场可见 |
+| P1-19 E5 失败回退仍向游客展示内部来源编号 | `implemented_pending_langsmith_verification` | 复测 B3 回退、渲染失败回退与风格重述出口 | 内部审计 `used_source_ids` / `source_ids` 必须保留；不得删除失败关闭 |
 | P1-02／P1-03 | `implemented_pending_langsmith_verification` | 完成修复后的 LangSmith 对照复测 | 自动化通过不等于真实链路通过 |
 | P1-13 至 P1-18 | `implemented_pending_langsmith_verification` | 分别按各问题已有同义问法、游览前后双模式复测 | 不得伪造 LangSmith 结论 |
 
@@ -196,10 +196,12 @@
 | 项目 | 内容 |
 | --- | --- |
 | 问题描述 | “灰塑是什么”仅得到一句定义，没有列出或展开陈家祠已审核实例。 |
-| 当前现状 | D2 术语卡运行时已接入 Tour QA，但问题池 `e3_014_glossary_explanation_depth` 为 `open`。现有术语卡/点位关联不能自动被说成眼前可见。 |
+| 当前现状 | `implemented_pending_langsmith_verification`。D2 术语卡运行时仍以运行资格清单为唯一可运行卡事实源；`glossary_retrieval.reviewed_term_instances()` 仅交叉核对 `term_stop_associations_v1.json` 中 `direct_craft_observation` 的已审核关联与同一 `node_guide_cards_v1.json` 点位卡中的对象 ID、工艺及非空 `raw_location`。`craft_explanation_context` 只可作术语排序/提示，不能被提升为对象实例。显式定义问法会先进入术语运行时；“有什么特点”“详细讲讲”等广义工艺问法仍走原有工艺证据路径。 |
 | 期望状态 | 定义后给出一至两个审核关联实例；有当前点时优先提供“存在审核关联、以现场为准”的限定说明；没有可靠实例时明确说明。 |
-| 解决方案 | 在术语运行时增加受限实例选择：只用审核对象/节点关联和已有证据，不创建新的位置或可见性断言。 |
-| 验收 | 灰塑答案包含定义和最多两条可追溯实例；不改变 TourState，不夸大现场可见性。 |
+| 本轮修复 | `term_card_runtime.py` 对已审核中文定义最多补充两条受限实例，内部保留 `term_instances`、术语卡 `source_ids`、对象 ID、节点 ID、关联证据与 `raw_location` 供审计，但游客文本不显示来源编号、卡片/对象/节点 ID、文件名、URL 或原始字段。当前点只使本点直接审核实例排在前面，并使用“存在审核关联、以现场为准”的限定；无直接对象证据时不补对象实例。`tour_qa.py` 让显式术语定义优先于全馆工艺总述，同时显式研究/比较问题继续保留原有受控入口。 |
+| 自动化验证 | 新增受限实例选择、当前点优先、上下文关联不得伪装对象实例、最多两项、游客文本隐藏 `S10` 但结构化 `source_ids` 保留、术语问答状态不变及研究问题不被术语实例抢占的定向断言；同步更新无路线术语定义的既有预期。使用项目 `.venv` 实际运行 `test_glossary.py`、`test_glossary_retrieval.py`、`test_term_card_runtime.py`、`test_glossary_acceptance_cases.py`、`test_tour_qa.py`、`test_agent_tour_qa.py`、`test_agent_tour_state.py`、`test_stage_b_e2e.py`、`test_e5_narration_rendering.py`、`test_e5_narration_runtime_acceptance.py`，共 115 项通过；`git diff --check` 通过。 |
+| LangSmith 状态 | `implemented_pending_langsmith_verification`。本轮未启动或执行 Studio。后续应分别以新线程复测：“灰塑是什么？”、“我在前院中部，灰塑是什么？”、“我在月台，石雕是什么？”、“通花栏板是什么？”、“栏杆英文怎么说？”、“这里有什么？”、“从学术研究角度，陈家祠灰塑有什么价值？”、“灰塑和砖雕有什么区别？”及“我到月台了”。确认实例来自审核关联、当前点仅改变排序、不泄漏内部字段、草稿英文仍被阻止，且 TourState/路线/VisitorProfile 不变。 |
+| 验收 | 定义回答包含 0—2 条可审计审核实例；只在有当前点直接关联时给出安全现场限定；不夸大现场可见性、不绕过英文资格、不抢研究/比较/到达流程。 |
 
 ### P1-11 明确新位置后的“后续行程重规划”未以新点为起点
 
