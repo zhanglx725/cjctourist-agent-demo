@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import patch
 
 from route_planner import plan_template
+from controlled_knowledge_query import ControlledKnowledgePlan
 from tour_interaction import handle_tour_event, initialize_interaction
 from tour_qa import answer_tour_question, build_tour_qa_query, load_guide_cards
 from tour_state import start_tour
@@ -149,15 +150,14 @@ class TourQaTests(unittest.TestCase):
         self.assertEqual(result["mode"], "current_craft_absent")
         self.assertIn("没有灰塑", result["message"])
 
-    def test_deictic_craft_definition_requires_a_local_reviewed_association(self):
+    def test_deictic_core_craft_definition_enhances_the_canonical_overview(self):
         before_tour, before_interaction = deepcopy(self.tour), deepcopy(self.interaction)
         result = answer_tour_question(
             "这里的灰塑是什么意思？", self.tour, self.interaction,
             lambda _: self.fail("eligible term card should not need RAG"),
         )
-        self.assertEqual(result["mode"], "current_point_term_card")
-        self.assertEqual(result["point_context"]["node_id"], "stop_front_courtyard_center")
-        self.assertIn("确有灰塑对象", result["message"])
+        self.assertEqual(result["mode"], "whole_site_craft_overview")
+        self.assertEqual(result["term_instances"][0]["node_id"], "stop_front_courtyard_center")
         self.assertEqual(self.tour, before_tour)
         self.assertEqual(self.interaction, before_interaction)
 
@@ -167,15 +167,86 @@ class TourQaTests(unittest.TestCase):
             "石雕是什么？", self.tour, self.interaction,
             lambda _: self.fail("eligible term answer should not need RAG"),
         )
-        self.assertEqual(result["mode"], "term_card")
+        self.assertEqual(result["mode"], "whole_site_craft_overview")
         self.assertEqual(result["term"]["card_id"], "term_stone_carving")
         self.assertEqual(result["term_instances"][0]["ornament_id"], "orn_080")
-        self.assertIn("当前点与上述实例存在审核关联", result["message"])
-        self.assertIn("以现场为准", result["message"])
+        self.assertIn("审核关联实例", result["message"])
+        self.assertIn("现场可见情况请以实际为准", result["message"])
         self.assertNotIn("一定能看到", result["message"])
-        self.assertNotIn("S10", result["message"])
         self.assertEqual(self.tour, before_tour)
         self.assertEqual(self.interaction, before_interaction)
+
+    def test_exact_term_beats_an_injected_broad_knowledge_plan(self):
+        plan = ControlledKnowledgePlan(
+            domain="ornament_craft",
+            question_type="definition",
+            subject_text="石雕",
+            detail_level="brief",
+        )
+        result = answer_tour_question(
+            "石雕是什么？",
+            self.tour,
+            self.interaction,
+            lambda _: self.fail("term card must run before controlled retrieval"),
+            normalized_knowledge_plan=plan,
+        )
+        self.assertEqual(result["mode"], "whole_site_craft_overview")
+        self.assertEqual(result["term"]["card_id"], "term_stone_carving")
+        self.assertNotIn("knowledge_plan", result)
+
+    def test_moon_platform_craft_overview_enhances_with_its_reviewed_instance(self):
+        tour = start_tour(plan_template("highlights_30"))
+        interaction = initialize_interaction(tour)
+        arrived = handle_tour_event(
+            tour, interaction, "arrive_at_stop", node_id="label_moon_platform"
+        )
+        before_tour = deepcopy(arrived["tour_state"])
+        result = answer_tour_question(
+            "石雕是什么？",
+            arrived["tour_state"],
+            arrived["interaction_state"],
+            lambda _: self.fail("canonical craft overview must not call RAG"),
+        )
+        self.assertEqual(result["mode"], "whole_site_craft_overview")
+        self.assertEqual(result["term"]["card_id"], "term_stone_carving")
+        self.assertEqual(result["term_instances"][0]["ornament_id"], "orn_078")
+        self.assertEqual(result["term_instances"][0]["ornament_name"], "引福归堂")
+        self.assertEqual(result["term_instances"][0]["node_id"], "label_moon_platform")
+        self.assertEqual(result["instance_context_origin"], "physical_location")
+        self.assertIn("月台的“引福归堂”", result["message"])
+        self.assertEqual(arrived["tour_state"], before_tour)
+
+    def test_explicit_remote_point_only_changes_craft_instance_ranking(self):
+        before_tour = deepcopy(self.tour)
+        result = answer_tour_question(
+            "月台的石雕是什么？",
+            self.tour,
+            self.interaction,
+            lambda _: self.fail("canonical craft overview must not call RAG"),
+        )
+        self.assertEqual(result["mode"], "whole_site_craft_overview")
+        self.assertEqual(result["term_instances"][0]["ornament_id"], "orn_078")
+        self.assertEqual(result["instance_context_origin"], "explicit_query_location")
+        self.assertIn("月台的“引福归堂”", result["message"])
+        self.assertEqual(self.tour, before_tour)
+
+    def test_deictic_core_craft_definition_uses_the_physical_point_for_instances(self):
+        tour = start_tour(plan_template("highlights_30"))
+        interaction = initialize_interaction(tour)
+        arrived = handle_tour_event(
+            tour, interaction, "arrive_at_stop", node_id="label_moon_platform"
+        )
+        before_tour = deepcopy(arrived["tour_state"])
+        result = answer_tour_question(
+            "我在这里，石雕是什么？",
+            arrived["tour_state"],
+            arrived["interaction_state"],
+            lambda _: self.fail("canonical craft overview must not call RAG"),
+        )
+        self.assertEqual(result["mode"], "whole_site_craft_overview")
+        self.assertEqual(result["term_instances"][0]["ornament_id"], "orn_078")
+        self.assertEqual(result["instance_context_origin"], "physical_location")
+        self.assertEqual(arrived["tour_state"], before_tour)
 
     def test_explicit_research_question_is_not_hijacked_by_term_examples(self):
         result = answer_tour_question(
@@ -188,10 +259,15 @@ class TourQaTests(unittest.TestCase):
         absent["current_stop_id"] = "stop_rear_courtyard_west"
         result = answer_tour_question(
             "这里的灰塑是什么意思？", absent, self.interaction,
-            lambda _: self.fail("absent local craft must not call RAG"),
+            lambda _: self.fail("canonical craft overview must not call RAG"),
         )
-        self.assertEqual(result["mode"], "current_craft_absent")
-        self.assertIn("没有灰塑", result["message"])
+        # Core-craft definitions keep their P1-05 overview.  This point has
+        # no reviewed gray-plaster instance, so any optional example remains
+        # explicitly framed as a whole-site audited association, not as an
+        # object in front of the visitor.
+        self.assertEqual(result["mode"], "whole_site_craft_overview")
+        self.assertEqual(result["instance_context_origin"], "physical_location")
+        self.assertNotIn("眼前", result["message"])
 
     def test_museum_wide_craft_question_uses_canonical_craft_section(self):
         result = answer_tour_question(
@@ -251,12 +327,11 @@ class TourQaTests(unittest.TestCase):
             None,
             lambda _: self.fail("generic craft questions must not call vector RAG"),
         )
-        self.assertEqual(result["mode"], "term_card")
+        self.assertEqual(result["mode"], "whole_site_craft_overview")
         self.assertIsNone(result["retrieval_query"])
         self.assertEqual(result["term"]["card_id"], "term_lime_plaster_relief")
         self.assertEqual(result["term_instances"][0]["ornament_id"], "orn_026")
         self.assertIn("杏林春燕", result["message"])
-        self.assertNotIn("S10", result["message"])
         self.assertIsNone(result["presentation"])
 
     def test_unknown_point_and_missing_point_card_fail_safely(self):

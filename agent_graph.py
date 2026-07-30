@@ -227,7 +227,16 @@ def _effective_fact_kind(state: AgentState) -> str | None:
 
 
 def _effective_knowledge_plan(state: AgentState) -> ControlledKnowledgePlan | None:
-    """Return the current turn's validated, read-only knowledge plan."""
+    """Return the current turn's validated, read-only knowledge plan.
+
+    A semantic plan is only a broad retrieval proposal.  An exact, enabled
+    glossary request is eligibility-gated and must be re-arbitrated from the
+    current user text, rather than inheriting a plan saved by an earlier
+    normalization pass or a checkpoint.
+    """
+
+    if is_explicit_term_question(_latest_user_text(state)):
+        return None
 
     stored = ControlledKnowledgePlan.from_dict(state.get("knowledge_query_plan"))
     if stored is not None:

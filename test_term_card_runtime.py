@@ -69,6 +69,19 @@ class TermCardRuntimeTests(unittest.TestCase):
         self.assertNotIn("一定能看到", result["message"])
         self.assertNotIn("source_ids", result["message"])
 
+    def test_moon_platform_stone_carving_returns_its_reviewed_instance(self) -> None:
+        tour = start_tour(plan_template("highlights_30"))
+        interaction = initialize_interaction(tour)
+        arrived = handle_tour_event(
+            tour, interaction, "arrive_at_stop", node_id="label_moon_platform"
+        )
+        result = answer_term_question(
+            "石雕是什么？", arrived["tour_state"], arrived["interaction_state"]
+        )
+        self.assertEqual(result["term"]["card_id"], "term_stone_carving")
+        self.assertEqual(result["term_instances"][0]["ornament_id"], "orn_078")
+        self.assertIn("引福归堂", result["message"])
+
     def test_pinyin_domain_and_aliases_only_use_approved_fields(self) -> None:
         pinyin = answer_term_question("灰塑的拼音是什么？", self.tour, self.interaction)
         domain = answer_term_question("灰塑属于什么工艺领域？", self.tour, self.interaction)

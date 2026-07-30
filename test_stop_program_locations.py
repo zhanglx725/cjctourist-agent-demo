@@ -40,11 +40,16 @@ class StopProgramLocationTests(unittest.TestCase):
         self.assertEqual(item.raw_location, "建筑山墙垂脊前沿")
         self.assertEqual(item.observation_location, "建筑山墙垂脊前沿")
         self.assertEqual(item.location_source, "ornament_spatial_mapping_v1")
+        # Deliberately incomplete evidence exercises the E5 safe fallback:
+        # the test verifies audited location propagation, not object-detail
+        # evidence admission or a frozen prose sentence.
         narration = compose_guide_narration(
             program,
             {item.ornament_id: [{"source_ids": ["S10"], "content": "灰塑是岭南建筑常见的装饰艺术。"}]},
         )
-        self.assertIn("在建筑山墙垂脊前沿，这是一处灰塑装饰", narration.visitor_message)
+        self.assertIn("建筑山墙垂脊前沿", narration.visitor_message)
+        self.assertIn("审核关联", narration.visitor_message)
+        self.assertIn("现场标识", narration.visitor_message)
         self.assertNotIn("ornament_spatial_mapping_v1", narration.visitor_message)
         self.assertNotIn("raw_location", narration.visitor_message)
 

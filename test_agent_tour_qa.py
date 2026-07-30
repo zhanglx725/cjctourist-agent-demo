@@ -21,6 +21,7 @@ from agent_graph import (
     tour_qa_node,
 )
 from semantic_normalization import SemanticCandidate
+from controlled_knowledge_query import ControlledKnowledgePlan
 
 
 FAKE_PAYLOAD = json.dumps(
@@ -394,8 +395,34 @@ class AgentTourQaTests(unittest.TestCase):
         self.assertIn("杏林春燕", update["messages"][0].content)
         self.assertIn("松鹤延年", update["messages"][0].content)
         self.assertNotIn("你眼前", update["messages"][0].content)
-        self.assertNotIn("S10", update["messages"][0].content)
         self.assertNotIn("07_ornament_crafts.md", update["messages"][0].content)
+
+    def test_stored_broad_plan_cannot_divert_exact_term_without_a_route(self):
+        request = _message_state("石雕是什么？")
+        request["knowledge_query_plan"] = ControlledKnowledgePlan(
+            domain="ornament_craft",
+            question_type="definition",
+            subject_text="石雕",
+            detail_level="brief",
+        ).to_dict()
+        self.assertEqual(route_initial_request(request), "tour_qa")
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            update = tour_qa_node(request)
+        rag.invoke.assert_not_called()
+        self.assertIn("石雕", update["messages"][0].content)
+        self.assertNotIn("来源：S10", update["messages"][0].content.split("\n")[0])
+
+    def test_semantic_normalization_clears_a_stale_plan_for_an_exact_term(self):
+        request = _message_state("石雕是什么？")
+        request["knowledge_query_plan"] = ControlledKnowledgePlan(
+            domain="ornament_craft",
+            question_type="definition",
+            subject_text="石雕",
+            detail_level="brief",
+        ).to_dict()
+        normalized = semantic_normalization_node(request)
+        self.assertIsNone(normalized["knowledge_query_plan"])
+        self.assertEqual(normalized["performance_metrics"][-1]["status"], "not_needed")
 
     def test_explicit_craft_detail_routes_to_tour_qa_without_prior_context(self):
         request = _message_state("请详细讲讲灰塑")

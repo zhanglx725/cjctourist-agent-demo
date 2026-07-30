@@ -22,7 +22,11 @@ from comparison_retrieval import (
     retrieve_gated_comparison,
 )
 from research_card_retrieval import format_research_answer, is_explicit_research_question, retrieve_research_cards
-from term_card_runtime import answer_term_question, is_explicit_term_question
+from term_card_runtime import (
+    answer_term_question,
+    is_explicit_term_question,
+    runtime_term_instance_enhancement,
+)
 from photo_spot_runtime import answer_photo_request, is_explicit_photo_request
 from visit_safety_rules import answer_visit_safety_question
 from qa_context import create_qa_context, is_qa_follow_up_detail_request, validate_qa_context
@@ -30,6 +34,7 @@ from tour_intent import resolve_reviewed_node
 from tour_presenter import present_tour_state
 from craft_knowledge import (
     CRAFT_TERMS,
+    CraftExplanationRequest,
     CraftKnowledgeError,
     load_craft_record,
     parse_craft_explanation_request,
@@ -752,6 +757,8 @@ def _answer_whole_site_craft_follow_up(
     *,
     detailed: bool = True,
     mode: str = "qa_follow_up_global_craft",
+    instance_node_id: str | None = None,
+    instance_context_origin: str = "whole_site",
 ) -> dict[str, Any]:
     """Render one canonical reviewed craft section without vector ranking."""
     try:
@@ -760,11 +767,24 @@ def _answer_whole_site_craft_follow_up(
         message = render_craft_explanation(
             record, "detailed" if detailed else "brief"
         )
+        enhancement = runtime_term_instance_enhancement(
+            craft, current_node_id=instance_node_id
+        )
+        if enhancement and enhancement["term_instances"]:
+            examples = "；".join(
+                f"{item['point_name']}的“{item['ornament_name']}”（{item['craft']}）"
+                for item in enhancement["term_instances"]
+            )
+            message += (
+                "\n\n作为陈家祠的审核关联实例，可参考："
+                f"{examples}。现场可见情况请以实际为准。"
+            )
         error = None
     except CraftKnowledgeError as exc:
         evidence = []
         error = str(exc)
         message = f"暂时不能安全展开“{craft}”：{error}"
+        enhancement = None
     presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
     if presentation:
         message += "\n\n本次术语展开未改变路线进度，您可继续使用现有导览操作。"
@@ -783,10 +803,18 @@ def _answer_whole_site_craft_follow_up(
         "presentation": presentation,
         "retrieval_query": None,
         "retrieval_strategy": "canonical_craft_section",
-        "term": {
-            "zh": craft,
-            "source_ids": list(evidence[0]["source_ids"]) if evidence else [],
-        },
+        "term": (
+            dict(enhancement["term"])
+            if enhancement is not None
+            else {
+                "zh": craft,
+                "source_ids": list(evidence[0]["source_ids"]) if evidence else [],
+            }
+        ),
+        "term_instances": (
+            list(enhancement["term_instances"]) if enhancement else []
+        ),
+        "instance_context_origin": instance_context_origin,
         "error": error,
     }
 
@@ -969,6 +997,75 @@ def answer_tour_question(
             "retrieval_query": user_query,
             "point_context": current_stop_context(tour_state),
         }
+    # P1-05 owns the seven generic craft explanations.  Their canonical
+    # section remains the factual body; D1 only contributes gated reviewed
+    # instances after it.  An explicit point or the physical current point
+    # affects instance ranking, never TourState itself.
+    is_research_question = is_explicit_research_question(user_query)
+    is_comparison_question = is_explicit_comparison_question(user_query)
+    craft_request = (
+        None
+        if is_research_question or is_comparison_question or is_explicit_photo_request(user_query)
+        else parse_craft_explanation_request(user_query)
+    )
+    scoped_context, _ = resolve_point_context(user_query, tour_state)
+    if (
+        craft_request is None
+        and not is_research_question
+        and not is_comparison_question
+        and not is_explicit_photo_request(user_query)
+        and scoped_context is not None
+    ):
+        named_crafts = [craft for craft in CRAFT_TERMS if craft in user_query]
+        if (
+            len(named_crafts) == 1
+            and any(token in user_query for token in TERM_EXPLANATION_TERMS)
+        ):
+            craft_request = CraftExplanationRequest(named_crafts[0], "brief")
+    physical_context = current_stop_context(tour_state)
+    instance_context = scoped_context or physical_context
+    explicit_node_resolution = resolve_reviewed_node(user_query)
+    if craft_request is not None:
+        return _answer_whole_site_craft_follow_up(
+            craft_request.craft,
+            tour_state,
+            interaction_state,
+            rag_search,
+            detailed=craft_request.detail_level == "detailed",
+            mode=(
+                "qa_follow_up_global_craft"
+                if craft_request.detail_level == "detailed"
+                else "whole_site_craft_overview"
+            ),
+            instance_node_id=(instance_context or {}).get("node_id"),
+            instance_context_origin=(
+                "explicit_query_location"
+                if explicit_node_resolution.node_id is not None
+                else ("physical_location" if physical_context is not None else "whole_site")
+            ),
+        )
+    # A caller may carry a broad semantic plan from normalization. It cannot
+    # override another exact, runtime-eligible term request. Research and
+    # comparison retain their own higher-priority handlers.
+    current_term_craft = _current_point_craft_term_request(user_query)
+    if current_term_craft:
+        return _current_point_craft_term_answer(
+            user_query, current_term_craft, tour_state, interaction_state, rag_search,
+        )
+    if (
+        is_explicit_term_question(user_query)
+        and not is_research_question
+        and not is_comparison_question
+        and not is_explicit_photo_request(user_query)
+        and _resolve_ornament_detail_request(user_query, tour_state) is None
+    ):
+        term_answer = answer_term_question(user_query, tour_state, interaction_state)
+        if term_answer is not None:
+            return {
+                **term_answer,
+                "retrieval_query": None,
+                "point_context": current_stop_context(tour_state),
+            }
     if normalized_knowledge_plan is not None:
         try:
             payload = parse_rag_payload(rag_search(user_query))
@@ -1009,43 +1106,6 @@ def answer_tour_question(
             "presentation": presentation,
             "retrieval_query": user_query,
         }
-    # A reviewed term definition is a narrower, eligibility-gated request than
-    # the broader whole-site craft overview.  Resolve it first so “灰塑是
-    # 什么” can add its audited academy examples, while “灰塑有什么特点” and
-    # “详细讲讲灰塑” keep the existing evidence-backed craft path.
-    current_term_craft = _current_point_craft_term_request(user_query)
-    if current_term_craft:
-        return _current_point_craft_term_answer(
-            user_query, current_term_craft, tour_state, interaction_state, rag_search,
-        )
-    if (
-        is_explicit_term_question(user_query)
-        and not is_explicit_research_question(user_query)
-        and not is_explicit_comparison_question(user_query)
-    ):
-        term_answer = answer_term_question(user_query, tour_state, interaction_state)
-        if term_answer is not None:
-            return {
-                **term_answer,
-                "retrieval_query": None,
-                "point_context": current_stop_context(tour_state),
-            }
-
-    craft_request = parse_craft_explanation_request(user_query)
-    scoped_context, _ = resolve_point_context(user_query, tour_state)
-    if craft_request and scoped_context is None:
-        return _answer_whole_site_craft_follow_up(
-            craft_request.craft,
-            tour_state,
-            interaction_state,
-            rag_search,
-            detailed=craft_request.detail_level == "detailed",
-            mode=(
-                "qa_follow_up_global_craft"
-                if craft_request.detail_level == "detailed"
-                else "whole_site_craft_overview"
-            ),
-        )
     if is_explicit_photo_request(user_query):
         context, error_code = resolve_point_context(user_query, tour_state)
         if error_code in {"ambiguous_node_name", "multiple_node_mentions", "unknown_point"}:

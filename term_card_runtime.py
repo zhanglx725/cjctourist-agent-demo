@@ -84,6 +84,52 @@ def rank_term_candidates(
     return sorted(matches, key=lambda card: (card.card_id not in associated_ids, card.card_id))
 
 
+def runtime_term_instance_enhancement(
+    craft: str,
+    *,
+    current_node_id: str | None = None,
+    registry_loader: Callable[[], dict[str, KnowledgeCard]] = build_registry,
+    instance_reader: Callable[..., list[dict[str, Any]]] = reviewed_term_instances,
+) -> dict[str, Any] | None:
+    """Return D1-gated instance metadata for a canonical craft explanation.
+
+    This helper deliberately does not render a definition.  P1-05 owns the
+    seven core-craft overview; this narrow adapter only contributes audited
+    terminology metadata and up to two reviewed examples after that overview.
+    """
+    normalized = str(craft or "").strip()
+    if not normalized:
+        return None
+    try:
+        registry = registry_loader()
+    except Exception:
+        return None
+    enabled = [
+        card
+        for card in _term_cards(registry)
+        if card.runtime_status == "enabled"
+        and card.raw_payload.get("zh") == normalized
+        and "definition_zh" in set(card.allowed_capabilities)
+    ]
+    if len(enabled) != 1:
+        return None
+    card = enabled[0]
+    try:
+        instances = instance_reader(
+            card.card_id, current_node_id=current_node_id, limit=2
+        )
+    except Exception:
+        instances = []
+    return {
+        "term": {
+            "card_id": card.card_id,
+            "zh": normalized,
+            "source_ids": list(card.source_refs),
+        },
+        "term_instances": instances,
+    }
+
+
 def _presentation_message(message: str, tour_state: dict[str, Any] | None, interaction_state: dict[str, Any] | None) -> dict[str, Any] | None:
     if not (tour_state and interaction_state):
         return None
