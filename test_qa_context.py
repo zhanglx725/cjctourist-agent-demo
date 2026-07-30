@@ -27,6 +27,22 @@ class QaContextTests(unittest.TestCase):
         self.assertNotIn("tour_state", self.context)
         self.assertEqual(self.context["subject_terms"], ("石雕",))
 
+    def test_optional_instance_follow_up_ids_preserve_the_craft_subject(self):
+        context = create_qa_context(
+            query_node_id=None,
+            origin="whole_site",
+            subject_kind="craft",
+            subject_terms=["石雕"],
+            answer_mode="whole_site_craft_overview",
+            follow_up_allowed=True,
+            physical_node_id_snapshot="stop_front_courtyard_center",
+            suggested_follow_up_ornament_ids=["orn_080", "orn_080"],
+        )
+        self.assertEqual(context["subject_kind"], "craft")
+        self.assertEqual(context["subject_terms"], ("石雕",))
+        self.assertEqual(context["suggested_follow_up_ornament_ids"], ("orn_080",))
+        self.assertEqual(validate_qa_context(context), context)
+
     def test_update_is_immutable(self):
         updated = update_qa_context(self.context, subject_terms=["灰塑"])
         self.assertEqual(self.context["subject_terms"], ("石雕",))

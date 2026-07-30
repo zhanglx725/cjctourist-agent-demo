@@ -216,6 +216,51 @@ class TourQaTests(unittest.TestCase):
         self.assertIn("月台的“引福归堂”", result["message"])
         self.assertEqual(arrived["tour_state"], before_tour)
 
+    def test_front_north_craft_overview_keeps_only_its_reviewed_stone_instance(self):
+        tour = start_tour(plan_template("highlights_30"))
+        interaction = initialize_interaction(tour)
+        arrived = handle_tour_event(
+            tour, interaction, "arrive_at_stop", node_id="stop_front_courtyard_north"
+        )
+        before_tour = deepcopy(arrived["tour_state"])
+        result = answer_tour_question(
+            "这里的石雕是什么？",
+            arrived["tour_state"],
+            arrived["interaction_state"],
+            lambda _: self.fail("canonical craft overview must not call RAG"),
+        )
+        self.assertEqual(result["mode"], "whole_site_craft_overview")
+        self.assertEqual(result["instance_context_origin"], "physical_location")
+        self.assertEqual(
+            [(item["node_id"], item["ornament_id"], item["ornament_name"])
+            for item in result["term_instances"]],
+            [("stop_front_courtyard_north", "orn_074", "踏雪寻梅")],
+        )
+        self.assertIn("前庭", result["message"])
+        self.assertIn("踏雪寻梅", result["message"])
+        self.assertNotIn("状元及第", result["message"])
+        self.assertNotIn("引福归堂", result["message"])
+        self.assertEqual(arrived["tour_state"], before_tour)
+
+    def test_current_point_without_matching_craft_does_not_borrow_whole_site_instances(self):
+        tour = start_tour(plan_template("highlights_30"))
+        interaction = initialize_interaction(tour)
+        arrived = handle_tour_event(
+            tour, interaction, "arrive_at_stop", node_id="stop_rear_courtyard"
+        )
+        before_tour = deepcopy(arrived["tour_state"])
+        result = answer_tour_question(
+            "这里的石雕是什么？",
+            arrived["tour_state"],
+            arrived["interaction_state"],
+            lambda _: self.fail("canonical craft overview must not call RAG"),
+        )
+        self.assertEqual(result["mode"], "whole_site_craft_overview")
+        self.assertEqual(result["instance_context_origin"], "physical_location")
+        self.assertEqual(result["term_instances"], [])
+        self.assertIn("暂未找到该工艺实例", result["message"])
+        self.assertEqual(arrived["tour_state"], before_tour)
+
     def test_explicit_remote_point_only_changes_craft_instance_ranking(self):
         before_tour = deepcopy(self.tour)
         result = answer_tour_question(
@@ -228,6 +273,8 @@ class TourQaTests(unittest.TestCase):
         self.assertEqual(result["term_instances"][0]["ornament_id"], "orn_078")
         self.assertEqual(result["instance_context_origin"], "explicit_query_location")
         self.assertIn("月台的“引福归堂”", result["message"])
+        self.assertIn("所问点位的审核关联实例", result["message"])
+        self.assertNotIn("当前点的审核关联实例", result["message"])
         self.assertEqual(self.tour, before_tour)
 
     def test_deictic_core_craft_definition_uses_the_physical_point_for_instances(self):

@@ -35,10 +35,11 @@ class GlossaryRetrievalTests(unittest.TestCase):
             result = glossary_retrieval.point_glossary_context("label_moon_platform", "通花栏板是什么")
         self.assertEqual(result["terms"][0]["term_id"], "term_openwork")
 
-    def test_reviewed_instances_prioritize_current_node_and_require_direct_object_mapping(self) -> None:
+    def test_current_node_scope_returns_only_direct_local_object_mappings(self) -> None:
         instances = glossary_retrieval.reviewed_term_instances(
             "term_lime_plaster_relief",
             current_node_id="stop_front_courtyard_center",
+            scope="current_node",
         )
         self.assertGreaterEqual(len(instances), 1)
         self.assertLessEqual(len(instances), 2)
@@ -47,11 +48,28 @@ class GlossaryRetrievalTests(unittest.TestCase):
         self.assertEqual(instances[0]["ornament_name"], "松鹤延年")
         self.assertEqual(instances[0]["craft"], "灰塑")
         self.assertEqual(instances[0]["association_type"], "direct_craft_observation")
+        self.assertTrue(all(item["node_id"] == "stop_front_courtyard_center" for item in instances))
+
+    def test_whole_site_scope_is_stable_and_current_scope_never_pads(self) -> None:
+        current = glossary_retrieval.reviewed_term_instances(
+            "term_stone_carving",
+            current_node_id="label_moon_platform",
+            scope="current_node",
+        )
+        whole_site = glossary_retrieval.reviewed_term_instances(
+            "term_stone_carving", scope="whole_site"
+        )
+        self.assertEqual([item["ornament_id"] for item in current], ["orn_078"])
+        self.assertEqual(whole_site[:2], sorted(
+            whole_site[:2], key=lambda item: (item["node_id"], item["ornament_id"])
+        ))
+        self.assertTrue(all(item["node_id"] == "label_moon_platform" for item in current))
 
     def test_context_only_association_is_not_promoted_to_an_object_instance(self) -> None:
         instances = glossary_retrieval.reviewed_term_instances(
             "term_openwork",
             current_node_id="label_moon_platform",
+            scope="current_node",
         )
         self.assertEqual(instances, [])
 

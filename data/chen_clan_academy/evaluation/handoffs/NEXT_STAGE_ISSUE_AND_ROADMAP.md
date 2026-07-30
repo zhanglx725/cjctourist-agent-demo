@@ -40,7 +40,7 @@
 | 0 | P1-04 空间节点冲突 | `blocked_pending_owner_confirmation` | 等空间负责人确认“后西庭/后庭西侧”的权威节点与别名 | 禁止模型或代码自建点位别名 |
 | 1 | P1-11 新位置后的重规划 | `open` | 在确认式重规划中使用已审核新位置作为候选起点 | 改动 A1 契约前需负责人确认 |
 | 2 | P1-20 规划前对象故事请求可能越过对象级证据边界 | `needs_evidence_triage` | 以实际 Trace 与返回 evidence 核对 `direct_rag → llm_think` 是否只使用同一对象的审核资料 | 未核验前不得把长篇传说当作可用事实，也不得仅凭截图断言其为虚构 |
-| 3 | P1-10 术语—实例关联被通用知识计划抢占 | `reproduced_needs_root_cause_triage` | 令可运行的术语定义优先于 `controlled_knowledge`，并复测当前点实例排序 | 不放宽术语资格或英语门控；当前点不是可见保证 |
+| 3 | P1-10 术语—实例关联被通用知识计划抢占 | `verified_fixed` | 已完成当前点严格实例范围及 Studio 复测 | 不放宽术语资格或英语门控；当前点不是可见保证 |
 | 4 | P1-21 通用工艺问答仍显示内部来源编号 | `reproduced_needs_root_cause_triage` | 修复 `controlled_knowledge` 游客渲染的引用边界，并保留结构化审计 | 不与 P1-19 的 B3 回退泄漏混为同一出口 |
 | 5 | P2 模式、卡片调度与界面 | `open` | 在 P1 控制层稳定后再写契约 | 不以聊天语气推断画像 |
 | 6 | P2-07 站点讲解列表层级与缩进可读性 | `reproduced_needs_root_cause_triage` | 对照原始游客消息、不同对象数与 Studio 渲染；在不改变事实、来源和状态边界的前提下修复 | 不得靠删除对象内容或改写知识事实规避 |
@@ -207,7 +207,7 @@
 | 根因 | `agent_graph.tour_qa_node` 会将 `semantic_normalization` 的 `normalized_knowledge_plan` 传给 `answer_tour_question()`；该函数当前在术语卡资格过滤之前执行 `controlled_knowledge` 分支。若模型把“石雕是什么”归为 `ornament_craft / definition`，通用工艺渲染便抢占可运行术语卡，绕过 `answer_term_question()` 与实例选择。已用等价的受控 `ControlledKnowledgePlan` 复现该优先级：结果为 `controlled_knowledge`，不是 `term_card`。Studio 截图的 `semantic_normalization → tour_qa` 与通用 S10 工艺答复符合该调用链；仍需 Trace 中的实际 plan 字段做最终佐证。 |
 | 全面修复方案 | ① 在 `tour_qa` 入口建立资格优先门：对“已审核术语 + 定义/拼音/英文/领域/别名”先执行术语运行时；仅术语卡无资格、歧义或无命中时才允许通用知识计划。② `semantic_normalization` 对可运行术语定义不得产生可执行 `ornament_craft / definition` 计划，或由下游显式降级为术语卡；研究、比较、拍照、到达和明确对象详情保持更高/既有受控优先级。③ 复用 `reviewed_term_instances()`：当前点 `direct_craft_observation` 实例优先、最多两项；只能说“存在审核关联、以现场为准”，不能断言眼前可见。④ 以游览前、月台、前院中部和无关联点四种上下文做端到端回归，断言 `term_card`/`term_instances`、TourState 不变、草稿英文继续关闭，并验证研究/比较不被术语抢占。 |
 | 关联边界问题 | Studio 同一通用工艺答案显示“来源：S10”。这不是 P1-19 的 B3 回退出口，而是 `controlled_knowledge` 游客渲染的独立引用泄漏；登记为 P1-21，不能靠删除内部审计字段或将 P1-19 标记完成来掩盖。 |
-| 当前状态 | `implemented_pending_local_and_langsmith_verification`。七类核心工艺定义保留 P1-05 的 canonical craft overview；已在 Agent 的有效计划仲裁和 `tour_qa` 最终执行层阻止 `ornament_craft / definition` 计划抢占，并通过 D1 资格受控实例增强在总述后追加最多两项审核实例。定向回归新增注入计划、无路线工艺路由、月台“引福归堂”实例、显式远程点位排序和语义归一清空旧计划。完整回归曾发现一项与 P1-10 无关的旧位置文案断言漂移（`introduced_by: 2d85126`，`classification: pre_existing_test_expectation_drift`，`production_regression: false`，`p1_08_reopened: false`，`blocks_p1_10: false`）；已迁移为审核位置、安全措辞与内部字段不泄漏断言，未修改讲解生产代码。尚待本机完整回归与 Studio Trace 验证，不得标记 `verified_fixed`。 |
+| 当前状态 | `verified_fixed`。七类核心工艺定义保留 P1-05 的 canonical craft overview；Agent 的有效计划仲裁和 `tour_qa` 最终执行层均阻止 `ornament_craft / definition` 计划抢占，并通过 D1 资格受控实例增强在总述后追加最多两项审核实例。实例读取已冻结为显式范围：有本轮显式审核点位或 `TourState.current_stop_id` 时仅返回该点有效的 `direct_craft_observation`，不以其他点补足；无可靠点位时才返回稳定全馆参考。当前点实例还会以同一对象的 `08_ornament_items.md` 证据补充一条简短画面、题材或寓意细节；对象、工艺与可选节点元数据均不一致的证据会被拒绝。程序化 TourState 诊断、125 项相关定向测试与 670 项完整回归均通过；用户已完成前院中部、前庭与月台的 Studio/LangSmith 当前点实例复测。完整回归曾发现一项与 P1-10 无关的旧位置文案断言漂移（`introduced_by: 2d85126`，`classification: pre_existing_test_expectation_drift`，`production_regression: false`，`p1_08_reopened: false`，`blocks_p1_10: false`）；已迁移为审核位置、安全措辞与内部字段不泄漏断言，未修改讲解生产代码。 |
 | 后续验收 | 自动化必须新增“带可执行 knowledge plan 的石雕是什么”优先走术语卡、月台实例为引福归堂、无当前点最多两项稳定实例、研究/比较/到达不被抢占、草稿英文拒绝、通用回退无内部字段。Studio 新线程分别复测月台“石雕是什么”、月台“我在这里，石雕是什么”、无路线“石雕是什么”、英文草稿和研究问题；记录实际 plan、`term_instances`、游客消息与 TourState 前后状态。 |
 
 ### P1-21 通用工艺问答仍向游客展示内部来源编号
@@ -484,3 +484,7 @@
 - `E5_NARRATION_CONTRACT.md`：证据驱动讲解的冻结数据流与验收案例；
 - `data/chen_clan_academy/narration_styles/styles_v1.yaml`：E5-B 已完成、尚待接入的语言风格素材；
 - `TOUR_INTERACTION_CONTRACT.md`：到达、完成、下一站等状态操作边界。
+
+### 后续架构优化候选：Graph-assisted RAG
+
+**状态：** `planned_not_started`。当前项目已经具备点位、审核文物、工艺、术语、知识卡与来源之间的稳定ID和结构化关联，但这些关系目前分散在空间图、点位讲解包、术语关联表及各类知识卡中，尚未形成统一的知识图查询层。后续可在P1正确性问题、对象级证据链和游客渲染边界稳定后，新增只读的知识关系索引：由现有权威JSON、CSV和知识卡注册表自动派生 `Place → Ornament → Craft/Term → Source/ResearchCard/ComparisonCard` 等关系，用于当前点实例查询、同名对象消歧、多跳关系检索和可解释推荐；具体工艺、故事、人物与寓意仍必须回到原始审核资料，通过现有混合RAG取得证据。该方向定位为 `Graph-assisted Hybrid RAG`，知识图只负责实体与关系约束，不替代TourState、空间路线图、原始知识文件或RAG证据，也不得成为第二份人工维护的事实源。首版应先采用JSON邻接索引或轻量图实现，并与现有检索在同一评测集和LangSmith场景中对照，确认准确率和可解释性确有提升后再接入公共Agent。

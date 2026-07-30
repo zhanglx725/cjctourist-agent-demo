@@ -68,6 +68,7 @@ def reviewed_term_instances(
     term_id: str,
     *,
     current_node_id: str | None = None,
+    scope: str = "whole_site",
     limit: int = 2,
 ) -> list[dict[str, Any]]:
     """Return up to ``limit`` audited term-to-object examples.
@@ -77,8 +78,14 @@ def reviewed_term_instances(
     is present in the same reviewed node card and the relationship is explicitly
     ``direct_craft_observation``.  Context-only associations deliberately stay
     out of this list: they do not prove that the named object exemplifies the
-    queried term.
+    queried term. ``scope="current_node"`` is a strict on-site boundary and
+    never pads results from another point; ``scope="whole_site"`` returns
+    stable all-site references. The explicit default is ``whole_site``.
     """
+    if scope not in {"current_node", "whole_site"}:
+        return []
+    if scope == "current_node" and not current_node_id:
+        return []
     if limit <= 0:
         return []
     glossary = load_glossary()
@@ -129,13 +136,11 @@ def reviewed_term_instances(
                     "association_evidence": association.get("evidence"),
                 }
             )
-    candidates.sort(
-        key=lambda item: (
-            item["node_id"] != current_node_id,
-            item["node_id"],
-            item["ornament_id"],
-        )
-    )
+    if scope == "current_node":
+        candidates = [item for item in candidates if item["node_id"] == current_node_id]
+        candidates.sort(key=lambda item: item["ornament_id"])
+    else:
+        candidates.sort(key=lambda item: (item["node_id"], item["ornament_id"]))
     return candidates[:limit]
 
 

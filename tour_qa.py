@@ -48,7 +48,11 @@ from single_fact_answer import (
     single_fact_categories_for_kind,
 )
 from controlled_knowledge_query import ControlledKnowledgePlan
-from ornament_detail_runtime import build_object_evidence_view, render_object_detail
+from ornament_detail_runtime import (
+    build_object_evidence_view,
+    filter_object_evidence,
+    render_object_detail,
+)
 
 
 GUIDE_CARDS_FILE = Path("data/chen_clan_academy/routes/node_guide_cards_v1.json")
@@ -282,18 +286,15 @@ def _answer_ornament_detail(
                 "source_ids": [],
             },
         }
-    query = f"{item['ornament_id']} {item['name']} 陈家祠 建筑装饰 题材 画面 人物 故事 寓意"
-    try:
-        payload = parse_rag_payload(rag_search(query))
-    except Exception as exc:
-        payload = {"evidence": [], "error": f"本地知识检索暂时不可用：{exc}"}
-    evidence = [entry for entry in payload.get("evidence", []) if isinstance(entry, dict)]
-    view = build_object_evidence_view(
-        ornament_id=item["ornament_id"], name=item["name"], craft=item["craft"],
-        node_id=item["node_id"], raw_location=item.get("raw_location"), evidence=evidence,
+    detail = build_reviewed_instance_detail(
+        item,
+        rag_search,
+        detailed=detailed,
+        listen_only=listen_only,
     )
-    rendered = render_object_detail(view, first=True, detailed=detailed, listen_only=listen_only)
-    message = rendered.visitor_text
+    message = detail["visitor_message"]
+    evidence = detail["evidence"]
+    detail_audit = detail["instance_detail"]
     if presentation:
         message += "\n\n本次对象说明未改变路线进度，您可继续使用现有导览操作。"
         presentation = {**presentation, "message": message, "code": "ornament_detail", "ok": True, "evidence_count": len(evidence)}
@@ -303,12 +304,74 @@ def _answer_ornament_detail(
         "evidence": evidence,
         "point_context": context,
         "presentation": presentation,
+        "retrieval_query": detail["retrieval_query"],
+        "ornament_detail": detail_audit,
+    }
+
+
+def build_reviewed_instance_detail(
+    instance: dict[str, Any],
+    rag_search: Callable[[str], str],
+    *,
+    detailed: bool = False,
+    listen_only: bool = False,
+) -> dict[str, Any]:
+    """Retrieve and compactly render one already-resolved reviewed instance.
+
+    The caller must supply a P1-10-selected object. This shared helper is the
+    only bridge from a reviewed term association to object-level evidence: it
+    queries with stable ID plus name, accepts only the same object's ``08``
+    evidence, and never lets craft-overview or another object's packet supply
+    a theme, scene, story, or meaning.
+    """
+    ornament_id = str(instance.get("ornament_id") or "").strip()
+    name = str(instance.get("ornament_name") or instance.get("name") or "").strip()
+    craft = str(instance.get("craft") or "").strip()
+    node_id = str(instance.get("node_id") or "").strip()
+    raw_location = instance.get("raw_location")
+    if not all((ornament_id, name, craft, node_id)):
+        raise ValueError("reviewed instance identity is incomplete")
+    query = f"{ornament_id} {name} 陈家祠 建筑装饰 题材 画面 人物 故事 寓意"
+    try:
+        payload = parse_rag_payload(rag_search(query))
+    except Exception:
+        payload = {"evidence": []}
+    retrieved = [entry for entry in payload.get("evidence", []) if isinstance(entry, dict)]
+    accepted = filter_object_evidence(
+        ornament_id=ornament_id,
+        name=name,
+        craft=craft,
+        node_id=node_id,
+        evidence=retrieved,
+        strict_identity=True,
+    )
+    view = build_object_evidence_view(
+        ornament_id=ornament_id,
+        name=name,
+        craft=craft,
+        node_id=node_id,
+        raw_location=raw_location if isinstance(raw_location, str) else None,
+        evidence=accepted,
+        strict_identity=True,
+    )
+    rendered = render_object_detail(
+        view,
+        first=True,
+        detailed=detailed,
+        listen_only=listen_only,
+        compact=not detailed,
+    )
+    source_ids = list(rendered.source_ids)
+    return {
         "retrieval_query": query,
-        "ornament_detail": {
+        "visitor_message": rendered.visitor_text,
+        "evidence": [dict(entry) for entry in accepted],
+        "instance_detail": {
             "ornament_id": view.ornament_id,
             "node_id": view.node_id,
             "coverage_level": view.coverage_level,
-            "source_ids": list(view.source_ids),
+            "source_ids": source_ids,
+            "used_for_visitor_answer": bool(source_ids),
         },
     }
 
@@ -709,6 +772,7 @@ def build_qa_context_from_answer(
             answer_mode=mode,
             follow_up_allowed=True,
             physical_node_id_snapshot=(tour_state or {}).get("current_stop_id"),
+            suggested_follow_up_ornament_ids=result.get("suggested_follow_up_ornament_ids", ()),
         )
 
     if not isinstance(context, dict) or not context.get("node_id"):
@@ -770,15 +834,49 @@ def _answer_whole_site_craft_follow_up(
         enhancement = runtime_term_instance_enhancement(
             craft, current_node_id=instance_node_id
         )
+        instance_details: list[dict[str, Any]] = []
         if enhancement and enhancement["term_instances"]:
             examples = "；".join(
                 f"{item['point_name']}的“{item['ornament_name']}”（{item['craft']}）"
                 for item in enhancement["term_instances"]
             )
-            message += (
-                "\n\n作为陈家祠的审核关联实例，可参考："
-                f"{examples}。现场可见情况请以实际为准。"
-            )
+            if enhancement["instance_scope"] == "whole_site":
+                label = "陈家祠全馆审核关联实例"
+            elif instance_context_origin == "explicit_query_location":
+                label = "所问点位的审核关联实例"
+            else:
+                label = "当前点的审核关联实例"
+            message += f"\n\n作为{label}，可参考：{examples}。现场可见情况请以实际为准。"
+            # Whole-site references remain short names only. A reliable point
+            # may add one compact, same-object ``08`` detail per selected
+            # audited instance; each packet is retrieved and gated alone.
+            if enhancement["instance_scope"] == "current_node":
+                for instance in enhancement["term_instances"]:
+                    try:
+                        detail = build_reviewed_instance_detail(
+                            instance,
+                            rag_search,
+                            detailed=False,
+                        )
+                    except (TypeError, ValueError):
+                        # Association metadata can safely name a reviewed
+                        # instance even when a malformed packet prevents its
+                        # optional object-detail expansion.  Never let that
+                        # failure borrow another object's evidence.
+                        message += (
+                            f"\n\n现有资料不足以安全展开“{instance['ornament_name']}”"
+                            "的具体题材或故事。"
+                        )
+                        continue
+                    instance_details.append(detail["instance_detail"])
+                    message += f"\n\n{detail['visitor_message']}"
+                    evidence.extend(detail["evidence"])
+        elif enhancement and enhancement["instance_scope"] == "current_node":
+            subject = "所问点位" if instance_context_origin == "explicit_query_location" else "当前点"
+            message += f"\n\n{subject}的已审核关联清单中暂未找到该工艺实例。"
+            instance_details = []
+        else:
+            instance_details = []
         error = None
     except CraftKnowledgeError as exc:
         evidence = []
@@ -814,6 +912,12 @@ def _answer_whole_site_craft_follow_up(
         "term_instances": (
             list(enhancement["term_instances"]) if enhancement else []
         ),
+        "instance_details": instance_details,
+        "suggested_follow_up_ornament_ids": [
+            detail["ornament_id"]
+            for detail in instance_details
+            if detail.get("used_for_visitor_answer")
+        ],
         "instance_context_origin": instance_context_origin,
         "error": error,
     }

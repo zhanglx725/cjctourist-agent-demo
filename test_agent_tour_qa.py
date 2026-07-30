@@ -412,6 +412,20 @@ class AgentTourQaTests(unittest.TestCase):
         self.assertIn("石雕", update["messages"][0].content)
         self.assertNotIn("来源：S10", update["messages"][0].content.split("\n")[0])
 
+    def test_active_current_point_craft_overview_does_not_mix_remote_instances(self):
+        state = self._arrived_tour()
+        before_tour = deepcopy(state["tour_state"])
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            update = tour_qa_node(_message_state("这里的石雕是什么？", state))
+        rag.invoke.assert_called_once()
+        self.assertIn("orn_080 状元及第", rag.invoke.call_args.args[0]["query"])
+        message = update["messages"][0].content
+        self.assertIn("前院中部", message)
+        self.assertIn("状元及第", message)
+        self.assertNotIn("引福归堂", message)
+        self.assertNotIn("踏雪寻梅", message)
+        self.assertEqual(state["tour_state"], before_tour)
+
     def test_semantic_normalization_clears_a_stale_plan_for_an_exact_term(self):
         request = _message_state("石雕是什么？")
         request["knowledge_query_plan"] = ControlledKnowledgePlan(

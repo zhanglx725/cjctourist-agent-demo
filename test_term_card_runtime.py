@@ -64,6 +64,7 @@ class TermCardRuntimeTests(unittest.TestCase):
     def test_current_node_instance_is_ranked_first_and_is_limited_by_visibility_boundary(self) -> None:
         result = answer_term_question("石雕是什么？", self.tour, self.interaction)
         self.assertEqual(result["term_instances"][0]["ornament_id"], "orn_080")
+        self.assertTrue(all(item["node_id"] == "stop_front_courtyard_center" for item in result["term_instances"]))
         self.assertIn("当前点与上述实例存在审核关联", result["message"])
         self.assertIn("以现场为准", result["message"])
         self.assertNotIn("一定能看到", result["message"])
@@ -80,6 +81,8 @@ class TermCardRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(result["term"]["card_id"], "term_stone_carving")
         self.assertEqual(result["term_instances"][0]["ornament_id"], "orn_078")
+        self.assertEqual(len(result["term_instances"]), 1)
+        self.assertTrue(all(item["node_id"] == "label_moon_platform" for item in result["term_instances"]))
         self.assertIn("引福归堂", result["message"])
 
     def test_pinyin_domain_and_aliases_only_use_approved_fields(self) -> None:

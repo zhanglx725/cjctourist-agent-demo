@@ -10,17 +10,23 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import Any, Iterable, Mapping
 
 
 ORNAMENT_DOCUMENT = "08_ornament_items.md"
 THEME_MARKERS = ("题材", "故事", "传说", "源自", "出自", "取材", "典故", "寓意", "象征")
-VISUAL_MARKERS = ("画面", "图中", "描绘", "刻画", "表现", "雕饰", "构图", "全身", "造型", "上方", "中部", "下方", "东边", "西边", "口含", "脚踩", "抱扶")
+VISUAL_MARKERS = ("此图", "此幅", "画面", "图中", "描绘", "刻画", "表现", "雕饰", "构图", "全身", "造型", "上方", "中部", "下方", "东边", "西边", "口含", "脚踩", "抱扶")
 STORY_ORIGIN_MARKERS = ("故事", "传说", "源自", "出自", "取材", "相传")
 
 
 def _sentences(content: Any) -> tuple[str, ...]:
     normalized = " ".join(str(content or "").split())
+    # RAG chunks from the item catalogue retain Markdown field labels.  They
+    # are useful for parsing but are not visitor prose: isolate the value of
+    # ``简介`` before sentence classification so a terminal "此图" marker
+    # cannot cause the entire raw bullet to be emitted as one visual detail.
+    normalized = re.sub(r"\s*-\s*(?:类型|简介)\s*：", "。", normalized)
     normalized = normalized.replace("！", "。").replace("？", "。").replace("；", "。")
     return tuple(part.strip() + "。" for part in normalized.split("。") if part.strip())
 
@@ -39,10 +45,61 @@ def _source_ids(entry: Mapping[str, Any]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(source.strip() for source in raw if isinstance(source, str) and source.strip()))
 
 
-def _is_same_object_entry(entry: Mapping[str, Any], name: str) -> bool:
+def _is_same_object_entry(
+    entry: Mapping[str, Any],
+    name: str,
+    *,
+    ornament_id: str | None = None,
+    craft: str | None = None,
+    node_id: str | None = None,
+    strict_identity: bool = False,
+) -> bool:
     if Path(str(entry.get("document", ""))).name != ORNAMENT_DOCUMENT:
         return False
-    return name in _title_parts(entry) and bool(_source_ids(entry))
+    if name not in _title_parts(entry) or not _source_ids(entry):
+        return False
+    if not strict_identity:
+        return True
+    if entry.get("ornament_id") not in {None, ornament_id}:
+        return False
+    if entry.get("craft") not in {None, craft}:
+        return False
+    if entry.get("node_id") not in {None, node_id}:
+        return False
+    content = str(entry.get("content", ""))
+    title = " ".join(_title_parts(entry))
+    return bool(craft and (craft in content or craft in title))
+
+
+def filter_object_evidence(
+    *,
+    ornament_id: str,
+    name: str,
+    craft: str,
+    node_id: str | None = None,
+    evidence: Iterable[Mapping[str, Any]],
+    strict_identity: bool = False,
+) -> tuple[Mapping[str, Any], ...]:
+    """Return only source-bearing ``08`` entries accepted for one object.
+
+    Strict mode is for a previously resolved P1-10 instance. It additionally
+    requires the expected craft in the entry, or matching optional structured
+    identity metadata, so a same-name object in another craft cannot donate
+    evidence merely because its title happens to match.
+    """
+    return tuple(
+        entry
+        for entry in evidence
+        if isinstance(entry, Mapping)
+        and _is_same_object_entry(
+            entry,
+            name,
+            ornament_id=ornament_id,
+            craft=craft,
+            node_id=node_id,
+            strict_identity=strict_identity,
+        )
+    )
 
 
 @dataclass(frozen=True)
@@ -80,9 +137,17 @@ def build_object_evidence_view(
     node_id: str,
     raw_location: str | None,
     evidence: Iterable[Mapping[str, Any]],
+    strict_identity: bool = False,
 ) -> ObjectEvidenceView:
     """Classify only accepted evidence for the resolved audited object."""
-    accepted = [entry for entry in evidence if isinstance(entry, Mapping) and _is_same_object_entry(entry, name)]
+    accepted = filter_object_evidence(
+        ornament_id=ornament_id,
+        name=name,
+        craft=craft,
+        node_id=node_id,
+        evidence=evidence,
+        strict_identity=strict_identity,
+    )
     sentences = tuple(sentence for entry in accepted for sentence in _sentences(entry.get("content")))
     sources = tuple(sorted({source for entry in accepted for source in _source_ids(entry)}))
     subject = tuple(sentence for sentence in sentences if any(marker in sentence for marker in THEME_MARKERS))
@@ -132,6 +197,7 @@ def render_object_detail(
     first: bool,
     detailed: bool,
     listen_only: bool = False,
+    compact: bool = False,
 ) -> ObjectDetailRender:
     """Render only facts in one object view as flat visitor paragraphs."""
     paragraphs = [f"{view.name}是一件{view.craft}装饰。"]
@@ -143,12 +209,16 @@ def render_object_detail(
 
     used: set[str] = set()
     theme = _first_distinct(view.subject_sentences, used)
-    story = _first_distinct(view.story_sentences, used) if first or detailed else None
+    story = _first_distinct(view.story_sentences, used) if (first or detailed) and not compact else None
     # A first introduction must retain one object-level visible/depicted
     # detail when the accepted packet supplies it; otherwise it degenerates
     # into an origin label even though the scene is available.
     visual = _first_distinct(view.visual_sentences, used) if (first or detailed) else None
     meaning = _first_distinct(view.meaning_sentences, used) if detailed else None
+    if compact and visual is None:
+        meaning = _first_distinct(view.meaning_sentences, used)
+    if compact and not theme and visual is None and meaning is None:
+        story = _first_distinct(view.story_sentences, used)
     if theme:
         paragraphs.append(theme)
     if story:

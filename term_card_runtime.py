@@ -114,9 +114,13 @@ def runtime_term_instance_enhancement(
     if len(enabled) != 1:
         return None
     card = enabled[0]
+    scope = "current_node" if current_node_id else "whole_site"
     try:
         instances = instance_reader(
-            card.card_id, current_node_id=current_node_id, limit=2
+            card.card_id,
+            current_node_id=current_node_id,
+            scope=scope,
+            limit=2,
         )
     except Exception:
         instances = []
@@ -127,6 +131,7 @@ def runtime_term_instance_enhancement(
             "source_ids": list(card.source_refs),
         },
         "term_instances": instances,
+        "instance_scope": scope,
     }
 
 
@@ -229,7 +234,13 @@ def answer_term_question(
             return None
         message = f"“{zh}”是{str(raw['short_definition_zh']).rstrip('。')}。"
         try:
-            term_instances = instance_reader(card.card_id, current_node_id=current_node, limit=2)
+            instance_scope = "current_node" if current_node else "whole_site"
+            term_instances = instance_reader(
+                card.card_id,
+                current_node_id=current_node,
+                scope=instance_scope,
+                limit=2,
+            )
         except Exception:
             term_instances = []
         if term_instances:

@@ -27,6 +27,7 @@ REQUIRED_FIELDS = frozenset(
         "physical_node_id_snapshot",
     }
 )
+OPTIONAL_FIELDS = frozenset({"suggested_follow_up_ornament_ids"})
 DETAIL_FOLLOW_UP_TERMS = (
     "再讲详细",
     "详细一点",
@@ -52,6 +53,7 @@ def create_qa_context(
     answer_mode: str,
     follow_up_allowed: bool,
     physical_node_id_snapshot: str | None,
+    suggested_follow_up_ornament_ids: list[str] | tuple[str, ...] = (),
 ) -> dict[str, Any]:
     """Create a validated, serializable context without retaining evidence."""
     context = {
@@ -64,6 +66,13 @@ def create_qa_context(
         "source_response_kind": "tour_qa",
         "follow_up_allowed": bool(follow_up_allowed),
         "physical_node_id_snapshot": physical_node_id_snapshot or None,
+        "suggested_follow_up_ornament_ids": tuple(
+            dict.fromkeys(
+                str(ornament_id).strip()
+                for ornament_id in suggested_follow_up_ornament_ids
+                if str(ornament_id).strip()
+            )
+        ),
     }
     validate_qa_context(context)
     return context
@@ -71,8 +80,9 @@ def create_qa_context(
 
 def validate_qa_context(value: dict[str, Any] | None) -> dict[str, Any]:
     """Return an immutable-by-convention copy or raise ``ValueError``."""
-    if not isinstance(value, dict) or set(value) != REQUIRED_FIELDS:
+    if not isinstance(value, dict) or not REQUIRED_FIELDS.issubset(value) or not set(value).issubset(REQUIRED_FIELDS | OPTIONAL_FIELDS):
         raise ValueError("qa_context fields are incomplete or unexpected")
+    value = {**value, "suggested_follow_up_ornament_ids": value.get("suggested_follow_up_ornament_ids", ())}
     if value.get("schema_version") != SCHEMA_VERSION:
         raise ValueError("qa_context schema_version is unsupported")
     if value.get("origin") not in VALID_ORIGINS:
@@ -93,6 +103,10 @@ def validate_qa_context(value: dict[str, Any] | None) -> dict[str, Any]:
         raise ValueError("qa_context answer_mode is invalid")
     if not isinstance(value.get("follow_up_allowed"), bool):
         raise ValueError("qa_context follow_up_allowed is invalid")
+    if not isinstance(value.get("suggested_follow_up_ornament_ids"), (tuple, list)) or not all(
+        isinstance(ornament_id, str) and ornament_id for ornament_id in value["suggested_follow_up_ornament_ids"]
+    ):
+        raise ValueError("qa_context suggested_follow_up_ornament_ids are invalid")
     return deepcopy(value)
 
 
@@ -103,6 +117,14 @@ def update_qa_context(value: dict[str, Any], **changes: Any) -> dict[str, Any]:
     if "subject_terms" in updated:
         updated["subject_terms"] = tuple(
             dict.fromkeys(str(term).strip() for term in updated["subject_terms"] if str(term).strip())
+        )
+    if "suggested_follow_up_ornament_ids" in updated:
+        updated["suggested_follow_up_ornament_ids"] = tuple(
+            dict.fromkeys(
+                str(ornament_id).strip()
+                for ornament_id in updated["suggested_follow_up_ornament_ids"]
+                if str(ornament_id).strip()
+            )
         )
     validate_qa_context(updated)
     return updated
