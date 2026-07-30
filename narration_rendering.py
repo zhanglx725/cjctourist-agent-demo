@@ -14,6 +14,7 @@ from guidance_evidence_bundle import CoverageCandidate, EvidencePacket, Guidance
 from guidance_policy import GuidancePolicy
 from guide_program_planner import StopProgram
 from narration_style_policy import NarrationStylePolicy, STYLE_SCHEMA_VERSION, compile_narration_style
+from ornament_detail_runtime import build_object_evidence_view, render_object_detail
 
 
 CRAFT_DIMENSIONS = {
@@ -270,49 +271,35 @@ def _ornament_segment(
     style: NarrationStylePolicy | None,
     style_id: str,
 ) -> tuple[list[str], tuple[str, ...], bool, str | None]:
-    sentences = _sentences(packet)
-    used: set[str] = set()
-    shape = _first_matching(sentences, ORNAMENT_SHAPE_MARKERS, used)
-    theme = _first_matching(sentences, ORNAMENT_THEME_MARKERS, used)
-    story_context = _story_context(sentences, theme, used) if first else None
-    fallback = next(((sentence, source_ids) for sentence, source_ids in sentences if sentence not in used), None)
-    chosen = [value for value in (shape, theme, story_context) if value]
-    if not chosen and fallback:
-        chosen.append(fallback)
-    # Preserve the source order in the visitor message.  Selection is by
-    # narrative role, not the order in which role matchers happen to run.
-    chosen_texts = {sentence for sentence, _ in chosen}
-    chosen = [entry for entry in sentences if entry[0] in chosen_texts]
-    location_text = location.raw_location if getattr(location, "valid", False) and location.raw_location else "本点相关构件"
-    evidence_fact = "".join(sentence for sentence, _ in chosen)
-    template_key = "first_ornament_intro_style" if first else "repeat_ornament_style"
-    template_line = _template(style, template_key, {
-        "craft_name": item.craft,
-        "craft_definition": "",
-        "object_name": item.name,
-        "observation_location": location_text,
-        "visible_detail": f"{item.name}的轮廓和细部",
-        "evidence_fact": evidence_fact,
-    })
-    if template_line:
-        lines = [template_line]
-    else:
-        lines = [f"{item.name}是一件{item.craft}装饰。"]
-        if getattr(location, "valid", False) and location.raw_location:
-            lines.append(f"可先看向{location.raw_location}。")
-        else:
-            lines.append("可先在本点的相关构件上寻找它的造型细节。")
-        lines.extend(sentence for sentence, _ in chosen)
-    if observation := _ornament_observation(style_id, item, location, shape):
-        lines.append(observation)
-    source_ids = tuple(sorted({source for _, values in chosen for source in values}))
-    complete = bool(shape and theme and source_ids)
+    raw_location = location.raw_location if getattr(location, "valid", False) else None
+    view = build_object_evidence_view(
+        ornament_id=item.ornament_id,
+        name=item.name,
+        craft=item.craft,
+        node_id=getattr(location, "node_id", ""),
+        raw_location=raw_location,
+        evidence=packet.evidence,
+    )
+    rendered = render_object_detail(
+        view,
+        first=first,
+        detailed=False,
+        listen_only=style_id == "listen_only",
+    )
+    lines = list(rendered.paragraphs)
+    source_ids = rendered.source_ids
+    complete = bool(
+        view.coverage_level == "full"
+        and view.raw_location
+        and source_ids
+        and (view.visual_sentences or view.story_sentences)
+    )
     if first and not complete:
         warning = f"{item.name}的证据不足以完成首次文物介绍，未列为可提交覆盖候选"
     else:
         warning = None
-    if not first and chosen and not template_line:
-        lines.insert(1, "这一处可作为前面内容的简短回顾，再留意它本点的细部。")
+    if not first and source_ids:
+        lines.insert(1, "这一处作为前面内容的简短回顾，再补充本点可核对的细部。")
     return lines, source_ids, complete if first else False, warning
 
 
@@ -390,7 +377,7 @@ def render_guidance_evidence(
     lines.append("讲解结束后，您可确认是否完成本点参观。")
     allocated = sum(item.planned_seconds for item in rendered_items)
     return NarrationRenderResult(
-        visitor_message="\n".join(lines),
+        visitor_message="\n\n".join(lines),
         rendered_craft_ids=tuple(rendered_crafts),
         rendered_ornament_ids=tuple(rendered_ornaments),
         used_source_ids=tuple(sorted(used_sources)),

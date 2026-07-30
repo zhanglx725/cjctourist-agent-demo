@@ -10,10 +10,12 @@ dump markers.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable
 
 from guide_program_planner import StopProgram
 from guidance_policy import GuidancePolicy
+from ornament_detail_runtime import build_object_evidence_view, render_object_detail
 
 
 RAW_DUMP_MARKERS = (
@@ -82,6 +84,21 @@ def _facts_for_item(content: str, *, detailed: bool) -> tuple[str, ...]:
 
 def _source_ids(evidence_by_item: dict[str, list[dict[str, Any]]]) -> tuple[str, ...]:
     return tuple(sorted({source_id for values in evidence_by_item.values() for item in values for source_id in item.get("source_ids", [])}))
+
+
+def _safe_item_evidence(item: Any, evidence: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Keep B3's craft fallback, but never borrow another object's story."""
+    ornament_entries: list[dict[str, Any]] = []
+    craft_entries: list[dict[str, Any]] = []
+    for entry in evidence:
+        document = Path(str(entry.get("document", ""))).name
+        title = " ".join(entry.get("title_path") or [])
+        content = str(entry.get("content", ""))
+        if document == "08_ornament_items.md" and item.name in title:
+            ornament_entries.append(entry)
+        elif document == "07_ornament_crafts.md" and (item.craft in title or item.craft in content):
+            craft_entries.append(entry)
+    return ornament_entries, craft_entries
 
 
 def _observation_prompt(
@@ -165,20 +182,37 @@ def _deterministic_message(
     # budget.  Narration must never silently add a third object.
     items = program.selected_items
     lines = [_opening(program, policy, detailed)]
-    for index, item in enumerate(items, start=1):
+    for item in items:
         evidence = evidence_by_item.get(item.ornament_id, [])
-        facts = _facts_for_item(str(evidence[0].get("content", "")), detailed=detailed) if evidence else ()
-        lines.append(
-            f"{index}. {item.name}：{_observation_prompt(item.name, item.craft, item.observation_location, detailed=detailed, policy=policy)}"
+        ornament_entries, craft_entries = _safe_item_evidence(item, evidence)
+        view = build_object_evidence_view(
+            ornament_id=item.ornament_id,
+            name=item.name,
+            craft=item.craft,
+            node_id=program.node_id,
+            raw_location=item.observation_location,
+            evidence=ornament_entries,
         )
-        if item.comparison_reason:
-            lines.append(f"   这里特意选它作对照，{item.comparison_reason}。")
-        if facts:
-            lines.extend(f"   {fact}" for fact in facts)
+        if view.source_ids:
+            rendered = render_object_detail(
+                view,
+                first=True,
+                detailed=detailed,
+                listen_only=bool(policy and policy.interaction_mode == "listen_only"),
+            )
+            lines.extend(rendered.paragraphs)
         else:
-            lines.append("   当前未检索到可引用的事实资料，不据名称扩写其寓意或故事，我们先以现场观察为主。")
+            lines.append(f"{item.name}是一件{item.craft}装饰。这是一处{item.craft}装饰的审核关联对象。")
+            if item.observation_location:
+                lines.append(f"它与{item.observation_location}存在审核关联；可结合现场标识观察。")
+            facts = _facts_for_item(str(craft_entries[0].get("content", "")), detailed=detailed) if craft_entries else ()
+            if facts:
+                lines.extend(facts)
+            lines.append("未检索到可引用的事实资料，因此不据名称扩写题材或故事。")
+        if item.comparison_reason:
+            lines.append(f"这里特意选它作对照，{item.comparison_reason}。")
     lines.append(_closing(policy, detailed))
-    return "\n".join(lines)
+    return "\n\n".join(lines)
 
 
 def _llm_prompt(program: StopProgram, evidence_by_item: dict[str, list[dict[str, Any]]], detailed: bool) -> str:

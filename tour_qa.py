@@ -43,6 +43,7 @@ from single_fact_answer import (
     single_fact_categories_for_kind,
 )
 from controlled_knowledge_query import ControlledKnowledgePlan
+from ornament_detail_runtime import build_object_evidence_view, render_object_detail
 
 
 GUIDE_CARDS_FILE = Path("data/chen_clan_academy/routes/node_guide_cards_v1.json")
@@ -50,6 +51,8 @@ MARKERS_FILE = Path("data/chen_clan_academy/spatial/marker_inventory_v0.csv")
 DEICTIC_POINT_TERMS = ("这里", "此处", "眼前", "当前点", "当前站", "本点")
 FEATURE_TERMS = ("特点", "特征", "工艺", "怎么做", "有什么")
 TERM_EXPLANATION_TERMS = ("是什么", "什么意思", "指什么", "怎么理解")
+OBJECT_DETAIL_TERMS = ("讲讲", "介绍", "说说", "详细", "故事", "人物", "画面", "寓意", "是什么", "什么意思", "特点")
+REVIEWED_ORNAMENT_CRAFTS = frozenset({"灰塑", "木雕", "石雕", "陶塑", "砖雕", "铜铁铸", "壁画", "砖雕&铜铁铸&壁画"})
 @lru_cache(maxsize=1)
 def load_guide_cards() -> dict[str, dict[str, Any]]:
     """Load reviewed point guide cards for A2 and later guide-program stages."""
@@ -184,6 +187,124 @@ def format_point_inventory(
         "point_context": context,
         "presentation": {**presentation, "message": message, "code": "point_inventory", "ok": True} if presentation else None,
         "mode": "inventory",
+    }
+
+
+def _reviewed_ornament_matches(user_query: str, context: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Return only exact reviewed name matches, never model-guessed objects."""
+    cards = load_guide_cards()
+    scoped_cards = [context.get("card")] if context and context.get("card") else list(cards.values())
+    matches: list[dict[str, Any]] = []
+    for card in scoped_cards:
+        if not isinstance(card, dict):
+            continue
+        for ornament in card.get("ornaments", []):
+            if not isinstance(ornament, dict):
+                continue
+            name = ornament.get("name")
+            if isinstance(name, str) and name and name in user_query:
+                matches.append({**ornament, "node_id": card.get("node_id"), "point_name": card.get("display_name")})
+    return matches
+
+
+def _object_detail_request(user_query: str) -> bool:
+    return any(term in user_query for term in OBJECT_DETAIL_TERMS)
+
+
+def _resolve_ornament_detail_request(
+    user_query: str,
+    tour_state: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Resolve a reviewed object within an explicit point before inventory routing."""
+    if not _object_detail_request(user_query):
+        return None
+    context, point_error = resolve_point_context(user_query, tour_state)
+    if point_error in {"ambiguous_node_name", "multiple_node_mentions", "unknown_point"}:
+        return None
+    matches = _reviewed_ornament_matches(user_query, context)
+    if not matches:
+        # A named reviewed point plus a different *known* object must not fall
+        # into inventory.  A broad “讲讲月台” contains no object name and must
+        # retain the existing point overview behaviour.
+        global_matches = _reviewed_ornament_matches(user_query, None)
+        if context and global_matches:
+            return {
+                "status": "unmatched_at_point",
+                "context": context,
+                "item": None,
+            }
+        return None
+    unique = {(item.get("node_id"), item.get("ornament_id")) for item in matches}
+    if len(unique) != 1:
+        return {"status": "ambiguous", "context": context, "item": None, "matches": matches}
+    item = matches[0]
+    return {"status": "ok", "context": context or point_context_for_node(item["node_id"]), "item": item}
+
+
+def _answer_ornament_detail(
+    resolved: dict[str, Any],
+    tour_state: dict[str, Any] | None,
+    interaction_state: dict[str, Any] | None,
+    rag_search: Callable[[str], str],
+    *,
+    detailed: bool = False,
+    listen_only: bool = False,
+) -> dict[str, Any]:
+    """Answer one uniquely resolved audited object without changing tour state."""
+    context = resolved.get("context")
+    status = resolved.get("status")
+    presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
+    if status == "ambiguous":
+        message = "该名称对应多个已审核对象，请补充所在点位或工艺后再讲解。"
+        return {"message": message, "mode": "ornament_detail_clarification", "evidence": [], "point_context": context, "presentation": presentation, "retrieval_query": None}
+    if status == "unmatched_at_point":
+        message = f"该对象未在{context['name']}的已审核对象中匹配，因此不把其他点位对象当作本点内容。"
+        return {"message": message, "mode": "ornament_detail_clarification", "evidence": [], "point_context": context, "presentation": presentation, "retrieval_query": None}
+    item = resolved["item"]
+    if item.get("craft") not in REVIEWED_ORNAMENT_CRAFTS:
+        message = "这件对象的工艺资料当前无法安全确认，为避免误导，暂不作对象级讲解。"
+        return {
+            "message": message,
+            "mode": "ornament_detail_unavailable",
+            "evidence": [],
+            "point_context": context,
+            "presentation": presentation,
+            "retrieval_query": None,
+            "ornament_detail": {
+                "ornament_id": item.get("ornament_id"),
+                "node_id": item.get("node_id"),
+                "coverage_level": "insufficient",
+                "source_ids": [],
+            },
+        }
+    query = f"{item['ornament_id']} {item['name']} 陈家祠 建筑装饰 题材 画面 人物 故事 寓意"
+    try:
+        payload = parse_rag_payload(rag_search(query))
+    except Exception as exc:
+        payload = {"evidence": [], "error": f"本地知识检索暂时不可用：{exc}"}
+    evidence = [entry for entry in payload.get("evidence", []) if isinstance(entry, dict)]
+    view = build_object_evidence_view(
+        ornament_id=item["ornament_id"], name=item["name"], craft=item["craft"],
+        node_id=item["node_id"], raw_location=item.get("raw_location"), evidence=evidence,
+    )
+    rendered = render_object_detail(view, first=True, detailed=detailed, listen_only=listen_only)
+    message = rendered.visitor_text
+    if presentation:
+        message += "\n\n本次对象说明未改变路线进度，您可继续使用现有导览操作。"
+        presentation = {**presentation, "message": message, "code": "ornament_detail", "ok": True, "evidence_count": len(evidence)}
+    return {
+        "message": message,
+        "mode": "ornament_detail",
+        "evidence": evidence,
+        "point_context": context,
+        "presentation": presentation,
+        "retrieval_query": query,
+        "ornament_detail": {
+            "ornament_id": view.ornament_id,
+            "node_id": view.node_id,
+            "coverage_level": view.coverage_level,
+            "source_ids": list(view.source_ids),
+        },
     }
 
 
@@ -950,6 +1071,19 @@ def answer_tour_question(
         else:
             result = {**result, "presentation": None}
         return {**result, "evidence": [], "retrieval_query": None}
+    # A uniquely named reviewed object at a reviewed point is narrower than a
+    # point inventory.  Resolve it before broad “讲讲月台” wording can return
+    # every object at that point.
+    ornament_request = _resolve_ornament_detail_request(user_query, tour_state)
+    if ornament_request is not None:
+        return _answer_ornament_detail(
+            ornament_request,
+            tour_state,
+            interaction_state,
+            rag_search,
+            detailed=any(token in user_query for token in ("详细", "再讲")),
+            listen_only=(visitor_profile or {}).get("interaction_mode") == "listen_only",
+        )
     # A named craft plus a feature question is an evidence-backed explanatory
     # request, not a bare point inventory.  Check it before the broad
     # "有什么" inventory wording so "月台上的石雕有什么特点" cannot lose its

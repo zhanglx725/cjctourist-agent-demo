@@ -40,9 +40,8 @@
 | 0 | P1-04 空间节点冲突 | `blocked_pending_owner_confirmation` | 等空间负责人确认“后西庭/后庭西侧”的权威节点与别名 | 禁止模型或代码自建点位别名 |
 | 1 | P1-11 新位置后的重规划 | `open` | 在确认式重规划中使用已审核新位置作为候选起点 | 改动 A1 契约前需负责人确认 |
 | 2 | P1-20 规划前对象故事请求可能越过对象级证据边界 | `needs_evidence_triage` | 以实际 Trace 与返回 evidence 核对 `direct_rag → llm_think` 是否只使用同一对象的审核资料 | 未核验前不得把长篇传说当作可用事实，也不得仅凭截图断言其为虚构 |
-| 3 | P1-09 装饰故事过浅、明确对象提问退化为点位清单 | `reproduced_needs_root_cause_triage` | 对当前 E5 到点讲解与 `tour_qa` 的对象定向分流补充真实输入回归并定位证据选择/路由优先级 | 只能使用同一对象的审核证据；不得以模型记忆补写故事 |
-| 4 | P2 模式、卡片调度与界面 | `open` | 在 P1 控制层稳定后再写契约 | 不以聊天语气推断画像 |
-| 5 | P2-07 站点讲解列表层级与缩进可读性 | `reproduced_needs_root_cause_triage` | 对照原始游客消息、不同对象数与 Studio 渲染；在不改变事实、来源和状态边界的前提下修复 | 不得靠删除对象内容或改写知识事实规避 |
+| 3 | P2 模式、卡片调度与界面 | `open` | 在 P1 控制层稳定后再写契约 | 不以聊天语气推断画像 |
+| 4 | P2-07 站点讲解列表层级与缩进可读性 | `reproduced_needs_root_cause_triage` | 对照原始游客消息、不同对象数与 Studio 渲染；在不改变事实、来源和状态边界的前提下修复 | 不得靠删除对象内容或改写知识事实规避 |
 
 ### 2.2 已实现、待 LangSmith 人工验收（不与未修改问题混排）
 
@@ -53,6 +52,7 @@
 | P1-12 跨流程自然语言同义表达 | `implemented_pending_langsmith_verification` | 复测到达、时长、路线与低置信度回退 | 候选不能直接写 TourState |
 | P1-07 单一事实、访问服务与受控计算 | `implemented_pending_langsmith_verification` | 游览前后复测 11 项事实／计算 | 无证据失败关闭 |
 | P1-08 站点讲解观察提示与数量一致性 | `implemented_pending_langsmith_verification` | 已完成基础 Studio 复测；继续复测前庭、后西庭、短预算、listen_only 与 E5 失败回退 | 基础复测未见机械重复或数量不一致，仍不能代替完整矩阵验收 |
+| P1-09 证据驱动的对象级讲解 | `implemented_pending_langsmith_verification` | 复测月台/后西庭对象详情、到站首讲、追问、短预算与多对象版式 | 仅使用同一 `ornament_id` 的对象级证据；无证据关闭 |
 | P1-10 术语—实例关联 | `implemented_pending_langsmith_verification` | 复测定义问法、当前点排序、草稿英文、研究/比较边界与无实例关闭 | 当前点只提升审核实例排序；不保证现场可见 |
 | P1-19 E5 失败回退仍向游客展示内部来源编号 | `implemented_pending_langsmith_verification` | 复测 B3 回退、渲染失败回退与风格重述出口 | 内部审计 `used_source_ids` / `source_ids` 必须保留；不得删除失败关闭 |
 | P1-02／P1-03 | `implemented_pending_langsmith_verification` | 完成修复后的 LangSmith 对照复测 | 自动化通过不等于真实链路通过 |
@@ -185,14 +185,16 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 问题描述 | “踏雪寻梅”仅有一句出处；赤壁之战、三顾茅庐、三英战吕布只写“取材于《三国演义》”，追问后仍未讲对应场景。 |
-| 当前现状 | E5 主链路已接入 `GuidanceEvidenceBundle`、`narration_rendering.py` 与 `NarrationCoverage`；旧 B3 回退和“再讲详细一点”仍经 `guide_narration.py` 渲染。代码层修复目标是从同一对象证据中保留出处外的一条场景/情节句；但 2026-07-30 Studio 实测显示该目标未在当前游客链路稳定实现，且明确“点位 + 对象”提问被 `tour_qa` 降级为点位清单。根因尚待以当前代码和 Trace 取证，不能仅凭截图断言是证据缺失、对象证据选择、预算裁剪还是路由优先级所致。 |
-| 期望状态 | 首次介绍对象至少包含名称、审核观察位置、工艺、一个可见细节和一项有来源的题材/故事；无法获得可靠材料时明确保留为简短鉴定。 |
-| 本轮修复 | `narration_rendering.py` 在首次对象介绍中，当同一对象证据包含“故事/传说/源自/取材”等出处时，保留一个后续、已审核的场景或情节句；优先选择含画面、描绘、雕饰等标记的句，缺失时才选择紧随的上下文句。`guide_narration.py` 的详细 B3 回退同样输出出处加一条同一对象证据中的场景/上下文句。两处均不访问外部资料、不使用模型生成，且没有改变无证据关闭、Coverage、TourState、VisitorProfile、路线或 StopProgram。 |
-| 自动化验证 | 新增 E5 首讲和 B3 详细回退的定向用例：`踏雪寻梅` 的出处与“骑驴到霸陵赏梅”上下文；月台 `截江夺阿斗`、后西庭 `赤壁之战`、`三顾茅庐` 的审核故事场景；工艺总述证据不得虚构独角狮故事。运行 `test_e5_narration_rendering.py`、`test_e5_stop_guidance_coverage_integration.py`、`test_e5_narration_runtime_acceptance.py`、`test_guide_narration.py`、`test_guide_program_evidence.py`、`test_stage_b_e2e.py`，共 44 项通过。游客文本回归验证继续不显示“来源：S”、文件名、URL 或内部字段；内部 `used_source_ids` / `source_ids` 仍保留审计。 |
-| LangSmith 状态 | `reproduced_needs_root_cause_triage`。2026-07-30 的实际 Studio 测试已复现三类失败：① 在“30 分钟、木雕和灰塑、详细讲解”的路线抵达月台后，`stop_guidance` 对“截江夺阿斗”仍只给“故事取材于《三国演义》”，没有给出同一对象的画面或情节；② 后西庭讲解中“赤壁之战”同样只给出处标签；③ 输入“给我讲讲月台上的截江夺阿斗”或“给我讲讲后西庭的赤壁之战”时，实际走 `tour_qa` 并返回整个点位的关联文物清单，而非该对象的受控详情。未提供 thread ID、Trace URL 或原始消息体；后续必须以相同输入捕获 Trace、对象 evidence、最终 `selected_items` 和游客消息后定位。 |
-| 推荐修复与复测 | 先以实际输入补充集成测试：月台首次讲“截江夺阿斗”、后西庭首次讲“赤壁之战”，以及两个“点位 + 明确对象”提问。只有命中同一对象级审核证据时，渲染器才可输出一项场景/人物/画面细节；否则保留简短鉴定或说明资料不足，不能补写。路由应将明确且可唯一匹配的“审核点位 + 审核对象”优先导向对象详情通道，宽泛“这里有什么”才返回点位清单。同步核对预算裁剪是否错误丢弃对象情节句。完成后复测“再讲详细一点”、短预算、`listen_only`、内部字段隐藏和 TourState 不变。 |
-| 验收 | 对象讲解比“题材标签”多至少一个来源支持的画面、寓意或故事要素；明确对象提问回答该对象而不是整个点位清单；来源不足时不虚构。 |
+| 问题描述 | Studio 曾显示月台“截江夺阿斗”和后西庭“赤壁之战”只留下《三国演义》出处标签；“给我讲讲月台上的截江夺阿斗”“给我讲讲后西庭的赤壁之战”还会退化为整个点位的文物清单。多对象文本同时混有项目符号和长段落。 |
+| 根因 | 到点 E5、旧 B3 回退和 `tour_qa` 没有共同的“审核对象 → 同一对象证据 → 游客段落”结构。`tour_qa` 在对象名解析前先命中点位 inventory；渲染器以分散的关键词选择句子，导致可用的场景句不能稳定跟随对象输出；B3 曾接受没有对象标题路径的原始片段。 |
+| 本轮实现 | 新增 `ornament_detail_runtime.py` 作为无状态对象证据视图：只接受 `08_ornament_items.md` 中标题路径与同一对象名称一致、且含来源 ID 的证据。视图按 `full`、`partial`、`basic`、`insufficient` 分级；故事、人物、画面、寓意只从同一 `ornament_id` 的条目取用。`narration_rendering.py`、旧 `guide_narration.py` B3 和 `tour_qa` 的对象详情均复用该选择与扁平段落渲染。`07_ornament_crafts.md` 仅保留为 B3 工艺背景，不能补写对象故事。 |
+| 路由与消歧 | “明确审核点位 + 明确审核对象 + 讲解动作”先进入 `ornament_detail`，再决定是否检索对象级证据；宽泛“月台有什么/这里有什么”继续进入 inventory。对象与点位不匹配时不跨点嫁接；同名“踏雪寻梅”保持澄清，不按名称猜唯一对象。前庭“踏雪寻梅”只能带点位、工艺或对象 ID 的审核上下文消歧。`orn_083` 的异常工艺字段继续失败关闭，不改空间数据或知识正文。 |
+| 真实映射与覆盖 | 负责人确认的主矩阵为：前院中部 `orn_005/orn_008/orn_072`；月台 `orn_041/orn_078/orn_089`；后西庭 `orn_034/orn_049/orn_003`；前庭 `踏雪寻梅` 仅消歧使用。对这 10 个可唯一审核对象，当前 `08` 对象条目可解析为 `full` 证据覆盖；异常 `orn_083` 单列为 `insufficient` 安全关闭。博古图实际为后庭东侧 `orn_082` 陶塑，未纳入本轮四点位矩阵。 |
+| 游客文本与状态边界 | 每件对象使用独立短段，渲染器不输出嵌套项目符号、原始 RAG Markdown、文件名、URL、来源编号、`source_ids`、对象/节点 ID 或工具字段；内部 evidence、`used_source_ids`、Coverage 与 Trace 仍保留。`listen_only` 不产生问号或互动任务。对象问答、到点讲解与安全关闭均不写 TourState、VisitorProfile、路线或 StopProgram。 |
+| 自动化验证 | 新增 `test_ornament_detail_runtime.py`，覆盖真实主矩阵、月台对象详情、错误点位失败关闭、`踏雪寻梅` 歧义、`orn_083` 异常工艺安全关闭、inventory 不抢路由、`listen_only` 与状态不变、同对象故事段落和内部字段隐藏。已实际运行：`.venv\\Scripts\\python.exe -m unittest -v test_ornament_detail_runtime.py test_e5_narration_rendering.py test_e5_stop_guidance_coverage_integration.py test_e5_narration_runtime_acceptance.py test_guide_narration.py test_guide_program_evidence.py test_tour_qa.py test_agent_tour_qa.py test_stage_b_e2e.py`，93 项通过；`git diff --check` 通过。 |
+| LangSmith 状态 | `implemented_pending_langsmith_verification`。本轮未启动或执行 LangSmith；自动测试不能替代 Studio 验收。此前的 Studio 截图保留为原始复现证据，需在新本地服务上重新执行。 |
+| 后续 Studio 复测 | 依次验证：30 分钟、木雕和灰塑、详细讲解后到达月台；“给我讲讲月台上的截江夺阿斗”；“给我讲讲后西庭的赤壁之战”；“再讲详细一点”；宽泛“月台有什么”；短预算、`listen_only`、无对象级证据、同名踏雪寻梅消歧和多对象手机版式。每条记录 Trace、最终对象、来源审计与 TourState 前后差异。 |
+| 验收 | 明确对象问题回答该对象而不是点位清单；`full` 对象至少给出一个同对象来源支持的画面、人物、情节或寓意；证据不足时不虚构；游客文本无内部字段；完成上述 Studio 矩阵前不得标记 `verified_fixed`。 |
 
 ### P1-10 术语解释没有把概念落到陈家祠实例
 
