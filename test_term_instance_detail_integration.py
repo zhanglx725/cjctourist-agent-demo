@@ -151,6 +151,66 @@ class TermInstanceDetailIntegrationTests(unittest.TestCase):
         self.assertEqual(result["instance_details"], [])
         self.assertEqual(calls, [])
 
+    def test_combined_craft_answers_hide_internal_provenance_but_retain_audit_evidence(self):
+        cases = (
+            (
+                "stop_front_courtyard_center",
+                "这里的石雕是什么？",
+                "状元及第",
+                "orn_080",
+                [_entry(
+                    "状元及第",
+                    "类型：石雕。画面刻有高中状元者身穿官服。",
+                    ornament_id="orn_080",
+                    craft="石雕",
+                    node_id="stop_front_courtyard_center",
+                )],
+            ),
+            (
+                "stop_front_courtyard_north",
+                "这里的石雕是什么？",
+                "踏雪寻梅",
+                "orn_074",
+                [_entry(
+                    "踏雪寻梅",
+                    "类型：石雕。画面描绘孟浩然踏雪寻梅。",
+                    ornament_id="orn_074",
+                    craft="石雕",
+                    node_id="stop_front_courtyard_north",
+                )],
+            ),
+            (
+                "label_moon_platform",
+                "这里的石雕是什么？",
+                "引福归堂",
+                "orn_078",
+                [_entry(
+                    "引福归堂",
+                    "类型：石雕。钟馗一手执扇，一手引福归堂。",
+                    ornament_id="orn_078",
+                    craft="石雕",
+                    node_id="label_moon_platform",
+                )],
+            ),
+        )
+        for node_id, query, ornament_name, ornament_id, payload in cases:
+            with self.subTest(node_id=node_id):
+                result, _, _, _ = self._answer(query, node_id, payload)
+                self.assertIn(ornament_name, result["message"])
+                for forbidden in ("S10", "S11", "来源：", ".md", ornament_id, node_id):
+                    self.assertNotIn(forbidden, result["message"])
+                self.assertTrue(any("S10" in item.get("source_ids", []) for item in result["evidence"]))
+                self.assertEqual(result["instance_details"][0]["source_ids"], ["S11"])
+
+        whole_site = answer_tour_question(
+            "石雕是什么？", None, None,
+            lambda _: self.fail("whole-site craft overview must not retrieve object packets"),
+        )
+        self.assertEqual(whole_site["instance_context_origin"], "whole_site")
+        for forbidden in ("S10", "S11", "来源：", ".md", "orn_", "node_id"):
+            self.assertNotIn(forbidden, whole_site["message"])
+        self.assertTrue(any("S10" in item.get("source_ids", []) for item in whole_site["evidence"]))
+
 
 if __name__ == "__main__":
     unittest.main()

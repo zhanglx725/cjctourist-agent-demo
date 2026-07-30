@@ -406,5 +406,6 @@ def render_craft_explanation(
         message = f"{intro}\n\n{body}"
     else:
         message = "\n\n".join(paragraphs)
-    sources = "、".join(record.source_ids)
-    return f"{message}\n\n（依据陈家祠建筑装饰工艺总览，来源：{sources}）"
+    # Provenance belongs to the structured evidence channel.  Do not expose
+    # internal source identifiers in the visitor-facing craft explanation.
+    return message

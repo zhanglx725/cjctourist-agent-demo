@@ -217,6 +217,17 @@ class CraftKnowledgeTests(unittest.TestCase):
                     self.assertEqual(field.text in brief, field.label in selected_labels)
                     self.assertIn(field.text, detailed)
 
+    def test_all_craft_visitor_rendering_hides_internal_provenance(self):
+        for craft in CRAFT_TERMS:
+            record = load_craft_record(craft)
+            for detail_level in ("brief", "detailed"):
+                with self.subTest(craft=craft, detail_level=detail_level):
+                    message = render_craft_explanation(record, detail_level)
+                    for forbidden in ("来源：", "S10", ".md", "source_ids"):
+                        self.assertNotIn(forbidden, message)
+                    self.assertEqual(record.source_ids, ("S10",))
+                    self.assertEqual(record.as_evidence()["source_ids"], ["S10"])
+
     def test_agent_router_sends_all_craft_explanations_to_tour_qa(self):
         for craft in CRAFT_TERMS:
             for query in (f"什么是{craft}", f"详细介绍{craft}"):

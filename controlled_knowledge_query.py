@@ -100,6 +100,7 @@ _QUESTION_QUERY_HINTS = {
 _FORBIDDEN_VISITOR_TOKENS = (
     ".md",
     "source_ids",
+    "used_source_ids",
     "chunk_id",
     "title_path",
     "node_id",
@@ -110,7 +111,11 @@ _FORBIDDEN_VISITOR_TOKENS = (
     "DSML",
     "tool_calls",
 )
-_SOURCE_ID = re.compile(r"(?<![A-Za-z0-9])S\d+(?![A-Za-z0-9])")
+_SOURCE_ID = re.compile(r"(?<![A-Za-z0-9])S\d+(?![A-Za-z0-9])", re.IGNORECASE)
+_INTERNAL_IDENTIFIER = re.compile(
+    r"(?<![A-Za-z0-9_])(?:label_[A-Za-z0-9_]+|stop_[A-Za-z0-9_]+|orn_\d+|term_[A-Za-z0-9_]+)(?![A-Za-z0-9_])",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -297,9 +302,13 @@ def _visitor_answer_is_safe(message: str) -> bool:
     compact = str(message or "").strip()
     if not compact or len(compact) > 1800:
         return False
-    if any(token in compact for token in _FORBIDDEN_VISITOR_TOKENS):
+    normalized = compact.casefold()
+    if any(token.casefold() in normalized for token in _FORBIDDEN_VISITOR_TOKENS):
         return False
-    return _SOURCE_ID.search(compact) is None
+    return (
+        _SOURCE_ID.search(compact) is None
+        and _INTERNAL_IDENTIFIER.search(compact) is None
+    )
 
 
 def _render_reviewed_invoice_rule(

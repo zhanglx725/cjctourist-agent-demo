@@ -41,7 +41,7 @@
 | 1 | P1-11 新位置后的重规划 | `open` | 在确认式重规划中使用已审核新位置作为候选起点 | 改动 A1 契约前需负责人确认 |
 | 2 | P1-20 规划前对象故事请求可能越过对象级证据边界 | `needs_evidence_triage` | 以实际 Trace 与返回 evidence 核对 `direct_rag → llm_think` 是否只使用同一对象的审核资料 | 未核验前不得把长篇传说当作可用事实，也不得仅凭截图断言其为虚构 |
 | 3 | P1-10 术语—实例关联被通用知识计划抢占 | `verified_fixed` | 已完成当前点严格实例范围及 Studio 复测 | 不放宽术语资格或英语门控；当前点不是可见保证 |
-| 4 | P1-21 通用工艺问答仍显示内部来源编号 | `reproduced_needs_root_cause_triage` | 修复 `controlled_knowledge` 游客渲染的引用边界，并保留结构化审计 | 不与 P1-19 的 B3 回退泄漏混为同一出口 |
+| 4 | P1-21 通用工艺问答仍显示内部来源编号 | `implemented_pending_langsmith_verification` | 复测工艺总述和真实 `controlled_knowledge` 两个游客出口 | 不与 P1-19 的 B3 回退泄漏混为同一出口 |
 | 5 | P2 模式、卡片调度与界面 | `open` | 在 P1 控制层稳定后再写契约 | 不以聊天语气推断画像 |
 | 6 | P2-07 站点讲解列表层级与缩进可读性 | `reproduced_needs_root_cause_triage` | 对照原始游客消息、不同对象数与 Studio 渲染；在不改变事实、来源和状态边界的前提下修复 | 不得靠删除对象内容或改写知识事实规避 |
 
@@ -219,7 +219,10 @@
 | 风险 | 访客会看到内部来源编号；若仅修改字符串而删除 `evidence`、`source_ids` 或 Trace 审计，会破坏证据可追溯性。 |
 | 修复方向 | 仅在游客渲染器中移除 `来源：Sxx`、文件名、URL、节点 ID、原始 chunk 等内部字段；继续在结构化 `evidence`、`source_ids`、`used_source_ids` 和 Trace 中保留来源。无证据时仍安全关闭，不以模型补写。 |
 | 验收 | 对 `controlled_knowledge`、工艺定义、失败关闭和游览前后两种问答入口分别断言游客文本无内部字段、结构化来源仍存在且 TourState/VisitorProfile 不变；随后在 Studio 用“石雕是什么”复测。 |
-| 当前状态 | `reproduced_needs_root_cause_triage`。本轮只记录，不修改 P1-19 的结论，也不将截图当成已完成的 LangSmith 验收。 |
+| 实施结果 | P1-10 后“石雕是什么”的实际游客出口为 `whole_site_craft_overview`，确定性泄漏根因是 `craft_knowledge.render_craft_explanation()` 主动拼接“来源：S10”尾注，而非删除结构化证据所能解决。该尾注已移除；`CraftRecord.source_ids`、`CraftRecord.as_evidence()`、`result.evidence[*].source_ids`、`result.term.source_ids` 和对象详情的 `S11` 继续仅保留在审计结构中。 |
+| controlled_knowledge 加固 | 原模块已有无证据不调用模型、危险候选整体失败关闭的机制；本轮保留该机制并扩展内部标识矩阵：来源编号、文件名、URL、检索字段，以及 `label_*`、`stop_*`、`orn_*`、`term_*`。命中时拒绝整段候选，不作字符串删除或第二次模型补写，结构化 evidence 不丢失。 |
+| 自动化验证 | 已实际运行工艺、术语实例、受控知识双入口和相关回归；完整 `unittest discover -v` 为 675 项 `OK`。测试覆盖七种工艺 brief/detailed、前院中部/前庭/月台/无位置实例组合、`direct_rag` 与活动 `tour_qa` 的 controlled_knowledge 安全回退，以及 TourState/VisitorProfile 不变。 |
+| 当前状态 | `implemented_pending_langsmith_verification`。尚未执行本轮 LangSmith；必须分别确认真实工艺链路与真实 `controlled_knowledge` 链路均无内部字段后，才可标记 `verified_fixed`。P1-19 状态未修改。 |
 
 ### P1-20 规划前对象故事请求可能越过对象级证据边界
 

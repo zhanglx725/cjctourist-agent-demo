@@ -345,6 +345,47 @@ class AgentTourQaTests(unittest.TestCase):
             "tour_qa_controlled_knowledge_answer",
         )
 
+    def test_controlled_knowledge_rejects_internal_candidate_in_direct_and_tour_entries(self):
+        unsafe_candidate = "这段回答含有内部编号：S10 和 orn_080。"
+
+        no_route = self._normalize_story_question()
+        with (
+            patch("agent_graph.chen_clan_academy_rag_search") as rag,
+            patch("agent_graph._invoke_grounded_knowledge_model", return_value=unsafe_candidate),
+        ):
+            rag.invoke.return_value = ORNAMENT_STORY_PAYLOAD
+            retrieval = direct_rag_node(no_route)
+        direct_state = {
+            **no_route,
+            **retrieval,
+            "messages": [*no_route["messages"], *retrieval["messages"]],
+        }
+        with patch("agent_graph.build_model") as build_model:
+            direct_message = llm_think_node(direct_state)["messages"][0].content
+        build_model.assert_not_called()
+        self.assertIn("无法把证据安全整理成游客答案", direct_message)
+        self.assertNotIn(unsafe_candidate, direct_message)
+        self.assertTrue(retrieval["retrieved_evidence"])
+
+        arrived = self._arrived_tour()
+        before_tour = deepcopy(arrived["tour_state"])
+        before_profile = deepcopy(arrived.get("visitor_profile"))
+        active = self._normalize_story_question(arrived)
+        with (
+            patch("agent_graph.chen_clan_academy_rag_search") as rag,
+            patch("agent_graph._invoke_grounded_knowledge_model", return_value=unsafe_candidate),
+        ):
+            rag.invoke.return_value = ORNAMENT_STORY_PAYLOAD
+            update = tour_qa_node(active)
+        message = update["messages"][0].content
+        self.assertIn("无法把证据安全整理成游客答案", message)
+        self.assertNotIn(unsafe_candidate, message)
+        self.assertTrue(update["retrieved_evidence"])
+        self.assertNotIn("tour_state", update)
+        self.assertNotIn("visitor_profile", update)
+        self.assertEqual(arrived["tour_state"], before_tour)
+        self.assertEqual(arrived.get("visitor_profile"), before_profile)
+
     def test_explicit_point_inventory_routes_to_tour_qa_without_active_route(self):
         request = _message_state("月台有哪些装饰？")
         self.assertEqual(route_initial_request(request), "tour_qa")

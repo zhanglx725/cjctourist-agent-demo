@@ -125,6 +125,51 @@ class ControlledKnowledgeQueryTests(unittest.TestCase):
         self.assertNotIn(".md", message)
         self.assertNotIn("S11", message)
 
+    def test_each_internal_identifier_rejects_the_entire_model_candidate(self):
+        plan = ControlledKnowledgePlan(
+            "ornament_item", "story", "三顾茅庐", "brief"
+        )
+        evidence = [{"category": "ornament_item", "content": "故事证据"}]
+        forbidden_candidates = (
+            "来源：S10",
+            "S11",
+            "S123",
+            "参见 07_ornament_crafts.md",
+            "http://example.com",
+            "https://example.com",
+            "source_ids",
+            "used_source_ids",
+            "title_path",
+            "chunk_id",
+            "node_id",
+            "retrieval_methods",
+            "knowledge_base",
+            "label_moon_platform",
+            "stop_front_courtyard_center",
+            "orn_080",
+            "term_stone_carving",
+        )
+        for candidate in forbidden_candidates:
+            with self.subTest(candidate=candidate):
+                message = render_controlled_knowledge_answer(
+                    plan,
+                    evidence,
+                    lambda _: f"这是不应展示的候选：{candidate}",
+                )
+                self.assertIn("无法把证据安全整理成游客答案", message)
+                self.assertNotIn(candidate, message)
+
+    def test_safe_model_candidate_is_returned_without_losing_scoped_evidence(self):
+        plan = ControlledKnowledgePlan(
+            "ornament_item", "story", "三顾茅庐", "brief"
+        )
+        evidence = [{"category": "ornament_item", "content": "故事证据"}]
+        message = render_controlled_knowledge_answer(
+            plan, evidence, lambda _: "刘备三次拜访诸葛亮，表达了诚心求贤。"
+        )
+        self.assertIn("刘备三次拜访诸葛亮", message)
+        self.assertEqual(filter_plan_evidence(plan, evidence), evidence)
+
     def test_dynamic_answer_always_carries_the_current_notice(self):
         plan = ControlledKnowledgePlan(
             "ticketing", "eligibility", "学生票", "brief"

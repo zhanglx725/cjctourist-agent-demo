@@ -1014,6 +1014,12 @@ glossary_ids
 - 明确点位概览（如“讲讲月台”）进入该点的审核讲解包，点位仅限定本轮查询，不改变 `current_stop_id`。当前点工艺术语先核对本点审核对象；不存在时返回 `current_craft_absent`，不以全馆资料补造眼前实例。
 - 顶层对“明确危险动作 + 明确拍照意图”先送入 D6 安全拒绝，再进行到达或多意图仲裁；拒绝不会查询打卡候选，也不会写入 TourState。
 
+## P1-21 游客文本与内部审计来源分离（已实现，待 LangSmith 验证）
+
+- 工艺总述的游客渲染不再拼接内部来源编号；工艺和对象来源继续保留在 `evidence`、术语元数据与 Trace 审计结构中。
+- `controlled_knowledge` 保持无证据不调用模型、危险候选整段失败关闭，并新增文件名、URL、检索字段和内部对象/节点/术语标识的拒绝覆盖；不会通过字符串删除后继续展示候选文本。
+- 已完成 81 项主定向、50 项相关回归和完整 675 项 `unittest discover -v`；状态为 `implemented_pending_langsmith_verification`，尚未把本地测试写成 Studio 通过。
+
 ## E5-0 个性化讲解质量、首次工艺介绍与文物深度契约（已冻结，未接入生产行为）
 
 - 新增 `E5_NARRATION_CONTRACT.md`，冻结从 VisitorProfile、GuidancePolicy、StopProgram、NarrationCoverage、RAG evidence 到确定性游客讲解的职责边界。

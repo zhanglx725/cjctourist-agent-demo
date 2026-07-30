@@ -172,7 +172,11 @@ class QaFollowUpTests(unittest.TestCase):
         self.assertEqual(detailed["mode"], "qa_follow_up_global_craft")
         self.assertIsNone(detailed["retrieval_query"])
         self.assertIn("灰塑", detailed["message"])
-        self.assertIn("来源：S10", detailed["message"])
+        self.assertNotIn("来源：", detailed["message"])
+        self.assertNotIn("S10", detailed["message"])
+        self.assertTrue(
+            any("S10" in item.get("source_ids", []) for item in detailed["evidence"])
+        )
         self.assertIn("草筋灰或纸筋灰", detailed["message"])
         self.assertNotIn("根据本地知识库检索到的资料", detailed["message"])
         self.assertNotIn("08_ornament_items.md", detailed["message"])
