@@ -40,8 +40,10 @@
 | 0 | P1-04 空间节点冲突 | `blocked_pending_owner_confirmation` | 等空间负责人确认“后西庭/后庭西侧”的权威节点与别名 | 禁止模型或代码自建点位别名 |
 | 1 | P1-11 新位置后的重规划 | `open` | 在确认式重规划中使用已审核新位置作为候选起点 | 改动 A1 契约前需负责人确认 |
 | 2 | P1-20 规划前对象故事请求可能越过对象级证据边界 | `needs_evidence_triage` | 以实际 Trace 与返回 evidence 核对 `direct_rag → llm_think` 是否只使用同一对象的审核资料 | 未核验前不得把长篇传说当作可用事实，也不得仅凭截图断言其为虚构 |
-| 3 | P2 模式、卡片调度与界面 | `open` | 在 P1 控制层稳定后再写契约 | 不以聊天语气推断画像 |
-| 4 | P2-07 站点讲解列表层级与缩进可读性 | `reproduced_needs_root_cause_triage` | 对照原始游客消息、不同对象数与 Studio 渲染；在不改变事实、来源和状态边界的前提下修复 | 不得靠删除对象内容或改写知识事实规避 |
+| 3 | P1-10 术语—实例关联被通用知识计划抢占 | `reproduced_needs_root_cause_triage` | 令可运行的术语定义优先于 `controlled_knowledge`，并复测当前点实例排序 | 不放宽术语资格或英语门控；当前点不是可见保证 |
+| 4 | P1-21 通用工艺问答仍显示内部来源编号 | `reproduced_needs_root_cause_triage` | 修复 `controlled_knowledge` 游客渲染的引用边界，并保留结构化审计 | 不与 P1-19 的 B3 回退泄漏混为同一出口 |
+| 5 | P2 模式、卡片调度与界面 | `open` | 在 P1 控制层稳定后再写契约 | 不以聊天语气推断画像 |
+| 6 | P2-07 站点讲解列表层级与缩进可读性 | `reproduced_needs_root_cause_triage` | 对照原始游客消息、不同对象数与 Studio 渲染；在不改变事实、来源和状态边界的前提下修复 | 不得靠删除对象内容或改写知识事实规避 |
 
 ### 2.2 已实现、待 LangSmith 人工验收（不与未修改问题混排）
 
@@ -53,7 +55,6 @@
 | P1-07 单一事实、访问服务与受控计算 | `implemented_pending_langsmith_verification` | 游览前后复测 11 项事实／计算 | 无证据失败关闭 |
 | P1-08 站点讲解观察提示与数量一致性 | `implemented_pending_langsmith_verification` | 已完成基础 Studio 复测；继续复测前庭、后西庭、短预算、listen_only 与 E5 失败回退 | 基础复测未见机械重复或数量不一致，仍不能代替完整矩阵验收 |
 | P1-09 证据驱动的对象级讲解 | `implemented_pending_langsmith_verification` | 复测月台/后西庭对象详情、到站首讲、追问、短预算与多对象版式 | 仅使用同一 `ornament_id` 的对象级证据；无证据关闭 |
-| P1-10 术语—实例关联 | `implemented_pending_langsmith_verification` | 复测定义问法、当前点排序、草稿英文、研究/比较边界与无实例关闭 | 当前点只提升审核实例排序；不保证现场可见 |
 | P1-19 E5 失败回退仍向游客展示内部来源编号 | `implemented_pending_langsmith_verification` | 复测 B3 回退、渲染失败回退与风格重述出口 | 内部审计 `used_source_ids` / `source_ids` 必须保留；不得删除失败关闭 |
 | P1-02／P1-03 | `implemented_pending_langsmith_verification` | 完成修复后的 LangSmith 对照复测 | 自动化通过不等于真实链路通过 |
 | P1-13 至 P1-18 | `implemented_pending_langsmith_verification` | 分别按各问题已有同义问法、游览前后双模式复测 | 不得伪造 LangSmith 结论 |
@@ -200,13 +201,25 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 问题描述 | “灰塑是什么”仅得到一句定义，没有列出或展开陈家祠已审核实例。 |
-| 当前现状 | `implemented_pending_langsmith_verification`。D2 术语卡运行时仍以运行资格清单为唯一可运行卡事实源；`glossary_retrieval.reviewed_term_instances()` 仅交叉核对 `term_stop_associations_v1.json` 中 `direct_craft_observation` 的已审核关联与同一 `node_guide_cards_v1.json` 点位卡中的对象 ID、工艺及非空 `raw_location`。`craft_explanation_context` 只可作术语排序/提示，不能被提升为对象实例。显式定义问法会先进入术语运行时；“有什么特点”“详细讲讲”等广义工艺问法仍走原有工艺证据路径。 |
-| 期望状态 | 定义后给出一至两个审核关联实例；有当前点时优先提供“存在审核关联、以现场为准”的限定说明；没有可靠实例时明确说明。 |
-| 本轮修复 | `term_card_runtime.py` 对已审核中文定义最多补充两条受限实例，内部保留 `term_instances`、术语卡 `source_ids`、对象 ID、节点 ID、关联证据与 `raw_location` 供审计，但游客文本不显示来源编号、卡片/对象/节点 ID、文件名、URL 或原始字段。当前点只使本点直接审核实例排在前面，并使用“存在审核关联、以现场为准”的限定；无直接对象证据时不补对象实例。`tour_qa.py` 让显式术语定义优先于全馆工艺总述，同时显式研究/比较问题继续保留原有受控入口。 |
-| 自动化验证 | 新增受限实例选择、当前点优先、上下文关联不得伪装对象实例、最多两项、游客文本隐藏 `S10` 但结构化 `source_ids` 保留、术语问答状态不变及研究问题不被术语实例抢占的定向断言；同步更新无路线术语定义的既有预期。使用项目 `.venv` 实际运行 `test_glossary.py`、`test_glossary_retrieval.py`、`test_term_card_runtime.py`、`test_glossary_acceptance_cases.py`、`test_tour_qa.py`、`test_agent_tour_qa.py`、`test_agent_tour_state.py`、`test_stage_b_e2e.py`、`test_e5_narration_rendering.py`、`test_e5_narration_runtime_acceptance.py`，共 115 项通过；`git diff --check` 通过。 |
-| LangSmith 状态 | `implemented_pending_langsmith_verification`。本轮未启动或执行 Studio。后续应分别以新线程复测：“灰塑是什么？”、“我在前院中部，灰塑是什么？”、“我在月台，石雕是什么？”、“通花栏板是什么？”、“栏杆英文怎么说？”、“这里有什么？”、“从学术研究角度，陈家祠灰塑有什么价值？”、“灰塑和砖雕有什么区别？”及“我到月台了”。确认实例来自审核关联、当前点仅改变排序、不泄漏内部字段、草稿英文仍被阻止，且 TourState/路线/VisitorProfile 不变。 |
-| 验收 | 定义回答包含 0—2 条可审计审核实例；只在有当前点直接关联时给出安全现场限定；不夸大现场可见性、不绕过英文资格、不抢研究/比较/到达流程。 |
+| 问题描述 | 已实现的术语定义路径应在概念后补充 0—2 个陈家祠审核实例；但 2026-07-30 Studio 在月台上下文输入“石雕是什么”时，实际回复只有通用石雕工艺总述，没有月台石雕实例“引福归堂”。 |
+| 本次实测 | 通过项：① 月台到点详细讲解可分别提到灰塑和石雕；② “捧头英文怎么说？”被正确拒绝为未审核英文，未泄漏草稿译法；③ “从学术研究角度，陈家祠灰塑有什么价值？”仍进入研究卡，没有被术语实例逻辑抢占。失败项：月台上下文下“石雕是什么”未展示 `reviewed_term_instances()` 已能返回的“引福归堂（石雕）”，且游客文本末尾出现“来源：S10”。截图未提供 Trace URL，结论不把本地自动测试视为 Studio 通过。 |
+| 已核对事实 | `term_stop_associations_v1.json` 中 `term_stone_carving → label_moon_platform → orn_078 引福归堂（石雕）` 为 `direct_craft_observation`；`reviewed_term_instances('term_stone_carving', current_node_id='label_moon_platform')` 可稳定返回该实例，并在纯 `answer_tour_question()` 调用中输出“月台的引福归堂”。因此不是点位关联或实例登记缺失。 |
+| 根因 | `agent_graph.tour_qa_node` 会将 `semantic_normalization` 的 `normalized_knowledge_plan` 传给 `answer_tour_question()`；该函数当前在术语卡资格过滤之前执行 `controlled_knowledge` 分支。若模型把“石雕是什么”归为 `ornament_craft / definition`，通用工艺渲染便抢占可运行术语卡，绕过 `answer_term_question()` 与实例选择。已用等价的受控 `ControlledKnowledgePlan` 复现该优先级：结果为 `controlled_knowledge`，不是 `term_card`。Studio 截图的 `semantic_normalization → tour_qa` 与通用 S10 工艺答复符合该调用链；仍需 Trace 中的实际 plan 字段做最终佐证。 |
+| 全面修复方案 | ① 在 `tour_qa` 入口建立资格优先门：对“已审核术语 + 定义/拼音/英文/领域/别名”先执行术语运行时；仅术语卡无资格、歧义或无命中时才允许通用知识计划。② `semantic_normalization` 对可运行术语定义不得产生可执行 `ornament_craft / definition` 计划，或由下游显式降级为术语卡；研究、比较、拍照、到达和明确对象详情保持更高/既有受控优先级。③ 复用 `reviewed_term_instances()`：当前点 `direct_craft_observation` 实例优先、最多两项；只能说“存在审核关联、以现场为准”，不能断言眼前可见。④ 以游览前、月台、前院中部和无关联点四种上下文做端到端回归，断言 `term_card`/`term_instances`、TourState 不变、草稿英文继续关闭，并验证研究/比较不被术语抢占。 |
+| 关联边界问题 | Studio 同一通用工艺答案显示“来源：S10”。这不是 P1-19 的 B3 回退出口，而是 `controlled_knowledge` 游客渲染的独立引用泄漏；登记为 P1-21，不能靠删除内部审计字段或将 P1-19 标记完成来掩盖。 |
+| 当前状态 | `reproduced_needs_root_cause_triage`。现有 115 项自动测试只证明直接术语适配器与部分路由场景，未覆盖“语义归一已生成 `ornament_craft / definition` 计划时”的优先级。不得标记 `implemented_pending_langsmith_verification` 或 `verified_fixed`。 |
+| 后续验收 | 自动化必须新增“带可执行 knowledge plan 的石雕是什么”优先走术语卡、月台实例为引福归堂、无当前点最多两项稳定实例、研究/比较/到达不被抢占、草稿英文拒绝、通用回退无内部字段。Studio 新线程分别复测月台“石雕是什么”、月台“我在这里，石雕是什么”、无路线“石雕是什么”、英文草稿和研究问题；记录实际 plan、`term_instances`、游客消息与 TourState 前后状态。 |
+
+### P1-21 通用工艺问答仍向游客展示内部来源编号
+
+| 项目 | 内容 |
+| --- | --- |
+| 问题描述 | 2026-07-30 Studio 在月台上下文输入“石雕是什么”时，通用工艺回答末尾直接显示“来源：S10”。来源编号是内部审计字段，不能作为游客端文案。 |
+| 真实出口 | 截图显示路径为 `semantic_normalization → tour_qa`，且输出是通用石雕工艺总述；这与 `controlled_knowledge` 的游客渲染出口一致。它不同于 P1-19 已修复的 E5/B3 失败回退引用包装，必须分别覆盖。截图未提供 Trace URL 或原始 plan，最终出口仍需用 Trace 复核。 |
+| 风险 | 访客会看到内部来源编号；若仅修改字符串而删除 `evidence`、`source_ids` 或 Trace 审计，会破坏证据可追溯性。 |
+| 修复方向 | 仅在游客渲染器中移除 `来源：Sxx`、文件名、URL、节点 ID、原始 chunk 等内部字段；继续在结构化 `evidence`、`source_ids`、`used_source_ids` 和 Trace 中保留来源。无证据时仍安全关闭，不以模型补写。 |
+| 验收 | 对 `controlled_knowledge`、工艺定义、失败关闭和游览前后两种问答入口分别断言游客文本无内部字段、结构化来源仍存在且 TourState/VisitorProfile 不变；随后在 Studio 用“石雕是什么”复测。 |
+| 当前状态 | `reproduced_needs_root_cause_triage`。本轮只记录，不修改 P1-19 的结论，也不将截图当成已完成的 LangSmith 验收。 |
 
 ### P1-20 规划前对象故事请求可能越过对象级证据边界
 
