@@ -66,6 +66,7 @@ from semantic_normalization import (
     canonical_knowledge_plan,
     recognize_semantic_candidate,
 )
+from pre_semantic_arbitration import resolve_pre_semantic_action
 from controlled_knowledge_query import (
     ControlledKnowledgePlan,
     build_controlled_retrieval_query,
@@ -293,27 +294,30 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
     """Propose a safe control or fact normalization without executing it."""
     started = time.perf_counter()
     raw_text = _latest_user_text(state)
-    decision = classify_tour_intent(
-        raw_text, state.get("tour_state"), state.get("tour_interaction_state")
-    )
-    deterministic_fact_kind = identify_single_fact_kind(raw_text)
     deterministic_knowledge_plan = identify_controlled_knowledge_plan(raw_text)
-    specialized_knowledge = (
-        parse_craft_explanation_request(raw_text) is not None
-        or parse_craft_location_request(raw_text) is not None
-        or is_explicit_photo_request(raw_text)
-        or is_visit_safety_question(raw_text)
-        or is_explicit_comparison_question(raw_text)
-        or is_explicit_research_question(raw_text)
-        or is_explicit_term_question(raw_text)
-        or resolve_ornament_story_scope_request(raw_text, state.get("tour_state")) is not None
-        or is_point_inventory_request(raw_text, state.get("tour_state"))
-    )
+    pre_semantic = resolve_pre_semantic_action(state, raw_text)
+    if pre_semantic.consumed:
+        return {
+            "semantic_candidate": None,
+            "semantic_control_text": None,
+            "semantic_fact_kind": None,
+            "knowledge_query_plan": None,
+            "performance_metrics": _append_metric(
+                state,
+                "semantic_normalization",
+                time.perf_counter() - started,
+                status="not_needed",
+                reason=pre_semantic.reason,
+                route_target=pre_semantic.route_target,
+                model_called=False,
+            ),
+        }
+    # Controlled knowledge is deliberately broad and therefore sits *after*
+    # the shared deterministic/specialist arbitration above.  This prevents a
+    # valid specialist request from being captured merely because it also has
+    # a general knowledge classification.
     if (
         deterministic_knowledge_plan is not None
-        and deterministic_fact_kind is None
-        and not specialized_knowledge
-        and not is_unsafe_photo_request(raw_text)
     ):
         return {
             "semantic_candidate": None,
@@ -325,22 +329,14 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
                 "semantic_normalization",
                 time.perf_counter() - started,
                 status="deterministic_knowledge_plan",
+                model_called=False,
                 knowledge_domain=deterministic_knowledge_plan.domain,
                 knowledge_question_type=(
                     deterministic_knowledge_plan.question_type
                 ),
             ),
         }
-    # Existing deterministic controls/facts and specialized read-only paths
-    # retain precedence.  The model is only a closed classifier for text that
-    # those parsers did not already consume.
-    if (
-        not raw_text
-        or is_unsafe_photo_request(raw_text)
-        or deterministic_fact_kind is not None
-        or specialized_knowledge
-        or decision.route_kind not in {"other", "rag_question"}
-    ):
+    if not raw_text:
         return {
             "semantic_candidate": None,
             "semantic_control_text": None,
@@ -348,7 +344,7 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
             "knowledge_query_plan": None,
             "performance_metrics": _append_metric(
                 state, "semantic_normalization", time.perf_counter() - started,
-                status="not_needed",
+                status="not_needed", reason="empty_input", model_called=False,
             ),
         }
     candidate = recognize_semantic_candidate(raw_text, _invoke_semantic_model)
@@ -385,6 +381,7 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
             knowledge_question_type=(
                 knowledge_plan.question_type if knowledge_plan is not None else None
             ),
+            model_called=True,
         ),
     }
 

@@ -17,6 +17,7 @@ class DurationParserTests(unittest.TestCase):
             "30分钟": 30,
             "三十分钟": 30,
             "半小时": 30,
+            "半个钟头": 30,
             "一个小时": 60,
             "一小时": 60,
             "一个半小时": 90,

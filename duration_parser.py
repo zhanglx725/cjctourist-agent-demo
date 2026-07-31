@@ -20,7 +20,7 @@ _CHINESE_DIGITS = {
 _DURATION_RE = re.compile(
     r"(?:"
     r"(?P<ninety>(?:一个半小时|一小时半|1\.5\s*小时))"
-    r"|(?P<half>半小时)"
+    r"|(?P<half>半(?:个)?(?:小时|钟头))"
     r"|(?P<quarter>一刻钟)"
     r"|(?P<three_quarters>三刻钟)"
     # The numeric-minute form must not restart at the fractional tail of an

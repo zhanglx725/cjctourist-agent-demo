@@ -273,14 +273,20 @@ class VisitorFactRouteAcceptanceTests(unittest.TestCase):
             (
                 "陈家祠最晚什么时候还能进入？",
                 SemanticCandidate(
-                    "fact_last_admission", "最晚什么时候还能进入", "high"
+                    candidate_type="fact_last_admission",
+                    evidence_span="最晚什么时候还能进入",
+                    confidence=0.95,
                 ),
                 "last_admission",
                 "17:00",
             ),
             (
                 "陈家祠一般哪天歇着？",
-                SemanticCandidate("fact_closed_day", "哪天歇着", "high"),
+                SemanticCandidate(
+                    candidate_type="fact_closed_day",
+                    evidence_span="哪天歇着",
+                    confidence=0.95,
+                ),
                 "closed_day",
                 "周二",
             ),

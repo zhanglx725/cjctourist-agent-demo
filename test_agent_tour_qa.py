@@ -275,13 +275,12 @@ class AgentTourQaTests(unittest.TestCase):
     ) -> dict:
         request = _message_state(text, initial)
         candidate = SemanticCandidate(
-            "knowledge_query",
-            subject,
-            "high",
-            None,
-            "ornament_item",
-            "story",
-            "brief",
+            candidate_type="knowledge_query",
+            evidence_span=subject,
+            confidence=0.95,
+            knowledge_domain="ornament_item",
+            question_type="story",
+            detail_level="brief",
         )
         with patch(
             "agent_graph.recognize_semantic_candidate",

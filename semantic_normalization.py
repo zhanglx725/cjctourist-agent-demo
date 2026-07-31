@@ -20,12 +20,13 @@ from controlled_knowledge_query import (
     QUESTION_TYPES,
     ControlledKnowledgePlan,
 )
+from duration_parser import parse_duration_minutes
 
 
-CONTROL_CANDIDATE_KINDS = frozenset(
+CONTROL_CANDIDATE_TYPES = frozenset(
     {
         "none",
-        "generic_arrival",
+        "arrival",
         "available_duration",
         "remaining_duration",
         "route_request",
@@ -47,37 +48,55 @@ FACT_CANDIDATE_TO_KIND = {
     "fact_museum_reopening": "museum_reopening",
     "fact_museum_renaming": "museum_renaming",
 }
-VALID_CANDIDATE_KINDS = frozenset(
-    {*CONTROL_CANDIDATE_KINDS, *FACT_CANDIDATE_TO_KIND}
+VALID_CANDIDATE_TYPES = frozenset(
+    {*CONTROL_CANDIDATE_TYPES, *FACT_CANDIDATE_TO_KIND}
 )
-VALID_CONFIDENCES = frozenset({"high", "low"})
-_MAX_MINUTES = 720
+MIN_ACTIONABLE_CONFIDENCE = 0.9
 
 
 @dataclass(frozen=True)
 class SemanticCandidate:
     """A validated, source-bounded proposal from the semantic recognizer."""
 
-    candidate_kind: str = "none"
-    evidence_text: str = ""
-    confidence: str = "low"
-    minutes: int | None = None
+    candidate_type: str = "none"
+    evidence_span: str = ""
+    confidence: float = 0.0
+    location_text: str | None = None
+    time_text: str | None = None
+    time_role: str | None = None
     knowledge_domain: str | None = None
     question_type: str | None = None
     detail_level: str | None = None
 
     @property
     def actionable(self) -> bool:
-        return self.candidate_kind != "none" and self.confidence == "high"
+        return (
+            self.candidate_type != "none"
+            and isinstance(self.confidence, float)
+            and self.confidence >= MIN_ACTIONABLE_CONFIDENCE
+        )
+
+    # Compatibility accessors are intentionally read-only.  Model JSON and
+    # persisted per-turn state use only the v2 schema below.
+    @property
+    def candidate_kind(self) -> str:
+        return self.candidate_type
+
+    @property
+    def evidence_text(self) -> str:
+        return self.evidence_span
 
     def to_dict(self) -> dict[str, Any]:
         value = {
-            "candidate_kind": self.candidate_kind,
-            "evidence_text": self.evidence_text,
+            "candidate_type": self.candidate_type,
+            "evidence_span": self.evidence_span,
             "confidence": self.confidence,
-            "minutes": self.minutes,
         }
-        if self.candidate_kind == "knowledge_query":
+        if self.candidate_type == "arrival":
+            value["location_text"] = self.location_text
+        elif self.candidate_type in {"available_duration", "remaining_duration"}:
+            value.update({"time_text": self.time_text, "time_role": self.time_role})
+        elif self.candidate_type == "knowledge_query":
             value.update(
                 {
                     "knowledge_domain": self.knowledge_domain,
@@ -94,7 +113,7 @@ def recognition_prompt(user_text: str) -> str:
 不能回答问题、不能补充事实、不能猜测地点、不能生成检索词、类别、node_id、路线或画像。
 
 操作候选：
-- generic_arrival：用户明确表示自己已经抵达，但没有明确点位。
+- arrival：用户明确表示自己已经抵达。若原话明确提到地点，可填写 location_text；否则为 null。
 - available_duration：用户明确给出本次可用于游览的时长。
 - remaining_duration：用户明确给出游览途中剩余时长。
 - route_request：用户请求规划游览路线。
@@ -135,13 +154,17 @@ def recognition_prompt(user_text: str) -> str:
 - “几点闭馆/几点关门”属于 fact_closing_time。
 - “最晚几点能进/几点后不能进入”属于 fact_last_admission，不等同于闭馆时间。
 - 同一句同时要求两个不同候选时输出 none/low，不自行拆分。
-- knowledge_query 的 evidence_text 必须是原话中表示询问对象的最短连续片段，例如“三顾茅庐”“建筑布局”“无障碍设施”；不能自行改写对象，也不能只填“它”“这个”“这里”等脱离上下文无法确定的代词。
+- evidence_span 必须是原话中连续出现的最短相关片段；不能自行改写对象，也不能只填“它”“这个”“这里”等脱离上下文无法确定的代词。
+- arrival 的 location_text 必须是原话中的连续地点片段，不能输出 node_id；没有明确地点时为 null。
+- available_duration / remaining_duration 的 time_text 必须是原话中的连续时间片段，time_role 分别为 available / remaining。不能计算或输出分钟数。
 
-普通候选只输出一行 JSON，严格只含 candidate_kind、evidence_text、confidence、minutes 四个键。
-knowledge_query 严格只含 candidate_kind、evidence_text、confidence、minutes、knowledge_domain、question_type、detail_level 七个键。
-evidence_text 必须是用户原话中连续出现的最短片段；confidence 只能是 high 或 low。
-只有明确时长的两个 duration 类型才填写 minutes（正整数分钟）；其他类型 minutes 为 null。
-有疑义时输出 none/low。
+普通候选只输出一行 JSON，严格只含 candidate_type、evidence_span、confidence 三个键。
+arrival 严格只含 candidate_type、evidence_span、location_text、confidence 四个键。
+duration 严格只含 candidate_type、evidence_span、time_text、time_role、confidence 五个键。
+knowledge_query 严格只含 candidate_type、evidence_span、confidence、knowledge_domain、question_type、detail_level 六个键。
+confidence 必须是 0 到 1 的数字；仅在把握很高时使用不低于 0.90 的值。
+禁止输出 node_id、minutes、seconds、deadline、route、route_id、source_ids、query、categories、answer、state_update、tool 或其他任何键。
+有疑义时输出 {"candidate_type":"none","evidence_span":"","confidence":0.0}。
 
 用户原话：{user_text}"""
 
@@ -159,7 +182,9 @@ def _decode_json(model_output: str) -> dict[str, Any] | None:
 
 def validate_candidate(user_text: str, value: dict[str, Any] | None) -> SemanticCandidate:
     """Fail closed unless the proposed candidate is small and auditable."""
-    base_keys = {"candidate_kind", "evidence_text", "confidence", "minutes"}
+    base_keys = {"candidate_type", "evidence_span", "confidence"}
+    arrival_keys = {*base_keys, "location_text"}
+    duration_keys = {*base_keys, "time_text", "time_role"}
     knowledge_keys = {
         *base_keys,
         "knowledge_domain",
@@ -169,22 +194,62 @@ def validate_candidate(user_text: str, value: dict[str, Any] | None) -> Semantic
     if not isinstance(value, dict):
         return SemanticCandidate()
     actual_keys = frozenset(value)
-    if actual_keys not in {frozenset(base_keys), frozenset(knowledge_keys)}:
+    if not actual_keys:
         return SemanticCandidate()
-    kind = value.get("candidate_kind")
-    evidence_text = value.get("evidence_text")
+    candidate_type = value.get("candidate_type")
+    evidence_span = value.get("evidence_span")
     confidence = value.get("confidence")
-    minutes = value.get("minutes")
-    if not isinstance(kind, str) or kind not in VALID_CANDIDATE_KINDS:
+    if not isinstance(candidate_type, str) or candidate_type not in VALID_CANDIDATE_TYPES:
         return SemanticCandidate()
-    if not isinstance(evidence_text, str) or not evidence_text.strip():
+    if (
+        not isinstance(confidence, (int, float))
+        or isinstance(confidence, bool)
+        or not 0.0 <= float(confidence) <= 1.0
+    ):
         return SemanticCandidate()
-    if evidence_text not in user_text:
+    normalized_confidence = float(confidence)
+    if candidate_type == "none":
+        return (
+            SemanticCandidate()
+            if actual_keys == frozenset(base_keys) and evidence_span == "" and normalized_confidence < MIN_ACTIONABLE_CONFIDENCE
+            else SemanticCandidate()
+        )
+    if not isinstance(evidence_span, str) or not evidence_span.strip():
         return SemanticCandidate()
-    if confidence not in VALID_CONFIDENCES:
+    if evidence_span not in user_text:
         return SemanticCandidate()
-    if kind == "knowledge_query":
-        if set(value) != knowledge_keys or minutes is not None:
+    if candidate_type == "arrival":
+        if actual_keys != frozenset(arrival_keys):
+            return SemanticCandidate()
+        location_text = value.get("location_text")
+        if location_text is not None and (
+            not isinstance(location_text, str)
+            or not location_text.strip()
+            or location_text not in user_text
+        ):
+            return SemanticCandidate()
+        return SemanticCandidate(
+            candidate_type, evidence_span, normalized_confidence,
+            location_text=location_text,
+        )
+    if candidate_type in {"available_duration", "remaining_duration"}:
+        expected_role = "available" if candidate_type == "available_duration" else "remaining"
+        if actual_keys != frozenset(duration_keys):
+            return SemanticCandidate()
+        time_text = value.get("time_text")
+        if (
+            not isinstance(time_text, str)
+            or not time_text.strip()
+            or time_text not in user_text
+            or value.get("time_role") != expected_role
+        ):
+            return SemanticCandidate()
+        return SemanticCandidate(
+            candidate_type, evidence_span, normalized_confidence,
+            time_text=time_text, time_role=expected_role,
+        )
+    if candidate_type == "knowledge_query":
+        if actual_keys != frozenset(knowledge_keys):
             return SemanticCandidate()
         domain = value.get("knowledge_domain")
         question_type = value.get("question_type")
@@ -196,22 +261,16 @@ def validate_candidate(user_text: str, value: dict[str, Any] | None) -> Semantic
         ):
             return SemanticCandidate()
         return SemanticCandidate(
-            kind,
-            evidence_text,
-            confidence,
-            None,
-            domain,
-            question_type,
-            detail_level,
+            candidate_type=candidate_type,
+            evidence_span=evidence_span,
+            confidence=normalized_confidence,
+            knowledge_domain=domain,
+            question_type=question_type,
+            detail_level=detail_level,
         )
-    if set(value) != base_keys:
+    if actual_keys != frozenset(base_keys):
         return SemanticCandidate()
-    if kind in {"available_duration", "remaining_duration"}:
-        if not isinstance(minutes, int) or isinstance(minutes, bool) or not 0 < minutes <= _MAX_MINUTES:
-            return SemanticCandidate()
-    elif minutes is not None:
-        return SemanticCandidate()
-    return SemanticCandidate(kind, evidence_text, confidence, minutes)
+    return SemanticCandidate(candidate_type, evidence_span, normalized_confidence)
 
 
 def recognize_semantic_candidate(
@@ -230,15 +289,17 @@ def canonical_control_text(candidate: SemanticCandidate) -> str | None:
     """Map an approved proposal to existing deterministic parser language."""
     if not candidate.actionable:
         return None
-    if candidate.candidate_kind == "generic_arrival":
-        return "我到了"
-    if candidate.candidate_kind == "available_duration":
-        return f"我有{candidate.minutes}分钟"
-    if candidate.candidate_kind == "remaining_duration":
-        return f"我还剩{candidate.minutes}分钟"
-    if candidate.candidate_kind == "route_request":
+    if candidate.candidate_type == "arrival":
+        return f"我到{candidate.location_text}了" if candidate.location_text else "我到了"
+    if candidate.candidate_type in {"available_duration", "remaining_duration"}:
+        parsed = parse_duration_minutes(candidate.time_text or "")
+        if not parsed.ok:
+            return None
+        prefix = "我有" if candidate.time_role == "available" else "我还剩"
+        return f"{prefix}{parsed.minutes}分钟"
+    if candidate.candidate_type == "route_request":
         return "帮我规划路线"
-    if candidate.candidate_kind == "route_request_minimize_walking":
+    if candidate.candidate_type == "route_request_minimize_walking":
         # Preserve the approved route preference in the deterministic C2
         # vocabulary; C2 still owns validation and persistence.
         return "帮我规划一条少走路的路线"
@@ -250,7 +311,7 @@ def canonical_fact_kind(candidate: SemanticCandidate) -> str | None:
 
     if not candidate.actionable:
         return None
-    return FACT_CANDIDATE_TO_KIND.get(candidate.candidate_kind)
+    return FACT_CANDIDATE_TO_KIND.get(candidate.candidate_type)
 
 
 def canonical_knowledge_plan(
@@ -258,15 +319,15 @@ def canonical_knowledge_plan(
 ) -> ControlledKnowledgePlan | None:
     """Map one validated semantic proposal to a read-only knowledge plan."""
 
-    if not candidate.actionable or candidate.candidate_kind != "knowledge_query":
+    if not candidate.actionable or candidate.candidate_type != "knowledge_query":
         return None
     try:
         return ControlledKnowledgePlan(
             domain=str(candidate.knowledge_domain),
             question_type=str(candidate.question_type),
-            subject_text=candidate.evidence_text,
+            subject_text=candidate.evidence_span,
             detail_level=str(candidate.detail_level),
-            confidence=candidate.confidence,
+            confidence="high",
         )
     except ValueError:
         return None
