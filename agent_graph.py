@@ -34,6 +34,7 @@ from tour_qa import (
     answer_tour_question,
     build_qa_context_from_answer,
     is_point_inventory_request,
+    resolve_ornament_story_scope_request,
 )
 from craft_knowledge import (
     parse_craft_explanation_request,
@@ -110,6 +111,9 @@ class AgentState(TypedDict, total=False):
     active_guidance_evidence_bundle: dict[str, Any]
     active_narration_render_audit: dict[str, Any]
     qa_context: dict[str, Any]
+    # Thread-local control state only: it stores a bounded pending choice among
+    # reviewed same-name objects and is never a second fact or location source.
+    pending_ornament_clarification: dict[str, Any] | None
     # C2 preferences are distinct from TourState's per-tour snapshot.  C3
     # will explicitly copy a validated profile when a route is initialized.
     visitor_profile: dict[str, Any]
@@ -235,7 +239,10 @@ def _effective_knowledge_plan(state: AgentState) -> ControlledKnowledgePlan | No
     normalization pass or a checkpoint.
     """
 
-    if is_explicit_term_question(_latest_user_text(state)):
+    raw_text = _latest_user_text(state)
+    if is_explicit_term_question(raw_text) or resolve_ornament_story_scope_request(
+        raw_text, state.get("tour_state")
+    ) is not None:
         return None
 
     stored = ControlledKnowledgePlan.from_dict(state.get("knowledge_query_plan"))
@@ -285,6 +292,7 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
         or is_explicit_comparison_question(raw_text)
         or is_explicit_research_question(raw_text)
         or is_explicit_term_question(raw_text)
+        or resolve_ornament_story_scope_request(raw_text, state.get("tour_state")) is not None
         or is_point_inventory_request(raw_text, state.get("tour_state"))
     )
     if (
@@ -670,6 +678,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         "active_guidance_evidence_bundle": None,
         "active_narration_render_audit": None,
         "qa_context": clear_qa_context(state.get("qa_context")),
+        "pending_ornament_clarification": None,
         "performance_metrics": _append_metric(
             state,
             "direct_route",
@@ -706,6 +715,7 @@ def profile_collection_node(state: AgentState) -> dict[str, Any]:
         return {
             "messages": [AIMessage(content=message)],
             "qa_context": clear_qa_context(state.get("qa_context")),
+            "pending_ornament_clarification": None,
             "performance_metrics": _append_metric(
                 state, "profile_collection", time.perf_counter() - started,
                 status="ignored",
@@ -715,6 +725,7 @@ def profile_collection_node(state: AgentState) -> dict[str, Any]:
     return {
         "messages": [AIMessage(content=payload["message"])],
         "qa_context": clear_qa_context(state.get("qa_context")),
+        "pending_ornament_clarification": None,
         "visitor_profile": payload["visitor_profile"],
         "profile_collection": payload["profile_collection"],
         "performance_metrics": _append_metric(
@@ -741,6 +752,7 @@ def profile_update_node(state: AgentState) -> dict[str, Any]:
         return {
             "messages": [AIMessage(content=message)],
             "qa_context": clear_qa_context(state.get("qa_context")),
+            "pending_ornament_clarification": None,
             "tour_presentation": presentation,
             "last_profile_update": {"ok": False, "code": "multiple_intents"},
             "performance_metrics": _append_metric(
@@ -753,6 +765,7 @@ def profile_update_node(state: AgentState) -> dict[str, Any]:
         return {
             "messages": [AIMessage(content=presentation["message"])],
             "qa_context": clear_qa_context(state.get("qa_context")),
+            "pending_ornament_clarification": None,
             "tour_presentation": presentation,
             "last_profile_update": {"ok": False, "code": "multiple_intents"},
             "performance_metrics": _append_metric(
@@ -776,6 +789,7 @@ def profile_update_node(state: AgentState) -> dict[str, Any]:
         "last_profile_update": {"ok": result["ok"], "code": result["code"]},
         "tour_presentation": presentation,
         "qa_context": clear_qa_context(state.get("qa_context")),
+        "pending_ornament_clarification": None,
         "performance_metrics": _append_metric(
             state, "profile_update", time.perf_counter() - started,
             ok=result["ok"], code=result["code"],
@@ -800,6 +814,7 @@ def extended_profile_control_node(state: AgentState) -> dict[str, Any]:
     updates: dict[str, Any] = {
         "messages": [AIMessage(content=result["message"])],
         "qa_context": clear_qa_context(state.get("qa_context")),
+        "pending_ornament_clarification": None,
         "last_extended_profile_control": {"ok": result["ok"], "kind": control.kind, "patch": control.patch},
         "performance_metrics": _append_metric(state, "extended_profile_control", time.perf_counter() - started,
                                                 ok=result["ok"], kind=control.kind),
@@ -843,6 +858,7 @@ def tour_event_node(state: AgentState) -> dict[str, Any]:
         return {
             "messages": [AIMessage(content="我无法确认这项导游操作，请换一种明确说法。")],
             "qa_context": clear_qa_context(state.get("qa_context")),
+            "pending_ornament_clarification": None,
             "last_tour_intent": decision.to_dict(),
             "performance_metrics": _append_metric(state, "tour_event", time.perf_counter() - started, executed=False),
         }
@@ -863,6 +879,7 @@ def tour_event_node(state: AgentState) -> dict[str, Any]:
         },
         "tour_presentation": presentation,
         "qa_context": clear_qa_context(state.get("qa_context")),
+        "pending_ornament_clarification": None,
         "performance_metrics": _append_metric(
             state,
             "tour_event",
@@ -985,6 +1002,7 @@ def clarification_node(state: AgentState) -> dict[str, Any]:
         "last_tour_intent": decision.to_dict(),
         "tour_presentation": presentation,
         "qa_context": clear_qa_context(state.get("qa_context")),
+        "pending_ornament_clarification": None,
         "performance_metrics": _append_metric(state, "clarification", 0.0, reason_code=decision.reason_code),
     }
 
@@ -1129,6 +1147,7 @@ def direct_rag_node(state: AgentState) -> dict[str, Any]:
         "messages": [marker],
         "retrieved_evidence": evidence,
         "qa_context": clear_qa_context(state.get("qa_context")),
+        "pending_ornament_clarification": None,
         "performance_metrics": _append_metric(
             state,
             "direct_rag",
@@ -1214,6 +1233,7 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
         normalized_fact_kind=fact_kind,
         normalized_knowledge_plan=knowledge_plan,
         grounded_knowledge_renderer=grounded_renderer,
+        pending_ornament_clarification=state.get("pending_ornament_clarification"),
     )
     updates: dict[str, Any] = {
         "messages": [AIMessage(content=result["message"], additional_kwargs={"tour_qa_answer": True})],
@@ -1244,6 +1264,9 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
         "qa_context": build_qa_context_from_answer(
             query, result, state.get("tour_state")
         ) or clear_qa_context(state.get("qa_context")),
+        "pending_ornament_clarification": result.get(
+            "pending_ornament_clarification"
+        ),
     }
     # The presenter is UI data, not a state transition.  Deliberately do not
     # return tour_state or tour_interaction_state here.
@@ -1274,6 +1297,7 @@ def qa_follow_up_detail_node(state: AgentState) -> dict[str, Any]:
         )],
         "retrieved_evidence": result["evidence"],
         "qa_context": updated_context or clear_qa_context(state.get("qa_context")),
+        "pending_ornament_clarification": None,
         "performance_metrics": _append_metric(
             state,
             "qa_follow_up_detail",
@@ -1352,6 +1376,21 @@ def route_initial_request(state: AgentState) -> str:
             if state.get("tour_state") and state.get("tour_interaction_state")
             else "direct_rag"
         )
+    # An exact reviewed-object request has its own object-identity evidence
+    # gate in ``tour_qa``. Route it there before any broad semantic plan can
+    # turn it into unconstrained ornament retrieval, including before a route
+    # has been initialized.
+    object_story_scope = resolve_ornament_story_scope_request(
+        raw_text, state.get("tour_state")
+    )
+    if (
+        object_story_scope is not None
+        and not is_explicit_photo_request(raw_text)
+        and not is_explicit_comparison_question(raw_text)
+        and not is_explicit_research_question(raw_text)
+        and not any(term in raw_text for term in ("路线", "规划", "怎么走", "参观顺序", "带我逛"))
+    ):
+        return "tour_qa"
     # Broad knowledge questions use the same reviewed category boundary and
     # evidence-grounded renderer before and during a tour.  The plan contains
     # no facts and cannot mutate route or visitor state.
@@ -1383,7 +1422,10 @@ def route_initial_request(state: AgentState) -> str:
     # A1 reserves request_stop_detail for the active physical StopProgram.
     # The same wording may instead follow a successful knowledge answer; that
     # read-only path is selected only from explicit message metadata.
-    if is_qa_follow_up_detail_request(raw_text) or is_qa_subject_follow_up_request(raw_text):
+    if (
+        not state.get("pending_ornament_clarification")
+        and (is_qa_follow_up_detail_request(raw_text) or is_qa_subject_follow_up_request(raw_text))
+    ):
         # A craft named in this turn is a complete question, not an omitted
         # subject that depends on the previous QA response.  This keeps
         # “请详细讲讲灰塑” usable before any route has started.
@@ -1414,6 +1456,11 @@ def route_initial_request(state: AgentState) -> str:
         return "clarification"
     if state.get("tour_state") and state.get("tour_interaction_state") and is_profile_update_request(text):
         return "profile_update"
+    # A pending same-name ornament choice is a bounded, thread-local control
+    # turn. It is evaluated only after A1 events and route/profile controls,
+    # so “我到了” can never be mistaken for a category selection.
+    if state.get("pending_ornament_clarification"):
+        return "tour_qa"
     # A genuine route action may contain comparison or research words as
     # planning preferences (for example, “一小时，想看三国工艺比较，请规划
     # 路线”).  Do not let those words divert a route request into D3/D4

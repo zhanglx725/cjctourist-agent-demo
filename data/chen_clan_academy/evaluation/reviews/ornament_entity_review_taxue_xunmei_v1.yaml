@@ -1,0 +1,25 @@
+schema_version: v1
+subject_name: 踏雪寻梅
+craft: 木雕
+decision: same_physical_entity
+canonical_ornament_id: orn_051
+alias_ornament_ids:
+  - orn_052
+reason: >
+  orn_051 与 orn_052 的名称、工艺、审核点位、审核位置、原始采集图片、场景标识和现有条目证据均无可区分信息；
+  项目负责人已在当前会话确认按同一物理对象规范化。
+reviewer: 项目负责人（当前会话确认）
+reviewed_at: '2026-07-30'
+source_files:
+  - data/chen_clan_academy/spatial/ornament_spatial_mapping_v1.csv
+  - data/chen_clan_academy/knowledge/08_ornament_items.md
+  - data/chen_clan_academy/knowledge/09_ornament_locations.md
+  - data/chen_clan_academy/raw/chenjiaci_ornaments_source.json
+audit_scope:
+  - node_guide_cards_v1.json
+  - route_stop_catalog_v1.csv
+  - term_stop_associations_v1.json
+  - e5_narration_cases_v1.yaml
+runtime_rule: >
+  canonical 记录继续投影为运行对象；alias 记录保留在审核映射中用于追溯，
+  但不得生成独立游客候选或独立对象证据身份。

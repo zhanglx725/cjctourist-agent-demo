@@ -1,4 +1,4 @@
-﻿ornament_id,ornament_name,craft,raw_location,final_node_id,mapping_decision,mapping_source,review_notes
+﻿ornament_id,ornament_name,craft,raw_location,final_node_id,mapping_decision,mapping_source,review_notes,entity_status,canonical_ornament_id
 orn_001,百鸟朝凤,灰塑,首进西路北面,stop_front_west_courtyard,change,manual_review_existing_node,首进西厅房顶所以关联前西庭
 orn_002,百子千孙,灰塑,首进东路南面,stop_front_courtyard_east,change,manual_review_existing_node,前院东部靠边
 orn_003,宝相花,灰塑,后西厢庑廊,stop_rear_west_courtyard,change,manual_review_existing_node,后西庭后西厢方向
@@ -49,8 +49,8 @@ orn_047,荣归故里,木雕,中进聚贤堂屏风,stop_rear_courtyard,change,man
 orn_048,三打祝家庄,木雕,中进东路,stop_rear_east_courtyard_inner,add_node,manual_review_registered_add_node,后东庭
 orn_049,三顾茅庐,木雕,中进西路屏风,stop_rear_west_courtyard,change,manual_review_existing_node,后西庭
 orn_050,三英战吕布,木雕,中进聚贤堂屏风,stop_rear_west_courtyard,change,manual_review_existing_node,后西庭
-orn_051,踏雪寻梅,木雕,首进中路,stop_front_courtyard_north,change,manual_review_existing_node,前庭
-orn_052,踏雪寻梅,木雕,首进中路,stop_front_courtyard_north,change,manual_review_existing_node,前庭
+orn_051,踏雪寻梅,木雕,首进中路,stop_front_courtyard_north,change,manual_review_existing_node,前庭,canonical,orn_051
+orn_052,踏雪寻梅,木雕,首进中路,stop_front_courtyard_north,change,manual_review_existing_node,前庭,alias,orn_051
 orn_053,太白退蕃书,木雕,中进聚贤堂屏风,stop_rear_courtyard,change,manual_review_existing_node,后庭
 orn_054,太平有象,梁架驼墩）（木雕,中进聚贤堂南面（梁架驼墩）,stop_rear_courtyard,change,manual_review_existing_node,后庭
 orn_055,渭水访贤,木雕,中进聚贤堂屏风,stop_rear_courtyard,change,manual_review_existing_node,后庭

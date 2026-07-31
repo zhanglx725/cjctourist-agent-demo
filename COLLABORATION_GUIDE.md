@@ -347,3 +347,11 @@ python inspect_route_plan.py deep_dive_90
 - 统一契约见 `E5_NARRATION_CONTRACT.md`。E5 引入的 `NarrationCoverage` 只记录本线程、本次游览中已经成功输出且带 evidence 的工艺/文物介绍；它不是 TourState、VisitorProfile、知识事实或 RAG 原文缓存。
 - 首次工艺优先使用 `07_ornament_crafts.md` 的 evidence，首次文物优先使用 `08_ornament_items.md` 的 evidence，并只能连接当前点讲解包中审核关联的对象。预算不足时减少对象数，不减少核心证据链。
 - E5-A、E5-B、E5-C 必须从同一 E5-0 提交建立分支；主负责人独占修改本文件、进度报告和学习说明。具体文件所有权、失败关闭规则与 `e5_nar_001`--`e5_nar_008` 验收编号均以契约为准。
+## P1-20 共享边界：对象故事与工艺总述
+
+- `07_ornament_crafts.md` 只能提供工艺层事实，不能支撑命名对象的传说、人物或情节。
+- 明确对象故事必须复用对象级身份解析与 `08_ornament_items.md` 严格证据门控；不得在 Agent、RAG 或渲染器各自创建第二套对象匹配规则。
+- 游客明确限定“只根据某工艺”时，必须先澄清证据范围不足；不得隐式查询对象资料、调用 LLM 或以其他对象内容补齐。
+- 可保留接受/拒绝证据的结构化审计，但游客文本不得展示内部路径、来源编号、对象或节点标识。
+- 同名候选可按审核名称、工艺、点位与公开位置分组；只有审核实体关系明确为 canonical/alias 时，才可在构建期归一为一个游客候选。`orn_051/orn_052` 已由项目负责人确认同一物理实体：`orn_051` 为 canonical，`orn_052` 为保留审计的 alias，不投影为运行对象。其他无此审核关系的同字段对象仍必须 `ambiguous_group` 失败关闭。
+- P1-20 已于 2026-07-31 标记 `verified_fixed`：LangSmith 新线程验证了木雕 canonical 选择与显式木雕直答；当次 thread/Trace 标识未记录，后续验收必须在运行记录中保存真实标识，不能补写虚构链接。

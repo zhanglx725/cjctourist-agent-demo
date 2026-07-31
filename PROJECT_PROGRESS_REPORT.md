@@ -1020,6 +1020,14 @@ glossary_ids
 - `controlled_knowledge` 保持无证据不调用模型、危险候选整段失败关闭，并新增文件名、URL、检索字段和内部对象/节点/术语标识的拒绝覆盖；不会通过字符串删除后继续展示候选文本。
 - 已完成 81 项主定向、50 项相关回归和完整 675 项 `unittest discover -v`；状态为 `implemented_pending_langsmith_verification`，尚未把本地测试写成 Studio 通过。
 
+## P1-20 规划前对象故事的对象级证据门控（`verified_fixed`）
+
+- P1-20A 复现确认：对象级 `08_ornament_items.md` 过滤本身会拒绝纯 `07_ornament_crafts.md` 与其他对象的条目；风险来自无路线时落入 `direct_rag`，以及宽泛 `ornament_item/story` 计划可能早于对象身份门控执行。
+- 现在“明确审核对象 + 故事/人物/情节”在有无路线时均进入 `tour_qa` 的精确对象链路。只有同一审核对象、同一 `08` 条目且身份字段一致的证据能够进入故事渲染；混入对象或无对象证据均失败关闭。
+- “只根据某工艺”明确限制证据范围时，不查询对象资料或调用 LLM，而是说明工艺总述不能证明单件对象传说，并请求允许使用该对象审核资料。TourState、VisitorProfile 和路线状态保持只读。
+- 同名对象子项已完成审核实体规范化：项目负责人确认木雕《踏雪寻梅》`orn_051/orn_052` 为同一物理对象，审核记录保留 `orn_051` canonical 与 `orn_052` alias 关系；正式点位卡只投影 canonical，故游客候选为唯一木雕版本与独立石雕版本。旧线程候选在选择前重新读取当前注册表，不能继续使用重复快照。
+- 验收记录：2026-07-31 项目负责人已确认 LangSmith 新线程场景“讲讲踏雪寻梅。→ 木雕”与“讲讲木雕《踏雪寻梅》。”通过；本地完整回归为 `689 tests / OK`。本次操作未提供可存档的 thread ID 或 Trace URL，故记录为 `thread_id=not_recorded`、`trace_url=not_recorded`，不伪造标识。
+
 ## E5-0 个性化讲解质量、首次工艺介绍与文物深度契约（已冻结，未接入生产行为）
 
 - 新增 `E5_NARRATION_CONTRACT.md`，冻结从 VisitorProfile、GuidancePolicy、StopProgram、NarrationCoverage、RAG evidence 到确定性游客讲解的职责边界。

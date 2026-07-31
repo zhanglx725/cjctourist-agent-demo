@@ -19,6 +19,16 @@ OUTPUT_FILE = ROUTES_DIR / "node_guide_cards_v1.json"
 # The importer writes only human-reviewed rows. Keep this guard so a
 # hand-edited/stale mapping cannot silently become a guide-card association.
 REVIEWED_MAPPING_DECISIONS = {"change", "add_node"}
+NON_RUNTIME_ENTITY_STATUSES = {"alias", "superseded", "duplicate", "disabled"}
+
+
+def is_runtime_mapping(item: dict[str, str]) -> bool:
+    """Keep reviewed aliases auditable without projecting them as objects."""
+    return (
+        bool(item.get("final_node_id"))
+        and item.get("mapping_decision") in REVIEWED_MAPPING_DECISIONS
+        and (item.get("entity_status") or "canonical") not in NON_RUNTIME_ENTITY_STATUSES
+    )
 
 
 def read_csv(path: Path) -> list[dict[str, str]]:
@@ -43,10 +53,7 @@ def build_cards(
     research_card_mappings = research_card_mappings or read_research_card_mappings()
     by_node: dict[str, list[dict[str, str]]] = defaultdict(list)
     for item in mapping_rows:
-        if (
-            item.get("final_node_id")
-            and item.get("mapping_decision") in REVIEWED_MAPPING_DECISIONS
-        ):
+        if is_runtime_mapping(item):
             by_node[item["final_node_id"]].append(item)
 
     cards: list[dict[str, object]] = []

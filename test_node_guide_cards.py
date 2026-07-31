@@ -1,5 +1,8 @@
 import json
 import unittest
+from pathlib import Path
+
+import yaml
 
 from build_node_guide_cards import (
     CATALOG_FILE,
@@ -58,6 +61,24 @@ class NodeGuideCardTests(unittest.TestCase):
         self.assertEqual(item["final_node_id"], "label_moon_platform")
         self.assertIn(item["mapping_decision"], {"change", "add_node"})
         self.assertTrue(item["mapping_source"].startswith("manual_review_"))
+
+    def test_reviewed_alias_stays_auditable_but_is_not_a_runtime_object(self):
+        rows = read_csv(MAPPING_FILE)
+        alias = next(row for row in rows if row["ornament_id"] == "orn_052")
+        self.assertEqual(alias["entity_status"], "alias")
+        self.assertEqual(alias["canonical_ornament_id"], "orn_051")
+        front = self.by_id["stop_front_courtyard_north"]["ornaments"]
+        self.assertIn("orn_051", {item["ornament_id"] for item in front})
+        self.assertNotIn("orn_052", {item["ornament_id"] for item in front})
+
+        review_path = Path(
+            "data/chen_clan_academy/evaluation/reviews/"
+            "ornament_entity_review_taxue_xunmei_v1.yaml"
+        )
+        review = yaml.safe_load(review_path.read_text(encoding="utf-8"))
+        self.assertEqual(review["decision"], "same_physical_entity")
+        self.assertEqual(review["canonical_ornament_id"], "orn_051")
+        self.assertEqual(review["alias_ornament_ids"], ["orn_052"])
 
     def test_committed_cards_match_a_fresh_build_from_reviewed_inputs(self):
         """Keep route-selection evidence fresh without comparing later card enrichments.

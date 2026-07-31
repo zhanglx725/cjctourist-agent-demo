@@ -268,11 +268,15 @@ class AgentTourQaTests(unittest.TestCase):
         self.assertNotIn("tour_interaction_state", update)
 
     @staticmethod
-    def _normalize_story_question(initial: dict | None = None) -> dict:
-        request = _message_state("三顾茅庐讲了什么故事？", initial)
+    def _normalize_story_question(
+        initial: dict | None = None,
+        text: str = "三顾茅庐讲了什么故事？",
+        subject: str = "三顾茅庐",
+    ) -> dict:
+        request = _message_state(text, initial)
         candidate = SemanticCandidate(
             "knowledge_query",
-            "三顾茅庐",
+            subject,
             "high",
             None,
             "ornament_item",
@@ -286,8 +290,15 @@ class AgentTourQaTests(unittest.TestCase):
             request.update(semantic_normalization_node(request))
         return request
 
+    def _normalize_broad_story_question(self, initial: dict | None = None) -> dict:
+        return self._normalize_story_question(
+            initial,
+            text="陈家祠装饰故事有什么特点？",
+            subject="陈家祠装饰故事",
+        )
+
     def test_no_route_broad_knowledge_uses_scoped_retrieval_and_grounded_answer(self):
-        request = self._normalize_story_question()
+        request = self._normalize_broad_story_question()
         self.assertEqual(route_initial_request(request), "direct_rag")
         with (
             patch("agent_graph.chen_clan_academy_rag_search") as rag,
@@ -300,7 +311,7 @@ class AgentTourQaTests(unittest.TestCase):
             retrieval = direct_rag_node(request)
         rag.invoke.assert_called_once_with(
             {
-                "query": "三顾茅庐 陈家祠 建筑装饰 题材 寓意 故事 情节 典故",
+                "query": "陈家祠装饰故事 陈家祠 建筑装饰 题材 寓意 故事 情节 典故",
                 "categories": ["ornament_item"],
             }
         )
@@ -318,9 +329,62 @@ class AgentTourQaTests(unittest.TestCase):
         self.assertNotIn(".md", message)
         self.assertNotIn("S11", message)
 
+    def test_no_route_exact_object_story_uses_object_evidence_gate(self):
+        request = self._normalize_story_question()
+        self.assertEqual(route_initial_request(request), "tour_qa")
+        exact_payload = json.dumps(
+            {
+                "evidence": [{
+                    "category": "ornament_item",
+                    "document": "08_ornament_items.md",
+                    "title_path": ["陈家祠建筑装饰条目知识库", "三顾茅庐"],
+                    "source_ids": ["S11"],
+                    "content": "三顾茅庐是一件木雕装饰。故事讲述刘备三次拜访诸葛亮，请其出山辅佐。",
+                }]
+            },
+            ensure_ascii=False,
+        )
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            rag.invoke.return_value = exact_payload
+            update = tour_qa_node(request)
+        rag.invoke.assert_called_once_with(
+            {"query": "orn_049 三顾茅庐 陈家祠 建筑装饰 题材 画面 人物 故事 寓意"}
+        )
+        self.assertIn("刘备三次拜访诸葛亮", update["messages"][0].content)
+        self.assertNotIn("S11", update["messages"][0].content)
+        self.assertNotIn("tour_state", update)
+        self.assertNotIn("tour_interaction_state", update)
+
+    def test_same_name_choice_is_thread_local_and_only_exact_stone_can_continue(self):
+        first_state = _message_state("讲讲踏雪寻梅的故事。")
+        self.assertEqual(route_initial_request(first_state), "tour_qa")
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            first = tour_qa_node(first_state)
+        rag.invoke.assert_not_called()
+        self.assertIn("pending_ornament_clarification", first)
+        self.assertIn("木雕《踏雪寻梅》", first["messages"][0].content)
+        self.assertNotIn("orn_051", first["messages"][0].content)
+
+        second_state = _message_state("石雕那个", {**first_state, **first})
+        self.assertEqual(route_initial_request(second_state), "tour_qa")
+        exact_payload = json.dumps({"evidence": [{
+            "document": "08_ornament_items.md",
+            "title_path": ["陈家祠建筑装饰条目知识库", "踏雪寻梅"],
+            "source_ids": ["S11"],
+            "content": "踏雪寻梅是一件石雕装饰。画面描绘孟浩然踏雪骑驴寻梅。",
+        }]}, ensure_ascii=False)
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            rag.invoke.return_value = exact_payload
+            second = tour_qa_node(second_state)
+        self.assertIn("骑驴寻梅", second["messages"][0].content)
+        self.assertIsNone(second["pending_ornament_clarification"])
+
+        other_thread = _message_state("石雕那个")
+        self.assertNotEqual(route_initial_request(other_thread), "tour_qa")
+
     def test_active_tour_broad_knowledge_has_the_same_scope_and_answer_quality(self):
         state = self._arrived_tour()
-        request = self._normalize_story_question(state)
+        request = self._normalize_broad_story_question(state)
         self.assertEqual(route_initial_request(request), "tour_qa")
         with (
             patch("agent_graph.chen_clan_academy_rag_search") as rag,
@@ -333,7 +397,7 @@ class AgentTourQaTests(unittest.TestCase):
             update = tour_qa_node(request)
         rag.invoke.assert_called_once_with(
             {
-                "query": "三顾茅庐 陈家祠 建筑装饰 题材 寓意 故事 情节 典故",
+                "query": "陈家祠装饰故事 陈家祠 建筑装饰 题材 寓意 故事 情节 典故",
                 "categories": ["ornament_item"],
             }
         )
@@ -348,7 +412,7 @@ class AgentTourQaTests(unittest.TestCase):
     def test_controlled_knowledge_rejects_internal_candidate_in_direct_and_tour_entries(self):
         unsafe_candidate = "这段回答含有内部编号：S10 和 orn_080。"
 
-        no_route = self._normalize_story_question()
+        no_route = self._normalize_broad_story_question()
         with (
             patch("agent_graph.chen_clan_academy_rag_search") as rag,
             patch("agent_graph._invoke_grounded_knowledge_model", return_value=unsafe_candidate),
@@ -370,7 +434,7 @@ class AgentTourQaTests(unittest.TestCase):
         arrived = self._arrived_tour()
         before_tour = deepcopy(arrived["tour_state"])
         before_profile = deepcopy(arrived.get("visitor_profile"))
-        active = self._normalize_story_question(arrived)
+        active = self._normalize_broad_story_question(arrived)
         with (
             patch("agent_graph.chen_clan_academy_rag_search") as rag,
             patch("agent_graph._invoke_grounded_knowledge_model", return_value=unsafe_candidate),

@@ -198,6 +198,7 @@ def render_object_detail(
     detailed: bool,
     listen_only: bool = False,
     compact: bool = False,
+    story_detail: bool = False,
 ) -> ObjectDetailRender:
     """Render only facts in one object view as flat visitor paragraphs."""
     paragraphs = [f"{view.name}是一件{view.craft}装饰。"]
@@ -223,6 +224,19 @@ def render_object_detail(
         paragraphs.append(theme)
     if story:
         paragraphs.append(story)
+    # A user may explicitly request this reviewed object's story. Keep only
+    # the remaining accepted story sentences in source order; no free-form
+    # expansion is permitted. The cap keeps one packet from becoming unbounded.
+    if story_detail:
+        story_count = 1 if story else 0
+        for sentence in view.story_sentences:
+            if sentence in used:
+                continue
+            used.add(sentence)
+            paragraphs.append(sentence)
+            story_count += 1
+            if story_count >= 6:
+                break
     if visual:
         paragraphs.append(visual)
     if meaning:

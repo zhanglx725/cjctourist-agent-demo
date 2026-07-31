@@ -101,7 +101,7 @@ cases:
       - data/chen_clan_academy/knowledge/09_ornament_locations.md
       - data/chen_clan_academy/routes/node_guide_cards_v1.json
     expected_source_ids: [S10, S11]
-    expected_object_whitelist: [orn_011, orn_014, orn_027, orn_032, orn_036, orn_037, orn_051, orn_052, orn_060, orn_061, orn_074, orn_081, orn_085]
+    expected_object_whitelist: [orn_011, orn_014, orn_027, orn_032, orn_036, orn_037, orn_051, orn_060, orn_061, orn_074, orn_081, orn_085]
     expected_invariants:
       - orn_032 is a reviewed ornament of stop_front_courtyard_north.
       - 家庭画像只影响表达和互动形式，不扩展对象、事实或来源集合。
@@ -259,7 +259,7 @@ cases:
       - data/chen_clan_academy/knowledge/09_ornament_locations.md
       - data/chen_clan_academy/routes/node_guide_cards_v1.json
     expected_source_ids: [S10, S11]
-    expected_object_whitelist: [orn_011, orn_014, orn_027, orn_032, orn_036, orn_037, orn_051, orn_052, orn_060, orn_061, orn_074, orn_081, orn_085]
+    expected_object_whitelist: [orn_011, orn_014, orn_027, orn_032, orn_036, orn_037, orn_051, orn_060, orn_061, orn_074, orn_081, orn_085]
     expected_invariants:
       - professional maps to knowledge_level=professional.
       - 专业表达可增加术语和来源细节，不能扩大事实集合或超出本点白名单。

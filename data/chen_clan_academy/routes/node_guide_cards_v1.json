@@ -20,9 +20,9 @@
         "吉祥题材"
       ],
       "guide_focus": "屋脊与外立面装饰、故事题材观察",
-      "ornament_count": 13,
+      "ornament_count": 12,
       "craft_distribution": {
-        "木雕": 7,
+        "木雕": 6,
         "灰塑": 3,
         "石雕": 1,
         "螭吻、鸱吻）（陶塑": 1,
@@ -93,15 +93,6 @@
           "mapping_source": "manual_review_existing_node"
         },
         {
-          "ornament_id": "orn_052",
-          "name": "踏雪寻梅",
-          "craft": "木雕",
-          "raw_location": "首进中路",
-          "final_node_id": "stop_front_courtyard_north",
-          "mapping_decision": "change",
-          "mapping_source": "manual_review_existing_node"
-        },
-        {
           "ornament_id": "orn_060",
           "name": "渔樵耕读",
           "craft": "木雕",
@@ -155,7 +146,6 @@
         "博古图、五福捧寿 是什么装饰",
         "福 是什么装饰",
         "福 是什么装饰",
-        "踏雪寻梅 是什么装饰",
         "踏雪寻梅 是什么装饰",
         "渔樵耕读 是什么装饰",
         "渔舟唱晚 是什么装饰",

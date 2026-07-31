@@ -53,6 +53,11 @@ from ornament_detail_runtime import (
     filter_object_evidence,
     render_object_detail,
 )
+from ornament_clarification import (
+    create_pending_ornament_clarification,
+    load_pending_ornament_clarification,
+    resolve_pending_ornament_choice,
+)
 
 
 GUIDE_CARDS_FILE = Path("data/chen_clan_academy/routes/node_guide_cards_v1.json")
@@ -62,6 +67,7 @@ FEATURE_TERMS = ("特点", "特征", "工艺", "怎么做", "有什么")
 TERM_EXPLANATION_TERMS = ("是什么", "什么意思", "指什么", "怎么理解")
 OBJECT_DETAIL_TERMS = ("讲讲", "介绍", "说说", "详细", "故事", "人物", "画面", "寓意", "是什么", "什么意思", "特点")
 REVIEWED_ORNAMENT_CRAFTS = frozenset({"灰塑", "木雕", "石雕", "陶塑", "砖雕", "铜铁铸", "壁画", "砖雕&铜铁铸&壁画"})
+CRAFT_ONLY_SCOPE_MARKERS = ("只根据", "仅根据")
 @lru_cache(maxsize=1)
 def load_guide_cards() -> dict[str, dict[str, Any]]:
     """Load reviewed point guide cards for A2 and later guide-program stages."""
@@ -213,6 +219,9 @@ def _reviewed_ornament_matches(user_query: str, context: dict[str, Any] | None) 
             name = ornament.get("name")
             if isinstance(name, str) and name and name in user_query:
                 matches.append({**ornament, "node_id": card.get("node_id"), "point_name": card.get("display_name")})
+    explicit_crafts = [craft for craft in CRAFT_TERMS if craft in user_query]
+    if len(explicit_crafts) == 1:
+        matches = [item for item in matches if item.get("craft") == explicit_crafts[0]]
     return matches
 
 
@@ -250,6 +259,335 @@ def _resolve_ornament_detail_request(
     return {"status": "ok", "context": context or point_context_for_node(item["node_id"]), "item": item}
 
 
+def _candidate_categories_for_ambiguous_ornaments(
+    resolved: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Group only publicly indistinguishable audited matches for clarification."""
+    groups: dict[tuple[str, str, str, str], list[dict[str, Any]]] = {}
+    for item in resolved.get("matches", []):
+        node_id = str(item.get("node_id") or "")
+        name = str(item.get("name") or "")
+        craft = str(item.get("craft") or "")
+        raw_location = str(item.get("raw_location") or "")
+        if not all((node_id, name, craft)):
+            continue
+        if item.get("final_node_id") not in {None, node_id}:
+            continue
+        if item.get("mapping_decision") not in {None, "change", "add_node"}:
+            continue
+        groups.setdefault((name, craft, node_id, raw_location), []).append(item)
+    candidates: list[dict[str, Any]] = []
+    for key, members in sorted(groups.items(), key=lambda entry: min(str(item.get("ornament_id")) for item in entry[1])):
+        name, craft, node_id, raw_location = key
+        node_name = str(members[0].get("point_name") or point_context_for_node(node_id)["name"])
+        member_ids = sorted(str(item["ornament_id"]) for item in members if item.get("ornament_id"))
+        if len(member_ids) == 1:
+            candidates.append({
+                "candidate_kind": "exact_object",
+                "display_name": name,
+                "craft": craft,
+                "node_id": node_id,
+                "node_name": node_name,
+                "raw_location": raw_location or None,
+                "summary": f"审核对象记录显示其属于{craft}装饰。",
+                "source_ids": [],
+                "ornament_id": member_ids[0],
+                "selectable_for_exact_detail": True,
+            })
+        else:
+            candidates.append({
+                "candidate_kind": "ambiguous_group",
+                "display_name": name,
+                "craft": craft,
+                "node_id": node_id,
+                "node_name": node_name,
+                "raw_location": raw_location or None,
+                "summary": f"审核对象记录显示其属于{craft}装饰。",
+                "source_ids": [],
+                "member_ornament_ids": member_ids,
+                "selectable_for_exact_detail": False,
+                "blocked_reason": "indistinguishable_reviewed_entities",
+            })
+    for index, candidate in enumerate(candidates, start=1):
+        candidate["choice_index"] = index
+    return candidates
+
+
+def _render_ornament_candidate_clarification(
+    subject_name: str,
+    candidates: list[dict[str, Any]],
+) -> str:
+    lines = [f"“{subject_name}”对应多个审核对象，请先选择想了解的版本："]
+    for candidate in candidates:
+        location = candidate.get("raw_location")
+        location_text = f"，审核关联位置为{location}" if location else ""
+        lines.append(
+            f"{candidate['choice_index']}. {candidate['craft']}《{candidate['display_name']}》"
+            f"——{candidate['node_name']}{location_text}。{candidate['summary']}"
+        )
+    lines.append("请回复序号或工艺名称；如选择的数据仍无法可靠区分，我不会任选其中一条记录。")
+    return "\n".join(lines)
+
+
+def _reviewed_ornament_by_pending_choice(candidate: dict[str, Any]) -> dict[str, Any] | None:
+    """Rehydrate one already-selected exact ID without another name ranking pass."""
+    node_id = candidate.get("node_id")
+    ornament_id = candidate.get("ornament_id")
+    card = load_guide_cards().get(node_id) if isinstance(node_id, str) else None
+    if not isinstance(card, dict) or not isinstance(ornament_id, str):
+        return None
+    for item in card.get("ornaments", []):
+        if isinstance(item, dict) and item.get("ornament_id") == ornament_id:
+            if item.get("name") != candidate.get("display_name") or item.get("craft") != candidate.get("craft"):
+                return None
+            return {**item, "node_id": node_id, "point_name": card.get("display_name")}
+    return None
+
+
+def _current_candidates_for_pending_subject(
+    subject_name: str,
+    original_query: str,
+    tour_state: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Recompute candidates from the current registry in the original scope."""
+    resolved = _resolve_ornament_detail_request(original_query, tour_state)
+    if resolved and isinstance(resolved.get("matches"), list):
+        matches = resolved["matches"]
+    elif resolved and resolved.get("item"):
+        matches = [resolved["item"]]
+    else:
+        matches = _reviewed_ornament_matches(subject_name, None)
+    return _candidate_categories_for_ambiguous_ornaments({"matches": matches})
+
+
+def _refresh_pending_ornament_choice(
+    user_query: str,
+    pending: dict[str, Any],
+    tour_state: dict[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Resolve a pending choice against the current registry, not its snapshot."""
+    candidates = _current_candidates_for_pending_subject(
+        pending["subject_name"], pending["original_query"], tour_state,
+    )
+    if not candidates:
+        return {"status": "unavailable"}, pending
+    if len(candidates) == 1:
+        candidate = candidates[0]
+        selected_by_craft = candidate["craft"] in user_query
+        selected_by_point = candidate["node_name"] in user_query
+        selected_by_index = user_query.strip() in {"1", "第一个", "第1个"}
+        if selected_by_craft or selected_by_point or selected_by_index:
+            if candidate["candidate_kind"] == "exact_object":
+                return {"status": "selected", "candidate": candidate}, pending
+            return {"status": "data_ambiguity", "candidate": candidate}, pending
+        return {"status": "unresolved"}, pending
+    refreshed = create_pending_ornament_clarification(
+        original_query=pending["original_query"],
+        subject_name=pending["subject_name"],
+        candidates=candidates,
+        requested_detail=pending["requested_detail"],
+        evidence_scope=pending["evidence_scope"],
+    )
+    return resolve_pending_ornament_choice(user_query, refreshed), refreshed
+
+
+def resolve_ornament_story_scope_request(
+    user_query: str,
+    tour_state: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Resolve a narrow object-story request and its explicit proof scope.
+
+    Object identity remains owned by ``_resolve_ornament_detail_request``.
+    This helper only identifies when the visitor explicitly confines the answer
+    to a craft overview, which cannot prove an individual object's story.
+    """
+    resolved = _resolve_ornament_detail_request(user_query, tour_state)
+    if resolved is None:
+        return None
+    craft_only = (
+        any(marker in user_query for marker in CRAFT_ONLY_SCOPE_MARKERS)
+        and any(craft in user_query for craft in CRAFT_TERMS)
+        and any(marker in user_query for marker in ("工艺", "资料", "总述"))
+    )
+    item = resolved.get("item") or {}
+    if resolved.get("status") != "ok" or not item:
+        return {
+            "resolved": resolved,
+            "requested_scope": "craft_only" if craft_only else "exact_ornament",
+        }
+    return {
+        "resolved": resolved,
+        "requested_scope": "craft_only" if craft_only else "exact_ornament",
+        "requested_subject": item.get("name"),
+    }
+
+
+def _ornament_story_source_clarification(
+    story_scope: dict[str, Any],
+    tour_state: dict[str, Any] | None,
+    interaction_state: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Fail closed when craft-only material is asked to prove an object story."""
+    subject = story_scope.get("requested_subject") or "该对象"
+    message = (
+        f"现有工艺总述只能说明相关工艺，无法证明“{subject}”的完整传说或人物情节。"
+        f"如允许使用“{subject}”的审核对象资料，我可以再按该对象的已核验内容说明。"
+    )
+    presentation = (
+        present_tour_state(tour_state, interaction_state)
+        if tour_state and interaction_state
+        else None
+    )
+    if presentation:
+        presentation = {
+            **presentation,
+            "message": message,
+            "code": "ornament_story_source_clarification",
+            "ok": False,
+            "evidence_count": 0,
+        }
+    return {
+        "message": message,
+        "mode": "ornament_story_source_clarification",
+        "answer_mode": "ornament_story_source_clarification",
+        "evidence": [],
+        "source_ids": [],
+        "point_context": story_scope["resolved"].get("context"),
+        "presentation": presentation,
+        "retrieval_query": None,
+        "ornament_story_scope": {
+            "requested_subject": subject,
+            "requested_scope": "craft_only",
+            "required_scope": "exact_ornament",
+            "evidence_sufficient": False,
+            "source_ids": [],
+            "state_changed": False,
+        },
+    }
+
+
+def _ornament_candidate_data_ambiguity(
+    choice: dict[str, Any],
+) -> dict[str, Any]:
+    """Explain a blocked category without choosing an indistinguishable member."""
+    candidate = choice["candidate"]
+    name = candidate["display_name"]
+    craft = candidate["craft"]
+    message = (
+        f"{candidate['node_name']}审核数据中有 {len(candidate['member_ornament_ids'])} 条名称、"
+        f"工艺和公开位置都相同的{craft}《{name}》记录，现有资料暂时无法可靠区分具体对象。"
+        "在审核关系确认前，我不能任选其中一条讲述。"
+        "您可以先了解其他可唯一识别的版本，或等待对象关系完成核验。"
+    )
+    return {
+        "message": message,
+        "mode": "ornament_candidate_data_ambiguity",
+        "answer_mode": "ornament_candidate_data_ambiguity",
+        "evidence": [],
+        "source_ids": [],
+        "point_context": point_context_for_node(candidate["node_id"]),
+        "presentation": None,
+        "retrieval_query": None,
+        "pending_ornament_clarification": choice["pending"],
+        "ornament_candidate_audit": {
+            "subject_name": choice["pending"]["subject_name"],
+            "selected_craft": craft,
+            "candidate_count": len(candidate["member_ornament_ids"]),
+            "selectable": False,
+            "blocked_reason": "indistinguishable_reviewed_entities",
+            "member_ornament_ids": list(candidate["member_ornament_ids"]),
+            "state_changed": False,
+        },
+    }
+
+
+def _answer_pending_ornament_choice(
+    user_query: str,
+    pending_value: Any,
+    tour_state: dict[str, Any] | None,
+    interaction_state: dict[str, Any] | None,
+    rag_search: Callable[[str], str],
+    visitor_profile: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Execute only a unique pending category selection, otherwise clarify."""
+    pending = load_pending_ornament_clarification(pending_value)
+    if pending is None:
+        return None
+    # A new named-object request supersedes the old pending choice instead of
+    # being misread as an answer such as “that one”.
+    new_request = _resolve_ornament_detail_request(user_query, tour_state)
+    if new_request is not None and pending["subject_name"] not in user_query:
+        return None
+    # Pending candidate summaries are only a UI snapshot. Re-evaluate the
+    # user's selection against the latest reviewed registry so data repairs
+    # cannot be masked by a long-lived Studio thread.
+    choice, refreshed_pending = _refresh_pending_ornament_choice(
+        user_query, pending, tour_state,
+    )
+    if choice["status"] == "unavailable":
+        return {
+            "message": "该对象的审核候选资料已更新，当前没有可安全核验的对应对象；请重新说明想了解的对象。",
+            "mode": "ornament_detail_unavailable",
+            "evidence": [],
+            "presentation": None,
+            "retrieval_query": None,
+            "pending_ornament_clarification": None,
+        }
+    if choice["status"] == "selected":
+        item = _reviewed_ornament_by_pending_choice(choice["candidate"])
+        if item is None:
+            return {
+                "message": "该候选的审核对象记录目前无法安全确认，请重新选择或稍后再试。",
+                "mode": "ornament_detail_clarification",
+                "evidence": [],
+                "presentation": None,
+                "retrieval_query": None,
+                "pending_ornament_clarification": None,
+            }
+        resolved = {"status": "ok", "context": point_context_for_node(item["node_id"]), "item": item}
+        if pending["evidence_scope"] == "craft_only":
+            return {
+                **_ornament_story_source_clarification(
+                    {
+                        "resolved": resolved,
+                        "requested_subject": item["name"],
+                        "requested_scope": "craft_only",
+                    },
+                    tour_state,
+                    interaction_state,
+                ),
+                "pending_ornament_clarification": None,
+            }
+        return {
+            **_answer_ornament_detail(
+                resolved,
+                tour_state,
+                interaction_state,
+                rag_search,
+                detailed=pending["requested_detail"] == "story",
+                story_detail=pending["requested_detail"] == "story",
+                listen_only=(visitor_profile or {}).get("interaction_mode") == "listen_only",
+            ),
+            "pending_ornament_clarification": None,
+        }
+    if choice["status"] == "data_ambiguity":
+        return _ornament_candidate_data_ambiguity(choice)
+    if choice["status"] == "unresolved":
+        message = _render_ornament_candidate_clarification(
+            refreshed_pending["subject_name"], refreshed_pending["candidate_summaries"],
+        )
+        return {
+            "message": message,
+            "mode": "ornament_candidate_clarification",
+            "evidence": [],
+            "presentation": None,
+            "retrieval_query": None,
+            "pending_ornament_clarification": refreshed_pending,
+            "ornament_candidates": refreshed_pending["candidate_summaries"],
+        }
+    return None
+
+
 def _answer_ornament_detail(
     resolved: dict[str, Any],
     tour_state: dict[str, Any] | None,
@@ -258,6 +596,7 @@ def _answer_ornament_detail(
     *,
     detailed: bool = False,
     listen_only: bool = False,
+    story_detail: bool = False,
 ) -> dict[str, Any]:
     """Answer one uniquely resolved audited object without changing tour state."""
     context = resolved.get("context")
@@ -291,6 +630,7 @@ def _answer_ornament_detail(
         rag_search,
         detailed=detailed,
         listen_only=listen_only,
+        story_detail=story_detail,
     )
     message = detail["visitor_message"]
     evidence = detail["evidence"]
@@ -315,6 +655,7 @@ def build_reviewed_instance_detail(
     *,
     detailed: bool = False,
     listen_only: bool = False,
+    story_detail: bool = False,
 ) -> dict[str, Any]:
     """Retrieve and compactly render one already-resolved reviewed instance.
 
@@ -360,6 +701,7 @@ def build_reviewed_instance_detail(
         detailed=detailed,
         listen_only=listen_only,
         compact=not detailed,
+        story_detail=story_detail,
     )
     source_ids = list(rendered.source_ids)
     return {
@@ -372,6 +714,17 @@ def build_reviewed_instance_detail(
             "coverage_level": view.coverage_level,
             "source_ids": source_ids,
             "used_for_visitor_answer": bool(source_ids),
+            "accepted_evidence": [dict(entry) for entry in accepted],
+            "rejected_evidence": [
+                {
+                    "document": entry.get("document"),
+                    "title_path": list(entry.get("title_path") or []),
+                    "source_ids": list(entry.get("source_ids") or []),
+                    "reason": "not_exact_ornament_evidence",
+                }
+                for entry in retrieved
+                if entry not in accepted
+            ],
         },
     }
 
@@ -1019,6 +1372,7 @@ def answer_tour_question(
     *,
     normalized_fact_kind: str | None = None,
     normalized_knowledge_plan: ControlledKnowledgePlan | None = None,
+    pending_ornament_clarification: dict[str, Any] | None = None,
     grounded_knowledge_renderer: (
         Callable[[ControlledKnowledgePlan, list[dict[str, Any]]], str] | None
     ) = None,
@@ -1046,6 +1400,21 @@ def answer_tour_question(
             "presentation": presentation,
             "retrieval_query": None,
         }
+    if not (
+        is_explicit_photo_request(user_query)
+        or is_explicit_research_question(user_query)
+        or is_explicit_comparison_question(user_query)
+    ):
+        pending_answer = _answer_pending_ornament_choice(
+            user_query,
+            pending_ornament_clarification,
+            tour_state,
+            interaction_state,
+            rag_search,
+            visitor_profile,
+        )
+        if pending_answer is not None:
+            return pending_answer
     craft_location_request = parse_craft_location_request(user_query)
     if craft_location_request is not None:
         answer = render_craft_location_answer(craft_location_request)
@@ -1129,6 +1498,84 @@ def answer_tour_question(
     physical_context = current_stop_context(tour_state)
     instance_context = scoped_context or physical_context
     explicit_node_resolution = resolve_reviewed_node(user_query)
+    # A named audited object is narrower than a semantic ``ornament_item``
+    # proposal.  Respect an explicit craft-only proof restriction instead of
+    # silently retrieving a different, object-level source packet.
+    story_scope = (
+        None
+        if is_research_question or is_comparison_question or is_explicit_photo_request(user_query)
+        else resolve_ornament_story_scope_request(user_query, tour_state)
+    )
+    if story_scope is not None:
+        if story_scope["resolved"].get("status") == "ambiguous":
+            candidates = _candidate_categories_for_ambiguous_ornaments(
+                story_scope["resolved"],
+            )
+            # An explicit craft can narrow a *candidate category*, but never
+            # turns an internally indistinguishable group into one object.  A
+            # craft-only request still receives the P1-20 source-scope refusal
+            # without querying any object packet.
+            craft_categories = [
+                candidate for candidate in candidates
+                if candidate["craft"] in user_query
+            ]
+            if story_scope.get("requested_scope") == "craft_only" and len(craft_categories) == 1:
+                category = craft_categories[0]
+                source_scope = _ornament_story_source_clarification(
+                    {
+                        "resolved": story_scope["resolved"],
+                        "requested_subject": f"{category['craft']}《{category['display_name']}》",
+                        "requested_scope": "craft_only",
+                    },
+                    tour_state,
+                    interaction_state,
+                )
+                return {
+                    **source_scope,
+                    "ornament_candidate_audit": {
+                        "candidate_kind": category["candidate_kind"],
+                        "craft": category["craft"],
+                        "ornament_id": category.get("ornament_id"),
+                        "member_ornament_ids": list(category.get("member_ornament_ids") or []),
+                        "selectable_for_exact_detail": category["selectable_for_exact_detail"],
+                        "blocked_reason": category.get("blocked_reason"),
+                    },
+                }
+            if len(candidates) >= 2:
+                pending = create_pending_ornament_clarification(
+                    original_query=user_query,
+                    subject_name=candidates[0]["display_name"],
+                    candidates=candidates,
+                    requested_detail="story",
+                    evidence_scope=story_scope.get("requested_scope", "exact_ornament"),
+                )
+                return {
+                    "message": _render_ornament_candidate_clarification(
+                        pending["subject_name"], candidates,
+                    ),
+                    "mode": "ornament_candidate_clarification",
+                    "answer_mode": "ornament_candidate_clarification",
+                    "evidence": [],
+                    "source_ids": [],
+                    "point_context": story_scope["resolved"].get("context"),
+                    "presentation": None,
+                    "retrieval_query": None,
+                    "pending_ornament_clarification": pending,
+                    "ornament_candidates": candidates,
+                }
+        if story_scope.get("requested_scope") == "craft_only":
+            return _ornament_story_source_clarification(
+                story_scope, tour_state, interaction_state,
+            )
+        return _answer_ornament_detail(
+            story_scope["resolved"],
+            tour_state,
+            interaction_state,
+            rag_search,
+            detailed=True,
+            story_detail=True,
+            listen_only=(visitor_profile or {}).get("interaction_mode") == "listen_only",
+        )
     if craft_request is not None:
         return _answer_whole_site_craft_follow_up(
             craft_request.craft,
