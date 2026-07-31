@@ -17,6 +17,7 @@ from controlled_derivation import (
     DerivedOperand,
     deterministic_difference,
 )
+from controlled_knowledge_query import is_public_visitor_message
 
 
 SITE_NAMES = ("陈家祠", "陈氏书院")
@@ -47,15 +48,6 @@ ADDRESS_TERMS = (
     "位于哪里",
     "在什么地方",
     "坐落在哪里",
-)
-INTERNAL_TOKENS = (
-    ".md",
-    "title_path",
-    "source_ids",
-    "chunk_id",
-    "node_id",
-    "http://",
-    "https://",
 )
 YEAR_PATTERN = r"(?:18|19|20)\d{2}"
 TIME_PATTERN = r"(?:[01]?\d|2[0-3]):[0-5]\d"
@@ -99,10 +91,46 @@ def _compact(user_query: str) -> str:
     return "".join(str(user_query or "").split())
 
 
+def is_identity_document_civil_service_request(user_query: str) -> bool:
+    """Recognize loss-report/replacement questions outside venue knowledge."""
+    text = _compact(user_query)
+    has_document = any(term in text for term in ("身份证", "身份证件", "证件"))
+    return has_document and any(term in text for term in ("挂失", "补办", "补领"))
+
+
+def render_identity_document_civil_service_boundary(user_query: str) -> str:
+    """Keep civil-document administration outside the museum answer boundary."""
+    text = _compact(user_query)
+    if any(term in text for term in ("入馆", "进馆", "入场", "检票")):
+        return (
+            "您同时询问了入馆和身份证挂失或补办。"
+            "请先确认您希望解决哪一项：我可以说明场馆已审核的检票流程；"
+            "身份证挂失或补办请通过公安机关官方渠道查询。"
+        )
+    return (
+        "项目资料只覆盖场馆参观和检票流程，"
+        "无法提供身份证挂失、补办等政务办理信息。"
+        "请通过公安机关官方渠道查询。"
+    )
+
+
+def _lacks_alternate_identity_document(user_query: str) -> bool:
+    text = _compact(user_query)
+    no_electronic = any(term in text for term in ("没有电子身份证", "没电子身份证", "无电子身份证"))
+    no_other = any(term in text for term in ("没有其他证件", "没其他证件", "没有其他有效证件", "没其他有效证件"))
+    combined_absence = any(
+        term in text
+        for term in ("没有电子身份证或其他证件", "没电子身份证或其他证件", "没有电子身份证和其他证件")
+    )
+    return combined_absence or (no_electronic and no_other)
+
+
 def identify_single_fact_kind(user_query: str) -> str | None:
     """Recognize only explicit, high-confidence reviewed question shapes."""
 
     text = _compact(user_query)
+    if is_identity_document_civil_service_request(text):
+        return None
     if not text:
         return None
 
@@ -159,6 +187,12 @@ def identify_single_fact_kind(user_query: str) -> str | None:
                     "没拿",
                     "未携带",
                     "丢了",
+                    "丢失",
+                    "遗失",
+                    "找不到",
+                    "找不着",
+                    "不在身上",
+                    "落在酒店",
                 )
             )
             or any(
@@ -181,7 +215,8 @@ def identify_single_fact_kind(user_query: str) -> str | None:
                 "入馆",
                 "进馆",
                 "入场",
-                "检票",
+                    "检票",
+                    "进去",
                 "订了票",
                 "怎么办",
             )
@@ -747,6 +782,8 @@ def _service_answer(
 
 def _identity_admission_answer(
     evidence: list[dict[str, Any]],
+    *,
+    user_query: str,
 ) -> SingleFactAnswer:
     """Render the reviewed workaround without treating a normal rule as a ban."""
 
@@ -785,11 +822,16 @@ def _identity_admission_answer(
 
     if workaround_found and source_ids:
         message = (
-            "有替代处理方式。已完成订票但未携带身份证件时，可到综合服务处"
-            "出示电子身份证或其他有效证件，换取实体票后按现场流程入馆。"
+            "有替代处理方式：如果目前无法出示实体身份证，可前往综合服务处，"
+            "出示电子身份证或其他有效证件，按现场流程换取实体票。"
             "使用优惠票或免票的游客，仍应按要求出示相应有效证件供查验。"
             + freshness
         )
+        if _lacks_alternate_identity_document(user_query):
+            message += (
+                "如果您也没有电子身份证或其他有效证件，"
+                "现有资料无法确认能否完成核验，请向现场工作人员或场馆官方渠道核实。"
+            )
         return SingleFactAnswer(
             fact_kind="identity_admission_workaround",
             message=message,
@@ -814,10 +856,8 @@ def _identity_admission_answer(
 
 
 def _validate_visitor_message(message: str) -> None:
-    if any(token in message for token in INTERNAL_TOKENS):
-        raise ValueError("游客文本包含内部检索字段或链接。")
-    if re.search(r"(?<![A-Za-z0-9])S\d{1,3}(?![A-Za-z0-9])", message):
-        raise ValueError("游客文本包含内部来源编号。")
+    if not is_public_visitor_message(message):
+        raise ValueError("游客文本包含内部检索字段或来源描述。")
 
 
 def render_single_fact_answer(
@@ -837,7 +877,9 @@ def render_single_fact_answer(
     if resolved_fact_kind == "site_address":
         result = _address_answer(normalized_evidence)
     elif resolved_fact_kind == "identity_admission_workaround":
-        result = _identity_admission_answer(normalized_evidence)
+        result = _identity_admission_answer(
+            normalized_evidence, user_query=user_query,
+        )
     elif resolved_fact_kind in {
         "museum_establishment",
         "museum_reopening",

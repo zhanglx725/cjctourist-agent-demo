@@ -44,10 +44,12 @@ from craft_knowledge import (
 )
 from single_fact_answer import (
     identify_single_fact_kind,
+    is_identity_document_civil_service_request,
     render_single_fact_answer,
+    render_identity_document_civil_service_boundary,
     single_fact_categories_for_kind,
 )
-from controlled_knowledge_query import ControlledKnowledgePlan
+from controlled_knowledge_query import ControlledKnowledgePlan, is_public_visitor_message
 from ornament_detail_runtime import (
     build_object_evidence_view,
     filter_object_evidence,
@@ -763,13 +765,8 @@ def parse_rag_payload(raw: str) -> dict[str, Any]:
 
 
 def _evidence_line(item: dict[str, Any]) -> str:
-    title_path = item.get("title_path") or []
-    title = " / ".join(title_path[-2:]) if isinstance(title_path, list) and title_path else item.get("document", "资料条目")
-    source_ids = "、".join(item.get("source_ids") or []) or "未标注来源编号"
-    content = " ".join(str(item.get("content") or "").split())
-    excerpt = content[:180] + ("…" if len(content) > 180 else "")
-    document = item.get("document") or "未标注文档"
-    return f"- {document} / {title}（来源：{source_ids}）：{excerpt}"
+    """Render one compact public fact while retaining the raw evidence in audit."""
+    return _fact_summary(item)
 
 
 def format_tour_qa_answer(
@@ -792,13 +789,19 @@ def format_tour_qa_answer(
         answer = fact_answer.message
         mode = "single_fact"
     elif evidence:
-        answer = "根据本地知识库检索到的资料：\n" + "\n".join(
-            _evidence_line(item) for item in evidence[:3] if isinstance(item, dict)
+        # Raw evidence carries document names, source IDs and retrieval context.
+        # It is retained in the structured return, never formatted for visitors.
+        answer = (
+            "已找到与问题相关的审核资料，但当前通用问答出口无法在不展示检索细节的前提下"
+            "安全整理为游客答案。请换一种更具体的问法。"
         )
         mode = "rag"
     else:
-        detail = payload.get("error") or "当前本地知识库没有检索到足以支持该问题的资料。"
-        answer = f"资料不足：{detail} 我不会根据当前点位补造事实。"
+        answer = "资料不足：当前没有检索到足以支持该问题的资料，我不会根据当前点位补造事实。"
+        mode = "rag"
+
+    if not is_public_visitor_message(answer):
+        answer = "当前回答无法在不展示内部检索信息的前提下安全整理，我不会直接展示检索原文。"
         mode = "rag"
 
     presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
@@ -963,9 +966,9 @@ def _fact_summary(item: dict[str, Any]) -> str:
     """Use a compact evidence-derived sentence rather than dumping a chunk."""
     content = " ".join(str(item.get("content") or "").split())
     first_sentence = next((part.strip() for part in content.replace("！", "。").replace("？", "。").split("。") if part.strip()), content)
-    source_ids = "、".join(item.get("source_ids") or []) or "未标注来源编号"
-    document = item.get("document") or "未标注文档"
-    return f"{first_sentence}（{document}；{source_ids}）"
+    if first_sentence and is_public_visitor_message(first_sentence):
+        return first_sentence
+    return "已检索到相关资料，但当前不能在不展示内部检索信息的前提下安全展开。"
 
 
 def answer_current_point_craft_features(
@@ -1378,6 +1381,29 @@ def answer_tour_question(
     ) = None,
 ) -> dict[str, Any]:
     """Use one injected existing RAG callable and leave both state snapshots untouched."""
+    if is_identity_document_civil_service_request(user_query):
+        message = render_identity_document_civil_service_boundary(user_query)
+        presentation = (
+            present_tour_state(tour_state, interaction_state)
+            if tour_state and interaction_state
+            else None
+        )
+        if presentation:
+            presentation = {
+                **presentation,
+                "message": message,
+                "code": "identity_document_civil_service_boundary",
+                "ok": False,
+            }
+        return {
+            "message": message,
+            "mode": "identity_document_civil_service_boundary",
+            "evidence": [],
+            "source_ids": [],
+            "point_context": current_stop_context(tour_state),
+            "presentation": presentation,
+            "retrieval_query": None,
+        }
     safety_answer = answer_visit_safety_question(user_query)
     if safety_answer is not None:
         presentation = (

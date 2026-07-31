@@ -46,7 +46,7 @@ class TourQaTests(unittest.TestCase):
     def _success_search(query: str) -> str:
         return json.dumps({"query": query, "evidence": [EVIDENCE]}, ensure_ascii=False)
 
-    def test_current_point_detail_question_uses_local_craft_instances_and_cites_evidence(self):
+    def test_current_point_detail_question_uses_local_craft_instances_without_public_source_leak(self):
         calls = []
         def local_search(query):
             calls.append(query)
@@ -61,8 +61,9 @@ class TourQaTests(unittest.TestCase):
         self.assertTrue(all("石雕" in query for query in calls))
         self.assertTrue(result["local_ornaments"])
         self.assertTrue(all(item["craft"] == "石雕" for item in result["local_ornaments"]))
-        self.assertIn("08_ornament_items.md", result["message"])
-        self.assertIn("S11", result["message"])
+        self.assertNotIn("08_ornament_items.md", result["message"])
+        self.assertNotIn("S11", result["message"])
+        self.assertTrue(any("S11" in item.get("source_ids", []) for item in result["evidence"]))
         self.assertEqual(result["presentation"]["phase"], "explaining")
         self.assertIn("explanation_finished", [item["id"] for item in result["presentation"]["actions"]])
 
@@ -411,7 +412,7 @@ class TourQaTests(unittest.TestCase):
         self.assertEqual(self.tour, before_tour)
         self.assertEqual(self.interaction, before_interaction)
 
-    def test_research_without_exact_card_falls_back_to_visible_base_evidence(self):
+    def test_research_without_exact_card_falls_back_without_internal_evidence_leak(self):
         before_tour, before_interaction = deepcopy(self.tour), deepcopy(self.interaction)
         with patch("tour_qa.retrieve_research_cards", return_value={"status": "no_eligible_match", "cards": []}):
             result = answer_tour_question(
@@ -420,7 +421,10 @@ class TourQaTests(unittest.TestCase):
             )
         self.assertEqual(result["mode"], "research_rag_fallback")
         self.assertIn("基础资料回答", result["message"])
-        self.assertIn("S11", result["message"])
+        self.assertNotIn("S11", result["message"])
+        self.assertNotIn(".md", result["message"])
+        self.assertTrue(result["evidence"])
+        self.assertTrue(any("S11" in item.get("source_ids", []) for item in result["evidence"]))
         self.assertEqual(result["research_cards"], [])
         self.assertEqual(self.tour, before_tour)
         self.assertEqual(self.interaction, before_interaction)
@@ -440,7 +444,9 @@ class TourQaTests(unittest.TestCase):
         self.assertEqual(result["comparison"], None)
         self.assertEqual(result["comparison_subjects"], ("灰塑", "木雕"))
         self.assertEqual(calls, ["灰塑 是什么 工艺 特点", "木雕 是什么 工艺 特点"])
-        self.assertIn("S11", result["message"])
+        self.assertNotIn("S11", result["message"])
+        self.assertNotIn("08_ornament_items.md", result["message"])
+        self.assertTrue(any("S11" in item.get("source_ids", []) for item in result["evidence"]))
 
 
 if __name__ == "__main__":

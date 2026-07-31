@@ -159,9 +159,10 @@ class AgentTourQaTests(unittest.TestCase):
         self.assertEqual(state["tour_state"], before_tour)
         self.assertEqual(state["tour_interaction_state"], before_interaction)
         self.assertEqual(update["tour_presentation"]["phase"], "explaining")
-        self.assertIn("S11", update["messages"][0].content)
+        self.assertNotIn("S11", update["messages"][0].content)
+        self.assertNotIn("08_ornament_items.md", update["messages"][0].content)
         self.assertIn("工艺特点", update["messages"][0].content)
-        self.assertNotIn("根据本地知识库检索到的资料：", update["messages"][0].content)
+        self.assertTrue(any("S11" in item.get("source_ids", []) for item in update["retrieved_evidence"]))
 
     def test_no_route_single_fact_keeps_direct_rag_path_but_skips_llm_rendering(self):
         request = _message_state("陈家祠什么时候建成？")
@@ -192,6 +193,31 @@ class AgentTourQaTests(unittest.TestCase):
             answer["performance_metrics"][-1]["phase"],
             "deterministic_single_fact_answer",
         )
+
+    def test_identity_document_civil_service_boundary_skips_rag_in_both_modes(self):
+        for query in ("身份证丢了怎么挂失？", "身份证在哪里补办？"):
+            with self.subTest(query=query):
+                no_route = _message_state(query)
+                self.assertEqual(route_initial_request(no_route), "tour_qa")
+                with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+                    update = tour_qa_node(no_route)
+                rag.invoke.assert_not_called()
+                self.assertIn("公安机关官方渠道", update["messages"][0].content)
+                self.assertNotIn("综合服务处", update["messages"][0].content)
+                self.assertNotIn("tour_state", update)
+                self.assertNotIn("visitor_profile", update)
+
+        active = self._arrived_tour()
+        before_tour = deepcopy(active["tour_state"])
+        before_profile = deepcopy(active["visitor_profile"])
+        request = _message_state("身份证丢了，怎么入馆和补办？", active)
+        self.assertEqual(route_initial_request(request), "tour_qa")
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            update = tour_qa_node(request)
+        rag.invoke.assert_not_called()
+        self.assertIn("同时询问了入馆和身份证挂失或补办", update["messages"][0].content)
+        self.assertEqual(active["tour_state"], before_tour)
+        self.assertEqual(active["visitor_profile"], before_profile)
 
     def test_active_tour_single_fact_uses_same_answer_first_renderer(self):
         state = self._arrived_tour()
@@ -237,6 +263,10 @@ class AgentTourQaTests(unittest.TestCase):
             retrieval = direct_rag_node(no_route)
         rag.invoke.assert_called_once_with(expected_search)
         model.assert_not_called()
+        direct_audit = retrieval["messages"][0].additional_kwargs[
+            "direct_controlled_knowledge_answer"
+        ]
+        self.assertIn("S07", direct_audit["source_ids"])
         next_state = {
             **no_route,
             **retrieval,
@@ -266,6 +296,43 @@ class AgentTourQaTests(unittest.TestCase):
         self.assertNotIn("S07", active_answer)
         self.assertNotIn("tour_state", update)
         self.assertNotIn("tour_interaction_state", update)
+
+    def test_invoice_questions_are_public_and_equivalent_in_both_modes(self):
+        queries = (
+            "发票怎么申请？",
+            "多久以内可以开发票？",
+            "发票开了还能修改吗？",
+            "开具发票后还能退票吗？",
+        )
+        for query in queries:
+            with self.subTest(query=query):
+                no_route = _message_state(query)
+                self.assertEqual(route_initial_request(no_route), "direct_rag")
+                with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+                    rag.invoke.return_value = TEAM_INVOICE_PAYLOAD
+                    retrieval = direct_rag_node(no_route)
+                no_route_state = {
+                    **no_route,
+                    **retrieval,
+                    "messages": [*no_route["messages"], *retrieval["messages"]],
+                }
+                no_route_answer = llm_think_node(no_route_state)["messages"][0].content
+
+                active = _message_state(query, self._arrived_tour())
+                before_tour = deepcopy(active["tour_state"])
+                before_profile = deepcopy(active["visitor_profile"])
+                with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+                    rag.invoke.return_value = TEAM_INVOICE_PAYLOAD
+                    update = tour_qa_node(active)
+                active_answer = update["messages"][0].content
+                self.assertEqual(no_route_answer, active_answer)
+                for expected in ("30 日内", "不能修改", "不能办理退票"):
+                    self.assertIn(expected, active_answer)
+                for forbidden in (".md", "S07", "本地规则快照", "本地知识库"):
+                    self.assertNotIn(forbidden, active_answer)
+                self.assertTrue(any("S07" in item.get("source_ids", []) for item in update["retrieved_evidence"]))
+                self.assertEqual(active["tour_state"], before_tour)
+                self.assertEqual(active["visitor_profile"], before_profile)
 
     @staticmethod
     def _normalize_story_question(

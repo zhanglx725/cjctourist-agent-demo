@@ -99,6 +99,14 @@ _QUESTION_QUERY_HINTS = {
 }
 _FORBIDDEN_VISITOR_TOKENS = (
     ".md",
+    "本地规则快照",
+    "本地参考快照",
+    "本地快照",
+    "本地知识库",
+    "原始chunk",
+    "原始 chunk",
+    "资料标题",
+    "检索分数",
     "source_ids",
     "used_source_ids",
     "chunk_id",
@@ -205,6 +213,7 @@ def identify_controlled_knowledge_plan(
             "开票",
             "开发票",
             "申请发票",
+            "发票怎么申请",
             "修改",
             "改发票",
             "退票",
@@ -298,7 +307,12 @@ def grounded_answer_prompt(
     )
 
 
-def _visitor_answer_is_safe(message: str) -> bool:
+def is_public_visitor_message(message: str) -> bool:
+    """Validate one visitor-facing message without discarding audit evidence.
+
+    P1-21 owns this shared boundary.  Callers retain full evidence and source
+    metadata in their structured result; only the public text must pass it.
+    """
     compact = str(message or "").strip()
     if not compact or len(compact) > 1800:
         return False
@@ -309,6 +323,11 @@ def _visitor_answer_is_safe(message: str) -> bool:
         _SOURCE_ID.search(compact) is None
         and _INTERNAL_IDENTIFIER.search(compact) is None
     )
+
+
+# Private compatibility for existing callers while all new renderers use the
+# named public boundary above.
+_visitor_answer_is_safe = is_public_visitor_message
 
 
 def _render_reviewed_invoice_rule(
@@ -338,7 +357,7 @@ def _render_reviewed_invoice_rule(
     return (
         f"{prefix}可在购买后 30 日内申请。"
         "发票一经开具不能修改，也不能办理退票。"
-        "这是本地规则快照；具体申请入口和当前规则请以官方小程序订单页面为准。"
+        "具体申请入口和当前规则请以官方小程序订单页面为准。"
     )
 
 

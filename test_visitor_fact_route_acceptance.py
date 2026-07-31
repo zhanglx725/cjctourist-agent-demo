@@ -252,6 +252,27 @@ class VisitorFactRouteAcceptanceTests(unittest.TestCase):
         self.assertIn("17:30", afternoon)
         self.assertIn("官方当日公告", afternoon)
 
+    def test_identity_admission_synonyms_are_equivalent_in_both_modes(self):
+        queries = (
+            "忘带身份证怎么进馆？",
+            "身份证丢失了还能入馆吗？",
+            "证件不在身上怎么检票？",
+            "没带实体身份证怎么办？",
+            "身份证落在酒店了还能进去吗？",
+        )
+        for query in queries:
+            with self.subTest(query=query):
+                self.assertEqual(identify_single_fact_kind(query), "identity_admission_workaround")
+                no_route_message, no_route_retrieval, _ = self._run_no_route(query)
+                active_message, active_update = self._run_active(query)
+                self.assertEqual(no_route_message, active_message)
+                for expected in ("综合服务处", "电子身份证或其他有效证件", "换取实体票"):
+                    self.assertIn(expected, no_route_message)
+                self._assert_visitor_safe(no_route_message)
+                audit = no_route_retrieval["messages"][0].additional_kwargs["direct_single_fact_answer"]
+                self.assertIn("S07", audit["source_ids"])
+                self.assertIn("S07", {source for item in active_update["retrieved_evidence"] for source in item.get("source_ids", [])})
+
     def test_missing_calculation_endpoint_fails_closed(self):
         start_only = json.dumps(
             {"evidence": [EVIDENCE[0] | {"content": "1888 年开始筹建。"}]},

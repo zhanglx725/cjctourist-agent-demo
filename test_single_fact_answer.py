@@ -4,7 +4,9 @@ import unittest
 
 from single_fact_answer import (
     identify_single_fact_kind,
+    is_identity_document_civil_service_request,
     render_single_fact_answer,
+    render_identity_document_civil_service_boundary,
     single_fact_categories,
 )
 
@@ -269,6 +271,51 @@ class SingleFactAnswerTests(unittest.TestCase):
         self.assertIn("资料不足", result.message)
         self.assertIn("不能仅凭", result.message)
         self.assertNotIn("无法入馆", result.message)
+
+    def test_identity_admission_synonyms_share_the_reviewed_workaround(self):
+        queries = (
+            "忘带身份证怎么进馆？",
+            "身份证丢失了还能入馆吗？",
+            "证件不在身上怎么检票？",
+            "没带实体身份证怎么办？",
+            "身份证落在酒店了还能进去吗？",
+        )
+        for query in queries:
+            with self.subTest(query=query):
+                self.assertEqual(
+                    identify_single_fact_kind(query),
+                    "identity_admission_workaround",
+                )
+                result = render_single_fact_answer(
+                    query,
+                    [IDENTITY_ORIGINAL_ONLY_EVIDENCE, IDENTITY_WORKAROUND_EVIDENCE],
+                )
+                self.assertTrue(result.ok)
+                for expected in ("综合服务处", "电子身份证或其他有效证件", "换取实体票"):
+                    self.assertIn(expected, result.message)
+                for forbidden in ("资料没有专门说明", "只能电话咨询", "必须重新购票"):
+                    self.assertNotIn(forbidden, result.message)
+                self.assertEqual(result.source_ids, ("S05", "S07"))
+
+    def test_missing_all_alternatives_does_not_guarantee_admission(self):
+        result = render_single_fact_answer(
+            "身份证丢了，也没有电子身份证或其他证件，怎么办？",
+            [IDENTITY_WORKAROUND_EVIDENCE],
+        )
+        self.assertTrue(result.ok)
+        self.assertIn("无法确认能否完成核验", result.message)
+        self.assertIn("现场工作人员或场馆官方渠道", result.message)
+        self.assertNotIn("可以入馆", result.message)
+
+    def test_identity_civil_service_questions_are_not_venue_ticketing_facts(self):
+        for query in ("身份证丢了怎么挂失？", "身份证在哪里补办？"):
+            with self.subTest(query=query):
+                self.assertTrue(is_identity_document_civil_service_request(query))
+                self.assertIsNone(identify_single_fact_kind(query))
+                message = render_identity_document_civil_service_boundary(query)
+                self.assertIn("无法提供身份证挂失、补办", message)
+                self.assertIn("公安机关官方渠道", message)
+                self.assertNotIn("综合服务处", message)
 
 
 if __name__ == "__main__":

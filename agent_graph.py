@@ -81,6 +81,7 @@ from controlled_knowledge_query import (
 from single_fact_answer import (
     FACT_KINDS,
     identify_single_fact_kind,
+    is_identity_document_civil_service_request,
     render_single_fact_answer,
     single_fact_categories,
     single_fact_categories_for_kind,
@@ -572,7 +573,7 @@ def llm_think_node(state: AgentState) -> dict[str, Any]:
         "你是陈家祠导游助手。使用用户的语言回答。涉及陈家祠的历史、建筑、装饰、"
         "工艺、服务、票务、开放或公告等事实，必须先调用 chen_clan_academy_rag_search。"
         "最终回答只能基于工具返回的 evidence；不得把模型常识补成景区事实。"
-        "来源信息只用“馆方公开资料”“本地参考快照”等游客可理解的短语说明；"
+        "来源信息仅保留在内部审计，不在游客文本中描述本地快照或知识库；"
         "不得显示文件名、资料标题、原始段落、source_ids、URL、节点名或内部字段。"
         "若没有证据、证据有冲突，或状态为"
         "snapshot/已过期/待确认，清楚说明限制；对于实时信息，提示以馆方最新官方信息为准。"
@@ -1514,6 +1515,14 @@ def direct_rag_node(state: AgentState) -> dict[str, Any]:
                     "message": knowledge_answer,
                     "domain": knowledge_plan.domain,
                     "question_type": knowledge_plan.question_type,
+                    "source_ids": sorted(
+                        {
+                            source
+                            for item in evidence
+                            for source in item.get("source_ids", [])
+                            if isinstance(source, str) and source
+                        }
+                    ),
                 }
                 if knowledge_plan is not None and knowledge_answer is not None
                 else None
@@ -1867,6 +1876,10 @@ def route_initial_request(state: AgentState) -> str:
     if is_unsafe_photo_request(raw_text):
         return "tour_qa"
     if is_visit_safety_question(raw_text):
+        return "tour_qa"
+    # Identity-card loss reporting/replacement is civil administration, not a
+    # venue fact.  Keep it out of RAG in both pre-tour and active-tour modes.
+    if is_identity_document_civil_service_request(raw_text):
         return "tour_qa"
 
     # First confirmation stage: no inferred default budget is available, so a

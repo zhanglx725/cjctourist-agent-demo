@@ -362,6 +362,12 @@ python inspect_route_plan.py deep_dive_90
 - `replan_time_confirmation` 与 `replan_route_confirmation` 优先于下一站控制；`explaining` 和 `awaiting_confirmation` 也不得由“下一个”隐式完成站点。无法安全执行的控制表达必须走结构化澄清，禁止回退 `llm_think`／RAG 自由导航。
 - 新增下一站同义表达或语义候选时，必须同时覆盖：无活跃路线、两类重规划等待、讲解中、已确认新路线和跨线程隔离；不得改变“只有确认完成才写入 visited”的 A1 契约。
 
+## P1-13/P1-16 共享边界：票务与服务公开渲染
+
+- `controlled_knowledge_query.is_public_visitor_message()` 是 P1-21 的公共游客文本门控。新增游客渲染器必须复用它；文件名、`Sxx`、本地快照/知识库描述、原始 chunk、URL、内部 ID 与检索字段只能保留在结构化 evidence 或 Trace，不能写入 `visitor_message`。
+- 无法出示实体身份证但询问入馆时，统一复用 `identity_admission_workaround` 的已审核替代流程；不得从“丢失”字样推导没有替代方式或机械建议电话咨询。没有电子身份证和其他有效证件时只说明需现场核验，不保证可入馆。
+- 身份证挂失、补办、补领不是场馆票务事实。它们必须返回公安政务边界说明并跳过场馆 RAG；与入馆同问时澄清先处理哪一项，不能把两类流程混写。
+
 ## P1-20 共享边界：对象故事与工艺总述
 
 - `07_ornament_crafts.md` 只能提供工艺层事实，不能支撑命名对象的传说、人物或情节。

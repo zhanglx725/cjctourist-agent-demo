@@ -10,6 +10,7 @@ from controlled_knowledge_query import (
     filter_plan_evidence,
     grounded_answer_prompt,
     identify_controlled_knowledge_plan,
+    is_public_visitor_message,
     render_controlled_knowledge_answer,
 )
 
@@ -19,7 +20,10 @@ class ControlledKnowledgeQueryTests(unittest.TestCase):
         cases = (
             ("团队订单电子发票规则", "rule"),
             ("团队票怎么开发票", "method"),
+            ("发票怎么申请？", "method"),
+            ("多久以内可以开发票？", "rule"),
             ("开票后还能改吗", "rule"),
+            ("开票以后可以退票吗？", "rule"),
         )
         for text, question_type in cases:
             with self.subTest(text=text):
@@ -28,7 +32,7 @@ class ControlledKnowledgeQueryTests(unittest.TestCase):
                 self.assertEqual(plan.domain, "ticketing")
                 self.assertEqual(plan.question_type, question_type)
                 self.assertEqual(plan.categories, ("ticketing_snapshot",))
-                self.assertEqual(plan.subject_text, text)
+                self.assertEqual(plan.subject_text, text.rstrip("？?。！!"))
         self.assertIsNone(
             identify_controlled_knowledge_plan(
                 "帮我规划路线，再说说团队订单电子发票规则"
@@ -208,6 +212,25 @@ class ControlledKnowledgeQueryTests(unittest.TestCase):
         self.assertIn("不能办理退票", message)
         self.assertIn("官方小程序订单页面", message)
         self.assertNotIn("ticketing_snapshot", message)
+        self.assertNotIn("本地规则快照", message)
+        self.assertTrue(is_public_visitor_message(message))
+
+    def test_public_output_gate_rejects_internal_descriptions_for_every_domain(self):
+        domain_cases = (
+            "site_overview", "history_architecture", "visit_service", "ticketing",
+            "ornament_craft", "ornament_item",
+        )
+        for domain in domain_cases:
+            with self.subTest(domain=domain):
+                plan = ControlledKnowledgePlan(domain, "feature", "陈家祠", "brief")
+                message = render_controlled_knowledge_answer(
+                    plan,
+                    [{"category": plan.categories[0], "content": "审核事实。", "source_ids": ["S07"]}],
+                    lambda _: "来自本地快照 06_ticketing_rules.md（来源：S07）",
+                )
+                self.assertIn("无法把证据安全整理成游客答案", message)
+                self.assertNotIn("本地快照", message)
+                self.assertNotIn("S07", message)
 
     def test_incomplete_invoice_evidence_fails_closed_without_model(self):
         plan = identify_controlled_knowledge_plan("开票后还能改吗")
