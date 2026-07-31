@@ -26,7 +26,7 @@ from tour_navigation import (
     next_stop_navigation,
 )
 from tour_interaction import handle_tour_event, initialize_interaction
-from tour_intent import classify_tour_intent
+from tour_intent import classify_tour_intent, resolve_reviewed_node
 from tour_presenter import (
     present_clarification,
     present_replan_proposal,
@@ -64,6 +64,7 @@ from semantic_normalization import (
     canonical_control_text,
     canonical_fact_kind,
     canonical_knowledge_plan,
+    is_safe_arrival_candidate,
     recognize_semantic_candidate,
 )
 from pre_semantic_arbitration import resolve_pre_semantic_action
@@ -133,6 +134,9 @@ class AgentState(TypedDict, total=False):
     # VisitorProfile: it is reset on every user message and can only map into
     # existing deterministic control parsers.
     semantic_candidate: dict[str, Any] | None
+    # C1 audit only.  It records how a raw, schema-validated arrival proposal
+    # was resolved by reviewed-node code; it is not a location fact source.
+    semantic_arrival_audit: dict[str, Any] | None
     semantic_control_text: str | None
     semantic_fact_kind: str | None
     knowledge_query_plan: dict[str, Any] | None
@@ -290,6 +294,59 @@ def _invoke_grounded_knowledge_model(prompt: str) -> str:
     return response.content if isinstance(response.content, str) else str(response.content)
 
 
+def _arrival_candidate_audit(candidate: Any) -> dict[str, Any] | None:
+    """Describe reviewed-node resolution for one validated arrival candidate.
+
+    The result is trace-only state.  The candidate still reaches A1 through a
+    canonical text phrase and ``tour_intent``; this helper cannot create a
+    node ID or execute an arrival event.
+    """
+    if getattr(candidate, "candidate_type", None) != "arrival":
+        return None
+    location_text = getattr(candidate, "location_text", None)
+    audit: dict[str, Any] = {
+        "candidate_type": "arrival",
+        "evidence_span": getattr(candidate, "evidence_span", ""),
+        "location_text": location_text,
+        "model_called": True,
+        "resolved_node_id": None,
+        "resolution_status": "pending_binding_deferred",
+        "final_event": None,
+    }
+    if location_text is not None:
+        resolution = resolve_reviewed_node(location_text)
+        audit.update(
+            {
+                "resolved_node_id": resolution.node_id,
+                "resolution_status": resolution.reason_code,
+            }
+        )
+    return audit
+
+
+def _finalize_arrival_audit(
+    state: AgentState, decision: Any, event_result: dict[str, Any]
+) -> dict[str, Any] | None:
+    """Attach the A1 outcome to an existing C1 trace record only."""
+    audit = state.get("semantic_arrival_audit")
+    if not isinstance(audit, dict) or audit.get("candidate_type") != "arrival":
+        return None
+    arguments = getattr(decision, "arguments", None) or {}
+    resolved = arguments.get("node_id")
+    return {
+        **audit,
+        "resolved_node_id": resolved if isinstance(resolved, str) else audit.get("resolved_node_id"),
+        "resolution_status": (
+            "resolved_for_a1" if event_result.get("ok") else audit.get("resolution_status")
+        ),
+        "final_event": {
+            "event_type": getattr(decision, "event_type", None),
+            "code": event_result.get("code"),
+            "ok": bool(event_result.get("ok")),
+        },
+    }
+
+
 def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
     """Propose a safe control or fact normalization without executing it."""
     started = time.perf_counter()
@@ -299,6 +356,7 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
     if pre_semantic.consumed:
         return {
             "semantic_candidate": None,
+            "semantic_arrival_audit": None,
             "semantic_control_text": None,
             "semantic_fact_kind": None,
             "knowledge_query_plan": None,
@@ -321,6 +379,7 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
     ):
         return {
             "semantic_candidate": None,
+            "semantic_arrival_audit": None,
             "semantic_control_text": None,
             "semantic_fact_kind": None,
             "knowledge_query_plan": deterministic_knowledge_plan.to_dict(),
@@ -339,6 +398,7 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
     if not raw_text:
         return {
             "semantic_candidate": None,
+            "semantic_arrival_audit": None,
             "semantic_control_text": None,
             "semantic_fact_kind": None,
             "knowledge_query_plan": None,
@@ -348,11 +408,14 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
             ),
         }
     candidate = recognize_semantic_candidate(raw_text, _invoke_semantic_model)
+    if candidate.candidate_type == "arrival" and not is_safe_arrival_candidate(raw_text, candidate):
+        candidate = type(candidate)()
     canonical = canonical_control_text(candidate)
     fact_kind = canonical_fact_kind(candidate)
     knowledge_plan = canonical_knowledge_plan(candidate)
     return {
         "semantic_candidate": candidate.to_dict() if candidate.actionable else None,
+        "semantic_arrival_audit": _arrival_candidate_audit(candidate),
         "semantic_control_text": canonical,
         "semantic_fact_kind": fact_kind,
         "knowledge_query_plan": (
@@ -881,6 +944,7 @@ def tour_event_node(state: AgentState) -> dict[str, Any]:
         decision.event_type,
         **(decision.arguments or {}),
     )
+    arrival_audit = _finalize_arrival_audit(state, decision, result)
     # P1-11 product rule: a successful self-arrival during an active route is
     # a route deviation.  It establishes location, but the initial route
     # budget is not a trustworthy live-time value.  Ask for explicit remaining
@@ -905,6 +969,7 @@ def tour_event_node(state: AgentState) -> dict[str, Any]:
                 "tour_presentation": presentation, "qa_context": clear_qa_context(state.get("qa_context")),
                 "pending_ornament_clarification": None, "pending_replan_proposal": None,
                 "pending_replan_time_confirmation": None,
+                "semantic_arrival_audit": arrival_audit,
                 "performance_metrics": _append_metric(state, "tour_event", time.perf_counter() - started, event_type=decision.event_type, event_code="self_arrival_replan_time_unavailable", ok=True),
             }
         interaction = {**interaction, "pending_action_kind": "replan_time_confirmation"}
@@ -916,6 +981,7 @@ def tour_event_node(state: AgentState) -> dict[str, Any]:
             "tour_presentation": presentation, "qa_context": clear_qa_context(state.get("qa_context")),
             "pending_ornament_clarification": None, "pending_replan_proposal": None,
             "pending_replan_time_confirmation": confirmation,
+            "semantic_arrival_audit": arrival_audit,
             "performance_metrics": _append_metric(state, "tour_event", time.perf_counter() - started, event_type=decision.event_type, event_code="self_arrival_replan_time_requested", ok=True, origin_node_id=origin),
         }
     presentation = present_tour_event(result)
@@ -932,6 +998,7 @@ def tour_event_node(state: AgentState) -> dict[str, Any]:
         "pending_ornament_clarification": None,
         "pending_replan_proposal": None,
         "pending_replan_time_confirmation": None,
+        "semantic_arrival_audit": arrival_audit,
         "performance_metrics": _append_metric(
             state,
             "tour_event",

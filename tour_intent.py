@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from duration_parser import has_remaining_duration_context, has_route_duration_context, parse_duration_minutes
+from semantic_normalization import is_safe_arrival_report_text
 from tour_interaction import EVENTS
 
 
@@ -304,6 +305,18 @@ def _is_generic_arrival_phrase(text: str) -> bool:
     compact = text.strip().rstrip("。！!？?")
     if compact in BARE_ARRIVAL_SYNONYMS:
         return True
+    # P1-12C1 approved generalized arrival reports.  They name no destination,
+    # so they may bind only the one formal pending stop after the surrounding
+    # active-route guard in ``_pending_arrival_fallback`` succeeds.
+    if compact in {
+        "我已经走到这一站跟前了",
+        "我人已经到这儿了",
+        "刚刚走到该看的地方",
+        "我已经到目的地了",
+        "人已经到位了",
+        "我们走到了",
+    }:
+        return True
     return bool(re.fullmatch(
         r"(?:我\s*)?(?:(?:已|已经|刚)\s*)?(?:到了|到达了?|到)\s*[。！!？?]?",
         text.strip(),
@@ -443,6 +456,18 @@ def classify_tour_intent(
     fact_cue = _has_factual_follow_up(text) and "request_stop_detail" not in hits
     if len(hits) > 1 or (hits and fact_cue):
         return clarification("multiple_intents", "我检测到多个操作或问题，请一次告诉我一个需求。")
+
+    # P1-12C1: semantic normalization can propose an arrival candidate, but
+    # the original wording remains the authority for whether A1 may execute
+    # it.  This shared guard rejects intention, in-transit, negated,
+    # hypothetical and third-party language before it can bind a reviewed node
+    # or the unique pending stop.  Multi-intent handling above intentionally
+    # retains its frozen clarification reason.
+    if _has_arrival_language(text) and not is_safe_arrival_report_text(text):
+        return clarification(
+            "arrival_report_not_executable",
+            "我不能据此确认您已经到达。请在到达后用明确、单一的第一人称表达说明当前位置。",
+        )
 
     if hits:
         event = next(iter(hits))

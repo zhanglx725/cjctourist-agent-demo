@@ -54,6 +54,83 @@ VALID_CANDIDATE_TYPES = frozenset(
 MIN_ACTIONABLE_CONFIDENCE = 0.9
 
 
+# The model may only *propose* an arrival.  These guards keep the raw user
+# wording in charge of whether that proposal can be converted into the A1
+# vocabulary.  They deliberately reject rather than infer a visitor location.
+_ARRIVAL_NEGATION_PATTERNS = (
+    r"还没到",
+    r"没有到",
+    r"没到",
+    r"别(?:记录|算|当作).{0,12}到",
+    r"不要(?:记录|算|当作).{0,12}到",
+)
+_ARRIVAL_IN_TRANSIT_PATTERNS = (
+    r"快到",
+    r"正在去",
+    r"准备前往",
+    r"马上就到",
+    r"还有.{0,6}步到",
+)
+_ARRIVAL_DESTINATION_PATTERNS = (
+    r"想去",
+    r"接下来去",
+    r"带我到",
+    r"准备前往",
+)
+_ARRIVAL_QUESTION_PATTERNS = (
+    r"如果.{0,12}到",
+    r"到了.{0,12}(?:怎么办|会讲什么)",
+    r"是不是到",
+    r"你觉得.{0,12}到",
+)
+_ARRIVAL_THIRD_PARTY_TERMS = ("朋友", "孩子", "导游")
+_ARRIVAL_CONFLICT_TERMS = (
+    "跳过", "再详细", "详细讲", "把时间改", "结束路线", "结束游览",
+    "顺便", "再讲",
+)
+
+
+def is_safe_arrival_report_text(user_text: str) -> bool:
+    """Return whether raw text is an unambiguous first-person arrival report.
+
+    This shared guard is used by both the semantic candidate boundary and A1
+    text classification.  It has no node-resolution or state-writing power.
+    """
+    text = str(user_text or "").strip()
+    if not text:
+        return False
+    if any(re.search(pattern, text) for pattern in (
+        *_ARRIVAL_NEGATION_PATTERNS,
+        *_ARRIVAL_IN_TRANSIT_PATTERNS,
+        *_ARRIVAL_DESTINATION_PATTERNS,
+        *_ARRIVAL_QUESTION_PATTERNS,
+    )):
+        return False
+    if "？" in text or "?" in text or any(term in text for term in ("有什么", "讲讲", "哪些")):
+        return False
+    if any(term in text for term in _ARRIVAL_CONFLICT_TERMS):
+        return False
+    if "我们" not in text and any(term in text for term in _ARRIVAL_THIRD_PARTY_TERMS):
+        return False
+    return bool(re.search(r"(?:到|抵达|来到|走到|走进|到位|就在|现在(?:人)?在)", text))
+
+
+def is_safe_arrival_candidate(user_text: str, candidate: "SemanticCandidate") -> bool:
+    """Return whether a validated arrival proposal may enter A1 parsing.
+
+    This is intentionally a pure, conservative *eligibility* check.  It never
+    resolves a node, binds a pending stop, or changes state.  Node resolution
+    remains in ``tour_intent.resolve_reviewed_node`` and all writes remain in
+    ``handle_tour_event``.
+    """
+    if candidate.candidate_type != "arrival" or not candidate.actionable:
+        return False
+    # The candidate itself already proves both evidence fields are raw
+    # substrings.  This final guard requires an actual arrival/location report
+    # rather than accepting any sentence containing a reviewed place name.
+    return is_safe_arrival_report_text(user_text)
+
+
 @dataclass(frozen=True)
 class SemanticCandidate:
     """A validated, source-bounded proposal from the semantic recognizer."""
