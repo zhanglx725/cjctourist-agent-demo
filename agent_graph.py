@@ -26,7 +26,11 @@ from tour_navigation import (
     next_stop_navigation,
 )
 from tour_interaction import handle_tour_event, initialize_interaction
-from tour_intent import classify_tour_intent, resolve_reviewed_node
+from tour_intent import (
+    classify_tour_intent,
+    is_unresolved_navigation_control,
+    resolve_reviewed_node,
+)
 from tour_presenter import (
     present_clarification,
     present_replan_proposal,
@@ -1162,6 +1166,66 @@ def confirm_replan_node(state: AgentState) -> dict[str, Any]:
     return updates
 
 
+def confirm_replan_and_next_node(state: AgentState) -> dict[str, Any]:
+    """Apply a fresh proposal only when its next navigation is valid.
+
+    This is the sole C4 composite: an explicit "use new route and go to the
+    next stop" runs the existing A1 operations in sequence.  The navigation is
+    preflighted from immutable adapter outputs, so a proposal is not partly
+    applied if the resulting phase still prohibits proceeding.
+    """
+    started = time.perf_counter()
+    proposal = state.get("pending_replan_proposal")
+    applied = handle_tour_event(
+        state.get("tour_state"), state.get("tour_interaction_state"),
+        "apply_replan_proposal", proposal=proposal,
+    )
+    if not applied.get("ok"):
+        return confirm_replan_node(state)
+    navigation = handle_tour_event(
+        applied.get("tour_state"), applied.get("interaction_state"), "next_stop"
+    )
+    if not navigation.get("ok"):
+        message = (
+            "新路线尚未应用，因为当前不能立即前往下一站："
+            f"{navigation.get('message', '请按当前阶段继续。')}"
+        )
+        return {
+            "messages": [AIMessage(content=message)],
+            "tour_presentation": present_clarification(
+                message, state.get("tour_interaction_state")
+            ),
+            "pending_replan_proposal": proposal,
+            "pending_replan_time_confirmation": None,
+            "performance_metrics": _append_metric(
+                state, "confirm_replan_and_next", time.perf_counter() - started,
+                ok=False, code="next_stop_not_available_after_replan_preview",
+            ),
+        }
+    applied_presentation = present_tour_event(applied)
+    navigation_presentation = present_tour_event(navigation)
+    message = f"{applied_presentation['message']}\n\n{navigation_presentation['message']}"
+    return {
+        "messages": [AIMessage(content=message)],
+        "tour_state": applied["tour_state"],
+        "tour_interaction_state": applied["interaction_state"],
+        "tour_presentation": navigation_presentation,
+        "last_tour_event": {
+            "event": navigation["event"], "code": navigation["code"], "ok": True,
+        },
+        "pending_replan_proposal": None,
+        "pending_replan_time_confirmation": None,
+        "active_route_plan": {**proposal, "route_strategy": "replanned_from_current"},
+        "selected_route_id": str(proposal["route_id"]),
+        "qa_context": clear_qa_context(state.get("qa_context")),
+        "pending_ornament_clarification": None,
+        "performance_metrics": _append_metric(
+            state, "confirm_replan_and_next", time.perf_counter() - started,
+            ok=True, code="replan_applied_then_next_stop_ready",
+        ),
+    }
+
+
 def cancel_replan_node(state: AgentState) -> dict[str, Any]:
     """Discard a pending time/proposal action without changing formal route."""
     tour, interaction = state.get("tour_state"), state.get("tour_interaction_state")
@@ -1755,6 +1819,21 @@ def _is_replan_question_or_view_request(raw_text: str, expression: str) -> bool:
     )
 
 
+def _is_confirm_replan_then_next_expression(expression: str) -> bool:
+    """Recognize the one approved replan-confirmation composite."""
+    has_replan_adoption = any(
+        phrase in expression
+        for phrase in (
+            "确认新路线", "确认使用新路线", "使用新路线", "采用新路线",
+            "就用新路线", "就按新路线走", "按这条路线走", "按这个规划走",
+        )
+    )
+    has_next_stop = any(
+        phrase in expression for phrase in ("去下一站", "到下一站", "下一站")
+    )
+    return has_replan_adoption and has_next_stop
+
+
 def _has_fresh_replan_route_confirmation(state: AgentState) -> bool:
     """Verify that a visible proposal may still be applied exactly once."""
     proposal = state.get("pending_replan_proposal")
@@ -1821,6 +1900,12 @@ def route_initial_request(state: AgentState) -> str:
             return "cancel_replan"
         if _is_replan_question_or_view_request(raw_text, control_expression):
             return "show_replan"
+        if _is_confirm_replan_then_next_expression(control_expression):
+            return (
+                "confirm_replan_and_next"
+                if _has_fresh_replan_route_confirmation(state)
+                else "show_replan"
+            )
         if control_expression in _REPLAN_CONFIRM_EXPRESSIONS:
             return "confirm_replan" if _has_fresh_replan_route_confirmation(state) else "show_replan"
         # While a proposal is pending, do not let an unrelated short input fall
@@ -1951,6 +2036,11 @@ def route_initial_request(state: AgentState) -> str:
         if is_point_inventory_request(raw_text, state.get("tour_state")) or is_explicit_photo_request(raw_text) or is_explicit_comparison_question(raw_text) or is_explicit_research_question(raw_text) or is_explicit_term_question(raw_text):
             return "tour_qa"
         return "tour_qa" if state.get("tour_state") and state.get("tour_interaction_state") else "direct_rag"
+    # An obvious but unrecognized route-control shape must not fall through to
+    # LLM/RAG.  A semantic candidate, when available, has already been mapped
+    # into ``text`` above and handled as the existing next-stop event.
+    if is_unresolved_navigation_control(raw_text):
+        return "clarification"
     return "llm_think"
 
 
@@ -2001,6 +2091,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("prepare_replan", prepare_replan_node)
     workflow.add_node("prepare_replan_candidate", prepare_replan_candidate_node)
     workflow.add_node("confirm_replan", confirm_replan_node)
+    workflow.add_node("confirm_replan_and_next", confirm_replan_and_next_node)
     workflow.add_node("cancel_replan", cancel_replan_node)
     workflow.add_node("show_replan", show_replan_node)
     workflow.add_node("show_replan_time", show_replan_time_node)
@@ -2030,6 +2121,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_edge("prepare_replan", END)
     workflow.add_edge("prepare_replan_candidate", END)
     workflow.add_conditional_edges("confirm_replan", route_after_confirm_replan, {"stop_guidance": "stop_guidance", END: END})
+    workflow.add_edge("confirm_replan_and_next", END)
     workflow.add_edge("cancel_replan", END)
     workflow.add_edge("show_replan", END)
     workflow.add_edge("show_replan_time", END)

@@ -356,6 +356,12 @@ python inspect_route_plan.py deep_dive_90
 - 统一契约见 `E5_NARRATION_CONTRACT.md`。E5 引入的 `NarrationCoverage` 只记录本线程、本次游览中已经成功输出且带 evidence 的工艺/文物介绍；它不是 TourState、VisitorProfile、知识事实或 RAG 原文缓存。
 - 首次工艺优先使用 `07_ornament_crafts.md` 的 evidence，首次文物优先使用 `08_ornament_items.md` 的 evidence，并只能连接当前点讲解包中审核关联的对象。预算不足时减少对象数，不减少核心证据链。
 - E5-A、E5-B、E5-C 必须从同一 E5-0 提交建立分支；主负责人独占修改本文件、进度报告和学习说明。具体文件所有权、失败关闭规则与 `e5_nar_001`--`e5_nar_008` 验收编号均以契约为准。
+## P1-12C4 共享边界：下一站控制
+
+- `request_next_stop` 是闭合控制候选，只能保存原话证据与置信度；不得携带或生成 `node_id`、路线、路径、导航文案或状态修改。实际导航仍由 A1 事件适配器、已应用路线与审核空间图决定。
+- `replan_time_confirmation` 与 `replan_route_confirmation` 优先于下一站控制；`explaining` 和 `awaiting_confirmation` 也不得由“下一个”隐式完成站点。无法安全执行的控制表达必须走结构化澄清，禁止回退 `llm_think`／RAG 自由导航。
+- 新增下一站同义表达或语义候选时，必须同时覆盖：无活跃路线、两类重规划等待、讲解中、已确认新路线和跨线程隔离；不得改变“只有确认完成才写入 visited”的 A1 契约。
+
 ## P1-20 共享边界：对象故事与工艺总述
 
 - `07_ornament_crafts.md` 只能提供工艺层事实，不能支撑命名对象的传说、人物或情节。

@@ -51,7 +51,7 @@
 | --- | --- | --- | --- |
 | P0-02 馆方安全禁令及允许例外自然改写 | `implemented_pending_langsmith_verification` | 复测“商业宣传片”“庭院休息区吃点东西” | 安全结论须先于拍照与到达流程 |
 | P0-01 危险拍照安全门控 | `implemented_pending_langsmith_verification` | 对抗复测危险动作改写 | 不放宽门控 |
-| P1-12 跨流程自然语言同义表达 | `C1_arrival_synonyms_automated_verified_pending_langsmith` | 复测 C1 到达同义表达；C2 及其他流程仍待独立实施 | 候选不能直接写 TourState |
+| P1-12 跨流程自然语言同义表达 | `C1_arrival_synonyms_and_C4_next_stop_automated_verified_pending_langsmith` | 复测 C1 到达同义表达和 C4 下一站控制；C2 及其他流程仍待独立实施 | 候选不能直接写 TourState |
 | P1-07 单一事实、访问服务与受控计算 | `implemented_pending_langsmith_verification` | 游览前后复测 11 项事实／计算 | 无证据失败关闭 |
 | P1-08 站点讲解观察提示与数量一致性 | `implemented_pending_langsmith_verification` | 已完成基础 Studio 复测；继续复测前庭、后西庭、短预算、listen_only 与 E5 失败回退 | 基础复测未见机械重复或数量不一致，仍不能代替完整矩阵验收 |
 | P1-09 证据驱动的对象级讲解 | `implemented_pending_langsmith_verification` | 复测月台/后西庭对象详情、到站首讲、追问、短预算与多对象版式 | 仅使用同一 `ornament_id` 的对象级证据；无证据关闭 |
@@ -254,9 +254,9 @@
 
 已覆盖泛化到达（仅绑定唯一 pending）和带审核点位原文片段的显式到达。语义候选只保存原话证据；`location_text` 必须是原话连续片段，节点 ID 仅由 `resolve_reviewed_node()` 产生，最终复用 A1 `tour_event`。非 pending 到达复用 P1-11 的 `self_arrival → replan_time_confirmation`。前往意愿、途中、否定、假设/疑问、知识问答、第三人称和混合操作不会写入位置。C2 及时间、路线、跳过/完成、画像与知识同义表达仍须各自独立实施和验收。
 
-#### C4：下一站控制缺口（`confirmed`）
+#### C4：下一站控制缺口（`automated_verified_pending_langsmith`）
 
-已确认“下一个”可落入 `llm_think → rag_tool` 并生成无 TourState 依据的自由导航。这是控制路由缺口，不是 RAG 内容质量问题。C4 将在 C1 提交并推送、工作区清洁后单独实施：候选只能表示 `request_next_stop`，最终导航必须由 active route、`pending_stop_id`、审核空间图和既有 `tour_navigation` 产生；无安全状态映射时必须澄清，禁止回退自由 RAG 导航。
+已确认“下一个”曾可落入 `llm_think → rag_tool` 并生成无 TourState 依据的自由导航。这是控制路由缺口，不是 RAG 内容质量问题。C4 现已单独实现并完成自动化验证：常见下一站表达或受控语义候选只能表示 `request_next_stop`，最终导航只能由已应用 active route、`current_stop_id`、`pending_stop_id`、审核空间图和既有 `tour_navigation` 产生。重规划时间/路线确认、站点讲解和完成确认均优先于下一站；无安全状态映射时结构化澄清，禁止回退自由 RAG 导航。定向 99 项及完整回归 730 项通过；LangSmith 仍待独立线程复测后方可标记 verified。
 
 | 项目 | 内容 |
 | --- | --- |

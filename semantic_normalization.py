@@ -27,6 +27,7 @@ CONTROL_CANDIDATE_TYPES = frozenset(
     {
         "none",
         "arrival",
+        "request_next_stop",
         "available_duration",
         "remaining_duration",
         "route_request",
@@ -191,6 +192,7 @@ def recognition_prompt(user_text: str) -> str:
 
 操作候选：
 - arrival：用户明确表示自己已经抵达。若原话明确提到地点，可填写 location_text；否则为 null。
+- request_next_stop：用户要求前往、查看或继续至当前正式路线的下一站。
 - available_duration：用户明确给出本次可用于游览的时长。
 - remaining_duration：用户明确给出游览途中剩余时长。
 - route_request：用户请求规划游览路线。
@@ -368,6 +370,8 @@ def canonical_control_text(candidate: SemanticCandidate) -> str | None:
         return None
     if candidate.candidate_type == "arrival":
         return f"我到{candidate.location_text}了" if candidate.location_text else "我到了"
+    if candidate.candidate_type == "request_next_stop":
+        return "下一站怎么走"
     if candidate.candidate_type in {"available_duration", "remaining_duration"}:
         parsed = parse_duration_minutes(candidate.time_text or "")
         if not parsed.ok:

@@ -61,6 +61,16 @@ REMAINING_REPLAN_PHRASES = (
 RESET_ROUTE_PHRASES = ("从头重新规划", "从头给我规划", "放弃现在的行程", "重新开始")
 PENDING_CONFIRM_WORDS = frozenset({"确认", "确定", "可以", "好的", "好", "就这样", "用这条", "使用新路线", "确认使用", "按这个走", "按这条路线走"})
 
+# P1-12C4 keeps these navigation controls bounded to the existing A1
+# ``next_stop`` event.  They do not name a stop, route, or walking path.
+NEXT_STOP_CONTROL_PHRASES = (
+    "下一站怎么走", "怎么去下一站", "下一站怎么去", "下一站如何去",
+    "下一站去哪", "下一站去哪儿",
+    "下一个", "下一处", "下一个点", "接下来去哪", "接着去哪",
+    "往下走吧", "继续去后面一站", "带我去下一站", "咱们接着往后看吧",
+    "下面该去哪儿了", "然后去哪", "继续走", "往哪走",
+)
+
 
 @dataclass(frozen=True)
 class TourIntentDecision:
@@ -258,16 +268,21 @@ def _has_factual_follow_up(text: str) -> bool:
     # "下一站怎么走" and "怎么去下一站" are deterministic navigation
     # controls, not a control-plus-factual-question combination.  Keep the
     # general "怎么走" cue below for questions such as "月台怎么走".
-    if _is_next_stop_navigation_phrase(text):
+    factual_next_stop_cues = ("什么", "为什么", "有什么", "多久", "多长", "安排", "特点", "木雕", "灰塑")
+    if _is_next_stop_navigation_phrase(text) and not any(cue in text for cue in factual_next_stop_cues):
         return False
-    return any(term in text for term in ("什么", "为什么", "有什么", "介绍", "怎么走", "如何", "特点", "讲讲"))
+    return any(term in text for term in ("什么", "为什么", "有什么", "介绍", "怎么走", "如何", "特点", "讲讲", "多久", "多长", "安排"))
 
 
 def _is_next_stop_navigation_phrase(text: str) -> bool:
     """Return whether text explicitly asks how to reach the formal next stop."""
-    return any(phrase in text for phrase in (
-        "下一站怎么走", "怎么去下一站", "下一站怎么去", "下一站如何去",
-    ))
+    return any(phrase in text for phrase in NEXT_STOP_CONTROL_PHRASES)
+
+
+def is_unresolved_navigation_control(text: str) -> bool:
+    """Catch control-shaped but unapproved navigation wording before LLM/RAG."""
+    compact = text.strip().rstrip("。！!？?")
+    return bool(re.fullmatch(r"(?:接下来|接着)?(?:带路|继续走|往哪(?:儿)?走|往前走)", compact))
 
 
 def _is_explicit_completion_confirmation(text: str) -> bool:
@@ -414,7 +429,7 @@ def _event_hits(text: str) -> set[str]:
     if any(term in text for term in ("再讲详细", "详细一点", "讲细一点", "展开讲解")):
         hits.add("request_stop_detail")
     # “讲完了，去下一站” is one confirmation intent, not two events.
-    if "confirm_stop_complete" not in hits and any(term in text for term in ("下一站", "接下来去哪", "然后去哪")):
+    if "confirm_stop_complete" not in hits and _is_next_stop_navigation_phrase(text):
         hits.add("next_stop")
     return hits
 
