@@ -1035,12 +1035,12 @@ glossary_ids
 - 新增 `E5_NARRATION_CONTRACT.md`，冻结从 VisitorProfile、GuidancePolicy、StopProgram、NarrationCoverage、RAG evidence 到确定性游客讲解的职责边界。
 - `NarrationCoverage` 被设计为独立线程内覆盖记录：只有成功、有 evidence 的讲解才标记 introduced；新路线清空，游览中到达、跳过、重规划和确认完成不清空。它不写入 TourState 或 VisitorProfile。
 
-## P1-11 显式当前位置的确认式后续重规划（已实现，待 LangSmith 验证）
+## P1-11 显式当前位置的确认式后续重规划（自动化已验证，待 LangSmith 验证）
 
 - 活跃路线中，任何明确到达且不同于正式 pending 的审核点位都视为路线偏航：先以审核解析结果写入唯一位置事实 `TourState.current_stop_id`，再进入 `replan_time_confirmation` 询问游客本轮还剩多少时间；显式“重新安排后续行程”仍支持，但不再是必要条件。不得以初始路线总时长生成候选。
 - 解析到明确分钟数后，才从 `current_stop_id` 生成 `awaiting_route_confirmation` 候选；候选的 `origin_node_id` 与 `physical_node_snapshot` 都只是审计快照。A1 `apply_replan_proposal` 验证二者仍一致后才原子替换剩余路线并保留 visited/skipped；取消只清除待确认动作。
 - `pending_action_kind` 明确区分时间确认与路线确认。两阶段的“下一站”都会被拦截，不能调用 `next_stop`、静默应用候选或把路线写为 completed；路线确认阶段使用统一控制表达归一化和“否定 → 疑问/查看 → freshness → 确认”仲裁，支持“确认新路线”“使用新路线”“就按新路线走”等，否定或问句不会应用候选。
-- 本机 P1-11 定向测试通过；待以新 LangSmith 线程复测候选、确认、取消和候选过期场景。
+- 2026-07-31 修复两项阻塞：审核正式点位“后西庭”先以 `self_arrival` 写入 `current_stop_id`，再清除旧候选并生成绑定新位置的时间确认；“没标名字的小院”等未知起点在画像收集前失败关闭为 `unresolved_replan_origin`，不会退化为默认入口路线。P1-11 定向 93 项、完整回归 743 项通过；仍待 LangSmith 新线程实测，尚不得标记 `verified_fixed`。
 - 首次工艺必须先有 `07_ornament_crafts.md` 证据并连接当前点审核实例；首次文物要求位置、工艺、可见细节和有来源的题材/寓意/故事。预算不足时少讲对象而不截断证据链。
 - 本步只新增契约与测试骨架；未实现覆盖状态写入、首次讲解编排、风格素材库或质量评测引擎。后续 E5-A/B/C 的冻结接口与验收编号见契约文件。
 

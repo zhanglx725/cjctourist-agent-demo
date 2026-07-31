@@ -28,6 +28,23 @@ class TourIntentTests(unittest.TestCase):
         self.assertEqual(decision.event_type, "arrive_at_stop")
         self.assertEqual(decision.arguments["node_id"], "stop_front_courtyard_center")
 
+    def test_explicit_walking_arrival_is_available_to_controlled_replan(self):
+        decision = self.classify("我自己走到了后西庭，想从这里重新安排后续行程。")
+        self.assertEqual(decision.route_kind, "replan_request")
+        self.assertEqual(decision.arguments["node_id"], "stop_rear_west_courtyard")
+        self.assertTrue(decision.arguments["record_arrival"])
+
+    def test_unreviewed_replan_origin_fails_closed_before_route_collection(self):
+        for text in (
+            "我到了一个没标名字的小院，帮我重排路线。",
+            "我在一个不知道名字的院子，从这里重新安排。",
+            "我走到一处没有标识的地方，后面怎么走？",
+        ):
+            with self.subTest(text=text):
+                decision = self.classify(text)
+                self.assertEqual(decision.route_kind, "clarification")
+                self.assertEqual(decision.reason_code, "unresolved_replan_origin")
+
     def test_generic_arrival_uses_only_pending_stop_while_navigating(self):
         for wording in ("我到了", "到了", "到啦", "到咯", "我到这儿了"):
             with self.subTest(wording=wording):

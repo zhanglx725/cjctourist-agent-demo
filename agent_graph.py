@@ -1890,6 +1890,15 @@ def route_initial_request(state: AgentState) -> str:
         )
         if pending_decision.route_kind == "tour_event" and pending_decision.event_type == "arrive_at_stop":
             return "tour_event"
+        # A newly stated reviewed origin supersedes the older time prompt.
+        # ``prepare_replan`` first records that self-arrival, then replaces the
+        # pending confirmation with one bound to the new physical node.
+        if pending_decision.route_kind == "replan_request":
+            return "prepare_replan"
+        if pending_decision.reason_code in {
+            "unresolved_replan_origin", "ambiguous_node_name", "multiple_node_mentions",
+        }:
+            return "clarification"
         if _is_replan_negative_expression(control_expression):
             return "cancel_replan"
         if parse_duration_minutes(raw_text).ok:
@@ -1906,6 +1915,10 @@ def route_initial_request(state: AgentState) -> str:
             return "tour_event"
         if pending_decision.route_kind == "replan_request":
             return "prepare_replan"
+        if pending_decision.reason_code in {
+            "unresolved_replan_origin", "ambiguous_node_name", "multiple_node_mentions",
+        }:
+            return "clarification"
         # Pending proposal resolution is ordered intentionally.  A literal
         # confirmation character is insufficient: negative and question/view
         # language must remain non-mutating even while a proposal is visible.
@@ -1933,7 +1946,10 @@ def route_initial_request(state: AgentState) -> str:
     )
     if early_decision.route_kind == "replan_request":
         return "prepare_replan"
-    if early_decision.reason_code == "route_reset_requires_confirmation":
+    if early_decision.reason_code in {
+        "route_reset_requires_confirmation", "unresolved_replan_origin",
+        "ambiguous_node_name", "multiple_node_mentions",
+    }:
         return "clarification"
     # Reviewed single facts use the same scoped retrieval and deterministic
     # renderer in both modes.  Decide this before glossary/follow-up heuristics,

@@ -7,6 +7,7 @@ from langchain_core.messages import HumanMessage
 
 from agent_graph import (
     cancel_replan_node,
+    clarification_node,
     confirm_replan_node,
     prepare_replan_node,
     prepare_replan_candidate_node,
@@ -74,6 +75,92 @@ class AgentExplicitLocationReplanTests(unittest.TestCase):
         self.assertEqual(applied["tour_state"]["current_stop_id"], "stop_rear_courtyard_west")
         self.assertIn("stop_front_courtyard_center", applied["tour_state"]["visited_stop_ids"])
         self.assertIn(applied["tour_interaction_state"]["pending_stop_id"], applied["tour_state"]["remaining_stop_ids"])
+
+    def test_rear_west_walking_replan_records_physical_origin_before_preview(self):
+        state = self._active_state()
+        before = deepcopy(state["tour_state"])
+        state["messages"] = [HumanMessage(content="我自己走到了后西庭，想从这里重新安排后续行程。")]
+        self.assertEqual(route_initial_request(state), "prepare_replan")
+        prepared = prepare_replan_node(state)
+        self.assertEqual(prepared["last_tour_event"]["code"], "self_arrival")
+        self.assertEqual(prepared["tour_state"]["current_stop_id"], "stop_rear_west_courtyard")
+        self.assertEqual(prepared["tour_state"]["last_arrival_kind"], "self_arrival")
+        self.assertEqual(
+            prepared["pending_replan_time_confirmation"]["origin_node_id"],
+            "stop_rear_west_courtyard",
+        )
+        self.assertEqual(prepared["tour_state"]["visited_stop_ids"], before["visited_stop_ids"])
+        self.assertEqual(prepared["tour_state"]["skipped_stop_ids"], before["skipped_stop_ids"])
+
+        candidate_state = {
+            **state,
+            **prepared,
+            "messages": [HumanMessage(content="我还有40分钟")],
+        }
+        self.assertEqual(route_initial_request(candidate_state), "prepare_replan_candidate")
+        candidate = prepare_replan_candidate_node(candidate_state)
+        proposal = candidate["pending_replan_proposal"]
+        self.assertEqual(proposal["origin_node_id"], "stop_rear_west_courtyard")
+        self.assertEqual(proposal["path_node_ids"][0], "stop_rear_west_courtyard")
+        self.assertEqual(proposal["remaining_minutes"], 40)
+        confirm_state = {
+            **candidate_state,
+            **candidate,
+            "messages": [HumanMessage(content="确认使用新路线")],
+        }
+        self.assertEqual(route_initial_request(confirm_state), "confirm_replan")
+        applied = confirm_replan_node(confirm_state)
+        self.assertTrue(applied["last_tour_event"]["ok"])
+        self.assertEqual(applied["tour_state"]["current_stop_id"], "stop_rear_west_courtyard")
+        self.assertIsNone(applied["pending_replan_proposal"])
+
+    def test_new_replan_origin_clears_an_older_pending_proposal(self):
+        state = self._pending_route_confirmation_state()
+        old_proposal = deepcopy(state["pending_replan_proposal"])
+        self.assertEqual(old_proposal["origin_node_id"], "stop_rear_courtyard")
+        state["messages"] = [HumanMessage(content="我自己走到了后西庭，想从这里重新安排后续行程。")]
+        self.assertEqual(route_initial_request(state), "prepare_replan")
+        prepared = prepare_replan_node(state)
+        self.assertIsNone(prepared["pending_replan_proposal"])
+        self.assertEqual(prepared["tour_state"]["current_stop_id"], "stop_rear_west_courtyard")
+        self.assertEqual(
+            prepared["pending_replan_time_confirmation"]["origin_node_id"],
+            "stop_rear_west_courtyard",
+        )
+        self.assertNotEqual(
+            prepared["pending_replan_time_confirmation"]["origin_node_id"],
+            old_proposal["origin_node_id"],
+        )
+
+    def test_unknown_replan_origins_do_not_enter_profile_or_direct_route(self):
+        for text in (
+            "我到了一个没标名字的小院，帮我重排路线。",
+            "我在一个不知道名字的院子，从这里重新安排。",
+            "我走到一处没有标识的地方，后面怎么走？",
+        ):
+            with self.subTest(text=text):
+                state = self._active_state()
+                state["messages"] = [HumanMessage(content=text)]
+                before_tour = deepcopy(state["tour_state"])
+                before_profile = deepcopy(state["visitor_profile"])
+                self.assertEqual(route_initial_request(state), "clarification")
+                response = clarification_node(state)
+                self.assertEqual(response["last_tour_intent"]["reason_code"], "unresolved_replan_origin")
+                self.assertNotIn("tour_state", response)
+                self.assertNotIn("visitor_profile", response)
+                self.assertEqual(state["tour_state"], before_tour)
+                self.assertEqual(state["visitor_profile"], before_profile)
+
+    def test_non_replan_control_queries_do_not_rewrite_replan_state(self):
+        for text in ("完成", "下一站是哪里？"):
+            with self.subTest(text=text):
+                state = self._active_state()
+                state["messages"] = [HumanMessage(content=text)]
+                before_tour = deepcopy(state["tour_state"])
+                before_interaction = deepcopy(state["tour_interaction_state"])
+                self.assertNotEqual(route_initial_request(state), "prepare_replan")
+                self.assertEqual(state["tour_state"], before_tour)
+                self.assertEqual(state["tour_interaction_state"], before_interaction)
 
     def test_unrelated_knowledge_question_does_not_prepare_replan(self):
         state = self._active_state()

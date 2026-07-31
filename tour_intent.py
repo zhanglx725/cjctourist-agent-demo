@@ -56,7 +56,7 @@ REMAINING_REPLAN_PHRASES = (
     "调整剩余路线", "调整后续路线", "从这里重新安排后面的行程",
     "从这里安排后面的路线", "从这个点调整剩余路线", "后面从这里开始重新规划",
     "从这里重新规划后续路线", "重新安排路线",
-    "从这里规划路线",
+    "从这里规划路线", "帮我重排路线", "重排路线", "从这里重新安排",
 )
 RESET_ROUTE_PHRASES = ("从头重新规划", "从头给我规划", "放弃现在的行程", "重新开始")
 PENDING_CONFIRM_WORDS = frozenset({"确认", "确定", "可以", "好的", "好", "就这样", "用这条", "使用新路线", "确认使用", "按这个走", "按这条路线走"})
@@ -205,7 +205,7 @@ def _has_arrival_language(text: str) -> bool:
     # Only explicit motion/completion wording may enter the state-writing path.
     return bool(
         re.search(
-            r"(?:我\s*(?:已|已经|刚)?\s*(?:到|到了)|"
+            r"(?:我\s*(?:自己\s*)?(?:(?:走|逛|晃悠)\s*)?(?:已|已经|刚)?\s*(?:到|到了)|"
             r"(?:已|已经|刚)?到达(?:了)?|我来到了)",
             text,
         )
@@ -343,6 +343,40 @@ def is_remaining_route_replan_request(text: str) -> bool:
     return any(phrase in text for phrase in REMAINING_REPLAN_PHRASES)
 
 
+def _has_explicit_replan_origin_claim(text: str) -> bool:
+    """Return whether the visitor asserts a present/reached replan origin.
+
+    This is only used while the same turn already asks to replan.  It has no
+    node-resolution power and therefore cannot turn an unreviewed phrase into
+    a location fact.
+    """
+    return bool(re.search(
+        r"(?:我\s*(?:自己\s*)?(?:(?:走|逛|晃悠)\s*)?(?:已|已经|刚)?\s*(?:到|到了)|"
+        r"(?:已|已经|刚)?到达(?:了)?|我来到了|我(?:现在)?在|现在人在)",
+        text,
+    ))
+
+
+def is_unresolved_replan_origin_request(text: str) -> bool:
+    """Identify an explicitly unknown location used as a route origin.
+
+    The guard is intentionally narrower than ordinary route planning: it
+    requires a visitor-declared, unlabelled location together with a request
+    to adjust the remainder.  It prevents a default-entry route from being
+    created when the stated origin cannot be audited.
+    """
+    unknown_origin_cues = (
+        "没标名字", "没有标名字", "不知道名字", "没有标识", "没标识", "无标识",
+    )
+    replan_cues = (
+        *REMAINING_REPLAN_PHRASES,
+        "后面怎么走", "后续怎么走",
+    )
+    return any(cue in text for cue in unknown_origin_cues) and any(
+        cue in text for cue in replan_cues
+    )
+
+
 def is_explicit_route_reset_request(text: str) -> bool:
     """Return whether text explicitly asks to abandon the current itinerary."""
     return any(phrase in text for phrase in RESET_ROUTE_PHRASES)
@@ -364,6 +398,12 @@ def _classify_remaining_route_replan(
                 "放弃当前行程会清除既有进度；请先明确确认是否要重置整条路线。",
             )
         return None
+    if is_unresolved_replan_origin_request(text):
+        return clarification(
+            "unresolved_replan_origin",
+            "我暂时无法确认您所在的具体审核点位，因此不能从这个位置安全重排行程。"
+            "请提供现场标识上的点位名称，或从已审核点位中选择。",
+        )
     if not is_remaining_route_replan_request(text):
         return None
     # This exception is deliberately smaller than generic multi-intent
@@ -375,28 +415,34 @@ def _classify_remaining_route_replan(
     )):
         return clarification("multiple_intents", "请先单独完成、跳过、调整时间或提问，再重新安排后续路线。")
     resolution = resolve_reviewed_node(text)
+    explicit_origin_claim = _has_explicit_replan_origin_claim(text)
     if not _active_tour(tour_state):
         if resolution.node_id is not None:
             return clarification(
                 "initial_route_origin_not_supported",
                 "当前初始路线尚不支持从非入口点直接开始；请先从入口建立路线，或说明是否需要其他帮助。",
             )
+        if explicit_origin_claim:
+            return clarification(
+                "unresolved_replan_origin",
+                "我暂时无法确认您所在的具体审核点位，因此不能从这个位置安全重排行程。"
+                "请提供现场标识上的点位名称，或从已审核点位中选择。",
+            )
         return None
     if resolution.reason_code in {"ambiguous_node_name", "multiple_node_mentions"}:
         return clarification(resolution.reason_code, "重规划起点不唯一，请说出一个明确的审核点位。")
     explicit_arrival = _has_arrival_language(text)
+    if resolution.node_id is None and explicit_origin_claim:
+        return clarification(
+            "unresolved_replan_origin",
+            "我暂时无法确认您所在的具体审核点位，因此不能从这个位置安全重排行程。"
+            "请提供现场标识上的点位名称，或从已审核点位中选择。",
+        )
     node_id = resolution.node_id or tour_state.get("current_stop_id")
     if not node_id:
         return clarification(
             "replan_origin_unresolved",
             "请先说明您当前所在的审核点位，再从这里调整后续路线。",
-        )
-    # If there is a named but unresolved location in a relocation phrase, do
-    # not fall back to an older current location.
-    if explicit_arrival and resolution.node_id is None:
-        return clarification(
-            "arrival_node_unresolved",
-            "无法确认您当前到达的审核点位，请说出地图上的明确名称。",
         )
     return _decision(
         "replan_request",

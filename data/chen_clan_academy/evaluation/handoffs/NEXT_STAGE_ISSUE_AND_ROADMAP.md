@@ -38,7 +38,7 @@
 | 顺序 | 问题 | 当前状态 | 下一步 | 依赖/边界 |
 | ---: | --- | --- | --- | --- |
 | 0 | P1-04 空间节点冲突 | `blocked_pending_owner_confirmation` | 等空间负责人确认“后西庭/后庭西侧”的权威节点与别名 | 禁止模型或代码自建点位别名 |
-| 1 | P1-11 新位置后的重规划 | `implemented_pending_langsmith_verification` | 在确认式重规划中使用已审核新位置作为候选起点 | 本机回归通过，待新线程实测 |
+| 1 | P1-11 新位置后的重规划 | `automated_verified_pending_langsmith` | 新线程复测后西庭起点、候选失效和未知小院澄清 | 本机回归通过，待新线程实测 |
 | 2 | P1-20 规划前对象故事请求可能越过对象级证据边界 | `verified_fixed` | 2026-07-31 已完成 LangSmith 新线程验证；保留后续回归 | 只有同一对象的审核 `08` 证据可输出故事；不得隐式扩大用户指定来源范围 |
 | 3 | P1-10 术语—实例关联被通用知识计划抢占 | `verified_fixed` | 已完成当前点严格实例范围及 Studio 复测 | 不放宽术语资格或英语门控；当前点不是可见保证 |
 | 4 | P1-21 通用工艺问答仍显示内部来源编号 | `implemented_pending_langsmith_verification` | 复测工艺总述和真实 `controlled_knowledge` 两个游客出口 | 不与 P1-19 的 B3 回退泄漏混为同一出口 |
@@ -245,7 +245,7 @@
 | 项目 | 内容 |
 | --- | --- |
 | 问题描述 | 游客已在原路线中行走一段后，自行到达“后庭西侧”，并明确请求“在这个点重新安排后续行程”；系统仅记录当前位置，仍把旧路线的“前院中部”作为正式下一站。 |
-| 当前现状 | `implemented_pending_langsmith_verification`。产品规则已调整为两阶段确认：活跃路线中，明确自主到达非 pending 的审核点位即视为偏航。编排层先通过既有 `arrive_at_stop` 写入唯一位置事实，再进入 `replan_time_confirmation` 请求游客明确本轮剩余时间；不得把初始路线预算冒充实际剩余时间。时间解析成功后才从该 `current_stop_id` 创建 `awaiting_route_confirmation` 候选，展示“路线起点”和“正式讲解停靠点”，并验证候选路径首节点就是当前点。`pending_action_kind` 区分两种确认；两阶段的 `next_stop` 都必须被拦截。 |
+| 当前现状 | `automated_verified_pending_langsmith`。产品规则已调整为两阶段确认：活跃路线中，明确自主到达非 pending 的审核点位即视为偏航。编排层先通过既有 `arrive_at_stop` 写入唯一位置事实，再进入 `replan_time_confirmation` 请求游客明确本轮剩余时间；不得把初始路线预算冒充实际剩余时间。时间解析成功后才从该 `current_stop_id` 创建 `awaiting_route_confirmation` 候选，展示“路线起点”和“正式讲解停靠点”，并验证候选路径首节点就是当前点。`pending_action_kind` 区分两种确认；两阶段的 `next_stop` 都必须被拦截。2026-07-31 已补齐“我自己走到了后西庭”的 walking-arrival 识别：先记录 `self_arrival`、清除旧 proposal，再以 `stop_rear_west_courtyard` 建立新确认。未知小院/无标识地点则在 `profile_collection` 前以 `unresolved_replan_origin` 失败关闭，不创建默认入口路线。P1-11 定向 93 项、完整回归 743 项通过；LangSmith 尚待新线程复测。 |
 | 期望状态 | “已到达明确点位 + 重新安排后续行程”应以该审核点位为新起点准备后续路线；若现有契约要求确认，应先展示候选并等待确认。未解析、未审核或歧义点位仍安全澄清。 |
 | 解决方案 | 候选仅保存 `origin_node_id`、`physical_node_snapshot`、进度快照和审核路径，均为 `current_stop_id` 创建时的审计快照；确认通过 A1 `apply_replan_proposal` 验证 freshness 后原子应用。取消只丢弃候选，旧路线的导航仍从真实当前位置重新计算。无当前位置、未知/歧义点位、从头重置或混合完成/跳过/知识问答继续澄清。 |
 | 验收 | 不再把与新位置无关的旧 `pending_stop_id` 声称为下一站；确认后剩余路线从新点开始，保留已完成/跳过站点语义，并能继续到达讲解。 |
