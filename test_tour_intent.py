@@ -58,6 +58,14 @@ class TourIntentTests(unittest.TestCase):
         self.assertEqual(decision.route_kind, "rag_question")
         self.assertIsNone(decision.event_type)
 
+    def test_explicit_current_location_report_is_arrival_but_question_remains_read_only(self):
+        for text in ("我现在在后庭", "现在人在月台"):
+            with self.subTest(text=text):
+                decision = self.classify(text)
+                self.assertEqual(decision.event_type, "arrive_at_stop")
+        question = self.classify("我现在在后庭能看到什么？")
+        self.assertNotEqual(question.route_kind, "tour_event")
+
     def test_static_location_food_question_is_not_arrival(self):
         decision = self.classify("我在庭院休息区吃点东西可以吗？")
         self.assertNotEqual(decision.route_kind, "tour_event")

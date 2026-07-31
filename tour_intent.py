@@ -18,7 +18,10 @@ from tour_interaction import EVENTS
 
 
 NODES_FILE = Path("data/chen_clan_academy/spatial/marker_inventory_v0.csv")
-VALID_ROUTE_KINDS = {"tour_event", "route_request", "rag_question", "clarification", "other"}
+VALID_ROUTE_KINDS = {
+    "tour_event", "route_request", "replan_request", "rag_question",
+    "clarification", "other",
+}
 NODE_ALIASES = {
     # The marker inventory explains that these two public names identify the
     # same reviewed space.  Keeping aliases here prevents an LLM guess.
@@ -42,6 +45,20 @@ BARE_ARRIVAL_SYNONYMS = frozenset(
         "我到这儿了",
     }
 )
+
+# This is intentionally a narrow, controlled phrase set.  It does not make
+# arbitrary multi-intent turns partially executable: only a reviewed location
+# plus an explicit request to adjust the *remaining* itinerary may use it.
+REMAINING_REPLAN_PHRASES = (
+    "重新安排后续行程", "重新安排后面的行程", "重新安排剩余行程",
+    "重新安排后面的路线",
+    "调整剩余路线", "调整后续路线", "从这里重新安排后面的行程",
+    "从这里安排后面的路线", "从这个点调整剩余路线", "后面从这里开始重新规划",
+    "从这里重新规划后续路线", "重新安排路线",
+    "从这里规划路线",
+)
+RESET_ROUTE_PHRASES = ("从头重新规划", "从头给我规划", "放弃现在的行程", "重新开始")
+PENDING_CONFIRM_WORDS = frozenset({"确认", "确定", "可以", "好的", "好", "就这样", "用这条", "使用新路线", "确认使用", "按这个走", "按这条路线走"})
 
 
 @dataclass(frozen=True)
@@ -181,6 +198,10 @@ def _has_arrival_language(text: str) -> bool:
             r"(?:已|已经|刚)?到达(?:了)?|我来到了)",
             text,
         )
+        # “我在月台能看到什么” remains a static question (P1-18).  These
+        # two anchored forms are the newly approved explicit physical-location
+        # reports for P1-11 route-deviation handling.
+        or re.match(r"^(?:我现在在|现在人在)\s*[^？?。！!]+$", text.strip())
     )
 
 
@@ -289,6 +310,79 @@ def _is_generic_arrival_phrase(text: str) -> bool:
     ))
 
 
+def is_remaining_route_replan_request(text: str) -> bool:
+    """Return whether text expressly asks to adjust a live route remainder."""
+    return any(phrase in text for phrase in REMAINING_REPLAN_PHRASES)
+
+
+def is_explicit_route_reset_request(text: str) -> bool:
+    """Return whether text explicitly asks to abandon the current itinerary."""
+    return any(phrase in text for phrase in RESET_ROUTE_PHRASES)
+
+
+def _active_tour(tour_state: dict[str, Any] | None) -> bool:
+    return bool(tour_state and tour_state.get("route_status") not in {None, "completed"})
+
+
+def _classify_remaining_route_replan(
+    text: str,
+    tour_state: dict[str, Any] | None,
+) -> TourIntentDecision | None:
+    """Classify only the P1-11 controlled arrival-and-replan composition."""
+    if is_explicit_route_reset_request(text):
+        if _active_tour(tour_state):
+            return clarification(
+                "route_reset_requires_confirmation",
+                "放弃当前行程会清除既有进度；请先明确确认是否要重置整条路线。",
+            )
+        return None
+    if not is_remaining_route_replan_request(text):
+        return None
+    # This exception is deliberately smaller than generic multi-intent
+    # handling.  Completion, skip, time, finish, and factual requests still
+    # require an explicit separate turn rather than being partly executed.
+    if any(term in text for term in (
+        "我看完了", "看完", "完成本点", "跳过", "只剩", "剩余", "改成",
+        "结束导览", "结束游览", "结束路线", "什么", "讲讲", "？", "?",
+    )):
+        return clarification("multiple_intents", "请先单独完成、跳过、调整时间或提问，再重新安排后续路线。")
+    resolution = resolve_reviewed_node(text)
+    if not _active_tour(tour_state):
+        if resolution.node_id is not None:
+            return clarification(
+                "initial_route_origin_not_supported",
+                "当前初始路线尚不支持从非入口点直接开始；请先从入口建立路线，或说明是否需要其他帮助。",
+            )
+        return None
+    if resolution.reason_code in {"ambiguous_node_name", "multiple_node_mentions"}:
+        return clarification(resolution.reason_code, "重规划起点不唯一，请说出一个明确的审核点位。")
+    explicit_arrival = _has_arrival_language(text)
+    node_id = resolution.node_id or tour_state.get("current_stop_id")
+    if not node_id:
+        return clarification(
+            "replan_origin_unresolved",
+            "请先说明您当前所在的审核点位，再从这里调整后续路线。",
+        )
+    # If there is a named but unresolved location in a relocation phrase, do
+    # not fall back to an older current location.
+    if explicit_arrival and resolution.node_id is None:
+        return clarification(
+            "arrival_node_unresolved",
+            "无法确认您当前到达的审核点位，请说出地图上的明确名称。",
+        )
+    return _decision(
+        "replan_request",
+        arguments={
+            "node_id": str(node_id),
+            "record_arrival": bool(resolution.node_id is not None and explicit_arrival),
+            "replan_scope": "remaining_route",
+            "requires_confirmation": True,
+        },
+        confidence="high",
+        reason_code="active_tour_replan_from_current_location",
+    )
+
+
 def _event_hits(text: str) -> set[str]:
     """Find action categories before selecting one; used to reject combinations."""
     hits: set[str] = set()
@@ -326,9 +420,23 @@ def classify_tour_intent(
     if not text:
         return clarification("empty_input", "请告诉我您想继续游览、提问，还是规划路线。")
 
+    compact = text.rstrip("。！!？?")
+    if (
+        compact in PENDING_CONFIRM_WORDS
+        and interaction_state
+        and interaction_state.get("stop_phase") == "awaiting_confirmation"
+        and tour_state
+        and tour_state.get("current_stop_id") == interaction_state.get("pending_stop_id")
+    ):
+        return validate_event_suggestion("confirm_stop_complete")
+
     parsed_duration = parse_duration_minutes(text)
     if has_remaining_duration_context(text) and parsed_duration.reason_code == "ambiguous_duration":
         return clarification("ambiguous_duration", "时间表达包含多个不同分钟数，请只确认一个剩余时间。")
+
+    replan = _classify_remaining_route_replan(text, tour_state)
+    if replan is not None:
+        return replan
 
     hits = _event_hits(text)
     # A control action plus a factual request must not partly execute in A1-2.

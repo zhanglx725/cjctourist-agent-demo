@@ -143,6 +143,8 @@ def _message_for_result(result: dict[str, Any]) -> str:
         return f"已更新路线。下一站是{pending_name or '后续讲解点'}。"
     if code == "replanned":
         return f"已按新的剩余时间调整路线。下一站是{pending_name or '后续讲解点'}。"
+    if code == "replan_proposal_applied":
+        return f"已应用新的后续路线。下一站是{pending_name or '后续讲解点'}。"
     if code == "next_stop_ready":
         return f"下一站是{pending_name or '后续讲解点'}，请按导航前往。"
     if code in {"tour_finished", "tour_already_finished"}:
@@ -162,6 +164,61 @@ def present_tour_event(result: dict[str, Any]) -> dict[str, Any]:
         "code": result.get("code"),
         "ok": bool(result.get("ok")),
         "idempotent": bool(result.get("idempotent")),
+    }
+
+
+def present_replan_proposal(proposal: dict[str, Any]) -> dict[str, Any]:
+    """Present a non-mutating P1-11 route preview without exposing old pending."""
+    origin_name = _stop_name(proposal.get("origin_node_id")) or "当前位置"
+    stop_names = [_stop_name(node_id) or str(node_id) for node_id in proposal.get("stop_ids", [])]
+    seconds = proposal.get("estimated_total_seconds")
+    estimate = f"约 {round(int(seconds) / 60)} 分钟" if isinstance(seconds, int) else "时间待复核"
+    return {
+        "message": (
+            f"已记录您当前位于{origin_name}。我已从{origin_name}出发，为您生成后续行程候选。\n"
+            f"路线起点：{origin_name}\n"
+            f"正式讲解停靠点：{'、'.join(stop_names)}\n"
+            f"预计：{estimate}。\n\n"
+            "该候选尚未替换原路线；请确认使用新路线，或取消并保留原路线。"
+        ),
+        "phase": "replan_route_confirmation",
+        "actions": [
+            _action("apply_replan_proposal", "确认使用新路线"),
+            {"id": "cancel_replan_proposal", "label": "取消，保留原路线", "enabled": True, "arguments": {}},
+        ],
+        "navigation": None,
+        "event": None,
+        "code": "replan_route_confirmation",
+        "ok": True,
+        "idempotent": False,
+    }
+
+
+def present_replan_time_confirmation(confirmation: dict[str, Any]) -> dict[str, Any]:
+    """Ask for an explicit live time budget before creating a route preview."""
+    origin_name = _stop_name(confirmation.get("origin_node_id")) or "当前位置"
+    return {
+        "message": (
+            f"已记录您当前位于{origin_name}，这与原路线的正式下一站不同。\n\n"
+            "为了从这里重新安排后续行程，请告诉我您现在还剩多少时间，例如“我还有 30 分钟”。\n"
+            "也可以回复“继续原路线”取消本次调整。"
+        ),
+        "phase": "replan_time_confirmation",
+        "actions": [
+            {
+                "id": "provide_remaining_time",
+                "label": "填写剩余时间",
+                "enabled": True,
+                "arguments": {},
+                "input_schema": {"available_minutes": {"type": "integer", "minimum": 1, "label": "还剩多少分钟？"}},
+            },
+            {"id": "cancel_replan_proposal", "label": "继续原路线", "enabled": True, "arguments": {}},
+        ],
+        "navigation": None,
+        "event": None,
+        "code": "replan_time_confirmation",
+        "ok": True,
+        "idempotent": False,
     }
 
 

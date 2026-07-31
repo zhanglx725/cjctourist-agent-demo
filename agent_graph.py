@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import json
+import re
 import time
 from dataclasses import asdict
 from pathlib import Path
@@ -26,7 +27,14 @@ from tour_navigation import (
 )
 from tour_interaction import handle_tour_event, initialize_interaction
 from tour_intent import classify_tour_intent
-from tour_presenter import present_clarification, present_tour_event, present_tour_state
+from tour_presenter import (
+    present_clarification,
+    present_replan_proposal,
+    present_replan_time_confirmation,
+    present_tour_event,
+    present_tour_state,
+)
+from replanning import prepare_remaining_route_proposal, prepare_remaining_time_confirmation
 from tour_state import start_tour
 from tour_qa import (
     CRAFT_TERMS,
@@ -127,6 +135,12 @@ class AgentState(TypedDict, total=False):
     semantic_control_text: str | None
     semantic_fact_kind: str | None
     knowledge_query_plan: dict[str, Any] | None
+    # P1-11 preview only.  Its origin is an immutable current_stop_id snapshot,
+    # not a second location fact; it is applied only through tour_interaction.
+    pending_replan_proposal: dict[str, Any] | None
+    # P1-11 first confirmation stage.  It requests an explicit live budget and
+    # deliberately does not infer one from the original route duration.
+    pending_replan_time_confirmation: dict[str, Any] | None
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -679,6 +693,8 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         "active_narration_render_audit": None,
         "qa_context": clear_qa_context(state.get("qa_context")),
         "pending_ornament_clarification": None,
+        "pending_replan_proposal": None,
+        "pending_replan_time_confirmation": None,
         "performance_metrics": _append_metric(
             state,
             "direct_route",
@@ -868,6 +884,43 @@ def tour_event_node(state: AgentState) -> dict[str, Any]:
         decision.event_type,
         **(decision.arguments or {}),
     )
+    # P1-11 product rule: a successful self-arrival during an active route is
+    # a route deviation.  It establishes location, but the initial route
+    # budget is not a trustworthy live-time value.  Ask for explicit remaining
+    # time before creating any route proposal.
+    if result["ok"] and result["code"] == "self_arrival":
+        tour = result["tour_state"]
+        interaction = result["interaction_state"]
+        origin = (tour or {}).get("current_stop_id")
+        try:
+            confirmation = prepare_remaining_time_confirmation(
+                tour,
+                origin_node_id=str(origin),
+                origin_source="self_arrival_route_deviation",
+            ).to_dict()
+        except (ValueError, KeyError) as exc:
+            message = f"已记录您当前位于{origin}，但暂时无法进入后续重规划确认：{exc}。"
+            presentation = present_clarification(message, interaction)
+            return {
+                "messages": [AIMessage(content=message)], "last_tour_intent": decision.to_dict(),
+                "last_tour_event": {"event": result["event"], "code": result["code"], "ok": True},
+                "tour_state": tour, "tour_interaction_state": interaction,
+                "tour_presentation": presentation, "qa_context": clear_qa_context(state.get("qa_context")),
+                "pending_ornament_clarification": None, "pending_replan_proposal": None,
+                "pending_replan_time_confirmation": None,
+                "performance_metrics": _append_metric(state, "tour_event", time.perf_counter() - started, event_type=decision.event_type, event_code="self_arrival_replan_time_unavailable", ok=True),
+            }
+        interaction = {**interaction, "pending_action_kind": "replan_time_confirmation"}
+        presentation = present_replan_time_confirmation(confirmation)
+        return {
+            "messages": [AIMessage(content=presentation["message"])], "last_tour_intent": decision.to_dict(),
+            "last_tour_event": {"event": result["event"], "code": result["code"], "ok": True},
+            "tour_state": tour, "tour_interaction_state": interaction,
+            "tour_presentation": presentation, "qa_context": clear_qa_context(state.get("qa_context")),
+            "pending_ornament_clarification": None, "pending_replan_proposal": None,
+            "pending_replan_time_confirmation": confirmation,
+            "performance_metrics": _append_metric(state, "tour_event", time.perf_counter() - started, event_type=decision.event_type, event_code="self_arrival_replan_time_requested", ok=True, origin_node_id=origin),
+        }
     presentation = present_tour_event(result)
     updates: dict[str, Any] = {
         "messages": [AIMessage(content=presentation["message"])],
@@ -880,6 +933,8 @@ def tour_event_node(state: AgentState) -> dict[str, Any]:
         "tour_presentation": presentation,
         "qa_context": clear_qa_context(state.get("qa_context")),
         "pending_ornament_clarification": None,
+        "pending_replan_proposal": None,
+        "pending_replan_time_confirmation": None,
         "performance_metrics": _append_metric(
             state,
             "tour_event",
@@ -898,6 +953,200 @@ def tour_event_node(state: AgentState) -> dict[str, Any]:
         updates["active_route_plan"] = {**asdict(plan), "route_strategy": "replanned"}
         updates["selected_route_id"] = plan.route_id
     return updates
+
+
+def prepare_replan_node(state: AgentState) -> dict[str, Any]:
+    """Record/reuse a reviewed origin, then request explicit live time."""
+    started = time.perf_counter()
+    decision = classify_tour_intent(
+        _effective_control_text(state), state.get("tour_state"), state.get("tour_interaction_state")
+    )
+    if decision.route_kind != "replan_request":
+        message = "我无法确认后续重规划的起点，请说明当前所在的审核点位。"
+        return {"messages": [AIMessage(content=message)], "tour_presentation": present_clarification(message), "pending_replan_proposal": None}
+    tour = state.get("tour_state")
+    interaction = state.get("tour_interaction_state")
+    args = decision.arguments or {}
+    origin = args.get("node_id")
+    if not tour or not interaction or not isinstance(origin, str):
+        message = "请先建立路线并说明当前所在的审核点位。"
+        return {"messages": [AIMessage(content=message)], "tour_presentation": present_clarification(message), "pending_replan_proposal": None}
+    if args.get("record_arrival"):
+        arrival = handle_tour_event(tour, interaction, "arrive_at_stop", node_id=origin)
+        if not arrival["ok"]:
+            presentation = present_tour_event(arrival)
+            return {"messages": [AIMessage(content=presentation["message"])], "tour_presentation": presentation, "last_tour_intent": decision.to_dict(), "pending_replan_proposal": None}
+        tour, interaction = arrival["tour_state"], arrival["interaction_state"]
+    if tour.get("current_stop_id") != origin:
+        message = "当前位置与后续路线起点不一致，请重新说明当前位置。"
+        return {"messages": [AIMessage(content=message)], "tour_presentation": present_clarification(message, interaction), "tour_state": tour, "tour_interaction_state": interaction, "pending_replan_proposal": None}
+    try:
+        confirmation = prepare_remaining_time_confirmation(
+            tour,
+            origin_node_id=origin,
+            origin_source="explicit_reviewed_arrival" if args.get("record_arrival") else "current_stop_id",
+        ).to_dict()
+    except (ValueError, KeyError) as exc:
+        message = f"已记录当前位置，但暂时无法请求后续重规划所需的剩余时间：{exc}"
+        return {
+            "messages": [AIMessage(content=message)], "tour_state": tour, "tour_interaction_state": interaction,
+            "tour_presentation": present_clarification(message, interaction), "last_tour_intent": decision.to_dict(),
+            "pending_replan_proposal": None,
+            "pending_replan_time_confirmation": None,
+            "performance_metrics": _append_metric(state, "prepare_replan", time.perf_counter() - started, ok=False),
+        }
+    interaction = {**interaction, "pending_action_kind": "replan_time_confirmation"}
+    presentation = present_replan_time_confirmation(confirmation)
+    return {
+        "messages": [AIMessage(content=presentation["message"])], "tour_state": tour, "tour_interaction_state": interaction,
+        "tour_presentation": presentation, "last_tour_intent": decision.to_dict(),
+        "last_tour_event": {"event": "arrive_at_stop", "code": "self_arrival" if args.get("record_arrival") else "unchanged", "ok": True},
+        "pending_replan_proposal": None,
+        "pending_replan_time_confirmation": confirmation,
+        "qa_context": clear_qa_context(state.get("qa_context")),
+        "pending_ornament_clarification": None,
+        "performance_metrics": _append_metric(state, "prepare_replan", time.perf_counter() - started, ok=True, origin_node_id=origin),
+    }
+
+
+def prepare_replan_candidate_node(state: AgentState) -> dict[str, Any]:
+    """Use a newly supplied explicit time only to prepare a route preview."""
+    started = time.perf_counter()
+    confirmation = state.get("pending_replan_time_confirmation")
+    tour = state.get("tour_state")
+    interaction = state.get("tour_interaction_state")
+    parsed = parse_duration_minutes(_latest_user_text(state))
+    if not isinstance(confirmation, dict) or not parsed.ok or parsed.minutes is None:
+        message = "请告诉我明确的剩余时间，例如“我还有 30 分钟”。"
+        return {
+            "messages": [AIMessage(content=message)],
+            "tour_presentation": present_clarification(message, interaction),
+            "pending_replan_proposal": None,
+            "pending_replan_time_confirmation": confirmation,
+        }
+    origin = confirmation.get("origin_node_id")
+    if (
+        not isinstance(tour, dict)
+        or not isinstance(interaction, dict)
+        or not isinstance(origin, str)
+        or confirmation.get("status") != "replan_time_confirmation"
+        or confirmation.get("physical_node_snapshot") != origin
+        or tour.get("current_stop_id") != origin
+    ):
+        message = "您的位置或待确认操作已变化，请从当前位置重新说明是否需要调整后续行程。"
+        return {
+            "messages": [AIMessage(content=message)],
+            "tour_presentation": present_clarification(message, interaction),
+            "pending_replan_proposal": None,
+            "pending_replan_time_confirmation": None,
+        }
+    try:
+        proposal = prepare_remaining_route_proposal(
+            tour,
+            origin_node_id=origin,
+            origin_source="confirmed_remaining_time",
+            remaining_minutes=parsed.minutes,
+        ).to_dict()
+    except (ValueError, KeyError) as exc:
+        message = f"无法按您提供的 {parsed.minutes} 分钟生成可靠的后续路线候选：{exc}"
+        return {
+            "messages": [AIMessage(content=message)],
+            "tour_presentation": present_clarification(message, interaction),
+            "pending_replan_proposal": None,
+            "pending_replan_time_confirmation": confirmation,
+            "performance_metrics": _append_metric(state, "prepare_replan_candidate", time.perf_counter() - started, ok=False),
+        }
+    interaction = {**interaction, "pending_action_kind": "replan_route_confirmation"}
+    presentation = present_replan_proposal(proposal)
+    return {
+        "messages": [AIMessage(content=presentation["message"])],
+        "tour_state": tour,
+        "tour_interaction_state": interaction,
+        "tour_presentation": presentation,
+        "pending_replan_proposal": proposal,
+        "pending_replan_time_confirmation": None,
+        "qa_context": clear_qa_context(state.get("qa_context")),
+        "pending_ornament_clarification": None,
+        "performance_metrics": _append_metric(
+            state, "prepare_replan_candidate", time.perf_counter() - started,
+            ok=True, origin_node_id=origin, remaining_minutes=parsed.minutes,
+        ),
+    }
+
+
+def confirm_replan_node(state: AgentState) -> dict[str, Any]:
+    """Apply a fresh preview atomically via the A1 event adapter."""
+    started = time.perf_counter()
+    proposal = state.get("pending_replan_proposal")
+    result = handle_tour_event(state.get("tour_state"), state.get("tour_interaction_state"), "apply_replan_proposal", proposal=proposal)
+    presentation = present_tour_event(result)
+    updates: dict[str, Any] = {
+        "messages": [AIMessage(content=presentation["message"])], "tour_presentation": presentation,
+        "last_tour_event": {"event": result["event"], "code": result["code"], "ok": result["ok"]},
+        "pending_replan_proposal": None if result["ok"] else proposal,
+        "pending_replan_time_confirmation": None,
+        "qa_context": clear_qa_context(state.get("qa_context")), "pending_ornament_clarification": None,
+        "performance_metrics": _append_metric(state, "confirm_replan", time.perf_counter() - started, ok=result["ok"], code=result["code"]),
+    }
+    if result["tour_state"] is not None:
+        updates["tour_state"] = result["tour_state"]
+    if result["interaction_state"] is not None:
+        updates["tour_interaction_state"] = result["interaction_state"]
+    if result["ok"] and proposal:
+        updates["active_route_plan"] = {**proposal, "route_strategy": "replanned_from_current"}
+        updates["selected_route_id"] = str(proposal["route_id"])
+    return updates
+
+
+def cancel_replan_node(state: AgentState) -> dict[str, Any]:
+    """Discard a pending time/proposal action without changing formal route."""
+    tour, interaction = state.get("tour_state"), state.get("tour_interaction_state")
+    if interaction:
+        interaction = {**interaction, "pending_action_kind": None}
+    presentation = present_tour_state(tour, interaction, message="已取消后续路线候选，原路线保持不变；导航将从您当前的位置继续计算。")
+    return {
+        "messages": [AIMessage(content=presentation["message"])], "tour_presentation": presentation,
+        "tour_interaction_state": interaction,
+        "pending_replan_proposal": None,
+        "pending_replan_time_confirmation": None,
+        "qa_context": clear_qa_context(state.get("qa_context")),
+        "pending_ornament_clarification": None,
+    }
+
+
+def show_replan_node(state: AgentState) -> dict[str, Any]:
+    """Repeat the active replan preview without recalculating or mutating it."""
+    proposal = state.get("pending_replan_proposal")
+    if not proposal:
+        message = "当前没有等待确认的后续行程候选。"
+        return {
+            "messages": [AIMessage(content=message)],
+            "tour_presentation": present_clarification(message, state.get("tour_interaction_state")),
+        }
+    presentation = present_replan_proposal(proposal)
+    return {
+        "messages": [AIMessage(content=presentation["message"])],
+        "tour_presentation": presentation,
+        "pending_replan_proposal": proposal,
+    }
+
+
+def show_replan_time_node(state: AgentState) -> dict[str, Any]:
+    """Repeat the time prompt and keep both formal route and confirmation fresh."""
+    confirmation = state.get("pending_replan_time_confirmation")
+    if not confirmation:
+        message = "当前没有等待确认的后续行程时间。"
+        return {
+            "messages": [AIMessage(content=message)],
+            "tour_presentation": present_clarification(message, state.get("tour_interaction_state")),
+        }
+    presentation = present_replan_time_confirmation(confirmation)
+    return {
+        "messages": [AIMessage(content=presentation["message"])],
+        "tour_presentation": presentation,
+        "pending_replan_time_confirmation": confirmation,
+        "pending_replan_proposal": None,
+    }
 
 
 def stop_guidance_node(state: AgentState) -> dict[str, Any]:
@@ -1356,17 +1605,174 @@ def route_after_llm(state: AgentState) -> str:
     return "rag_tool" if needs_rag and state.get("tool_loops", 0) < MAX_TOOL_LOOPS else END
 
 
+_REPLAN_CONFIRM_EXPRESSIONS = frozenset(
+    {
+        "确认",
+        "确定",
+        "可以",
+        "好的",
+        "好",
+        "就这样",
+        "确认新路线",
+        "确认使用新路线",
+        "确认使用这条后续路线",
+        "确认使用这条新路线",
+        "确认这条路线",
+        "使用新路线",
+        "使用这条路线",
+        "采用新路线",
+        "就用新路线",
+        "就按新路线走",
+        "按这条路线走",
+        "按这个规划走",
+        "按这个走",
+        "用这个方案",
+        "用这条",
+        "可以就这样走",
+        "好的使用新路线",
+    }
+)
+
+_REPLAN_CANCEL_EXPRESSIONS = frozenset(
+    {
+        "取消",
+        "取消调整",
+        "取消新路线",
+        "取消后续路线",
+        "保留原路线",
+        "继续原路线",
+        "不确认新路线",
+        "先不要确认新路线",
+        "我没说确认新路线",
+        "不要使用新路线",
+        "不用这条路线",
+        "还是走原路线",
+        "继续走原路线",
+    }
+)
+
+
+def _normalize_pending_action_expression(raw_text: str) -> str:
+    """Normalize a short control utterance without erasing its semantics.
+
+    This is deliberately narrow: it only normalizes surface punctuation and
+    whitespace for pending-action matching.  Negation and question markers are
+    checked from the original text before any confirmation phrase is accepted.
+    """
+    translated = raw_text.strip().translate(
+        str.maketrans({"，": ",", "。": ".", "！": "!", "？": "?", "；": ";", "：": ":"})
+    )
+    return re.sub(r"\s+", "", translated).replace(",", "").strip(".!;:")
+
+
+def _is_replan_negative_expression(expression: str) -> bool:
+    """Return true for an explicit request to reject/keep the old proposal."""
+    if expression in _REPLAN_CANCEL_EXPRESSIONS:
+        return True
+    return any(
+        marker in expression
+        for marker in (
+            "不确认", "不要确认", "没说确认", "不要使用", "不用新路线",
+            "不用这条", "原路线", "原路走",
+        )
+    )
+
+
+def _is_replan_question_or_view_request(raw_text: str, expression: str) -> bool:
+    """Keep questions/view requests from being mistaken for an action."""
+    if "?" in raw_text or "？" in raw_text or "吗" in raw_text:
+        return True
+    return any(
+        marker in expression
+        for marker in (
+            "什么意思", "有哪些点", "确认后", "是什么", "再说一下",
+            "再讲一下", "为什么", "怎么走", "看看新路线", "查看新路线",
+        )
+    )
+
+
+def _has_fresh_replan_route_confirmation(state: AgentState) -> bool:
+    """Verify that a visible proposal may still be applied exactly once."""
+    proposal = state.get("pending_replan_proposal")
+    tour = state.get("tour_state") or {}
+    interaction = state.get("tour_interaction_state") or {}
+    if not isinstance(proposal, dict):
+        return False
+    origin = proposal.get("origin_node_id")
+    return bool(
+        proposal.get("status") == "awaiting_route_confirmation"
+        and proposal.get("pending_action_kind") == "replan_route_confirmation"
+        and interaction.get("pending_action_kind") == "replan_route_confirmation"
+        and isinstance(origin, str)
+        and proposal.get("physical_node_snapshot") == origin
+        and tour.get("current_stop_id") == origin
+        and tour.get("route_status") == "touring"
+        and tuple(proposal.get("visited_stop_ids_snapshot") or ())
+        == tuple(tour.get("visited_stop_ids") or ())
+        and tuple(proposal.get("skipped_stop_ids_snapshot") or ())
+        == tuple(tour.get("skipped_stop_ids") or ())
+    )
+
+
 def route_initial_request(state: AgentState) -> str:
     """Apply A1-2 priority before route/RAG/LLM fallbacks."""
     raw_text = _latest_user_text(state)
     text = _effective_control_text(state)
-    # Safety is evaluated before event/multi-intent arbitration.  A dangerous
-    # photo request must never record an arrival first or reach D5 candidates.
-    # The D6 handler performs the deterministic refusal without state writes.
+    control_expression = _normalize_pending_action_expression(raw_text)
+    # Safety must remain above every pending-action gate.  A pending replan
+    # cannot make an unsafe-photo request lose its deterministic refusal.
     if is_unsafe_photo_request(raw_text):
         return "tour_qa"
     if is_visit_safety_question(raw_text):
         return "tour_qa"
+
+    # First confirmation stage: no inferred default budget is available, so a
+    # bare confirmation cannot silently create or apply a route.
+    if state.get("pending_replan_time_confirmation"):
+        pending_decision = classify_tour_intent(
+            text, state.get("tour_state"), state.get("tour_interaction_state")
+        )
+        if pending_decision.route_kind == "tour_event" and pending_decision.event_type == "arrive_at_stop":
+            return "tour_event"
+        if _is_replan_negative_expression(control_expression):
+            return "cancel_replan"
+        if parse_duration_minutes(raw_text).ok:
+            return "prepare_replan_candidate"
+        return "show_replan_time"
+
+    if state.get("pending_replan_proposal"):
+        pending_decision = classify_tour_intent(
+            text, state.get("tour_state"), state.get("tour_interaction_state")
+        )
+        # A later explicit arrival replaces the preview from the prior physical
+        # position; it must not be trapped behind the confirmation gate.
+        if pending_decision.route_kind == "tour_event" and pending_decision.event_type == "arrive_at_stop":
+            return "tour_event"
+        if pending_decision.route_kind == "replan_request":
+            return "prepare_replan"
+        # Pending proposal resolution is ordered intentionally.  A literal
+        # confirmation character is insufficient: negative and question/view
+        # language must remain non-mutating even while a proposal is visible.
+        if _is_replan_negative_expression(control_expression):
+            return "cancel_replan"
+        if _is_replan_question_or_view_request(raw_text, control_expression):
+            return "show_replan"
+        if control_expression in _REPLAN_CONFIRM_EXPRESSIONS:
+            return "confirm_replan" if _has_fresh_replan_route_confirmation(state) else "show_replan"
+        # While a proposal is pending, do not let an unrelated short input fall
+        # into a vague global clarification.  Re-show the explicit choices;
+        # this neither recalculates nor changes the formal route.
+        return "show_replan"
+    # P1-11 is a deliberately narrow composition: reviewed arrival followed
+    # by remaining-route preview.  It must win before broad route/profile
+    # matching, otherwise “规划” would start a fresh collection flow.
+    early_decision = classify_tour_intent(
+        text, state.get("tour_state"), state.get("tour_interaction_state")
+    )
+    if early_decision.route_kind == "replan_request":
+        return "prepare_replan"
+    if early_decision.reason_code == "route_reset_requires_confirmation":
+        return "clarification"
     # Reviewed single facts use the same scoped retrieval and deterministic
     # renderer in both modes.  Decide this before glossary/follow-up heuristics,
     # which must not reinterpret wording such as “是什么时候建成的”.
@@ -1436,9 +1842,7 @@ def route_initial_request(state: AgentState) -> str:
             return "qa_follow_up_detail"
         if previous_kind not in {"stop_guidance"}:
             return "qa_follow_up_detail"
-    decision = classify_tour_intent(
-        text, state.get("tour_state"), state.get("tour_interaction_state")
-    )
+    decision = early_decision
     extended = parse_extended_profile_control(raw_text)
     # A physical tour event and a preference change are separate atomic turns;
     # never let the preference half silently suppress arrival/skip semantics.
@@ -1503,6 +1907,15 @@ def route_after_tour_event(state: AgentState) -> str:
     return END
 
 
+def route_after_confirm_replan(state: AgentState) -> str:
+    """A confirmed proposal may adopt an already-arrived formal stop."""
+    event = state.get("last_tour_event", {})
+    interaction = state.get("tour_interaction_state") or {}
+    if event.get("ok") and event.get("code") == "replan_proposal_applied" and interaction.get("stop_phase") == "explaining":
+        return "stop_guidance"
+    return END
+
+
 def build_agent_graph(with_checkpointer: bool = True):
     """Compile the graph for CLI chat or LangGraph Studio.
 
@@ -1521,6 +1934,12 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("profile_update", profile_update_node)
     workflow.add_node("extended_profile_control", extended_profile_control_node)
     workflow.add_node("tour_event", tour_event_node)
+    workflow.add_node("prepare_replan", prepare_replan_node)
+    workflow.add_node("prepare_replan_candidate", prepare_replan_candidate_node)
+    workflow.add_node("confirm_replan", confirm_replan_node)
+    workflow.add_node("cancel_replan", cancel_replan_node)
+    workflow.add_node("show_replan", show_replan_node)
+    workflow.add_node("show_replan_time", show_replan_time_node)
     workflow.add_node("stop_guidance", stop_guidance_node)
     workflow.add_node("clarification", clarification_node)
     workflow.add_edge(START, "semantic_normalization")
@@ -1529,7 +1948,8 @@ def build_agent_graph(with_checkpointer: bool = True):
         route_initial_request,
         {
             "direct_rag": "direct_rag", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "tour_event": "tour_event",
-            "clarification": "clarification", "llm_think": "llm_think",
+            "clarification": "clarification", "prepare_replan": "prepare_replan", "prepare_replan_candidate": "prepare_replan_candidate",
+            "confirm_replan": "confirm_replan", "cancel_replan": "cancel_replan", "show_replan": "show_replan", "show_replan_time": "show_replan_time", "llm_think": "llm_think",
         },
     )
     workflow.add_edge("direct_rag", "llm_think")
@@ -1543,6 +1963,12 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_edge("profile_update", END)
     workflow.add_edge("extended_profile_control", END)
     workflow.add_conditional_edges("tour_event", route_after_tour_event, {"stop_guidance": "stop_guidance", END: END})
+    workflow.add_edge("prepare_replan", END)
+    workflow.add_edge("prepare_replan_candidate", END)
+    workflow.add_conditional_edges("confirm_replan", route_after_confirm_replan, {"stop_guidance": "stop_guidance", END: END})
+    workflow.add_edge("cancel_replan", END)
+    workflow.add_edge("show_replan", END)
+    workflow.add_edge("show_replan_time", END)
     workflow.add_edge("stop_guidance", END)
     workflow.add_edge("clarification", END)
     workflow.add_conditional_edges("llm_think", route_after_llm, {"rag_tool": "rag_tool", END: END})

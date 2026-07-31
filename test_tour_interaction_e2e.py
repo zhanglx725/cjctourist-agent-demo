@@ -15,6 +15,7 @@ from langchain_core.messages import HumanMessage
 
 import agent_graph
 from agent_graph import (
+    cancel_replan_node,
     clarification_node,
     direct_route_node,
     profile_update_node,
@@ -98,15 +99,20 @@ class TourInteractionE2ETests(unittest.TestCase):
         self.assertEqual(state["tour_interaction_state"]["stop_phase"], "finished")
         self.assertEqual(state["tour_presentation"]["actions"], [])
 
-    def test_self_arrival_records_reality_then_keeps_formal_route(self):
+    def test_self_arrival_records_reality_then_requests_time_without_route_mutation(self):
         state = self._started()
         state, update = self._agent_event(state, "我到首进正厅了")
         self.assertEqual(update["last_tour_intent"]["event_type"], "arrive_at_stop")
-        self.assertEqual(state["tour_presentation"]["code"], "self_arrival")
+        self.assertEqual(state["tour_presentation"]["code"], "replan_time_confirmation")
         self.assertEqual(state["tour_state"]["current_stop_id"], "label_first_main_hall")
         self.assertEqual(state["tour_state"]["visited_stop_ids"], [])
         self.assertEqual(state["tour_interaction_state"]["pending_stop_id"], "stop_front_courtyard_center")
+        self.assertEqual(state["pending_replan_time_confirmation"]["origin_node_id"], "label_first_main_hall")
+        self.assertIsNone(state["pending_replan_proposal"])
 
+        cancel_request = _message_state("继续原路线", state)
+        self.assertEqual(route_initial_request(cancel_request), "cancel_replan")
+        state = _merge(state, cancel_replan_node(cancel_request))
         state, _ = self._agent_event(state, "下一站去哪？")
         self.assertEqual(state["tour_presentation"]["code"], "next_stop_ready")
         self.assertEqual(
@@ -180,11 +186,13 @@ class TourInteractionE2ETests(unittest.TestCase):
         replay, _ = self._agent_event(replay, "我看完了，去下一站")
         self.assertEqual(replay["tour_state"]["visited_stop_ids"], ["stop_front_courtyard_center"])
 
-        # Explicit non-pending arrival is still a self-arrival, never a route advance.
+        # Explicit non-pending arrival records reality and requests a live
+        # remaining-time value; it never advances or completes the old route.
         self_arrived, update = self._agent_event(self._started(), "我到月台了")
-        self.assertEqual(update["tour_presentation"]["code"], "self_arrival")
+        self.assertEqual(update["tour_presentation"]["code"], "replan_time_confirmation")
         self.assertEqual(self_arrived["tour_state"]["visited_stop_ids"], [])
         self.assertEqual(self_arrived["tour_interaction_state"]["pending_stop_id"], "stop_front_courtyard_center")
+        self.assertEqual(self_arrived["pending_replan_time_confirmation"]["origin_node_id"], "label_moon_platform")
 
         # A next-stop navigation request is read-only.
         navigation_initial = self._started()

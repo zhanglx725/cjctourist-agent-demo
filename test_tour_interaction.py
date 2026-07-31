@@ -89,6 +89,19 @@ class TourInteractionTests(unittest.TestCase):
         self.assertEqual(result["code"], "invalid_phase")
         self.assertEqual(result["tour_state"]["remaining_stop_ids"][0], "stop_front_courtyard_center")
 
+    def test_next_stop_cannot_bypass_pending_replan_confirmation(self):
+        for action_kind, expected_code in (
+            ("replan_time_confirmation", "pending_replan_time_confirmation"),
+            ("replan_route_confirmation", "pending_replan_route_confirmation"),
+        ):
+            with self.subTest(action_kind=action_kind):
+                interaction = {**self.interaction, "pending_action_kind": action_kind}
+                result = handle_tour_event(self.tour, interaction, "next_stop")
+                self.assertFalse(result["ok"])
+                self.assertEqual(result["code"], expected_code)
+                self.assertEqual(result["tour_state"], self.tour)
+                self.assertEqual(result["interaction_state"], interaction)
+
     def test_skip_current_stop_only_records_skip(self):
         arrived = self._arrive_first()
         result = handle_tour_event(arrived["tour_state"], arrived["interaction_state"], "skip_stop")

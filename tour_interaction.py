@@ -15,6 +15,7 @@ from tour_state import (
     TourStateError,
     _complete_current_stop,
     _record_arrival,
+    apply_replanned_route,
     finish_tour as _finish_tour,
     known_node_ids,
 )
@@ -22,6 +23,7 @@ from tour_state import (
 
 VALID_TOUR_MODES = {"chat", "button_guided", "continuous"}
 VALID_STOP_PHASES = {"navigating", "explaining", "awaiting_confirmation", "finished"}
+VALID_PENDING_ACTION_KINDS = {None, "replan_time_confirmation", "replan_route_confirmation"}
 EVENTS = {
     "arrive_at_stop",
     "explanation_finished",
@@ -31,6 +33,7 @@ EVENTS = {
     "finish_tour",
     "request_stop_detail",
     "confirm_stop_complete",
+    "apply_replan_proposal",
 }
 
 
@@ -46,6 +49,7 @@ def initialize_interaction(
         "pending_stop_id": pending,
         "tour_mode": tour_mode,
         "stop_phase": "finished" if tour_state.get("route_status") == "completed" else "navigating",
+        "pending_action_kind": None,
     }
 
 
@@ -106,6 +110,8 @@ def _validate_context(
         return _rejection(event, "invalid_phase", "导游模式无效，无法处理本次操作。", tour_state, interaction_state)
     if interaction_state.get("stop_phase") not in VALID_STOP_PHASES:
         return _rejection(event, "invalid_phase", "当前导游阶段无效，无法处理本次操作。", tour_state, interaction_state)
+    if interaction_state.get("pending_action_kind") not in VALID_PENDING_ACTION_KINDS:
+        return _rejection(event, "invalid_phase", "当前待确认操作无效，无法处理本次操作。", tour_state, interaction_state)
     finished = tour_state.get("route_status") == "completed" or interaction_state.get("stop_phase") == "finished"
     if finished and not allow_finished_idempotent:
         return _rejection(event, "tour_finished", "本次游览已经结束。", tour_state, interaction_state)
@@ -146,6 +152,7 @@ def handle_tour_event(
         "replan_time": _replan_time,
         "request_stop_detail": _request_detail,
         "confirm_stop_complete": _confirm_complete,
+        "apply_replan_proposal": _apply_replan_proposal,
     }
     return handlers[event](tour_state, interaction_state, **payload)
 
@@ -231,6 +238,19 @@ def _arrive(
 
 
 def _next(tour_state: dict[str, Any], interaction_state: dict[str, Any], **_: Any) -> dict[str, Any]:
+    pending_action = interaction_state.get("pending_action_kind")
+    if pending_action == "replan_time_confirmation":
+        return _rejection(
+            "next_stop", "pending_replan_time_confirmation",
+            "您当前位于新的位置；请先告诉我还剩多少分钟，例如“我还有 30 分钟”。",
+            tour_state, interaction_state,
+        )
+    if pending_action == "replan_route_confirmation":
+        return _rejection(
+            "next_stop", "pending_replan_route_confirmation",
+            "新的后续路线尚未启用；请回复“使用新路线”，或选择“继续原路线”。",
+            tour_state, interaction_state,
+        )
     if interaction_state["stop_phase"] in {"explaining", "awaiting_confirmation"}:
         return _rejection("next_stop", "invalid_phase", "请先确认当前点讲解完成，或选择跳过当前点。", tour_state, interaction_state)
     pending = interaction_state.get("pending_stop_id")
@@ -297,6 +317,70 @@ def _replan_time(
         ok=True, event="replan_time", code="replanned", message="已按新的剩余时间更新路线。",
         tour_state=updated_tour, interaction_state=updated_interaction,
         data={"plan": replanned.plan, **_navigation_data(updated_tour, pending if phase == "navigating" else None)},
+    )
+
+
+def _apply_replan_proposal(
+    tour_state: dict[str, Any],
+    interaction_state: dict[str, Any],
+    *,
+    proposal: dict[str, Any] | None = None,
+    **_: Any,
+) -> dict[str, Any]:
+    """Atomically apply a previously previewed P1-11 remaining-route proposal."""
+    if not isinstance(proposal, dict):
+        return _rejection("apply_replan_proposal", "invalid_replan_proposal", "后续路线候选无效，请重新生成。", tour_state, interaction_state)
+    origin = proposal.get("origin_node_id")
+    if (
+        proposal.get("status") != "awaiting_route_confirmation"
+        or proposal.get("pending_action_kind") != "replan_route_confirmation"
+        or not isinstance(origin, str)
+        or proposal.get("physical_node_snapshot") != origin
+        or tour_state.get("current_stop_id") != origin
+    ):
+        return _rejection("apply_replan_proposal", "stale_replan_proposal", "您的位置已变化或候选已失效，请从当前位置重新生成后续路线。", tour_state, interaction_state)
+    stop_ids = proposal.get("stop_ids")
+    minutes = proposal.get("remaining_minutes")
+    if not isinstance(stop_ids, (list, tuple)) or not stop_ids or not isinstance(minutes, int) or minutes <= 0:
+        return _rejection("apply_replan_proposal", "invalid_replan_proposal", "后续路线候选不完整，请重新生成。", tour_state, interaction_state)
+    if (
+        interaction_state.get("pending_action_kind") != "replan_route_confirmation"
+        or tuple(proposal.get("visited_stop_ids_snapshot") or ())
+        != tuple(tour_state.get("visited_stop_ids") or ())
+        or tuple(proposal.get("skipped_stop_ids_snapshot") or ())
+        != tuple(tour_state.get("skipped_stop_ids") or ())
+    ):
+        return _rejection("apply_replan_proposal", "stale_replan_proposal", "候选对应的游览进度已变化，请重新生成后续路线。", tour_state, interaction_state)
+    try:
+        updated_tour = apply_replanned_route(
+            tour_state,
+            list(stop_ids),
+            minutes,
+            selected_route_id=str(proposal.get("route_id") or tour_state["selected_route_id"]),
+            preserve_current_stop=bool(proposal.get("current_is_formal_unconfirmed_stop")),
+        )
+    except (TourStateError, ValueError) as exc:
+        return _rejection("apply_replan_proposal", "invalid_replan_proposal", f"无法应用后续路线候选：{exc}", tour_state, interaction_state)
+    pending = _next_pending(updated_tour)
+    direct_guidance = (
+        bool(proposal.get("current_is_formal_unconfirmed_stop"))
+        and pending == tour_state.get("current_stop_id")
+        and pending in updated_tour.get("remaining_stop_ids", [])
+    )
+    updated_interaction = {
+        **interaction_state,
+        "pending_stop_id": pending,
+        "stop_phase": "finished" if pending is None else ("explaining" if direct_guidance else "navigating"),
+        "pending_action_kind": None,
+    }
+    return _result(
+        ok=True,
+        event="apply_replan_proposal",
+        code="replan_proposal_applied",
+        message="已从您当前的位置应用新的后续路线。",
+        tour_state=updated_tour,
+        interaction_state=updated_interaction,
+        data=_navigation_data(updated_tour, None if direct_guidance else pending),
     )
 
 

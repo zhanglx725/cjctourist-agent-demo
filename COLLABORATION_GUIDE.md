@@ -65,6 +65,15 @@
 | `replanning.py` | 有限重规划器 | 仅处理跳过点与剩余时间变化；保留真实已访问记录，从当前点继续，排除跳过点。 | 不引入新讲解点、不调用 LLM；论文/比较卡不参与选点。 |
 | `route_planner.py: plan_from_current_position()` | 从当前位置的剩余路线规划 | 依据原路线顺序和时间预算裁剪剩余点，先删 optional、再删低优先级 core，并保留回前院出口区的路径。 | 只使用已审核边与讲解点目录。 |
 | `test_replanning.py` | 有限重规划测试 | 验证跳过点排除、20 分钟缩短路线、入口回退和已访问点不回流。 | 修改重规划规则后必须运行。 |
+
+### P1-11 共享边界：显式当前位置的后续路线候选
+
+- `TourState.current_stop_id` 仍是唯一物理位置事实；`pending_replan_proposal.origin_node_id` 只允许保存创建候选时的只读快照，不能作为第二位置字段。
+- `prepare_remaining_route_proposal()` 只生成候选，不得改写正式路线；`apply_replan_proposal` 是唯一可应用候选的 A1 事件，必须验证 current 与 origin 一致、候选未过期，才原子保留 visited/skipped 并替换 remaining/pending。
+- 活跃路线中明确自主到达非 pending 审核点位会先进入 `replan_time_confirmation`，要求游客明确本轮剩余分钟数；不得把初始总时长冒充现场剩余时间。收到可解析时间后才准备路线候选并进入 `replan_route_confirmation`。未知/歧义点位、从头重置和混入完成/跳过/知识问答的多意图必须澄清。
+- 候选展示必须分别呈现物理起点、完整空间路径和正式讲解停靠点；展示前验证 `origin_node_id == current_stop_id` 且 `path_node_ids[0] == current_stop_id`，不得把候选停靠点列表误说成游客当前位置。
+- `pending_action_kind` 只允许为 `replan_time_confirmation` 或 `replan_route_confirmation`：第一阶段的“确认新路线”仍只能重申剩余时间请求；第二阶段由统一的 pending-action resolver 按“否定 → 疑问/查看 → 候选 freshness → 确认短语”仲裁。仅有效候选可将“确认新路线 / 使用新路线 / 就按新路线走”等归入 `confirm_replan`；“不确认 / 不要使用 / 继续原路线”等清除待确认动作，问句只展示候选。两阶段的 `next_stop` 均必须被拦截，不能调用正式导航或结束路线。
+- 修改上述模块时至少运行 `test_explicit_location_replan.py`、`test_agent_explicit_location_replan.py`、`test_tour_intent.py`、`test_replanning.py`、`test_tour_interaction.py`、`test_tour_navigation.py` 与完整回归。
 | `agent_graph.py` 的 TourState 节点 | TourState LangGraph 接入 | `direct_route` 初始化状态；`arrive_at_stop`、`next_stop`、`skip_stop`、`replan_time`、`finish_tour` 全部为确定性节点并在同一 thread 内保留状态。 | 不允许 LLM 直接写 `tour_state`；当前点的详细事实讲解仍留待下一阶段 RAG 编排器。 |
 | `test_agent_tour_state.py` | TourState Agent 路由测试 | 验证路线初始化、到达、下一站、跳过、改时间和结束均路由至确定性节点。 | 修改 Agent 意图关键词或节点状态写入后必须运行。 |
 

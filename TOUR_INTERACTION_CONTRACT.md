@@ -6,7 +6,7 @@
 
 - `TourState` 保留路线事实：路线、当前位置、已访问点、跳过点、剩余点、时间和兴趣。它不包含按钮、页面或模型输出。
 - 交互状态由 `tour_interaction.py`（A1-1）维护，字段为：
-  - `pending_stop_id`：正在等待游客到达或确认完成的正式讲解点；
+- `pending_stop_id`：正在等待游客到达或确认完成的正式讲解点；
   - `tour_mode`：`chat`、`button_guided`、`continuous`；
   - `stop_phase`：`navigating`、`explaining`、`awaiting_confirmation`、`finished`。
 - **只有确定性事件处理器**可以调用 `tour_state.py` 并修改 `TourState`。
@@ -106,6 +106,7 @@ explaining → explanation_finished → awaiting_confirmation
 | `finish_tour()` | 路线已初始化；已结束时允许重复。 | 调用确定性结束逻辑；交互阶段设为 `finished`。 | `tour_finished`；真实游览汇总。 | `route_not_initialized`。 |
 | `request_stop_detail()` | 路线已初始化、未结束，且当前处于 `explaining` 或 `awaiting_confirmation`。 | 不改 TourState；保持当前 phase。 | `detail_requested`；B3 可在事件后展开当前 StopProgram 的有来源讲解。 | `route_not_initialized`、`tour_finished`、`invalid_phase`。 |
 | `confirm_stop_complete()` | 路线已初始化、未结束、`current_stop_id == pending_stop_id` 且 phase 为 `explaining` 或 `awaiting_confirmation`。 | 此时才将当前正式点写入 `visited_stop_ids`，移出 remaining，刷新 pending；有下一站则 `navigating`，否则 `finished`。 | `stop_completed`；下一站导航或完成汇总。 | `route_not_initialized`、`tour_finished`、`invalid_phase`、`not_current_stop`。 |
+| `apply_replan_proposal(proposal)` | 已有 `awaiting_route_confirmation` 候选，且候选 `origin_node_id` 与唯一位置事实 `current_stop_id` 仍一致。 | 原子替换未完成部分，保留 visited/skipped/current；刷新 pending 为候选首站。 | `replan_proposal_applied`；从当前真实位置计算的下一站导航。 | `stale_replan_proposal`、`invalid_replan_proposal`。 |
 
 ### “到达非路线点”的规则
 
@@ -120,6 +121,7 @@ explaining → explanation_finished → awaiting_confirmation
 - 已结束路线重复 `finish_tour()`：成功返回 `tour_already_finished`，`idempotent=true`。
 - 不按预测时间自动完成站点；讲解回复结束后只能将 phase 置为 `awaiting_confirmation`，等待游客主动确认、要求展开或跳过。
 - 不允许对非当前正式站执行完成确认；不得为了“容错”而偷偷把它计为已访问。
+- P1-11 的中途重规划候选属于 Agent 会话审计状态，而不是 TourState 的第二位置字段；其 `origin_node_id` 仅是创建时的 `current_stop_id` 快照。候选确认前不得覆盖正式路线或把旧 pending 称为“下一站”；取消只丢弃候选，导航仍从真实 `current_stop_id` 重新计算。
 
 ## 6. A1 各任务的实现边界
 
