@@ -1,0 +1,543 @@
+# 陈家祠受控 Agent 分阶段实施计划
+
+> 文档性质：基于当前工作区、`CONTROLLED_AGENT_ARCHITECTURE_UPGRADE_PLAN.md`、目标架构图和现有问题台账形成的执行拆解。  
+> 生成日期：2026-08-01  
+> 目标文件：`data/chen_clan_academy/evaluation/handoffs/plan.md`  
+> 当前结论：先收敛正确性与契约，再迁移受控 Agent；学术、多模态和游后推荐不得抢跑。
+
+## 1. 本次审计基线
+
+### 1.1 实际 Git 状态
+
+- 当前分支：`main`。
+- 当前本地 HEAD：`1037914 docs: add controlled agent architecture diagram`。
+- 本地与 `origin/main` 状态：`ahead 1, behind 2`，已发生分叉。
+- 审计时已有、且本计划不覆盖的工作区修改：
+  - `CONTROLLED_AGENT_ARCHITECTURE_UPGRADE_PLAN.md`
+  - `data/chen_clan_academy/routes/node_guide_cards_v1.json`
+  - `data/chen_clan_academy/routes/term_stop_associations_v1.json`
+  - 未跟踪文件 `EIGHT_DAY_IMPLEMENTATION_TASK_PLAN.md`
+
+因此，开始任何实现任务前必须先由负责人确认这些修改的归属并完成安全同步。不得在当前分叉且脏的 `main` 上直接执行 `pull`、批量格式化或覆盖式合并。
+
+### 1.2 本计划读取的主要依据
+
+- `PROJECT_REQUIREMENTS.md`
+- `COLLABORATION_GUIDE.md`
+- `PROJECT_PROGRESS_REPORT.md`
+- `TOUR_GUIDE_ROADMAP.md`
+- `POST_D_TEAM_EVALUATION_AND_OPTIMIZATION_STANDARD.md`
+- `POST_D_TEAM_EXECUTION_AND_HANDOFF_PLAN_V0.md`
+- `CONTROLLED_AGENT_ARCHITECTURE_UPGRADE_PLAN.md`
+- `NEXT_STAGE_ISSUE_AND_ROADMAP.md`
+- 当前 `agent_graph.py`、TourState、VisitorProfile、路线、RAG、知识卡、讲解和安全模块
+- 当前 91 个 `test_*.py` 测试文件
+- `outputs/chen_clan_controlled_agent_architecture.png`
+
+本计划没有重新运行完整测试。本文中的“已通过”只复述现有台账；凡缺少当前 commit、thread ID 或 Trace URL 的人工结果，仍应视为待复核。
+
+## 2. 目标产品与不可变边界
+
+### 2.1 最终产品需要完成的三条主旅程
+
+1. **游客问答**：规划前和导游中都能回答；优先使用本地审核知识。导游中插入问答后，继续原导游流程。
+2. **导游闭环**：收到“开始导游、规划路线、带我逛”等请求后，收集最少必要条件，生成审核路线；支持到达、讲解、追问、下一站、跳过、完成和受控重规划。
+3. **游览结束体验**：根据实际完成和成功讲解记录生成客观总结、七艺覆盖、趣味称号和中性祝福；游客接受后再给有来源、有时效边界的附近景点或餐饮建议。
+
+目标架构还包括独立的学术顾问工作区、多语言、ASR/TTS、动态来源和治理观测。这些属于后续能力，不应与馆内导游正确性同时大改。
+
+### 2.2 必须保持的唯一事实源
+
+| 领域 | 唯一事实源 | 禁止做法 |
+|---|---|---|
+| 游览进度 | `TourState` + 冻结事件适配 | Planner、LLM 或新工具直接写状态 |
+| 游客偏好 | `VisitorProfile` 及验证更新模块 | 新建第二份画像、从语气猜身份 |
+| 空间与路线 | 审核节点、空间图、路线规划器 | 模型生成 node ID、猜点位别名 |
+| 陈家祠事实 | 审核知识、来源注册和 evidence | 用模型记忆补陈家祠事实 |
+| 卡片资格 | 卡片注册表与运行资格表 | 绕过审核状态直接输出 |
+| 对象—点位关系 | 审核映射文件 | 为启用内容编造对象或位置 |
+| 讲解覆盖 | `NarrationCoverage` | 用“计划经过”冒充“实际讲过” |
+| 学术来源 | 研究来源注册、摘要卡、合法全文状态 | 伪造论文、页码、DOI 或共识 |
+
+### 2.3 大模型补充的正确边界
+
+- 可以补充：通用概念解释、表达组织、通用闲聊；必须标明是一般性补充，不能冒充馆方事实。
+- 不可以补充：陈家祠年代、人物、对象、位置、工艺实例、开放票务、安全规则、路线、当前附近营业状态等项目事实。
+- 本地证据不足时：陈家祠相关问题失败关闭；动态信息转官方当日渠道；不得用相邻 chunk 凑答案。
+- 最终游客正文必须经过统一 Renderer；文件名、路径、原始 chunk、内部 ID、来源编号、URL 和工具字段只留在 Trace/审计。
+
+## 3. 当前真实能力盘点
+
+| 能力 | 当前状态 | 主要实现 | 与目标差距 |
+|---|---|---|---|
+| 本地混合 RAG | 已实现 | `rag_ingestion.py`、`rag_retrieval.py` | 入口仍分散，部分出口待实链确认 |
+| 语义候选归一 | 已实现、范围受控 | `semantic_normalization.py`、`agent_graph.py` | 不是通用自然语言理解；控制变体仍需验收 |
+| 单事实/服务问答 | 已实现、待 LangSmith 收口 | `single_fact_answer.py`、`controlled_knowledge_query.py` | 规划前后路径不同但应结论等价 |
+| 七艺工艺问答 | 已验证 | `craft_knowledge.py` 等 | 应保持专项通道，迁移时防回归 |
+| 路线规划与预算 | 已实现 | `route_planner.py`、`route_selection.py`、`dynamic_route_planner.py` | 仍由大图分支直接编排，尚无 proposal 工具层 |
+| TourState 状态机 | 已实现 | `tour_state.py`、`tour_interaction.py` | 必须继续作为唯一状态写入口 |
+| 到达/完成/下一站/重规划 | 部分已验证 | `tour_intent.py`、`replanning.py`、`tour_navigation.py` | 自然表达和偏航实链仍有待验项；P1-04 阻塞 |
+| VisitorProfile | 已实现 | `visitor_profile.py` 及 profile 模块 | 经典/定制模式及最少收集契约未冻结 |
+| 点位讲解/E5 | 已实现、部分待验 | `guide_program_*`、`narration_rendering.py`、`narration_coverage.py` | 版式、回退出口、完整矩阵仍待收口 |
+| 术语/研究/比较/打卡卡 | 数据、注册和被动问答已实现 | 各卡片 runtime/retrieval | 到点主动调度尚未建立 |
+| 安全门控 | 已实现、待实链复核 | `visit_safety_rules.py`、`photo_spot_runtime.py` | 所有入口都必须保持最高优先级 |
+| 受控 Planner/Gate/Registry/Executor | 未实现 | 仅存在目标方案 | 需要分阶段 shadow → 灰度，不可一次重写 |
+| 经典/定制模式 | 未冻结 | 无唯一 `tour_mode` 归属 | 先做契约，不能随意加字段 |
+| 游后总结/成就 | 未形成正式产品链 | Coverage 可复用 | 缺统计口径、规则库和输出控制 |
+| 附近推荐 | 未实现可信服务 | 需求中有目标 | 缺审核 POI、动态时效和外部来源适配 |
+| Academic Advisor | 未实现独立工作区 | 现有 20 张研究卡可作种子 | 缺独立 session、证据矩阵、来源许可和学术治理 |
+| ASR/TTS/多语言 | 未实现统一链路 | 有风格与部分术语基础 | 应在文字主链稳定后接入 |
+| Graph-assisted Hybrid RAG | 规划中、未开始 | 现有关系数据可派生 | 当前不是最优先瓶颈 |
+
+## 4. 总体优先级与依赖
+
+```text
+P0 基线与安全/正确性收口
+  ↓
+P1 受控 Agent 基础（schema → registry → gate → executor）
+  ↓
+P2 多意图、路线 proposal、状态 adapter 与 Graph 灰度
+  ↓
+P3 经典/定制模式、讲解风格、卡片调度与版式
+  ↓
+P4 游览结束总结、成就、祝福和附近推荐
+  ↓
+P5 独立 Academic Advisor
+  ↓
+P6 多语言、语音、可信位置与动态来源
+  ↓
+P7 图辅助检索、全面评测、旧路由收敛与发布
+```
+
+并行原则：同一阶段可并行编写“纯 schema/测试”和“只读数据审计”，但 `agent_graph.py`、TourState、VisitorProfile、公共路由和最终 Renderer 同一时间只允许一个集成人修改。
+
+## 5. P0：先把当前系统变成可信基线
+
+### P0-00 Git 与基线恢复
+
+**目的**：得到可重复、可追溯且不覆盖成员工作的起点。
+
+具体步骤：
+
+1. 逐项确认当前 3 个修改文件和 `EIGHT_DAY_IMPLEMENTATION_TASK_PLAN.md` 的负责人、用途及是否提交。
+2. 将需要保留的成员修改分别提交到其分支；不要把无关文件塞进规划提交。
+3. `fetch` 后比较本地 `1037914`、远端新增 2 个提交和本地独有 1 个提交。
+4. 通过普通 merge/rebase 策略建立负责人确认的新基线；禁止 `reset --hard`。
+5. 记录 `baseline_commit`、Python 版本、依赖锁定方式、索引 manifest 版本、LangGraph CLI 版本。
+6. 运行完整 unittest、`git diff --check`，保存输出摘要。
+
+完成门槛：工作树干净；本地和远端基线关系明确；完整测试结果可重复。任何成员修改归属不明时停止。
+
+### P0-01 关闭安全与游客输出门控的待验项
+
+覆盖：P0-01、P0-02、P1-19、P1-21。
+
+具体步骤：
+
+1. 为危险拍照、商业拍摄、无人机、触摸/倚靠/攀爬、闪光灯、展厅饮食、庭院休息区饮食建立对抗表达集。
+2. 在规划前、规划收集中、导游中、重规划 pending 和问答追问五种状态下运行同一安全请求。
+3. 确认路径始终先进入安全门控，不先给机位、卡片、路线或普通 RAG。
+4. 强制模拟 E5 失败、工具失败和无证据，确认游客文本无内部来源字段，但 Trace 保留 evidence 和失败原因。
+5. LangSmith 每类至少保存 thread ID、Trace URL、测试 commit、输入、路径、最终正文和状态 diff。
+
+允许修改：安全匹配、统一 Visitor Response Renderer/边界、测试与局部交接。  
+禁止修改：知识事实、安全规则语义、TourState、卡片资格。
+
+完成门槛：非法状态写入、危险建议、游客端内部泄漏均为 0。
+
+### P0-02 收口仍未完成的 P1 正确性
+
+按顺序处理：
+
+1. **P1-04 空间别名阻塞**：空间负责人确认“后西庭/后庭西侧”的权威 node ID、别名和路线资格；未确认前保持澄清，绝不编码猜测。
+2. **P1-11 偏航重规划**：从用户确认的新审核点位建立 proposal，保持原路线快照；只有确认后应用。
+3. **P1-12 控制同义表达**：补完到达、完成、继续、下一站、剩余时间等实链矩阵；语义层只给候选和原文 span。
+4. **P1-13 身份证替代检票**：统一票务和服务证据，处理冲突和替代方式，不扩展为公安业务。
+5. **P1-14 多工艺位置**：确认游览前后自然短列表一致，单项缺证据只标该项。
+6. **P1-16 团队发票**：确认标题式查询、问句式查询和游览中查询都进入票务通道。
+7. **P2-07 版式根因**：对比原始消息、Studio 渲染和不同对象数量，修复嵌套 bullet/缩进，不删事实规避问题。
+8. 对 P1-07/08/09 的现有实现完成剩余 LangSmith 矩阵，并更新问题状态。
+
+完成门槛：`NEXT_STAGE_ISSUE_AND_ROADMAP.md` 中除明确外部阻塞项外，不再存在“自动化通过但真实链路失败”未归因问题。
+
+### P0-03 冻结行为矩阵（对应 CA-00）
+
+建立不可变基线用例：
+
+- 游览前/中同一事实问答的结论和 evidence 类别等价。
+- 安全意图高于问答、路线、到达和拍照卡。
+- 路线预算、审核节点、空间连通和确认语义不变。
+- 只读问答不改 TourState、VisitorProfile、路线和 Coverage。
+- 只有成功讲解才提交 Coverage。
+- 线程互不串状态、上下文和 evidence。
+- 工具/模型不可用时失败关闭或退回既有确定性路径。
+
+输出：新的基线测试和 handoff；此步不修改生产路由。
+
+## 6. P1：建立受控 Agent 基础控制面
+
+### P1-01 AgentDecision schema（CA-01）
+
+新增一个严格闭合的候选协议，至少包含：intent、sub-intents、requested capability、用户原文 span、置信度、确认需求和副作用等级。
+
+实施细节：
+
+- `intent`、capability 和 side-effect 使用枚举。
+- 模型不得输出可信 node/ornament/source/card ID；ID 只能由确定性 resolver 生成。
+- `target_text`/`evidence_span` 必须是用户原话连续片段。
+- 非法字段、额外字段、互斥组合和低置信度默认拒绝或澄清。
+- 此阶段只做 schema/validator，不改图路由。
+
+测试：合法/非法 JSON、伪 ID、截断、提示注入、多个意图、否定/假设、低置信度、相同输入稳定验证。
+
+### P1-02 Tool Registry（CA-02）
+
+建立只保存工具元数据的注册表，不复制工具事实。每项记录：
+
+- 名称和版本；
+- 输入/输出 schema；
+- 允许状态相位；
+- evidence 要求；
+- side-effect 等级；
+- 是否需确认；
+- 超时、最大调用次数和失败策略；
+- 游客可见字段与仅审计字段。
+
+首批只登记稳定的只读能力：single fact、visit service、controlled knowledge、term、craft、object、point inventory、research、comparison、photo、navigation。
+
+完成门槛：未登记工具默认拒绝；重复名称和不完整 schema 使启动/加载失败关闭。
+
+### P1-03 首批知识工具化（CA-03/CA-04）
+
+按两批接入，避免一次改动所有问答：
+
+1. 术语、单事实、票务/服务、受控知识。
+2. 七艺、对象详情、点位 inventory、多工艺位置、研究/比较/打卡。
+
+每个 adapter 只能调用现有后端并返回 Typed Evidence Envelope：类别、来源、版本、有效期、置信等级、游客事实计划和审计元数据。不得把 Markdown 原文直接作为游客答案。
+
+验收：
+
+- 规划前/中结果等价。
+- 资格、点位和对象范围不放宽。
+- 动态证据检查有效期。
+- 无证据失败关闭。
+- 七艺 28 个已验证场景不回归。
+
+### P1-04 Shadow Planner（CA-05）
+
+在配置关闭执行权的情况下，让 Planner 只产生 AgentDecision，并与当前真实路由并排记录。
+
+实施细节：
+
+- 设置超时、最多一次候选生成、无模型时静默回退旧路由。
+- 不改变最终消息、状态、工具选择和延迟主路径。
+- Trace 记录 candidate、validator 结果和与旧路径的差异；不保存 Chain-of-Thought。
+- 在 LangSmith 对事实、路线、控制、安全、多意图建立混淆矩阵。
+
+进入下一步门槛：高风险控制和安全候选不得低于冻结规则；候选无法稳定验证时不得启用。
+
+### P1-05 Policy Gate（CA-06）
+
+确定性检查：工具是否注册、当前状态是否允许、参数是否源自用户或审核 resolver、是否有资格/evidence、是否需确认、是否越权。
+
+副作用等级建议：`read_only`、`proposal_only`、`confirmed_state_change`、`prohibited`。
+
+必须拒绝：模型生成 ID、未登记工具、陈家祠事实无 evidence、动态事实过期、自动应用路线、直接写 TourState/Profile、绕过卡片资格。
+
+### P1-06 Tool Executor + Evidence & Result Validator（CA-07）
+
+- 只执行 Gate 批准的调用。
+- 单轮最大 3 个调用；同参去重；设置超时和错误类型。
+- 验证返回 schema、证据类别、来源有效性、对象/点位 ID、时效和游客字段。
+- Renderer 只消费验证后的事实计划；模型不得在 Renderer 后再次改写事实。
+- 失败时保留旧安全回退，不调用自由模型补证。
+
+完成门槛：工具超时、空结果、残缺结果、冲突 evidence、重复调用和注入测试全部可审计且不产生事实扩写。
+
+## 7. P2：让受控 Agent 接管组合能力
+
+### P2-01 多意图原子计划与问答恢复（CA-08）
+
+目标场景：
+
+- “先回答灰塑是什么，再继续带我走。”
+- “我到了月台，先讲石雕，然后告诉我下一站。”
+- “剩 30 分钟，重新规划，但先回答闭馆时间。”
+- “推荐拍照点并加入路线。”（不可组合时明确分步，不半执行）
+
+实现要求：
+
+- 拆成有序原子动作，先全量 Gate，再执行。
+- 任何状态副作用失败时不得留下部分写入。
+- QA interruption 保存原 `profile_collection`、导航/pending action 和正式路线引用；回答后恢复原流程位置。
+- 恢复只指向原状态，不复制第二份 TourState/Profile。
+
+### P2-02 路线 proposal 工具（CA-09）
+
+输入只允许：审核入口/当前位置、分钟、明确兴趣、详略、已批准约束。后端继续使用现有确定性规划器。
+
+输出包括：候选 stop IDs、顺序、预算分解、步行估计、选择原因、数据版本；不会自动 `start_tour()`。
+
+测试：30/60/90/120 分钟、少走路、兴趣、详细讲解、无可行路线、伪节点、预算边界、相同输入稳定性。
+
+### P2-03 重规划 proposal 工具（CA-10）
+
+- 起点必须是当前 TourState 已确认点或本轮经审核 resolver 确认的自助到达点。
+- proposal 绑定 physical node、visited/skipped 快照、剩余时间和版本。
+- 提案过期、位置变化或快照变化时拒绝确认。
+- 未审核地点澄清；不得生成默认路线掩盖未知地点。
+
+### P2-04 State Transition Adapter（CA-11）
+
+Planner 只能提交事件请求；adapter 再调用冻结的 `handle_tour_event()`/状态函数。
+
+覆盖：到达、完成、跳过、下一站、结束、确认重规划。所有合法状态变化必须能追溯到事件；非法写入计数为 0。
+
+### P2-05 Graph 灰度接入第一阶段（CA-14 的前半）
+
+配置至少支持：`off`、`shadow`、`read_only_active`。先只让受控知识问答进入新链；控制事件和路线仍走旧链。
+
+门槛：
+
+- 每项能力可单独关闭。
+- 新链失败可回退旧受控链，但不能回退原始 RAG 倾倒。
+- Studio 与 CLI 的 thread 隔离一致。
+- 新旧答案差异有评测记录。
+
+## 8. P3：产品模式、风格与卡片调度
+
+### P3-01 冻结经典/定制模式与恢复协议（CA-12）
+
+这是当前明确的规划—实现未决事项。负责人必须先决定 `tour_mode` 唯一归属：会话控制、VisitorProfile 还是路线快照。推荐将“本轮模式选择”放在会话/规划控制层，并把最终采用的模式写入不可变路线快照；不要把它变成长期身份画像。
+
+- 经典模式：只强制收集时间，其他用透明中性默认；不主动插研究/比较/摄影卡。
+- 定制模式：最多收集明确兴趣、讲解风格、可选目的/同行情况；未填保持中性。
+- 两种模式都可被事实问答打断并恢复。
+- 不根据语气、设备或外貌猜模式。
+
+### P3-02 接入现有 NarrationStylePolicy
+
+复用已完成的七种风格素材，不新建第二画像。首批生产建议：neutral、child、family、student_research、professional、listen_only、mixed_group，未授权或未知风格回退 neutral。
+
+验证同一 evidence 在不同风格下的实体、数字、时间、位置、否定、安全和 source_ids 完全一致；只改变句长、词汇、节奏和互动方式。
+
+### P3-03 CardDispatcher（CA-13）
+
+输入：当前审核 node、StopProgram、GuidancePolicy、模式、明确兴趣、剩余预算、卡片资格。输出只是一组有序增强候选。
+
+顺序：基础对象事实必选 → 可选术语解释 → 可选研究/比较 → 明确摄影意图下的打卡建议。
+
+门控：
+
+- 研究观点必须归因。
+- 比较结论不得冒充项目事实。
+- 打卡必须先过安全、点位和现场边界。
+- 无合格卡时正常完成基础讲解。
+- 卡片调度不改路线、TourState 或对象选择。
+
+### P3-04 NarrationComposer 与游客版式
+
+把事实计划组织为“结论/主旨 → 可观察细节 → 必要故事/工艺 → 可选深入 → 过渡”，但不能新增事实。
+
+解决 P2-07：限制嵌套层级、列表长度、对象数量和朗读长度；客户端显示与 TTS 文本采用同一安全正文。
+
+### P3-05 Graph 灰度接入第二阶段
+
+依次开放：知识只读 → 多意图只读 → 路线 proposal → 受确认事件。任何阶段硬门槛失败即退回上一档，不批量删除旧路由。
+
+## 9. P4：完成游览闭环
+
+### P4-01 TourOpeningProgram
+
+路线确认后给一次可跳过、可重播的陈家祠总体介绍；使用独立审核 evidence。问答打断后恢复，重规划不重复播放。
+
+### P4-02 VisitSummaryEngine
+
+输入只能来自本轮已确认 TourState 和成功提交的 NarrationCoverage。
+
+统计步骤：
+
+1. 确认路线是否完成/提前结束。
+2. 统计实际 visited stops，不统计计划但未到达点。
+3. 统计成功讲解且用户未跳过的去重 ornament IDs。
+4. 由审核对象—工艺映射汇总七艺；多工艺对象按冻结口径处理。
+5. 输出“参观几个点、成功讲过哪些工艺/题材”；证据不足时不报精确数量。
+
+远程问答、预览、失败回退和只导航不得计入“看过”。
+
+### P4-03 TitleAwardPolicy 与祝福
+
+建立版本化规则库，称号是趣味展示，不是官方认证或用户评级。
+
+- 条件只能引用 summary 中的可审计计数/集合。
+- 相同输入确定性获得同一称号。
+- 冲突时有固定优先级和 neutral fallback。
+- 不写长期 VisitorProfile。
+- 祝福只使用用户明确画像；未知时使用中性文案。
+- 不使用未授权歌词；优先原创短祝福或有许可模板。
+
+### P4-04 NearbyRecommendationService
+
+先建设少量审核 POI 卡，再考虑外部动态查询。
+
+触发条件：游览结束后游客主动询问或接受推荐。输入可包含当前位置/出口、可用时间、预算、交通、已明确偏好；不得推断消费能力。
+
+输出 2–3 个不同类型选项，并区分稳定信息和易变信息。营业、价格、排队、距离和交通耗时必须带来源、核验时间或明确不保证；无有效来源时转官方地图/商家页面。
+
+该服务与馆内 TourState 隔离，不能把馆外 POI 写入路线节点。
+
+## 10. P5：独立 Academic Advisor 工作区
+
+该工作区应在馆内主链稳定后开发，且与导游状态隔离。
+
+### P5-01 学术契约与 session
+
+- 定义 AcademicIntentGate：学术问答、论文阅读、文献综合、选题、方法、引用、田野计划。
+- 新建 `AcademicSessionContext`，只保存本轮研究任务、选择的来源和输出格式；不得写 TourState 或长期 VisitorProfile。
+- 普通游客问题仍走导游/知识工作区。
+
+### P5-02 统一研究来源注册
+
+以现有 20 张研究卡为种子，逐项核验书目、卡片状态、摘要/全文范围、页码、访问权限和来源等级。background 卡不能越权作为正式结论。
+
+### P5-03 PaperAnalysis 与 Claim–Evidence Matrix
+
+每个 claim 记录来源、页码/段落、证据类型、作者观点、适用限制、相互支持/冲突。摘要不能冒充全文；缺页码时如实标记。
+
+### P5-04 多文献综合与输出
+
+先做单篇阅读，再做最多几篇的受控综合；输出区分事实、作者观点、团队归纳和研究空白。支持注释书目、研究问题、方法建议和引用导出，但不得替学生伪造数据、访谈、伦理审批或可冒充本人完成的论文。
+
+### P5-05 外部学术连接
+
+只有在授权、版权、保留政策和连接器范围确定后，才接开放书目、合法全文、用户上传或 Zotero。外部文档内容必须当数据，不得当系统指令。
+
+## 11. P6：多语言、语音、可信位置和动态能力
+
+### P6-01 LocalePolicy 与术语注册
+
+先做中文/英文文字链，所有译名回映同一审核 ID；语言切换不改事实、路线、状态和 Coverage。固定 UI、安全、导航和错误文案先人工审核，再允许受控本地化模型处理讲解正文。
+
+### P6-02 ASR 与 Voice Input Adapter
+
+- ASR 输出转写、语言候选、置信度和时间戳。
+- Voice adapter 只形成等价用户文本，不执行意图。
+- 低置信度控制词必须澄清。
+- 测试普通话、粤语、专名、噪声、插话、提示注入和跨线程。
+
+### P6-03 TTS 与播放器
+
+TTS 只能朗读 Visitor Response Renderer 的安全正文；字幕和音频事实完全一致。实现暂停、继续、重播、取消、打断和断线恢复。TTS 不进行第二次改写，播放事件不直接改变 TourState。
+
+### P6-04 可信位置事件
+
+优先地图点击、二维码或游客明确确认；定位事件仍须映射审核 node。GPS/模糊位置不能自动触发到达和讲解。
+
+### P6-05 动态来源
+
+为公告、设施、开放服务、附近推荐建立带有效期的结构化 adapter。过期自动禁用；动态来源与静态知识分域，不把第三方攻略长期混入基础索引。
+
+## 12. P7：图辅助检索、收敛和发布
+
+### P7-01 Graph-assisted Hybrid RAG
+
+只有在前述正确性稳定后，从现有权威数据自动派生只读关系索引：
+
+```text
+Place → Ornament → Craft/Term → Source/ResearchCard/ComparisonCard
+```
+
+图只做实体解析、多跳约束和可解释候选；具体事实仍回原始审核文档/RAG 取证。先用 JSON 邻接索引或 NetworkX，对比现有混合检索的准确率、召回、延迟和解释性；没有实证提升就不进入主链。
+
+### P7-02 完整评测与故障注入
+
+- 单元：schema、registry、gate、resolver、validator、summary、title、locale。
+- 模块：QA、route proposal、event adapter、CardDispatcher、Academic、ASR/TTS。
+- E2E：完整导游、插入问答、偏航、结束总结、推荐、线程隔离。
+- 对抗：注入、伪 ID、无来源、过期动态事实、工具超时、模型不可用、重复/乱序事件。
+- LangSmith：记录 commit、thread、Trace、节点路径、evidence 类别、状态 diff、游客输出评分。
+
+### P7-03 旧路由收敛（CA-15）
+
+只有新旧能力差分通过且回滚演练成功，才逐条删除已等价的重复知识边。安全仲裁、TourState 事件层、VisitorProfile 验证、审核 resolver、卡片资格和最终 Renderer 永久保留，不因“Agent 化”删除。
+
+## 13. 建议任务包和可并行边界
+
+| 批次 | 可并行任务 | 串行/集成任务 |
+|---|---|---|
+| A | Git/基线审计；LangSmith 用例整理；P1-04 数据确认 | 基线 commit 与问题状态更新 |
+| B | AgentDecision 单测；Tool Registry 元数据；Typed Evidence schema | schema/registry 冻结 |
+| C | 单事实/服务 adapter；对象/工艺 adapter；研究/比较 adapter | Executor/Validator 统一接入 |
+| D | Shadow 评测；Policy Gate 单测 | `agent_graph.py` shadow 接入 |
+| E | 路线 proposal；重规划 proposal；多意图测试 | State adapter 与 Graph 灰度 |
+| F | 模式契约；风格验证；CardDispatcher 数据审计 | 模式/调度接入 |
+| G | Summary 规则；称号文案；POI 数据审计 | 游后闭环接入 |
+| H | Academic 数据核验；Locale 术语审核 | 学术/多模态主链接入 |
+
+公共文件所有权建议：
+
+- `agent_graph.py`：只由集成人修改。
+- TourState/TourInteraction：只由状态负责人修改。
+- VisitorProfile：只由画像负责人修改。
+- 空间、路线、对象映射和知识事实：内容/数据负责人审核后修改。
+- 各工作包优先新增独立模块和独立测试；不要在 `agent_graph.py` 堆叠新分支。
+
+## 14. 每个任务必须使用的执行模板
+
+1. 检查分支、Git 状态、HEAD 和文件所有权。
+2. 读取需求、协作指南、问题台账、相关冻结契约、生产代码和测试。
+3. 写清目标、允许文件、禁止文件、唯一事实源和副作用等级。
+4. 若规划与实现冲突，停止并提交标准冲突报告。
+5. 先加失败测试或基线测试，再做最小实现。
+6. 运行单元测试 → 模块测试 → 完整回归 → `git diff --check`。
+7. 在本地验证通过后，给出 LangSmith 手工用例；未运行不得写“已通过”。
+8. 只更新必要 handoff/README，不批量改公共进度文档。
+9. 等负责人本机/Studio 验证后再提交和推送。
+10. 汇报文件、行为变化、状态不变量、测试、已知限制、commit 和回滚方法。
+
+## 15. 分阶段验收闸门
+
+| 闸门 | 必须满足 |
+|---|---|
+| Gate 0 | 工作树/基线清楚；P0 安全和泄漏为 0；P1 未决项有状态和证据 |
+| Gate 1 | AgentDecision、Registry、Policy、Executor 可独立验证；不影响旧行为 |
+| Gate 2 | read-only 新链规划前后等价；无事实扩写；状态变化为 0 |
+| Gate 3 | 多意图原子；路线只产 proposal；状态只经 adapter；线程隔离 |
+| Gate 4 | 经典/定制归属冻结；风格事实一致；卡片资格零越权 |
+| Gate 5 | 总结只统计实际覆盖；称号可审计；推荐有来源和时效 |
+| Gate 6 | Academic 与 Tour 状态隔离；引用/版权/诚信硬门槛为 0 |
+| Gate 7 | 语音字幕等价；控制误识别安全澄清；动态来源不过期 |
+| Release | 完整回归、LangSmith 全矩阵、故障注入、回滚演练和文档交接通过 |
+
+## 16. 立即执行的下一组任务
+
+不要从流程图最上方的 ASR 开始，也不要先开发 Academic Advisor。当前最合适的顺序是：
+
+1. 处理本地/远端分叉和未提交文件归属，冻结新 baseline。
+2. 完成 P0-02、P1-19、P1-21 及 P1-07/08/09/11/12/13/14/16 的缺失 LangSmith 证据。
+3. 取得 P1-04 空间负责人决策；在此之前保持失败关闭。
+4. 建立 CA-00 基线测试与双模式能力矩阵。
+5. 单独实施 CA-01 AgentDecision schema，不接图。
+6. 单独实施 CA-02 Tool Registry，不改变工具后端。
+7. 再实施 CA-03/04 只读工具 adapter 和 Typed Evidence。
+8. 进入 CA-05 Shadow Planner；只有 shadow 指标满足门槛后才继续 Gate/Executor。
+
+这 8 步完成前，不建议开始语音、多语言、附近实时推荐或图数据库。它们依赖稳定的 Renderer、证据包、状态事件和工具权限；过早接入只会放大当前分散路由的问题。
+
+## 17. 完成定义
+
+本项目的“目标架构已实现”不能以流程图中的方框或文件是否存在判断，而应同时满足：
+
+- Planner 只提出候选，所有执行均经过确定性 Gate。
+- 陈家祠事实均有合格 evidence；一般模型补充不会越过项目事实边界。
+- 所有状态变化经唯一事件/状态适配层，非法写入为 0。
+- 规划前/导游中问答能力等价，问答后可恢复原导游流程。
+- 路线和重规划只先产生 proposal，确认后才应用。
+- 卡片、风格、语言和学术观点不改变基础事实、状态或资格。
+- 游后数字来自实际到达和成功讲解记录，称号规则可审计。
+- 周边和动态信息有来源、时效和失败关闭。
+- 学术工作区不伪造来源、不越权使用全文、不污染导游状态。
+- 文字、字幕和语音事实一致，所有内部字段只留在审计。
+- 自动测试、LangSmith 实链、故障注入、线程隔离和回滚演练全部通过。
+
