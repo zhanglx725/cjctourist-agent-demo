@@ -1376,6 +1376,8 @@ def stop_guidance_node(state: AgentState) -> dict[str, Any]:
             status=result["status"],
             evidence_count=len(result["evidence"]),
             selected_item_count=len((result.get("stop_program") or {}).get("selected_items", [])),
+            fallback_reason=(result.get("narration") or {}).get("e5_fallback_reason")
+            or (result.get("narration") or {}).get("fallback_reason"),
         ),
     }
     if result["stop_program"] is not None:
@@ -1733,16 +1735,29 @@ def rag_tool_node(state: AgentState) -> dict[str, Any]:
         return {}
     results: list[ToolMessage] = []
     evidence: list[dict[str, Any]] = []
+    failure_reasons: list[str] = []
     started = time.perf_counter()
     for call in last.tool_calls:
         if call["name"] == chen_clan_academy_rag_search.name:
-            content = str(chen_clan_academy_rag_search.invoke(call["args"]))
             try:
-                evidence.extend(json.loads(content).get("evidence", []))
-            except json.JSONDecodeError:
-                pass
+                content = str(chen_clan_academy_rag_search.invoke(call["args"]))
+                try:
+                    evidence.extend(json.loads(content).get("evidence", []))
+                except json.JSONDecodeError:
+                    failure_reasons.append("rag_tool_invalid_json")
+            except Exception as exc:
+                # Preserve a bounded exception class for Trace, but do not
+                # pass raw exception text toward the model or visitor output.
+                failure_reasons.append(
+                    f"rag_tool_exception:{type(exc).__name__}"
+                )
+                content = json.dumps(
+                    {"evidence": [], "error": "knowledge_tool_unavailable"},
+                    ensure_ascii=False,
+                )
         else:
             content = "Unsupported tool call."
+            failure_reasons.append("unsupported_tool_call")
         results.append(ToolMessage(content=content, tool_call_id=call["id"]))
     return {
         "messages": results,
@@ -1760,6 +1775,7 @@ def rag_tool_node(state: AgentState) -> dict[str, Any]:
                     for method in item.get("retrieval_methods", [])
                 }
             ),
+            failure_reasons=failure_reasons,
         ),
     }
 

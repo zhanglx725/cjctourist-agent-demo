@@ -215,6 +215,9 @@ def build_stop_guidance(
     # this increment.  E5-A4 only replaces the first-arrival presentation;
     # treating detail as E5 output now would silently drop the existing
     # detailed-answer behaviour before it has its own evidence contract.
+    e5_fallback_reason: str | None = (
+        "detail_request_uses_b3_contract" if detailed else None
+    )
     if not detailed:
         try:
             coverage = load_narration_coverage(narration_coverage)
@@ -275,11 +278,13 @@ def build_stop_guidance(
                     "narration": {"used_llm": False, "fallback_reason": None, "detailed": detailed, "renderer": "e5_a3"},
                     "presentation": {**view, "code": "stop_guidance", "ok": True, "evidence_count": len(e5_evidence)},
                 }
-        except Exception:
+            e5_fallback_reason = "typed_evidence_incomplete"
+        except Exception as exc:
             # Existing B3 remains a safe presentation fallback.  Do not expose
             # a partial typed packet or submit a coverage candidate from this
-            # path.
-            pass
+            # path.  Preserve only a bounded exception class for Trace audit;
+            # raw exception text can contain paths, payloads, or credentials.
+            e5_fallback_reason = f"typed_e5_exception:{type(exc).__name__}"
 
     evidence: list[dict[str, Any]] = []
     rag_queries: list[str] = []
@@ -311,6 +316,7 @@ def build_stop_guidance(
         "narration": {
             "used_llm": narration.used_llm,
             "fallback_reason": narration.fallback_reason,
+            "e5_fallback_reason": e5_fallback_reason,
             "detailed": detailed,
             "renderer": "b3_legacy_fallback",
         },
