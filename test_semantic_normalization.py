@@ -15,7 +15,7 @@ from agent_graph import (
     semantic_normalization_node,
     tour_event_node,
 )
-from tour_intent import resolve_reviewed_node
+from tour_intent import looks_like_arrival_control, resolve_reviewed_node
 from semantic_normalization import (
     SemanticCandidate,
     canonical_control_text,
@@ -350,6 +350,93 @@ class SemanticNormalizationTests(unittest.TestCase):
         state.update(update)
         self.assertEqual(route_initial_request(state), "clarification")
         self.assertNotIn("tour_state", state)
+
+    def test_c1_high_frequency_arrival_forms_are_deterministic_and_do_not_call_model(self):
+        """Studio arrival wording must reach A1 without semantic/RAG fallback."""
+        initial = direct_route_node(self._state("我有30分钟，帮我规划路线。"))
+        pending = initial["tour_interaction_state"]["pending_stop_id"]
+        for text in (
+            "我已经抵达这里了。",
+            "我人到了。",
+            "终于走到了。",
+            "已经来到这一站了。",
+            "我们走到跟前了。",
+        ):
+            with self.subTest(text=text), patch("agent_graph.recognize_semantic_candidate") as recognizer:
+                state = self._state(text, initial)
+                state.update(semantic_normalization_node(state))
+            recognizer.assert_not_called()
+            metric = state["performance_metrics"][-1]
+            self.assertFalse(metric["model_called"])
+            self.assertEqual(route_initial_request(state), "tour_event")
+            arrived = tour_event_node(state)
+            self.assertEqual(arrived["last_tour_event"]["code"], "arrived")
+            self.assertEqual(arrived["tour_state"]["current_stop_id"], pending)
+            self.assertEqual(arrived["tour_state"]["visited_stop_ids"], [])
+            visitor_message = str(arrived["messages"][-1].content)
+            self.assertNotRegex(visitor_message, r"(?i)(?:\.md\b|S\d{2}\b|https?://|原始chunk)")
+
+    def test_c1_explicit_arrival_forms_resolve_raw_location_and_reuse_p1_11(self):
+        """Explicit locations come from user text and non-pending arrival deviates safely."""
+        initial = direct_route_node(self._state("我有30分钟，帮我规划路线。"))
+        cases = (
+            ("终于走到月台了。", "月台", "label_moon_platform", True),
+            ("我已经抵达后庭了。", "后庭", "stop_rear_courtyard", True),
+            ("我们来到前庭了。", "前庭", "stop_front_courtyard_north", True),
+        )
+        for text, location_text, node_id, is_deviation in cases:
+            with self.subTest(text=text), patch("agent_graph.recognize_semantic_candidate") as recognizer:
+                state = self._state(text, initial)
+                state.update(semantic_normalization_node(state))
+            recognizer.assert_not_called()
+            self.assertEqual(resolve_reviewed_node(location_text).node_id, node_id)
+            self.assertEqual(route_initial_request(state), "tour_event")
+            result = tour_event_node(state)
+            self.assertEqual(result["tour_state"]["current_stop_id"], node_id)
+            self.assertEqual(result["tour_state"]["visited_stop_ids"], [])
+            if is_deviation:
+                self.assertEqual(result["last_tour_event"]["code"], "self_arrival")
+                self.assertEqual(result["pending_replan_time_confirmation"]["status"], "replan_time_confirmation")
+            else:
+                self.assertEqual(result["last_tour_event"]["code"], "arrived")
+
+    def test_c1_arrival_shaped_failures_clarify_without_model_or_state_write(self):
+        initial = direct_route_node(self._state("我有30分钟，帮我规划路线。"))
+        protected_keys = (
+            "tour_state", "tour_interaction_state", "visitor_profile",
+            "active_route_plan", "active_stop_program",
+        )
+        before = {key: deepcopy(initial.get(key)) for key in protected_keys}
+        for text in (
+            "我还没抵达月台。",
+            "我人还在路上。",
+            "我准备去月台。",
+            "我快走到月台了。",
+            "如果到了月台。",
+            "我是不是到月台了？",
+            "朋友已经抵达月台。",
+            # This has arrival shape but no resolvable point and no generic
+            # completion phrase, so it exercises the no-model fail-closed path.
+            "我刚抵达那边。",
+        ):
+            with self.subTest(text=text), patch("agent_graph.recognize_semantic_candidate") as recognizer:
+                self.assertTrue(looks_like_arrival_control(text))
+                state = self._state(text, initial)
+                state.update(semantic_normalization_node(state))
+            recognizer.assert_not_called()
+            self.assertEqual(route_initial_request(state), "clarification")
+            for key, value in before.items():
+                self.assertEqual(state.get(key), value)
+
+    def test_c1_arrival_guard_does_not_intercept_temporal_or_place_knowledge_questions(self):
+        for text in ("月台有什么？", "讲讲月台。", "月台的石雕有什么特点？", "到达月台后能看到什么？", "为什么路线要经过月台？"):
+            with self.subTest(text=text):
+                self.assertFalse(looks_like_arrival_control(text))
+                state = self._state(text)
+                with patch("agent_graph.recognize_semantic_candidate", return_value=SemanticCandidate()):
+                    state.update(semantic_normalization_node(state))
+                self.assertNotEqual(route_initial_request(state), "tour_event")
+                self.assertNotEqual(route_initial_request(state), "clarification")
 
     def test_normalized_remaining_time_still_uses_existing_profile_update(self):
         initial = direct_route_node(self._state("我有60分钟，帮我规划路线"))

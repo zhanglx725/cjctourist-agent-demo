@@ -29,6 +29,7 @@ from tour_interaction import handle_tour_event, initialize_interaction
 from tour_intent import (
     classify_tour_intent,
     is_unresolved_navigation_control,
+    looks_like_arrival_control,
     resolve_reviewed_node,
 )
 from tour_presenter import (
@@ -1978,6 +1979,17 @@ def route_initial_request(state: AgentState) -> str:
         "route_reset_requires_confirmation", "unresolved_replan_origin",
         "ambiguous_node_name", "multiple_node_mentions",
     }:
+        return "clarification"
+    # A validated deterministic arrival must retain its A1 execution path.
+    # The control-shaped guard below only closes unsafe/unresolved forms that
+    # would otherwise drift into semantic/RAG fallbacks.
+    if early_decision.route_kind == "tour_event":
+        return "tour_event"
+    # A model failure must never turn a visitor-location control into RAG.  A
+    # safe arrival already returned ``tour_event`` above; every other
+    # arrival-shaped input receives the classifier's deterministic
+    # clarification.
+    if looks_like_arrival_control(raw_text):
         return "clarification"
     # Reviewed single facts use the same scoped retrieval and deterministic
     # renderer in both modes.  Decide this before glossary/follow-up heuristics,

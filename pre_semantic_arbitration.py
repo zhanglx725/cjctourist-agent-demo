@@ -20,7 +20,7 @@ from comparison_retrieval import is_explicit_comparison_question
 from extended_profile_control import parse_extended_profile_control
 from profile_update import is_profile_update_request
 from single_fact_answer import identify_single_fact_kind
-from tour_intent import classify_tour_intent
+from tour_intent import classify_tour_intent, looks_like_arrival_control
 from tour_qa import is_point_inventory_request, resolve_ornament_story_scope_request
 from visit_safety_rules import is_visit_safety_question
 
@@ -87,6 +87,18 @@ def resolve_pre_semantic_action(
             route_target=(
                 "tour_event" if decision.route_kind == "tour_event" else decision.route_kind
             ),
+            model_required=False,
+        )
+
+    # Even if a future deterministic parser has not yet accepted a novel
+    # arrival wording, an arrival-shaped control must not fall through to a
+    # semantic model and then free RAG.  The classifier has already returned
+    # the corresponding safe clarification at this point.
+    if looks_like_arrival_control(user_text):
+        return PreSemanticAction(
+            True,
+            reason="arrival_control_requires_safe_resolution",
+            route_target="clarification",
             model_required=False,
         )
 

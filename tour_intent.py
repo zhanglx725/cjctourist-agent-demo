@@ -201,18 +201,63 @@ def _has_arrival_language(text: str) -> bool:
     compact = text.strip().rstrip("。！!？?")
     if compact in BARE_ARRIVAL_SYNONYMS:
         return True
+    if not looks_like_arrival_control(text):
+        return False
     # “我在某处” describes location context; it does not assert a new arrival.
     # Only explicit motion/completion wording may enter the state-writing path.
     return bool(
         re.search(
-            r"(?:我\s*(?:自己\s*)?(?:(?:走|逛|晃悠)\s*)?(?:已|已经|刚)?\s*(?:到|到了)|"
-            r"(?:已|已经|刚)?到达(?:了)?|我来到了)",
+            r"(?:我\s*(?:人\s*)?(?:自己\s*)?(?:(?:走|逛|晃悠)\s*)?(?:已|已经|刚|终于)?\s*(?:到|到了|抵达|到达|来到)(?:了)?|"
+            r"我们\s*(?:(?:走|逛|晃悠)\s*)?(?:已|已经|刚|终于)?\s*(?:到|到了|抵达|到达|来到)(?:了)?|"
+            r"(?:已|已经|刚|终于)\s*(?:(?:走|逛|晃悠)\s*)?(?:到|到了|抵达|到达|来到)(?:了)?)",
             text,
         )
         # “我在月台能看到什么” remains a static question (P1-18).  These
         # two anchored forms are the newly approved explicit physical-location
         # reports for P1-11 route-deviation handling.
         or re.match(r"^(?:我现在在|现在人在)\s*[^？?。！!]+$", text.strip())
+    )
+
+
+def looks_like_arrival_control(text: str) -> bool:
+    """Return whether a turn is arrival-shaped and must not fall into RAG.
+
+    It deliberately has no node-resolution or event-execution authority.  A
+    true result means only that the turn is visitor-location control shaped;
+    unresolved, negated, in-transit, third-party, or malformed variants must
+    be clarified rather than answered by a free knowledge path.
+    """
+    raw = str(text or "").strip()
+    if not raw:
+        return False
+    # A temporal condition followed by a factual question remains knowledge
+    # Q&A: “到达月台以后能看到什么？” must not be treated as an arrival.
+    temporal_knowledge = bool(re.search(
+        r"(?:抵达|到达|来到|走到|走进).{0,12}(?:以后|之后|后).{0,16}"
+        r"(?:什么|为什么|有哪些|能看到|介绍|讲讲|特点|故事)",
+        raw,
+    ))
+    if temporal_knowledge:
+        return False
+    # Hypothetical and verification wording is still arrival-control shaped:
+    # it must be clarified, not passed to free knowledge retrieval.  The
+    # temporal-question exception above keeps “到达月台以后能看到什么” in Q&A.
+    if re.search(r"(?:如果|是不是|算).{0,12}(?:抵达|到达|来到|走到|走进|到了|到)", raw):
+        return True
+    if re.match(r"^(?:我现在在|现在人在)\s*[^？?。！!]+$", raw):
+        return True
+    arrival_stem = r"(?:抵达|到达|来到|走到|走进|到了|到位|到)"
+    explicit_subject_or_completion = r"(?:我|我们|朋友|孩子|导游|终于|已经|已|刚)"
+    if re.search(arrival_stem, raw) and re.search(explicit_subject_or_completion, raw):
+        return True
+    # These are still position-control statements even though they negate or
+    # defer arrival.  They must clarify instead of being treated as free RAG.
+    return bool(
+        re.search(
+            r"(?:我|我们|朋友|孩子|导游).{0,8}(?:还在路上|正在去|准备去|打算去|"
+            r"还没(?:到|抵达|到达|来到|走到)|没有(?:到|抵达|到达|来到|走到)|尚未(?:到|抵达|到达|来到))",
+            raw,
+        )
     )
 
 
@@ -330,6 +375,11 @@ def _is_generic_arrival_phrase(text: str) -> bool:
         "我已经到目的地了",
         "人已经到位了",
         "我们走到了",
+        "我已经抵达这里了",
+        "我人到了",
+        "终于走到了",
+        "已经来到这一站了",
+        "我们走到跟前了",
     }:
         return True
     return bool(re.fullmatch(
@@ -507,6 +557,16 @@ def classify_tour_intent(
     parsed_duration = parse_duration_minutes(text)
     if has_remaining_duration_context(text) and parsed_duration.reason_code == "ambiguous_duration":
         return clarification("ambiguous_duration", "时间表达包含多个不同分钟数，请只确认一个剩余时间。")
+
+    # Arrival-shaped controls take precedence over all remaining-route and
+    # generic-RAG paths.  A safe report will continue to the existing A1
+    # event parser below; an unsafe or incomplete report closes with a
+    # clarification instead of guessing a location or querying knowledge.
+    if looks_like_arrival_control(text) and not is_safe_arrival_report_text(text):
+        return clarification(
+            "arrival_not_safely_resolved",
+            "我还不能安全确认您到达的具体点位。请告诉我现场点位名称，或确认是否已经到达当前路线的下一站。",
+        )
 
     replan = _classify_remaining_route_replan(text, tour_state)
     if replan is not None:

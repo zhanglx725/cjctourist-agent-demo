@@ -41,6 +41,24 @@ class PreSemanticArbitrationTests(unittest.TestCase):
         self.assertFalse(result.consumed)
         self.assertTrue(result.model_required)
 
+    def test_arrival_shaped_but_unsafe_text_is_consumed_as_clarification(self):
+        """Arrival control may never use semantic-model failure as a RAG fallback."""
+        for text in (
+            "我还没抵达月台。",
+            "我人还在路上。",
+            "我准备去月台。",
+            "我快走到月台了。",
+            "如果到了月台。",
+            "我是不是到月台了？",
+            "朋友已经抵达月台。",
+            "我刚抵达那边。",
+        ):
+            with self.subTest(text=text):
+                result = resolve_pre_semantic_action({}, text)
+                self.assertTrue(result.consumed)
+                self.assertEqual(result.route_target, "clarification")
+                self.assertFalse(result.model_required)
+
 
 if __name__ == "__main__":
     unittest.main()

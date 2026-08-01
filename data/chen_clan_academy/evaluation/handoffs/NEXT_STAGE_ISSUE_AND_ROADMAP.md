@@ -298,9 +298,9 @@
 
 ### P1-12 固定词表之外的自然语言同义表达无法进入受控流程
 
-#### C1：到达同义表达（`automated_verified_pending_langsmith`）
+#### C1：到达同义表达（`implementation_updated_pending_local_regression`）
 
-已覆盖泛化到达（仅绑定唯一 pending）和带审核点位原文片段的显式到达。语义候选只保存原话证据；`location_text` 必须是原话连续片段，节点 ID 仅由 `resolve_reviewed_node()` 产生，最终复用 A1 `tour_event`。非 pending 到达复用 P1-11 的 `self_arrival → replan_time_confirmation`。前往意愿、途中、否定、假设/疑问、知识问答、第三人称和混合操作不会写入位置。C2 及时间、路线、跳过/完成、画像与知识同义表达仍须各自独立实施和验收。
+已覆盖泛化到达（仅绑定唯一 pending）和带审核点位原文片段的显式到达。语义候选只保存原话证据；`location_text` 必须是原话连续片段，节点 ID 仅由 `resolve_reviewed_node()` 产生，最终复用 A1 `tour_event`。2026-07-31 新增高频完成体“抵达／走到／来到／人到了”的确定性覆盖，并新增不执行节点解析的 `looks_like_arrival_control()`：到达形态明显但未安全解析时必须澄清，不能落入 `llm_think → rag_tool`。时间条件知识问句（如“到达月台后能看到什么”）保持知识通道。非 pending 到达复用 P1-11 的 `self_arrival → replan_time_confirmation`。前往意愿、途中、否定、假设/疑问、知识问答、第三人称和混合操作不会写入位置。C2 及时间、路线、跳过/完成、画像与知识同义表达仍须各自独立实施和验收。
 
 #### C4：下一站控制缺口（`automated_verified_pending_langsmith`）
 
@@ -309,6 +309,8 @@
 #### 2026-08-01 Studio 人工取证与更新后待复测状态
 
 人工测试确认：有路线且唯一 pending 时，裸“到了”可进入 `tour_event → stop_guidance`；无路线时会澄清；当前点未完成时，“下一站怎么走／接下来去哪”会优先要求完成或跳过；“准备去／还在路上”未被写成到达。同期失败为“我已经抵达这里了／终于走到月台了／我人到了”可能落入 `llm_think / rag_tool / tour_qa`，“终于走到月台了”还显示原始 RAG、文件名和 `S11`；“完成”未稳定进入确定性完成确认。该测试之后 C1 自然到达同义表达已有代码更新，但尚未完成本机测试和新的 LangSmith 人工复测；C4“完成”同义表达仍未实现或未验证。P1-12 状态为 `implemented_pending_local_and_langsmith_verification`，原人工失败证据继续保留，游客端泄漏归入 P1-19／P1-21 的对应出口审计。
+
+已登记但未在 C1 实现：单字“完成”仍是 `confirm_stop_complete` 的 C4 同义表达缺口。它必须结合当前 `stop_phase` 决定能否执行，不能在全局关键词层直接改写为完成本站。
 
 | 项目 | 内容 |
 | --- | --- |

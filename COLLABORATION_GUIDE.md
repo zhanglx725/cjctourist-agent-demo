@@ -357,6 +357,11 @@ python inspect_route_plan.py deep_dive_90
 - 统一契约见 `E5_NARRATION_CONTRACT.md`。E5 引入的 `NarrationCoverage` 只记录本线程、本次游览中已经成功输出且带 evidence 的工艺/文物介绍；它不是 TourState、VisitorProfile、知识事实或 RAG 原文缓存。
 - 首次工艺优先使用 `07_ornament_crafts.md` 的 evidence，首次文物优先使用 `08_ornament_items.md` 的 evidence，并只能连接当前点讲解包中审核关联的对象。预算不足时减少对象数，不减少核心证据链。
 - E5-A、E5-B、E5-C 必须从同一 E5-0 提交建立分支；主负责人独占修改本文件、进度报告和学习说明。具体文件所有权、失败关闭规则与 `e5_nar_001`--`e5_nar_008` 验收编号均以契约为准。
+## P1-12C1 共享边界：到达控制护栏
+
+- `tour_intent.looks_like_arrival_control(text)` 只判断输入是否属于游客位置变化控制形态；它不得生成 `node_id`、不得绑定 pending、不得写任何状态。A1 仍是唯一到达写入口，审核点位仍只由 `resolve_reviewed_node()` 解析。
+- 该护栏为真但 `is_safe_arrival_report_text()` 不通过时，入口必须走结构化澄清，禁止回退 `llm_think`、`direct_rag`、`tour_qa` 或 RAG。仅时间条件的知识问句（如“到达月台后能看到什么”）不得被护栏拦截。
+
 ## P1-12C4 共享边界：下一站控制
 
 - `request_next_stop` 是闭合控制候选，只能保存原话证据与置信度；不得携带或生成 `node_id`、路线、路径、导航文案或状态修改。实际导航仍由 A1 事件适配器、已应用路线与审核空间图决定。

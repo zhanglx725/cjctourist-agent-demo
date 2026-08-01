@@ -60,20 +60,30 @@ MIN_ACTIONABLE_CONFIDENCE = 0.9
 # vocabulary.  They deliberately reject rather than infer a visitor location.
 _ARRIVAL_NEGATION_PATTERNS = (
     r"还没到",
+    r"还没(?:抵达|到达|来到|走到|走进)",
     r"没有到",
+    r"没有(?:抵达|到达|来到|走到|走进)",
     r"没到",
+    r"尚未(?:到|抵达|到达|来到)",
+    r"人还没到",
     r"别(?:记录|算|当作).{0,12}到",
     r"不要(?:记录|算|当作).{0,12}到",
 )
 _ARRIVAL_IN_TRANSIT_PATTERNS = (
     r"快到",
+    r"快走到",
     r"正在去",
+    r"还在路上",
     r"准备前往",
+    r"准备走到",
     r"马上就到",
+    r"马上到",
     r"还有.{0,6}步到",
 )
 _ARRIVAL_DESTINATION_PATTERNS = (
     r"想去",
+    r"准备去",
+    r"打算去",
     r"接下来去",
     r"带我到",
     r"准备前往",
@@ -83,6 +93,8 @@ _ARRIVAL_QUESTION_PATTERNS = (
     r"到了.{0,12}(?:怎么办|会讲什么)",
     r"是不是到",
     r"你觉得.{0,12}到",
+    r"我算到.{0,12}吗",
+    r"我算(?:抵达|到达|来到|走到).{0,12}吗",
 )
 _ARRIVAL_THIRD_PARTY_TERMS = ("朋友", "孩子", "导游")
 _ARRIVAL_CONFLICT_TERMS = (
