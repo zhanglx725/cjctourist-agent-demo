@@ -86,17 +86,17 @@
 以下是依据当前人工现象形成的 `possible_root_cause / 可能原因`，尚未获得对应 Trace 时不得写成已确认根因：
 
 1. 控制意图的确定性仲裁仍未覆盖全部自然语言变体，部分表达会落入 LLM、RAG 或普通问答，造成状态控制不稳定。
-2. 游客端输出边界没有覆盖 `direct_rag`、`tour_qa`、LLM 回退和部分确定性回答等全部出口，因而可能泄漏文件名、`Sxx`、URL、快照说明和原始 chunk。
+2. 游客端输出边界此前没有覆盖 `tour_qa`、QA 追问、通用 LLM 回退和 `stop_guidance` 等全部最终出口；研究卡和比较卡格式化器还曾主动把结构化 `source_ids` 拼入游客正文。2026-08-01 已确认这是跨出口泄漏的共同实现根因，并以统一公共门控补齐最终失败关闭；`direct_rag` 的受控知识与单事实渲染原已使用同一公共门控，内部 evidence 继续独立保存。
 3. 规划前与规划中仍可能使用不同问答路径，使相同问题得到不同路由、证据选择和渲染结果。
 4. 点位 inventory 缺少游客侧精选、排序与长度预算，内部完整白名单会直接变成长清单。
 
 推荐顺序：
 
-1. 统一游客端输出边界，优先覆盖 P1-13、P1-14、P1-16、P1-17，并继续按真实出口分别关联 P1-19 与 P1-21。
+1. 对 2026-08-01 已实现的统一游客端输出边界执行 LangSmith 人工复测；P1-19 与 P1-21 在复测前保持 `implemented_pending_langsmith_verification`。
 2. 修复 P1-11 的审核点位解析顺序和未知地点保护。
-3. 统一 P1-13“忘带／丢失／未携带”的受控意图与事实集合。
-4. 修复 P1-14 多工艺自然表达及规划前后路由一致性。
-5. 为动态营业信息增加证据有效期门控；无当前有效证据时转官方最新渠道，不用过期公告推断当前事实。
+3. 统一 P1-13“忘带／丢失／未携带”的受控意图与事实集合；输出泄漏边界已进入统一实现，但内容一致性仍未解决。
+4. 修复 P1-14 多工艺自然表达及规划前后路由一致性；不得将本轮仅完成的输出边界写成路由已修复。
+5. 为动态营业信息增加证据有效期门控；无当前有效证据时转官方最新渠道，不用过期公告推断当前事实。P1-17 的时长解析通过结论保持不变。
 6. 为点位 inventory 增加代表对象精选、分层说明和回答长度预算，完整白名单仅保留在内部结构中。
 7. 先对 P1-12 C1 更新执行本机测试与 LangSmith 复测，再独立处理 C4“完成”同义表达。
 
@@ -222,6 +222,7 @@
 | 当前现状 | 2026-07-30 已在 `guide_program_evidence.py` 移除 B3 回退和当前点重述出口向游客消息追加 `_citation_text(...)` 的行为。`GuideNarration.source_ids`、`build_stop_guidance(...)["source_ids"]`、结构化 `evidence`、E5 `used_source_ids` 与 LangSmith trace 仍保留内部可追溯来源；只移除了游客可见文本中的编号。未删除 B3 回退，且无证据时仍不提交 NarrationCoverage。 |
 | 自动化验证 | 新增 `test_b3_fallback_hides_internal_source_ids_but_retains_structured_evidence`，以 S07 和 S11 两组真实形态的 RAG evidence 强制 E5 渲染失败后进入 B3，验证游客消息不含“来源：S”、`source_ids`、文件名或 URL，而 `retrieved_evidence` 仍保留对应来源；新增当前点重述出口测试。定向及直接回归运行 `test_guide_program_evidence.py`、`test_agent_stop_guidance.py`、`test_guidance_policy_integration.py`、`test_e5_stop_guidance_coverage_integration.py`、`test_e5_narration_rendering.py`、`test_e5_narration_runtime_acceptance.py`、`test_guide_narration.py`、`test_stage_b_e2e.py`，共 46 项通过。 |
 | LangSmith 状态 | `implemented_pending_langsmith_verification`。2026-07-30 在 Studio thread `019fb008-50d1-7cc3-8dfd-17d6a82f1ea6` 的实际游客回复末尾曾出现“来源：S11”。修复后尚未执行 LangSmith；后续应在已到达点位后分别复测单件证据不足的 B3 回退、强制 E5 渲染失败回退和当前点风格重述，确认游客文本不含“来源：Sxx”，同时确认 Trace/结构化结果仍保留来源且 TourState 不变。 |
+| 统一边界加固（2026-08-01） | 在保留上述 B3 生产修复的基础上，`stop_guidance_node` 现与 `tour_qa`、QA 追问和通用 LLM 最终回复共同复用 `public_visitor_message_or_fallback()`。若某个遗漏出口仍把文件名、路径、`Sxx`、URL、内部 ID、快照或资料管理说明混入游客正文，整段正文失败关闭，绝不通过字符串删改保留残缺事实；`retrieved_evidence`、`GuideNarration.source_ids`、`used_source_ids`、Coverage 审计与 Trace 输入均不删除。新增测试强制 B3 返回含 `S07` 和文件名的文本，确认游客消息与 presentation 同步安全关闭、evidence 原样保留且 Coverage 不提交。P1-19 仍待 LangSmith 人工复测，不更新为 `verified_fixed`。 |
 
 ### P1-09 装饰故事和题材说明过浅
 
@@ -264,6 +265,11 @@
 | controlled_knowledge 加固 | 原模块已有无证据不调用模型、危险候选整体失败关闭的机制；本轮保留该机制并扩展内部标识矩阵：来源编号、文件名、URL、检索字段，以及 `label_*`、`stop_*`、`orn_*`、`term_*`。命中时拒绝整段候选，不作字符串删除或第二次模型补写，结构化 evidence 不丢失。 |
 | 自动化验证 | 已实际运行工艺、术语实例、受控知识双入口和相关回归；完整 `unittest discover -v` 为 675 项 `OK`。测试覆盖七种工艺 brief/detailed、前院中部/前庭/月台/无位置实例组合、`direct_rag` 与活动 `tour_qa` 的 controlled_knowledge 安全回退，以及 TourState/VisitorProfile 不变。 |
 | 当前状态 | `implemented_pending_langsmith_verification`。尚未执行本轮 LangSmith；必须分别确认真实工艺链路与真实 `controlled_knowledge` 链路均无内部字段后，才可标记 `verified_fixed`。P1-19 状态未修改。 |
+| 跨出口根因（2026-08-01） | 只读审计确认：受控知识和单事实渲染原已把游客正文与 evidence 分离，E5/B3 也已有局部来源隐藏；缺口在于通用 `llm_think` 只靠提示词约束，`tour_qa`、QA 追问及 `stop_guidance` 没有共享最终兜底，同时研究卡和比较卡格式化器仍会主动把 `source_ids` 追加到游客正文。同一份结构化来源因此被个别出口二次拼接，形成 P1-13、P1-14、P1-16、P1-17 所见的跨出口泄漏。 |
+| 统一实现（2026-08-01） | 扩展既有 P1-21 公共门控，集中识别内部文件名/路径、`Sxx`、`source_ids`/`used_source_ids`、节点/对象/术语/卡片 ID、URL、原始 chunk、快照与资料日期等内部信息；生产端移除研究/比较回答主动追加来源编号的逻辑，最终端覆盖通用 LLM、`tour_qa`、QA 追问和 `stop_guidance`。门控只负责显示安全，不保存事实、不改变路由或状态；命中时使用非空安全说明，禁止 LLM 二次改写。正常年份、`30/60 分钟`、`S 形构图`、普通英文缩写与审核对象名称均有防误删测试。 |
+| 审计与状态边界 | 完整 evidence、文档/chunk 标识、`source_ids`、`used_source_ids`、Coverage 依据继续位于既有结构化结果和 Trace 输入；游客消息与 `tour_presentation.message` 使用同一安全正文。实现没有返回或修改 TourState、VisitorProfile、路线、StopProgram，也没有修改知识库、卡片或来源登记。P1-13 的证件答复一致性、P1-14 的规划前后路由一致性、P1-17 的动态证据有效期仍是独立未解决项。 |
+| 自动化验证（2026-08-01） | 新增 `test_visitor_response_boundary.py` 并扩展 `test_controlled_knowledge_query.py`。统一边界、当前点重述、身份/发票事实定向 29 项，受影响问答/研究/比较 87 项，E5/状态/Stage B 54 项均通过；在显式关闭 LangSmith tracing 后运行 `.venv\\Scripts\\python.exe -m unittest discover -v`，完整回归 749 项通过；`git diff --check` 通过。覆盖 P1-13 身份替代流程、P1-16 发票事实、P1-14 多工艺现有出口、P1-17 时长与动态回退边界、E5 成功/B3/无证据、当前点讲解重述、结构化来源保留、状态不变量与防误删。自动测试不等于 LangSmith 通过。 |
+| 后续 LangSmith 复测 | 本轮未执行人工验收。分别复测“忘带身份证／证件丢失”“团队订单发票／开票后修改或退票”“五工艺位置／三工艺自然表达”“30min 后闭馆吗”“E5 正常讲解／对象证据不足 B3／无证据关闭”；每条确认游客文本无内部字段、Trace 与结构化来源仍可审计、TourState/VisitorProfile/路线不变。P1-19/P1-21 在完成该矩阵前保持 `implemented_pending_langsmith_verification`。 |
 
 ### P1-20 规划前对象故事请求可能越过对象级证据边界
 

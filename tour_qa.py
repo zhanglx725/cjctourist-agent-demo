@@ -1767,9 +1767,9 @@ def answer_tour_question(
             except Exception as exc:
                 payload = {"evidence": [], "error": f"本地知识检索暂时不可用：{exc}"}
             message = format_gated_comparison_answer(comparison)
-            source_ids = [source for item in payload.get("evidence", []) for source in item.get("source_ids", [])]
-            if source_ids:
-                message += f"\n基础事实交叉核对（来源：{'、'.join(dict.fromkeys(source_ids))}）。"
+            # Evidence and source IDs stay in the structured payload returned
+            # below.  The reviewed comparison text is the public answer and
+            # must not expose internal source labels.
             presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
             if presentation:
                 message += "\n\n本次比较未改变路线进度，您可继续使用现有导览操作。"

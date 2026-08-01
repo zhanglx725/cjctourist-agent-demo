@@ -76,6 +76,7 @@ from controlled_knowledge_query import (
     ControlledKnowledgePlan,
     build_controlled_retrieval_query,
     identify_controlled_knowledge_plan,
+    public_visitor_message_or_fallback,
     render_controlled_knowledge_answer,
 )
 from single_fact_answer import (
@@ -521,9 +522,10 @@ def llm_think_node(state: AgentState) -> dict[str, Any]:
         else None
     )
     if isinstance(direct_fact_answer, dict) and direct_fact_answer.get("message"):
+        public_message = public_visitor_message_or_fallback(direct_fact_answer["message"])
         return {
             "messages": [AIMessage(
-                content=direct_fact_answer["message"],
+                content=public_message,
                 additional_kwargs={"direct_single_fact_answer": True},
             )],
             "qa_context": clear_qa_context(state.get("qa_context")),
@@ -542,9 +544,10 @@ def llm_think_node(state: AgentState) -> dict[str, Any]:
         else None
     )
     if isinstance(direct_knowledge_answer, dict) and direct_knowledge_answer.get("message"):
+        public_message = public_visitor_message_or_fallback(direct_knowledge_answer["message"])
         return {
             "messages": [AIMessage(
-                content=direct_knowledge_answer["message"],
+                content=public_message,
                 additional_kwargs={"direct_controlled_knowledge_answer": True},
             )],
             "qa_context": clear_qa_context(state.get("qa_context")),
@@ -604,6 +607,18 @@ def llm_think_node(state: AgentState) -> dict[str, Any]:
     response = build_model(with_tools=not reached_limit and not has_evidence and not has_route_plan).invoke(
         [{"role": "system", "content": instruction}, *state["messages"]]
     )
+    if isinstance(response, AIMessage) and not response.tool_calls:
+        public_content = public_visitor_message_or_fallback(str(response.content or ""))
+        if public_content != str(response.content or "").strip():
+            response = response.model_copy(
+                update={
+                    "content": public_content,
+                    "additional_kwargs": {
+                        **response.additional_kwargs,
+                        "visitor_output_boundary": "rejected_internal_metadata",
+                    },
+                }
+            )
     return {
         "messages": [response],
         # A generic LLM turn is a non-question conversational turn from the
@@ -918,11 +933,17 @@ def extended_profile_control_node(state: AgentState) -> dict[str, Any]:
                 updates["messages"] = [AIMessage(content=rewritten["message"])]
                 updates["last_extended_profile_control"] = {"ok": False, "kind": control.kind, "code": "reexpress_unavailable"}
                 return updates
+            public_message = public_visitor_message_or_fallback(rewritten["message"])
+            presentation = (
+                {**rewritten["presentation"], "message": public_message}
+                if isinstance(rewritten.get("presentation"), dict)
+                else rewritten.get("presentation")
+            )
             updates.update({
                 "visitor_profile": result["profile"], "active_stop_program": rewritten["stop_program"],
                 "active_guidance_evidence_by_item": rewritten["evidence_by_item"],
-                "retrieved_evidence": rewritten["evidence"], "tour_presentation": rewritten["presentation"],
-                "messages": [AIMessage(content=rewritten["message"], additional_kwargs={"stop_guidance": True, "reexpressed": True})],
+                "retrieved_evidence": rewritten["evidence"], "tour_presentation": presentation,
+                "messages": [AIMessage(content=public_message, additional_kwargs={"stop_guidance": True, "reexpressed": True})],
             })
             return updates
         updates["visitor_profile"] = result["profile"]
@@ -1337,10 +1358,15 @@ def stop_guidance_node(state: AgentState) -> dict[str, Any]:
             # Atomic failure: retain the exact original coverage snapshot.
             coverage_after = coverage_before
             commit_audit = {"status": "atomic_commit_rejected", "submitted_subject_ids": [], "committed_subject_ids": []}
+    public_message = public_visitor_message_or_fallback(result["message"])
     updates: dict[str, Any] = {
-        "messages": [AIMessage(content=result["message"], additional_kwargs={"stop_guidance": True})],
+        "messages": [AIMessage(content=public_message, additional_kwargs={"stop_guidance": True})],
         "retrieved_evidence": result["evidence"],
-        "tour_presentation": result["presentation"],
+        "tour_presentation": (
+            {**result["presentation"], "message": public_message}
+            if isinstance(result.get("presentation"), dict)
+            else result.get("presentation")
+        ),
         "narration_coverage": coverage_after.to_dict(),
         "performance_metrics": _append_metric(
             state,
@@ -1621,8 +1647,9 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
         grounded_knowledge_renderer=grounded_renderer,
         pending_ornament_clarification=state.get("pending_ornament_clarification"),
     )
+    public_message = public_visitor_message_or_fallback(result["message"])
     updates: dict[str, Any] = {
-        "messages": [AIMessage(content=result["message"], additional_kwargs={"tour_qa_answer": True})],
+        "messages": [AIMessage(content=public_message, additional_kwargs={"tour_qa_answer": True})],
         "retrieved_evidence": result["evidence"],
         "performance_metrics": _append_metric(
             state,
@@ -1657,7 +1684,7 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
     # The presenter is UI data, not a state transition.  Deliberately do not
     # return tour_state or tour_interaction_state here.
     if result["presentation"] is not None:
-        updates["tour_presentation"] = result["presentation"]
+        updates["tour_presentation"] = {**result["presentation"], "message": public_message}
     return updates
 
 
@@ -1676,9 +1703,10 @@ def qa_follow_up_detail_node(state: AgentState) -> dict[str, Any]:
     updated_context = build_qa_context_from_answer(
         query, result, state.get("tour_state"), state.get("qa_context")
     )
+    public_message = public_visitor_message_or_fallback(result["message"])
     updates: dict[str, Any] = {
         "messages": [AIMessage(
-            content=result["message"],
+            content=public_message,
             additional_kwargs={"tour_qa_answer": True, "qa_follow_up_detail": True},
         )],
         "retrieved_evidence": result["evidence"],
@@ -1693,7 +1721,7 @@ def qa_follow_up_detail_node(state: AgentState) -> dict[str, Any]:
         ),
     }
     if result.get("presentation") is not None:
-        updates["tour_presentation"] = result["presentation"]
+        updates["tour_presentation"] = {**result["presentation"], "message": public_message}
     return updates
 
 

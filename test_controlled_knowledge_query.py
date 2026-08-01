@@ -11,6 +11,7 @@ from controlled_knowledge_query import (
     grounded_answer_prompt,
     identify_controlled_knowledge_plan,
     is_public_visitor_message,
+    public_visitor_message_or_fallback,
     render_controlled_knowledge_answer,
 )
 
@@ -250,6 +251,37 @@ class ControlledKnowledgeQueryTests(unittest.TestCase):
         )
         self.assertIn("资料不足", message)
         self.assertIn("不作推测", message)
+
+    def test_shared_public_boundary_rejects_internal_metadata_without_false_positives(self):
+        forbidden_candidates = (
+            "请参见 06_ticketing_rules.md。",
+            "资料位于 data/chen_clan_academy/knowledge/01_basic_info.md。",
+            r"资料位于 C:\\workspace\\data\\01_basic_info.md。",
+            "来源：S07。",
+            "source_ids: S11",
+            "对象编号 orn_005，节点 stop_front_courtyard_center。",
+            "详情见 https://example.com/internal。",
+            "这是本地快照，资料整理日期为 2025-01-01。",
+        )
+        for candidate in forbidden_candidates:
+            with self.subTest(candidate=candidate):
+                self.assertFalse(is_public_visitor_message(candidate))
+                fallback = public_visitor_message_or_fallback(candidate)
+                self.assertTrue(fallback)
+                self.assertTrue(is_public_visitor_message(fallback))
+                self.assertNotEqual(fallback, candidate)
+
+        allowed_candidates = (
+            "建议游览 30/60 分钟，可按时间选择。",
+            "这件作品采用 S 形构图，线条富有变化。",
+            "陈氏书院于 1888 年开始筹建。",
+            "VIP 游客也应遵守现场安全要求。",
+            "可重点观察独角狮、福禄寿与石狮子的造型。",
+        )
+        for candidate in allowed_candidates:
+            with self.subTest(candidate=candidate):
+                self.assertTrue(is_public_visitor_message(candidate))
+                self.assertEqual(public_visitor_message_or_fallback(candidate), candidate)
 
 
 if __name__ == "__main__":

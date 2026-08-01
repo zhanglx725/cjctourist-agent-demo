@@ -124,10 +124,7 @@ def format_research_answer(
         limits = (card.get("agreement_and_limits") or {}).get("limits")
         if limits:
             lines.append(f"  适用范围与限制：{limits}")
-    if base_evidence:
-        source_ids = []
-        for item in base_evidence:
-            source_ids.extend(item.get("source_ids") or [])
-        if source_ids:
-            lines.append(f"基础事实仍应以本地知识库证据交叉核对（来源：{'、'.join(dict.fromkeys(source_ids))}）。")
+    # ``base_evidence`` remains available to the caller for audit and Trace.
+    # Internal source IDs are never appended to the visitor-facing research
+    # summary; attribution above uses the reviewed human-readable citation.
     return "\n".join(lines)

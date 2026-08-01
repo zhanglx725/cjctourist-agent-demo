@@ -106,6 +106,8 @@ _FORBIDDEN_VISITOR_TOKENS = (
     "原始chunk",
     "原始 chunk",
     "资料标题",
+    "资料整理日期",
+    "来源编号",
     "检索分数",
     "source_ids",
     "used_source_ids",
@@ -114,6 +116,10 @@ _FORBIDDEN_VISITOR_TOKENS = (
     "node_id",
     "retrieval_methods",
     "knowledge_base",
+    "tour_state",
+    "visitor_profile",
+    "qa_context",
+    "trace_url",
     "http://",
     "https://",
     "DSML",
@@ -121,8 +127,20 @@ _FORBIDDEN_VISITOR_TOKENS = (
 )
 _SOURCE_ID = re.compile(r"(?<![A-Za-z0-9])S\d+(?![A-Za-z0-9])", re.IGNORECASE)
 _INTERNAL_IDENTIFIER = re.compile(
-    r"(?<![A-Za-z0-9_])(?:label_[A-Za-z0-9_]+|stop_[A-Za-z0-9_]+|orn_\d+|term_[A-Za-z0-9_]+)(?![A-Za-z0-9_])",
+    r"(?<![A-Za-z0-9_])(?:label_[A-Za-z0-9_]+|stop_[A-Za-z0-9_]+|orn_\d+|term_[A-Za-z0-9_]+|card_[A-Za-z0-9_]+)(?![A-Za-z0-9_])",
     re.IGNORECASE,
+)
+_INTERNAL_FILE_OR_PATH = re.compile(
+    r"(?:[A-Za-z]:\\|\\\\)[^\r\n]+"
+    r"|(?:^|[\s(])(?:data|home|tmp|var|Users?)[\\/][^\s)]+"
+    r"|(?:[A-Za-z0-9_.-]+[\\/])+(?:[A-Za-z0-9_-]+\.(?:md|json|ya?ml|csv|py))"
+    r"|(?<![A-Za-z0-9_.-])[A-Za-z0-9_-]+\.(?:md|json|ya?ml|csv|py)(?![A-Za-z0-9_.-])",
+    re.IGNORECASE,
+)
+
+PUBLIC_VISITOR_SAFE_FALLBACK = (
+    "已经找到相关资料，但暂时无法在不展示内部检索信息的前提下安全整理为游客答案。"
+    "请换一种更具体的问法；如果涉及开放、票务或服务安排，请以馆方最新公告为准。"
 )
 
 
@@ -322,7 +340,30 @@ def is_public_visitor_message(message: str) -> bool:
     return (
         _SOURCE_ID.search(compact) is None
         and _INTERNAL_IDENTIFIER.search(compact) is None
+        and _INTERNAL_FILE_OR_PATH.search(compact) is None
     )
+
+
+def public_visitor_message_or_fallback(
+    message: str,
+    *,
+    fallback: str = PUBLIC_VISITOR_SAFE_FALLBACK,
+) -> str:
+    """Return public text or fail closed without touching structured evidence.
+
+    Producers must still keep evidence metadata out of ``message``.  This is
+    the shared final defence for model/fallback exits that accidentally retain
+    internal retrieval wrappers; it intentionally does not attempt a lossy
+    regex rewrite of factual prose.
+    """
+
+    candidate = str(message or "").strip()
+    if is_public_visitor_message(candidate):
+        return candidate
+    safe_fallback = str(fallback or "").strip()
+    if not is_public_visitor_message(safe_fallback):
+        raise ValueError("visitor fallback must satisfy the public boundary")
+    return safe_fallback
 
 
 # Private compatibility for existing callers while all new renderers use the
