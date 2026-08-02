@@ -607,7 +607,7 @@ def classify_tour_intent(
     # tour already exists.  Pending replan stages are handled by the graph's
     # higher-priority resolver; a no-route duration remains profile input.
     duration_kind = classify_duration_control_text(text)
-    if _active_tour(tour_state) and duration_kind is not None:
+    if tour_state and tour_state.get("route_status") == "touring" and duration_kind is not None:
         if duration_kind == "parsed":
             return validate_event_suggestion(
                 "replan_time", {"available_minutes": parsed_duration.minutes}

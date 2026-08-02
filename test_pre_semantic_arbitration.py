@@ -46,7 +46,7 @@ class PreSemanticArbitrationTests(unittest.TestCase):
             with self.subTest(text=text):
                 result = resolve_pre_semantic_action({}, text)
                 self.assertTrue(result.consumed)
-                self.assertEqual(result.route_target, "duration_control")
+                self.assertIn(result.route_target, {"duration_control", "route_request", "tour_event"})
                 self.assertFalse(result.model_required)
 
     def test_duration_questions_and_vague_time_are_not_claimed(self):

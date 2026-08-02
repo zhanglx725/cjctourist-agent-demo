@@ -2037,7 +2037,11 @@ def route_initial_request(state: AgentState) -> str:
         # this neither recalculates nor changes the formal route.
         return "show_replan"
     duration_kind = classify_duration_control_text(raw_text)
-    if duration_kind is not None and state.get("tour_state") and state.get("tour_state", {}).get("route_status") not in {None, "completed"}:
+    if (
+        duration_kind is not None
+        and state.get("tour_state", {}).get("route_status") == "touring"
+        and not any(term in raw_text for term in ("路线", "规划", "怎么逛", "参观顺序", "带我逛"))
+    ):
         if duration_kind == "parsed":
             return "prepare_duration_replan"
         return "clarification"
@@ -2102,10 +2106,7 @@ def route_initial_request(state: AgentState) -> str:
     # evidence-grounded renderer before and during a tour.  The plan contains
     # no facts and cannot mutate route or visitor state.
     duration_kind = classify_duration_control_text(raw_text)
-    if duration_kind is not None and not (
-        state.get("tour_state")
-        and state.get("tour_state", {}).get("route_status") not in {None, "completed"}
-    ):
+    if duration_kind is not None and state.get("tour_state", {}).get("route_status") != "touring":
         return "profile_collection"
     if _effective_knowledge_plan(state) is not None:
         return (

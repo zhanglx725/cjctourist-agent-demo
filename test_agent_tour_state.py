@@ -200,6 +200,7 @@ class AgentTourStateTests(unittest.TestCase):
 
     def test_bare_duration_on_active_route_uses_replan_time_event(self):
         initial = self._started()
+        initial = tour_event_node(_message_state("我到了", initial))
         before = initial["tour_state"]
         request = _message_state("1.5个小时", initial)
         self.assertEqual(route_initial_request(request), "prepare_duration_replan")
