@@ -91,6 +91,10 @@ knowledge/*.md
 
 真实优化：`should_direct_rag()` 跳过一次无必要的工具选择 LLM；`should_direct_route()` 不让 LLM 编路线；`webapp.py` 预热模型；`agent_profile.py` 拆解节点耗时；LangSmith/Studio 测浏览器端到端体验，而不是替代控制台定位。
 
+### P2-05 证据分级：功能验收与 Trace 追溯分开
+
+P2-05 的负责人 Studio 操作可证明功能路径、游客正文和可见状态观察，但只有保存了当前 commit 对应的完整 Thread ID、Trace URL 和 revision ID，才能称为可追溯的 LangSmith Trace 验证。`72e9c92` 的 P2-05 记录为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`：不得伪造缺失标识。该 evidence debt 可以允许 Gate 1 的 schema、Registry、Policy Gate 与 Executor **只验收**继续，但不能作为路线 proposal、重规划或状态事件接管的放行依据。
+
 ## 5. 空间网络与路线规划
 
 ### 用户问题

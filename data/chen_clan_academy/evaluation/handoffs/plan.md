@@ -10,8 +10,8 @@
 ### 1.1 实际 Git 状态
 
 - 当前开发分支：`experiment/agent-orchestration-v2`。
-- 当前本地 HEAD：`1b418dc145846bf5b795fddbda8fde7327708edc`（`feat: add read-only rollout contract`）。
-- 当前分支与 `origin/experiment/agent-orchestration-v2`：同一提交；工作树干净。`main` 与 `origin/main` 当前停留在 `9eec98d`，实验分支尚未合并。
+- 当前本地 HEAD：`72e9c9268ed16dc34d101819f332325a7f66e72e`（`feat: roll out controlled knowledge in shadow mode`）。
+- P2-05 前置核对时，当前分支与 `origin/experiment/agent-orchestration-v2`：同一提交且工作树干净。后续文档归档改动应单独提交；`main` 与 `origin/main` 当前停留在 `9eec98d`，实验分支尚未合并。
 - 原审计时列出的架构方案、八天计划和数据文件修改均已纳入历史提交；当前不存在需先认领的未跟踪或未提交文件。
 - 负责人于 2026-08-02 在重建的 Python 3.12.7 项目虚拟环境中运行 `python -m unittest discover -v`：P2-05 接入前 `1b418dc` 为 `827/827`；本轮工作树的 P2-05 实现为 `831/831`（0 failure、0 error，35.528 秒）。P0 定向安全/游客输出矩阵最近记录为 `59/59` 通过。P0-03/CA-00 行为矩阵见 `data/chen_clan_academy/evaluation/p0_gate_0_behavior_matrix_v1.yaml`。
 
@@ -31,7 +31,7 @@ Git 同步、工作区归属和当前实验分支自动化基线已完成；Gate
 - 当前 105 个 `test_*.py` 测试文件
 - `outputs/chen_clan_controlled_agent_architecture.png`
 
-本文记录的 `827/827` 来自负责人在当前提交上的本机完整回归；凡缺少当前 commit、thread ID 或 Trace URL 的 LangSmith 人工结果，仍应视为待复核。
+本文记录的 `827/827` 来自接入前基线；`72e9c92` 的 P2-05 完整回归为 `831/831`。凡缺少当前 commit、thread ID 或 Trace URL 的 LangSmith 人工结果，应标记为 Trace 元数据待补；若负责人已提供功能操作截图、输入、路径、正文与状态观察，可作为 `functional_validation: passed_by_operator` 进入后续只验收闸门，但不得写成 Trace 已验证。
 
 ## 2. 目标产品与不可变边界
 
@@ -520,7 +520,7 @@ Place → Ornament → Craft/Term → Source/ResearchCard/ComparisonCard
 
 ### P2-05 Graph 灰度接入第一阶段（CA-14 前半）
 
-当前实验分支已将 `controlled_knowledge` 接到 Graph 的 pre-tour 闭合知识问答入口：`off` 保持原 `direct_rag`；`shadow` 运行候选并保留旧链游客正文；`read_only_active` 仅在 AgentDecision、Policy Gate、Executor 和公开输出校验全部成功时展示候选，否则回退到旧的受控知识渲染，不得回退原始 RAG 文本。配置由 `CJC_READ_ONLY_ROLLOUT_MODE` 与 `CJC_READ_ONLY_ROLLOUT_CAPABILITIES` 控制，候选/旧链差异只写入 thread-local `controlled_rollout_evaluations`。定向 26 项与本机完整 831 项回归均通过；shadow 和 active 独立 Studio 实链均通过并确认状态不变。路线和控制事件不接入本阶段；待在 LangSmith UI 关联并归档 Trace URL。
+当前实验分支已将 `controlled_knowledge` 接到 Graph 的 pre-tour 闭合知识问答入口：`off` 保持原 `direct_rag`；`shadow` 运行候选并保留旧链游客正文；`read_only_active` 仅在 AgentDecision、Policy Gate、Executor 和公开输出校验全部成功时展示候选，否则回退到旧的受控知识渲染，不得回退原始 RAG 文本。配置由 `CJC_READ_ONLY_ROLLOUT_MODE` 与 `CJC_READ_ONLY_ROLLOUT_CAPABILITIES` 控制，候选/旧链差异只写入 thread-local `controlled_rollout_evaluations`。`72e9c92` 的定向 26 项与完整 831 项回归均通过；负责人已在 Studio 对 shadow、active、范围边界和游客输出完成操作验证。当前归档为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`：未保存完整 Thread ID/Trace URL，不得伪造或写成 Trace 已验证。该 evidence debt 不阻塞 Gate 1 的只验收工作；路线和控制事件仍不接入本阶段。
 
 这 8 步完成前，不建议开始语音、多语言、附近实时推荐或图数据库。它们依赖稳定的 Renderer、证据包、状态事件和工具权限；过早接入只会放大当前分散路由的问题。
 

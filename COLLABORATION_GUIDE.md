@@ -101,6 +101,10 @@ A1-1 已由项目 `.venv\Scripts\python.exe` 完成本地 62 项回归测试并�
 
 优先级固定为：**明确导游事件 → `tour_intent` → `handle_tour_event`；新路线 → `direct_route`；事实/导航问句 → `direct_rag`；开放对话 → `llm_think`；歧义/多意图 → `clarification` 且状态不变。**
 
+### 验收证据分级与 Trace 元数据债务
+
+交接记录必须分开写明：自动化结果、负责人手动/Studio 功能验证、可追溯的 LangSmith Trace 验证及 Trace 元数据待补。负责人提供输入、节点路径、最终正文和状态观察截图时，可记录 `manual_validation: passed_by_operator`；缺少完整 Thread ID、Trace URL 或 revision ID 时必须记录 `langsmith_trace_status: metadata_unavailable`，不得补造字段或写成 Trace 已验证。若当前 commit、工作区、自动化回归和功能观察均明确且没有已确认失败，这项 evidence debt 可允许后续**只验收**闸门开始；它不能自动放宽生产接管、状态写入、路线 proposal 或事件灰度的独立证据要求。
+
 项目负责人已使用 `.venv` 完成 A1-2 核心 38 项测试与完整 90 项回归，结果均为 `OK`。后续修改 `tour_intent.py`、A1 事件路由或 Agent 事件节点时，至少复跑 `test_tour_intent.py`、`test_agent_tour_state.py` 与 A1-1 的交互/导航/重规划回归。
 
 ## A1-3 连续导游展示协议（已实现并验证）

@@ -1032,6 +1032,13 @@ glossary_ids
 - 明确点位概览（如“讲讲月台”）进入该点的审核讲解包，点位仅限定本轮查询，不改变 `current_stop_id`。当前点工艺术语先核对本点审核对象；不存在时返回 `current_craft_absent`，不以全馆资料补造眼前实例。
 - 顶层对“明确危险动作 + 明确拍照意图”先送入 D6 安全拒绝，再进行到达或多意图仲裁；拒绝不会查询打卡候选，也不会写入 TourState。
 
+## P2-05 受控知识灰度接入第一阶段（功能已验收，Trace 元数据待补）
+
+- `72e9c92` 已将游览前的 `controlled_knowledge`（团队订单电子发票规则）接入 `off`、`shadow`、`read_only_active` 三档灰度；路线、重规划和状态事件未接入。
+- 负责人已在 Studio 操作验证 shadow 的 `candidate_shadow` 与 active 的 `candidate_active`，新旧游客正文一致；路线、到达和普通问答保持既有路径，索取内部资料不泄露 source ID、文件名、URL、检索字段或原始 evidence。
+- 本轮未保存完整 Thread ID、Trace URL 或 Trace revision ID。状态应记为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`，不得写成 LangSmith Trace 已验证；Trace 元数据是待补 evidence debt，不阻塞 Gate 1 的只验收工作。
+- 自动化：P2-05 定向 `26/26`、完整回归 `831/831`（0 failure、0 error）；候选失败回退旧受控渲染由自动化覆盖，Studio 未故意注入故障。
+
 ## P1-21 游客文本与内部审计来源分离（已实现，待 LangSmith 验证）
 
 - 工艺总述的游客渲染不再拼接内部来源编号；工艺和对象来源继续保留在 `evidence`、术语元数据与 Trace 审计结构中。
