@@ -1039,6 +1039,13 @@ glossary_ids
 - 本轮未保存完整 Thread ID、Trace URL 或 Trace revision ID。状态应记为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`，不得写成 LangSmith Trace 已验证；Trace 元数据是待补 evidence debt，不阻塞 Gate 1 的只验收工作。
 - 自动化：P2-05 定向 `26/26`、完整回归 `831/831`（0 failure、0 error）；候选失败回退旧受控渲染由自动化覆盖，Studio 未故意注入故障。
 
+## P2-01 多意图原子只读计划 Graph Shadow（功能已验收，Trace 元数据待补）
+
+- `fa1e00f` 已把 P2-01 作为只观察的 Graph 末端节点接入：旧路径先完成，Shadow 再从最近 Human 输入组装只读原子候选，并只记录 `atomic_read_plan_evaluations`。
+- 自动化：定向 `46/46`、完整回归 `841/841`、P0 安全/游客输出矩阵 `8/8` 均通过。
+- Studio 人工正向验证：Thread `019fc3b7-67ea-77d2-8131-6a3b93a7fcd3` 对“陈家祠什么时候开始筹建,再团队订单电子发票规则是什么？”生成 `decision_kind=atomic_read_plan`，候选分别为 `single_fact` 与 `controlled_knowledge`，均为 `read_only`。
+- `trace_url` 与 `trace_revision_id` 未保存；状态为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`，不得写成 Trace 已验证。P2-01 active 仍 disabled；P2-02/P2-03/P2-04 未接入。
+
 ## P1-21 游客文本与内部审计来源分离（已实现，待 LangSmith 验证）
 
 - 工艺总述的游客渲染不再拼接内部来源编号；工艺和对象来源继续保留在 `evidence`、术语元数据与 Trace 审计结构中。

@@ -522,6 +522,10 @@ Place → Ornament → Craft/Term → Source/ResearchCard/ComparisonCard
 
 当前实验分支已将 `controlled_knowledge` 接到 Graph 的 pre-tour 闭合知识问答入口：`off` 保持原 `direct_rag`；`shadow` 运行候选并保留旧链游客正文；`read_only_active` 仅在 AgentDecision、Policy Gate、Executor 和公开输出校验全部成功时展示候选，否则回退到旧的受控知识渲染，不得回退原始 RAG 文本。配置由 `CJC_READ_ONLY_ROLLOUT_MODE` 与 `CJC_READ_ONLY_ROLLOUT_CAPABILITIES` 控制，候选/旧链差异只写入 thread-local `controlled_rollout_evaluations`。`72e9c92` 的定向 26 项与完整 831 项回归均通过；负责人已在 Studio 对 shadow、active、范围边界和游客输出完成操作验证。当前归档为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`：未保存完整 Thread ID/Trace URL，不得伪造或写成 Trace 已验证。该 evidence debt 不阻塞 Gate 1 的只验收工作；路线和控制事件仍不接入本阶段。
 
+### P2-01 Graph Shadow 归档（功能已验收，Trace 元数据待补）
+
+`fa1e00f` 将既有 `atomic_read_plan.py` 接到旧 Graph 末端的审计 Shadow：旧路径完成后，从最近 Human 输入生成闭合只读候选，并仅写入 thread-local `atomic_read_plan_evaluations`。`read_only_active` 未开放，候选不执行、不产生游客正文、不写 TourState、VisitorProfile、proposal、StopProgram 或 NarrationCoverage。定向 46/46、完整 841/841 与 P0 8/8 均通过。负责人 Studio 正向验证记录的 Thread ID 为 `019fc3b7-67ea-77d2-8131-6a3b93a7fcd3`，候选为 `single_fact` + `controlled_knowledge`，且 `decision_kind=atomic_read_plan`；Trace URL/revision 未保存，状态为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。详见 `p2_01_graph_shadow_handoff.md`。Gate 2 仍 pending，Gate 3 仍 blocked；P2-02/P2-03/P2-04 不得因此开启。
+
 这 8 步完成前，不建议开始语音、多语言、附近实时推荐或图数据库。它们依赖稳定的 Renderer、证据包、状态事件和工具权限；过早接入只会放大当前分散路由的问题。
 
 ## 17. 完成定义

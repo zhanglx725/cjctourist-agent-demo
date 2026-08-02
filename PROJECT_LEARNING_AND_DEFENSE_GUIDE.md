@@ -95,6 +95,10 @@ knowledge/*.md
 
 P2-05 的负责人 Studio 操作可证明功能路径、游客正文和可见状态观察，但只有保存了当前 commit 对应的完整 Thread ID、Trace URL 和 revision ID，才能称为可追溯的 LangSmith Trace 验证。`72e9c92` 的 P2-05 记录为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`：不得伪造缺失标识。该 evidence debt 可以允许 Gate 1 的 schema、Registry、Policy Gate 与 Executor **只验收**继续，但不能作为路线 proposal、重规划或状态事件接管的放行依据。
 
+### P2-01 Shadow：末端审计必须读取 Human 原话
+
+P2-01 的 Shadow 节点安排在旧链路之后，以保证不改变游客正文；因此最后一条 message 往往已是 AI 回答。审计若直接读取 `messages[-1]`，会把 AI 正文误当用户输入，导致多意图被误判为 `not_multi_intent`。`fa1e00f` 改为倒序读取最近 Human message，并以 Graph 级回归固定该边界。人工 Studio 已观察到 `single_fact` 与 `controlled_knowledge` 的闭合只读候选，但 Trace URL/revision 与完整状态 diff 未保存；应如实记为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。这只允许 Shadow 归档，不允许 active 执行或状态类能力接管。
+
 ## 5. 空间网络与路线规划
 
 ### 用户问题

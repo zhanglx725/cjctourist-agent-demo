@@ -393,3 +393,6 @@ python inspect_route_plan.py deep_dive_90
 - 后续 P1 架构工作不得改变 TourState 的 A1 事件写入边界、VisitorProfile 的受控更新边界、审核路线/空间事实源，或让控制语句回落到 `llm_think` / `rag_tool`。
 - 游客正文必须继续隐藏内部来源、ID、路径和评分；结构化证据必须保留在审计字段和 Trace。
 - 当前 Gate 0 为 `conditional_pass`，不是 `passed`：补齐当前提交的 LangSmith 记录并处理/保持外部数据阻塞后，负责人才能授权进入 AgentDecision、Tool Registry、Policy Gate、Executor 或 Shadow Planner。
+# P2-01 Shadow 证据分级
+
+P2-01 `fa1e00f` 已完成功能与自动化验收：定向 46/46、完整 841/841、P0 8/8。负责人 Studio 截图记录了 Thread `019fc3b7-67ea-77d2-8131-6a3b93a7fcd3` 的 `atomic_read_plan` 候选，但未保存 Trace URL/revision 或逐字段状态 diff。因此协作中必须写为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`，不得伪造 Trace 或说状态 diff 已被人工完整复核。该 evidence debt 允许后续只读验收继续，不允许开启 P2-01 active、路线 proposal 或状态事件接管。
