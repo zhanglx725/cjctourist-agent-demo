@@ -16,6 +16,13 @@ class AtomicIntentShadowPlannerTests(unittest.TestCase):
         self.assertEqual([item["requested_capability"] for item in result.candidates], ["single_fact", "controlled_knowledge"])
         self.assertNotIn("tool_name", str(result.audit_dict()))
 
+    def test_ascii_punctuation_also_forms_the_same_atomic_read_plan(self):
+        result = observe_atomic_read_intents(
+            "陈家祠什么时候开始筹建,再团队订单电子发票规则是什么？",
+            phase=RuntimePhase.PRE_TOUR,
+        )
+        self.assertEqual(result.decision_kind, "atomic_read_plan")
+
     def test_control_or_route_combinations_only_record_clarification(self):
         for text in (
             "先告诉我灰塑是什么，再继续带我走。",

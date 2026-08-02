@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping
+import re
 
 from agent_decision import validate_agent_decision
 from atomic_read_plan import build_atomic_read_plan
@@ -11,7 +11,9 @@ from single_fact_answer import identify_single_fact_kind
 from tool_registry import RuntimePhase
 
 _CONTROL_MARKERS = ("到", "继续", "下一站", "完成", "跳过", "结束", "重新规划", "重新安排", "路线")
-_SPLITTER = ("，再", "。再", "；再", "，然后", "。然后")
+# Visitors may enter Chinese or ASCII punctuation.  Keep the original text in
+# each resulting span, but recognize either form before a sequencing word.
+_SPLITTER = re.compile(r"[，,；;。]\s*(?:再|然后)")
 
 
 @dataclass(frozen=True)
@@ -29,10 +31,12 @@ def _clarification(*reasons: str) -> AtomicShadowResult:
 
 
 def _parts(text: str) -> tuple[str, ...]:
-    for separator in _SPLITTER:
-        if separator in text:
-            return tuple(part.strip(" ，。；") for part in text.split(separator) if part.strip(" ，。；"))
-    return (text,)
+    parts = tuple(
+        part.strip(" ，,。；;")
+        for part in _SPLITTER.split(text)
+        if part.strip(" ，,。；;")
+    )
+    return parts if len(parts) > 1 else (text,)
 
 
 def observe_atomic_read_intents(user_text: str, *, phase: RuntimePhase) -> AtomicShadowResult:
