@@ -3,7 +3,7 @@
 import unittest
 
 from route_planner import plan_template
-from tour_interaction import initialize_interaction
+from tour_interaction import handle_tour_event, initialize_interaction
 from tour_intent import classify_tour_intent, resolve_reviewed_node, validate_event_suggestion
 from tour_state import finish_tour, start_tour
 
@@ -125,8 +125,46 @@ class TourIntentTests(unittest.TestCase):
         decision = self.classify("确认完成本点吗？")
         self.assertNotEqual(decision.event_type, "confirm_stop_complete")
 
+    def test_stop_completion_synonyms_map_to_existing_confirm_event(self):
+        for text in (
+            "完成本点", "确认完成本点", "本点完成", "完成这个点", "这个点完成了",
+            "这站完成了", "这一站参观完了", "这个点看完了", "这里看完了",
+            "我看完这个点了", "本点已经参观完成", "可以去下一站了",
+        ):
+            with self.subTest(text=text):
+                decision = self.classify(text)
+                self.assertEqual(decision.route_kind, "tour_event")
+                self.assertEqual(decision.event_type, "confirm_stop_complete")
+
+    def test_completion_negations_questions_and_hypotheticals_do_not_execute(self):
+        for text in (
+            "还没完成本点", "本点还没看完", "不要完成本点", "先别完成",
+            "完成本点是什么意思？", "完成后会去哪？", "如果现在完成呢？", "怎么完成本点？",
+        ):
+            with self.subTest(text=text):
+                decision = self.classify(text)
+                self.assertEqual(decision.route_kind, "clarification")
+                self.assertNotEqual(decision.event_type, "confirm_stop_complete")
+
+    def test_completion_plus_question_remains_an_atomic_clarification(self):
+        decision = self.classify("完成本点，再讲讲灰塑")
+        self.assertEqual(decision.route_kind, "clarification")
+        self.assertEqual(decision.reason_code, "multiple_intents")
+
+    def test_bare_completion_requires_an_arrived_formal_stop(self):
+        unresolved = self.classify("完成")
+        self.assertEqual(unresolved.route_kind, "clarification")
+        self.assertEqual(unresolved.reason_code, "completion_context_unresolved")
+
+        arrived = handle_tour_event(
+            self.tour, self.interaction, "arrive_at_stop", node_id="stop_front_courtyard_center"
+        )
+        decision = classify_tour_intent("完成", arrived["tour_state"], arrived["interaction_state"])
+        self.assertEqual(decision.route_kind, "tour_event")
+        self.assertEqual(decision.event_type, "confirm_stop_complete")
+
     def test_explanation_end_text_maps_to_lifecycle_event(self):
-        for text in ("本点讲解结束", "讲解播放结束了"):
+        for text in ("本点讲解结束", "讲解播放结束了", "这段讲解结束了", "讲解完毕"):
             with self.subTest(text=text):
                 decision = self.classify(text)
                 self.assertEqual(decision.route_kind, "tour_event")

@@ -71,6 +71,19 @@ NEXT_STOP_CONTROL_PHRASES = (
     "下面该去哪儿了", "然后去哪", "继续走", "往哪走",
 )
 
+# P1-12C4: these are deliberately bounded, visitor-facing confirmations of
+# the *current formal stop*.  They only suggest the existing A1 event; the
+# interaction adapter remains the sole authority that can mark a stop visited.
+COMPLETION_CONFIRMATION_PHRASES = (
+    "确认完成本点", "确认本点完成", "确认已完成本点",
+    "完成本点", "本点完成", "完成这个点", "这个点完成了",
+    "这站完成了", "这一站参观完了", "这个点看完了", "这里看完了",
+    "我看完这个点了", "本点已经参观完成", "可以去下一站了",
+    # Existing A1 wording remains supported by the same confirmation event.
+    "讲完了", "讲完", "看完了", "看完", "参观完了", "讲解完成",
+)
+COMPLETION_NEGATION_CUES = ("还没", "没有", "没", "不要", "别", "先别", "不完成")
+
 
 @dataclass(frozen=True)
 class TourIntentDecision:
@@ -288,11 +301,62 @@ def is_unresolved_navigation_control(text: str) -> bool:
     return bool(re.fullmatch(r"(?:接下来|接着)?(?:带路|继续走|往哪(?:儿)?走|往前走)", compact))
 
 
+def _completion_control_reason(text: str) -> str | None:
+    """Return why completion-shaped wording must not execute an A1 event."""
+    compact = re.sub(r"\s+", "", text.strip())
+    if not _looks_like_completion_control(compact):
+        return None
+    if any(cue in compact for cue in COMPLETION_NEGATION_CUES):
+        return "completion_not_confirmed"
+    if (
+        "？" in compact
+        or "?" in compact
+        or compact.endswith(("吗", "么", "呢"))
+        or any(cue in compact for cue in ("是什么意思", "怎么完成", "如果", "会去哪", "后会", "可以完成"))
+    ):
+        return "completion_requires_clarification"
+    return None
+
+
+def _looks_like_completion_control(text: str) -> bool:
+    """Recognize bounded stop-completion language without inferring content."""
+    compact = re.sub(r"\s+", "", text.strip().rstrip("。！!？?"))
+    return (
+        compact == "完成"
+        or any(phrase in compact for phrase in COMPLETION_CONFIRMATION_PHRASES)
+        or any(cue in compact for cue in ("完成本点", "本点完成", "这个点完成", "这站完成", "看完这个点", "这里看完"))
+        # Bare completion is a control only in these constrained command,
+        # negation, hypothetical, or follow-up forms.  Do not capture factual
+        # questions such as “这座建筑何时完成？”.
+        or bool(re.fullmatch(r"(?:还没|没有|没|不要|先别|别)?完成(?:本点|这个点|这里|这站)?(?:了)?", compact))
+        or compact.startswith(("完成后", "如果现在完成", "怎么完成"))
+    )
+
+
 def _is_explicit_completion_confirmation(text: str) -> bool:
-    """Recognize an imperative confirmation without executing a question."""
-    if not any(phrase in text for phrase in ("确认完成本点", "确认本点完成", "确认已完成本点")):
+    """Recognize a positive stop-completion confirmation, never a question."""
+    compact = re.sub(r"\s+", "", text.strip())
+    return (
+        _completion_control_reason(text) is None
+        and any(phrase in compact for phrase in COMPLETION_CONFIRMATION_PHRASES)
+    )
+
+
+def _has_confirmable_current_stop(
+    tour_state: dict[str, Any] | None,
+    interaction_state: dict[str, Any] | None,
+) -> bool:
+    """Check the narrow context in which bare ``完成`` is meaningful."""
+    if not tour_state or not interaction_state or tour_state.get("route_status") == "completed":
         return False
-    return not bool(re.search(r"(?:吗|么|？|\?)\s*$", text))
+    current = tour_state.get("current_stop_id")
+    pending = interaction_state.get("pending_stop_id")
+    return bool(
+        current
+        and current == pending
+        and current in tour_state.get("remaining_stop_ids", [])
+        and interaction_state.get("stop_phase") in {"explaining", "awaiting_confirmation"}
+    )
 
 
 def _pending_arrival_fallback(
@@ -471,9 +535,9 @@ def _event_hits(text: str) -> set[str]:
     hits: set[str] = set()
     if _has_arrival_language(text):
         hits.add("arrive_at_stop")
-    if any(term in text for term in ("本点讲解结束", "讲解播放结束了")):
+    if any(term in text for term in ("本点讲解结束", "讲解播放结束了", "这段讲解结束了", "讲解完毕")):
         hits.add("explanation_finished")
-    if any(term in text for term in ("讲完了", "讲完", "看完了", "看完", "参观完了", "讲解完成")) or _is_explicit_completion_confirmation(text):
+    if _is_explicit_completion_confirmation(text):
         hits.add("confirm_stop_complete")
     if any(term in text for term in ("跳过", "不去")):
         hits.add("skip_stop")
@@ -512,6 +576,23 @@ def classify_tour_intent(
         and tour_state.get("current_stop_id") == interaction_state.get("pending_stop_id")
     ):
         return validate_event_suggestion("confirm_stop_complete")
+
+    completion_reason = _completion_control_reason(text)
+    if completion_reason is not None:
+        return clarification(
+            completion_reason,
+            "我不会据此确认完成本点。请在确认已完成当前正式点位后，再明确说“完成本点”。",
+        )
+    # A bare “完成” has no route, replan, or end-tour meaning by itself.  It
+    # is allowed only in the exact already-arrived current-stop context, and
+    # still goes through the existing adapter for the actual state change.
+    if compact == "完成":
+        if _has_confirmable_current_stop(tour_state, interaction_state):
+            return validate_event_suggestion("confirm_stop_complete")
+        return clarification(
+            "completion_context_unresolved",
+            "请先到达当前正式点位；完成参观后可说“完成本点”。",
+        )
 
     parsed_duration = parse_duration_minutes(text)
     if has_remaining_duration_context(text) and parsed_duration.reason_code == "ambiguous_duration":

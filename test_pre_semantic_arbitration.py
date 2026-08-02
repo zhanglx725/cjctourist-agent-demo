@@ -59,6 +59,18 @@ class PreSemanticArbitrationTests(unittest.TestCase):
                 self.assertEqual(result.route_target, "clarification")
                 self.assertFalse(result.model_required)
 
+    def test_stop_completion_controls_are_consumed_before_semantic_model(self):
+        for text in (
+            "完成本点", "确认完成本点", "本点完成", "完成这个点", "这个点完成了",
+            "这站完成了", "这一站参观完了", "这个点看完了", "这里看完了",
+            "我看完这个点了", "本点已经参观完成", "可以去下一站了",
+            "还没完成本点", "不要完成本点", "完成本点是什么意思？", "完成后会去哪？",
+        ):
+            with self.subTest(text=text):
+                result = resolve_pre_semantic_action({}, text)
+                self.assertTrue(result.consumed)
+                self.assertFalse(result.model_required)
+
 
 if __name__ == "__main__":
     unittest.main()

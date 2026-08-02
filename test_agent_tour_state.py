@@ -69,6 +69,81 @@ class AgentTourStateTests(unittest.TestCase):
         self.assertEqual(completed["tour_state"]["visited_stop_ids"], [pending])
         self.assertEqual(completed["tour_interaction_state"]["stop_phase"], "navigating")
 
+    def test_completion_synonyms_use_adapter_and_preserve_a1_lifecycle(self):
+        for completion_text, finish_explanation in (
+            ("完成本点", False),
+            ("本点完成", True),
+            ("可以去下一站了", True),
+            ("完成", False),
+        ):
+            with self.subTest(completion_text=completion_text, finish_explanation=finish_explanation):
+                initial = self._started()
+                pending = initial["tour_interaction_state"]["pending_stop_id"]
+                arrived = tour_event_node(_message_state("我到了", initial))
+                state = arrived
+                if finish_explanation:
+                    state = tour_event_node(_message_state("本点讲解结束", arrived))
+                    self.assertEqual(state["tour_interaction_state"]["stop_phase"], "awaiting_confirmation")
+                request = _message_state(completion_text, state)
+                self.assertEqual(route_initial_request(request), "tour_event")
+                completed = tour_event_node(request)
+                self.assertEqual(completed["last_tour_intent"]["event_type"], "confirm_stop_complete")
+                self.assertEqual(completed["tour_state"]["visited_stop_ids"], [pending])
+                self.assertNotIn(pending, completed["tour_state"]["remaining_stop_ids"])
+                self.assertEqual(completed["tour_interaction_state"]["stop_phase"], "navigating")
+
+    def test_completion_controls_reject_without_llm_or_rag_and_keep_state(self):
+        initial = self._started()
+        before_tour = initial["tour_state"]
+        before_interaction = initial["tour_interaction_state"]
+        for text in (
+            "完成本点", "还没完成本点", "不要完成本点", "完成本点是什么意思？", "完成",
+        ):
+            with self.subTest(text=text):
+                request = _message_state(text, initial)
+                route = route_initial_request(request)
+                self.assertNotIn(route, {"llm_think", "rag_tool", "tour_qa"})
+                if route == "tour_event":
+                    result = tour_event_node(request)
+                    self.assertFalse(result["last_tour_event"]["ok"])
+                    self.assertEqual(result["tour_state"], before_tour)
+                    self.assertEqual(result["tour_interaction_state"], before_interaction)
+                else:
+                    self.assertEqual(route, "clarification")
+                self.assertEqual(initial["tour_state"], before_tour)
+                self.assertEqual(initial["tour_interaction_state"], before_interaction)
+
+    def test_self_arrival_and_pending_replan_do_not_treat_completion_as_replan_confirmation(self):
+        initial = self._started()
+        self_arrived = tour_event_node(_message_state("我到月台了", initial))
+        request = _message_state("完成本点", self_arrived)
+        route = route_initial_request(request)
+        self.assertNotIn(route, {"llm_think", "rag_tool", "tour_qa"})
+        self.assertNotEqual(route, "confirm_replan")
+        self.assertEqual(self_arrived["tour_state"]["visited_stop_ids"], [])
+        self.assertEqual(self_arrived["tour_interaction_state"]["pending_stop_id"], initial["tour_interaction_state"]["pending_stop_id"])
+
+    def test_repeated_or_finished_text_completion_is_idempotent_or_rejected_without_fallback(self):
+        initial = self._started()
+        arrived = tour_event_node(_message_state("我到了", initial))
+        completed = tour_event_node(_message_state("完成本点", arrived))
+        replay_request = _message_state("完成本点", completed)
+        self.assertEqual(route_initial_request(replay_request), "tour_event")
+        replay = tour_event_node(replay_request)
+        self.assertEqual(replay["tour_state"], completed["tour_state"])
+        self.assertEqual(replay["tour_interaction_state"], completed["tour_interaction_state"])
+        self.assertEqual(replay["tour_state"]["visited_stop_ids"], completed["tour_state"]["visited_stop_ids"])
+
+        finished = tour_event_node(_message_state("结束导览", initial))
+        finished_request = _message_state("完成本点", finished)
+        route = route_initial_request(finished_request)
+        self.assertEqual(route, "tour_event")
+        self.assertNotIn(route, {"llm_think", "rag_tool", "tour_qa"})
+        rejected = tour_event_node(finished_request)
+        self.assertFalse(rejected["last_tour_event"]["ok"])
+        self.assertEqual(rejected["tour_state"], finished["tour_state"])
+        self.assertEqual(rejected["tour_interaction_state"], finished["tour_interaction_state"])
+
     def test_text_explanation_end_only_enters_awaiting_confirmation(self):
         initial = self._started()
         pending = initial["tour_interaction_state"]["pending_stop_id"]
