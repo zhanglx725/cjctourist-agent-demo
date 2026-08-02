@@ -220,10 +220,18 @@ def identify_controlled_knowledge_plan(
     has_invoice = "发票" in compact or "开票" in compact
     if not has_invoice:
         return None
+    # Keep title-like invoice requests on the closed ticketing path.  These
+    # are bounded phrases, not single-character triggers: 团队/团体 are
+    # equivalent invoice context markers, while the latter aliases cover
+    # common ``发票开了还能退吗`` wording without claiming a team-ticket
+    # refund cutoff.
     has_invoice_request = any(
         term in compact
         for term in (
             "团队",
+            "团体",
+            "团队订单",
+            "团体订单",
             "订单",
             "门票",
             "电子发票",
@@ -234,7 +242,11 @@ def identify_controlled_knowledge_plan(
             "发票怎么申请",
             "修改",
             "改发票",
+            "开具",
+            "发票开了",
             "退票",
+            "还能退",
+            "还可以退",
         )
     )
     if not has_invoice_request:

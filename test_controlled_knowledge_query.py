@@ -19,12 +19,17 @@ from controlled_knowledge_query import (
 class ControlledKnowledgeQueryTests(unittest.TestCase):
     def test_title_like_invoice_requests_use_one_closed_ticketing_plan(self):
         cases = (
+            ("团体发票", "rule"),
+            ("团体发票怎么办？", "method"),
+            ("团队发票", "rule"),
             ("团队订单电子发票规则", "rule"),
             ("团队票怎么开发票", "method"),
             ("发票怎么申请？", "method"),
             ("多久以内可以开发票？", "rule"),
             ("开票后还能改吗", "rule"),
             ("开票以后可以退票吗？", "rule"),
+            ("发票开了还能退吗？", "rule"),
+            ("已经开票还能退票吗？", "rule"),
         )
         for text, question_type in cases:
             with self.subTest(text=text):
@@ -38,6 +43,12 @@ class ControlledKnowledgeQueryTests(unittest.TestCase):
             identify_controlled_knowledge_plan(
                 "帮我规划路线，再说说团队订单电子发票规则"
             )
+        )
+        # Team-ticket refund questions are a different reviewed fact and
+        # must not be claimed by the invoice plan merely because they contain
+        # 团队/团体 context and 退字样.
+        self.assertIsNone(
+            identify_controlled_knowledge_plan("团队票没用能退吗？")
         )
 
     def test_plan_rejects_values_outside_the_closed_taxonomy(self):

@@ -297,6 +297,38 @@ class AgentTourQaTests(unittest.TestCase):
         self.assertNotIn("tour_state", update)
         self.assertNotIn("tour_interaction_state", update)
 
+    def test_group_invoice_aliases_use_the_same_controlled_plan_in_both_modes(self):
+        for query in ("团体发票", "团体发票怎么办？", "发票开了还能退吗？"):
+            with self.subTest(query=query):
+                no_route = _message_state(query)
+                no_route.update(semantic_normalization_node(no_route))
+                self.assertEqual(route_initial_request(no_route), "direct_rag")
+                with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+                    rag.invoke.return_value = TEAM_INVOICE_PAYLOAD
+                    retrieval = direct_rag_node(no_route)
+                direct_answer = llm_think_node({
+                    **no_route,
+                    **retrieval,
+                    "messages": [*no_route["messages"], *retrieval["messages"]],
+                })["messages"][0].content
+
+                active = _message_state(query, self._arrived_tour())
+                before_tour = deepcopy(active["tour_state"])
+                before_profile = deepcopy(active["visitor_profile"])
+                active.update(semantic_normalization_node(active))
+                self.assertEqual(route_initial_request(active), "tour_qa")
+                with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+                    rag.invoke.return_value = TEAM_INVOICE_PAYLOAD
+                    update = tour_qa_node(active)
+                self.assertEqual(direct_answer, update["messages"][0].content)
+                self.assertIn("30 日内", direct_answer)
+                self.assertIn("不能修改", direct_answer)
+                self.assertIn("不能办理退票", direct_answer)
+                self.assertNotIn("06_ticketing_rules.md", direct_answer)
+                self.assertNotIn("S07", direct_answer)
+                self.assertEqual(active["tour_state"], before_tour)
+                self.assertEqual(active["visitor_profile"], before_profile)
+
     def test_invoice_questions_are_public_and_equivalent_in_both_modes(self):
         queries = (
             "发票怎么申请？",
