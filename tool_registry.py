@@ -74,7 +74,7 @@ def _spec(
     capability: str,
     *,
     input_fields: tuple[str, ...] = ("user_text",),
-    optional_input_fields: tuple[str, ...] = ("tour_context",),
+    optional_input_fields: tuple[str, ...] = ("tour_context", "evidence"),
     output_fields: tuple[str, ...] = ("message", "status"),
     evidence: tuple[str, ...] = ("reviewed_evidence",),
     failure: FailurePolicy = FailurePolicy.FAIL_CLOSED,

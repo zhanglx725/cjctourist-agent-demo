@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import unittest
 from copy import deepcopy
 from unittest.mock import patch
@@ -242,6 +243,7 @@ class AgentTourQaTests(unittest.TestCase):
             "tour_qa_single_fact_answer",
         )
 
+    @patch.dict(os.environ, {"CJC_READ_ONLY_ROLLOUT_MODE": "off"}, clear=False)
     def test_team_invoice_title_has_the_same_controlled_answer_in_both_modes(self):
         query = "团队订单电子发票规则"
         expected_search = {
@@ -297,6 +299,7 @@ class AgentTourQaTests(unittest.TestCase):
         self.assertNotIn("tour_state", update)
         self.assertNotIn("tour_interaction_state", update)
 
+    @patch.dict(os.environ, {"CJC_READ_ONLY_ROLLOUT_MODE": "off"}, clear=False)
     def test_group_invoice_aliases_use_the_same_controlled_plan_in_both_modes(self):
         for query in ("团体发票", "团体发票怎么办？", "发票开了还能退吗？"):
             with self.subTest(query=query):
@@ -329,6 +332,7 @@ class AgentTourQaTests(unittest.TestCase):
                 self.assertEqual(active["tour_state"], before_tour)
                 self.assertEqual(active["visitor_profile"], before_profile)
 
+    @patch.dict(os.environ, {"CJC_READ_ONLY_ROLLOUT_MODE": "off"}, clear=False)
     def test_invoice_questions_are_public_and_equivalent_in_both_modes(self):
         queries = (
             "发票怎么申请？",
@@ -395,6 +399,7 @@ class AgentTourQaTests(unittest.TestCase):
             subject="陈家祠装饰故事",
         )
 
+    @patch.dict(os.environ, {"CJC_READ_ONLY_ROLLOUT_MODE": "off"}, clear=False)
     def test_no_route_broad_knowledge_uses_scoped_retrieval_and_grounded_answer(self):
         request = self._normalize_broad_story_question()
         self.assertEqual(route_initial_request(request), "direct_rag")

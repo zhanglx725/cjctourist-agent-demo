@@ -56,6 +56,12 @@ class ToolRegistryTests(unittest.TestCase):
         incomplete = replace(DEFAULT_TOOL_SPECS[0], input_schema=SchemaSpec(()))
         with self.assertRaisesRegex(ToolRegistryError, "schema_incomplete"):
             validate_registry((incomplete,))
+        duplicate_name_new_version = replace(DEFAULT_TOOL_SPECS[0], version="v2")
+        with self.assertRaisesRegex(ToolRegistryError, "duplicate_registration"):
+            validate_registry((DEFAULT_TOOL_SPECS[0], duplicate_name_new_version))
+        overlap = replace(DEFAULT_TOOL_SPECS[0], input_schema=SchemaSpec(("user_text",), ("user_text",)))
+        with self.assertRaisesRegex(ToolRegistryError, "input_schema_overlap"):
+            validate_registry((overlap,))
 
     def test_visitor_and_audit_fields_are_disjoint_and_internal_metadata_is_not_public(self):
         for spec in REGISTERED_TOOLS:

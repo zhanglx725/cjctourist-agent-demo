@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from dataclasses import replace
 import unittest
+from unittest.mock import patch
 
-from agent_decision import SideEffectLevel, validate_agent_decision
+from agent_decision import Capability, SideEffectLevel, validate_agent_decision
 from policy_gate import evaluate_policy
-from tool_registry import RuntimePhase
+from tool_registry import RuntimePhase, get_tool
 
 
 TEXT = "陈家祠什么时候开始筹建？"
@@ -27,5 +28,23 @@ class PolicyGateTests(unittest.TestCase):
     def test_phase_and_confirmation_are_checked_before_execution(self):
         changed = replace(self.valid.decision, requires_confirmation=True)
         self.assertEqual(evaluate_policy(replace(self.valid, decision=changed), phase=RuntimePhase.TOURING).reason, "confirmation_required")
+
+    def test_unmapped_capabilities_and_proposal_or_state_write_candidates_fail_closed(self):
+        safety = replace(self.valid.decision, requested_capability=Capability.SAFETY)
+        self.assertEqual(evaluate_policy(replace(self.valid, decision=safety), phase=RuntimePhase.PRE_TOUR).reason, "capability_unregistered")
+        proposal = replace(self.valid.decision, side_effect_level=SideEffectLevel.PROPOSAL)
+        self.assertEqual(evaluate_policy(replace(self.valid, decision=proposal), phase=RuntimePhase.PRE_TOUR).reason, "side_effect_rejected")
+        pending_confirmation = replace(self.valid.decision, side_effect_level=SideEffectLevel.CONFIRMED_STATE_CHANGE, requires_confirmation=True)
+        self.assertEqual(evaluate_policy(replace(self.valid, decision=pending_confirmation), phase=RuntimePhase.PRE_TOUR).reason, "confirmation_required")
+
+    def test_context_phase_outside_registered_eligibility_is_rejected(self):
+        pre_tour_only = replace(get_tool("reviewed_single_fact"), allowed_phases=(RuntimePhase.PRE_TOUR,))
+        with patch("policy_gate.get_capability", return_value=pre_tour_only):
+            result = evaluate_policy(
+                self.valid,
+                phase=RuntimePhase.TOURING,
+                evidence_claims=("reviewed_category", "registered_source"),
+            )
+        self.assertEqual((result.approved, result.reason), (False, "phase_rejected"))
 
 if __name__ == "__main__": unittest.main()

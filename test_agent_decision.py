@@ -36,10 +36,29 @@ class AgentDecisionTests(unittest.TestCase):
             _candidate(ornament_id="orn_forged"),
             _candidate(source_id="S999"),
             _candidate(card_id="card_forged"),
+            _candidate(node_id="node_forged"),
+            _candidate(route_id="route_forged"),
+            _candidate(source_ids=["S999"]),
+            _candidate(state_update={"phase": "completed"}),
+            _candidate(patch={"tour_state": {}}),
+            _candidate(visitor_message="伪造游客正文"),
         ):
             with self.subTest(payload=payload):
                 result = validate_agent_decision(payload, user_text=self.USER_TEXT)
                 self.assertFalse(result.accepted)
+
+    def test_missing_fields_unknown_side_effect_and_extra_actions_are_rejected(self):
+        missing = _candidate()
+        del missing["confidence"]
+        self.assertEqual(validate_agent_decision(missing, user_text=self.USER_TEXT).rejection_code, "schema_keys_rejected")
+        self.assertEqual(
+            validate_agent_decision(_candidate(side_effect_level="write_everything"), user_text=self.USER_TEXT).rejection_code,
+            "enum_rejected",
+        )
+        # A decision has exactly one capability; sub-intents are descriptive only.
+        accepted = validate_agent_decision(_candidate(sub_intents=["photo", "comparison"]), user_text=self.USER_TEXT)
+        self.assertTrue(accepted.accepted)
+        self.assertEqual(accepted.decision.requested_capability.value, "single_fact")
 
     def test_span_must_be_a_complete_contiguous_user_fragment(self):
         truncated = validate_agent_decision(
@@ -96,6 +115,12 @@ class AgentDecisionTests(unittest.TestCase):
         second = validate_agent_decision(_candidate(), user_text=self.USER_TEXT)
         self.assertTrue(first.accepted and second.accepted)
         self.assertEqual(first.decision.audit_dict() | {"decision_id": ""}, second.decision.audit_dict() | {"decision_id": ""})
+
+    def test_accepted_decision_cannot_be_mutated_through_serialized_audit_data(self):
+        accepted = validate_agent_decision(_candidate(), user_text=self.USER_TEXT)
+        audit = accepted.decision.audit_dict()
+        audit["sub_intents"].append("photo")
+        self.assertEqual(accepted.decision.sub_intents, ())
 
 
 if __name__ == "__main__":
