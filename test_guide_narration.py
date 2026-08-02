@@ -116,6 +116,14 @@ class GuideNarrationTests(unittest.TestCase):
                 self.assertNotIn("两个观察重点", narration.visitor_message)
                 self.assertNotIn("留意它与周围构件的关系", narration.visitor_message)
 
+    def test_legacy_detail_renderer_keeps_objects_and_completion_in_flat_sections(self):
+        narration = compose_guide_narration(self.program, self.evidence, detailed=True)
+        message = narration.visitor_message
+        for item in self.program.selected_items:
+            self.assertIn(f"【观察对象：{item.name}】", message)
+        self.assertIn("【下一步】\n\n", message)
+        self.assertFalse(any(line.startswith(("- ", "* ", "  - ", "  * ")) for line in message.splitlines()))
+
 
 if __name__ == "__main__":
     unittest.main()

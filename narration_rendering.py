@@ -335,6 +335,10 @@ def render_guidance_evidence(
             packet = bundle.craft_overviews.get(craft)
             if packet and packet.evidence:
                 segment, sources, complete, warning = _craft_segment(craft, packet, style, style_id)
+                # Use a plain-text section label instead of Markdown list
+                # syntax.  Studio renders wrapped list items with a deep
+                # hanging indent on narrow screens.
+                lines.append(f"【工艺背景：{craft}】")
                 lines.extend(segment)
                 used_sources.update(sources)
                 if complete and (candidate := eligible_by_subject.get(("craft", craft))):
@@ -356,6 +360,10 @@ def render_guidance_evidence(
         segment, sources, complete, warning = _ornament_segment(
             item, packet, bundle.location_evidence.get(item.ornament_id), first=first, style=style, style_id=style_id
         )
+        # Keep every reviewed object in its own flat section.  In particular,
+        # never prefix these paragraphs with '-' or '*' because a wrapped
+        # visitor sentence then becomes a nested-looking hanging indent.
+        lines.append(f"【观察对象：{item.name}】")
         lines.extend(segment)
         rendered_ornaments.append(item.ornament_id)
         used_sources.update(sources)
@@ -373,7 +381,11 @@ def render_guidance_evidence(
     if omitted:
         warnings.append("本站预算优先保留核心对象，后续对象留待需要时再展开")
     if policy and policy.interaction_mode != "listen_only" and policy.interaction_task_enabled:
+        lines.append("【观察提示】")
         lines.append("您可以留意其中一处造型细部；无需回答也不影响继续导览。")
+    # The completion instruction is deliberately a peer section, rather than
+    # the last line of an object or observation section.
+    lines.append("【下一步】")
     lines.append("讲解结束后，您可确认是否完成本点参观。")
     allocated = sum(item.planned_seconds for item in rendered_items)
     return NarrationRenderResult(

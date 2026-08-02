@@ -193,6 +193,10 @@ def _deterministic_message(
             raw_location=item.observation_location,
             evidence=ornament_entries,
         )
+        # B3 remains the compatibility path for detail requests and
+        # re-expression.  Match E5's flat, non-Markdown hierarchy so Studio
+        # cannot turn long object text into hanging list items.
+        lines.append(f"【观察对象：{item.name}】")
         if view.source_ids:
             rendered = render_object_detail(
                 view,
@@ -211,6 +215,7 @@ def _deterministic_message(
             lines.append("未检索到可引用的事实资料，因此不据名称扩写题材或故事。")
         if item.comparison_reason:
             lines.append(f"这里特意选它作对照，{item.comparison_reason}。")
+    lines.append("【下一步】")
     lines.append(_closing(policy, detailed))
     return "\n\n".join(lines)
 
