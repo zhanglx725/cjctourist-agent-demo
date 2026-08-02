@@ -85,11 +85,13 @@ from controlled_knowledge_query import (
 from agent_decision import Capability, validate_agent_decision
 from controlled_executor import execute_approved_read_tool
 from controlled_rollout import (
+    ATOMIC_READ_PLAN,
     CONTROLLED_KNOWLEDGE,
     RolloutMode,
     evaluation_record,
     rollout_from_environment,
 )
+from atomic_intent_shadow_planner import observe_atomic_read_intents
 from policy_gate import evaluate_policy
 from reviewed_read_tools import answer_reviewed_controlled_knowledge
 from tool_registry import RuntimePhase
@@ -169,6 +171,7 @@ class AgentState(TypedDict, total=False):
     # P2-05 audit only.  This stays in the LangGraph checkpoint for one
     # thread and is never rendered in the visitor response.
     controlled_rollout_evaluations: list[dict[str, Any]]
+    atomic_read_plan_evaluations: list[dict[str, Any]]
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -1693,6 +1696,16 @@ def controlled_knowledge_rollout_node(
     }
 
 
+def atomic_read_plan_shadow_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+    """Append a P2-01 audit candidate after the legacy response, never execute it."""
+    rollout = rollout_from_environment()
+    if not rollout.observes(ATOMIC_READ_PLAN):
+        return {}
+    result = observe_atomic_read_intents(_latest_user_text(state), phase=RuntimePhase.PRE_TOUR)
+    record = {"thread_id": _rollout_thread_id(config), **result.audit_dict()}
+    return {"atomic_read_plan_evaluations": [*state.get("atomic_read_plan_evaluations", []), record][-20:]}
+
+
 def direct_rag_node(state: AgentState) -> dict[str, Any]:
     """Retrieve clearly in-domain facts without an unnecessary tool-selection LLM."""
     query = _latest_user_text(state)
@@ -2391,6 +2404,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("rag_tool", rag_tool_node)
     workflow.add_node("direct_rag", direct_rag_node)
     workflow.add_node("controlled_knowledge_rollout", controlled_knowledge_rollout_node)
+    workflow.add_node("atomic_read_plan_shadow", atomic_read_plan_shadow_node)
     workflow.add_node("tour_qa", tour_qa_node)
     workflow.add_node("qa_follow_up_detail", qa_follow_up_detail_node)
     workflow.add_node("direct_route", direct_route_node)
@@ -2420,28 +2434,29 @@ def build_agent_graph(with_checkpointer: bool = True):
     )
     workflow.add_edge("direct_rag", "llm_think")
     workflow.add_edge("controlled_knowledge_rollout", "llm_think")
-    workflow.add_edge("tour_qa", END)
-    workflow.add_edge("qa_follow_up_detail", END)
-    workflow.add_edge("direct_route", END)
+    workflow.add_edge("tour_qa", "atomic_read_plan_shadow")
+    workflow.add_edge("qa_follow_up_detail", "atomic_read_plan_shadow")
+    workflow.add_edge("direct_route", "atomic_read_plan_shadow")
     workflow.add_conditional_edges(
         "profile_collection", route_after_profile_collection,
-        {"direct_route": "direct_route", END: END},
+        {"direct_route": "direct_route", END: "atomic_read_plan_shadow"},
     )
-    workflow.add_edge("profile_update", END)
-    workflow.add_edge("extended_profile_control", END)
-    workflow.add_conditional_edges("tour_event", route_after_tour_event, {"stop_guidance": "stop_guidance", END: END})
-    workflow.add_edge("prepare_replan", END)
-    workflow.add_edge("prepare_replan_candidate", END)
-    workflow.add_edge("prepare_duration_replan", END)
-    workflow.add_conditional_edges("confirm_replan", route_after_confirm_replan, {"stop_guidance": "stop_guidance", END: END})
-    workflow.add_edge("confirm_replan_and_next", END)
-    workflow.add_edge("cancel_replan", END)
-    workflow.add_edge("show_replan", END)
-    workflow.add_edge("show_replan_time", END)
-    workflow.add_edge("stop_guidance", END)
-    workflow.add_edge("clarification", END)
-    workflow.add_conditional_edges("llm_think", route_after_llm, {"rag_tool": "rag_tool", END: END})
+    workflow.add_edge("profile_update", "atomic_read_plan_shadow")
+    workflow.add_edge("extended_profile_control", "atomic_read_plan_shadow")
+    workflow.add_conditional_edges("tour_event", route_after_tour_event, {"stop_guidance": "stop_guidance", END: "atomic_read_plan_shadow"})
+    workflow.add_edge("prepare_replan", "atomic_read_plan_shadow")
+    workflow.add_edge("prepare_replan_candidate", "atomic_read_plan_shadow")
+    workflow.add_edge("prepare_duration_replan", "atomic_read_plan_shadow")
+    workflow.add_conditional_edges("confirm_replan", route_after_confirm_replan, {"stop_guidance": "stop_guidance", END: "atomic_read_plan_shadow"})
+    workflow.add_edge("confirm_replan_and_next", "atomic_read_plan_shadow")
+    workflow.add_edge("cancel_replan", "atomic_read_plan_shadow")
+    workflow.add_edge("show_replan", "atomic_read_plan_shadow")
+    workflow.add_edge("show_replan_time", "atomic_read_plan_shadow")
+    workflow.add_edge("stop_guidance", "atomic_read_plan_shadow")
+    workflow.add_edge("clarification", "atomic_read_plan_shadow")
+    workflow.add_conditional_edges("llm_think", route_after_llm, {"rag_tool": "rag_tool", END: "atomic_read_plan_shadow"})
     workflow.add_edge("rag_tool", "llm_think")
+    workflow.add_edge("atomic_read_plan_shadow", END)
     return workflow.compile(checkpointer=MemorySaver()) if with_checkpointer else workflow.compile()
 
 
