@@ -612,7 +612,7 @@ known_open_items:
     langsmith_status: reproduced_needs_root_cause_triage
 
 gate_0:
-  status: conditional_pass
+  status: conditional_pass_pending_review
   rationale: >-
     The current commit has a clean synchronized baseline, 770/770 complete
     regression and 59/59 existing P0 safety/output matrix. No automated

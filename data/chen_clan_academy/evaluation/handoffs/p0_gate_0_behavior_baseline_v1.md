@@ -12,7 +12,7 @@
 
 ## Gate 0 结论
 
-`conditional_pass`
+`conditional_pass_pending_review`
 
 自动化未发现安全建议、非法 TourState 写入、控制语句回落到自由 LLM/RAG、游客端内部字段泄漏或线程串线。此结论不是 `passed`：本提交尚无新的 LangSmith Trace，且 P1-04 的后西庭/后庭西侧权威空间关系仍由数据负责人外部确认。当前安全行为是澄清，不允许模型猜点位。
 
