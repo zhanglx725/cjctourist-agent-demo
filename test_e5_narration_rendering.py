@@ -51,6 +51,27 @@ class NarrationRenderingTests(unittest.TestCase):
         self.assertLess(result.visitor_message.index("先认识灰塑"), result.visitor_message.index(self.primary.name))
         self.assertEqual(result.visitor_message.count("先认识灰塑"), 1)
 
+    def test_craft_intro_removes_source_list_marker_and_field_label(self):
+        program = replace(self.program, selected_items=(self.primary,))
+
+        def rag(query: str) -> str:
+            if "定义 材料 技法 建筑位置 特点" in query:
+                evidence = [_entry(
+                    "07_ornament_crafts.md", "灰塑", "S07",
+                    "- **工艺性质与位置**：灰塑是岭南传统建筑装饰工艺，常见于门额和屋脊。",
+                )]
+            else:
+                evidence = [_entry(
+                    "08_ornament_items.md", self.primary.name, "S08",
+                    f"{self.primary.name}的构图呈现鲜明的造型层次。这个题材寄托对美好生活的祈盼。",
+                )]
+            return json.dumps({"evidence": evidence}, ensure_ascii=False)
+
+        result = render_guidance_evidence(program, build_guidance_evidence_bundle(program, None, rag))
+        self.assertIn("先认识灰塑：灰塑是岭南传统建筑装饰工艺", result.visitor_message)
+        self.assertNotIn("- **工艺性质与位置**", result.visitor_message)
+        self.assertNotIn("**工艺性质与位置**", result.visitor_message)
+
     def test_repeat_craft_is_only_a_brief_recap(self):
         coverage = commit_introductions(None, [{"subject_kind": "craft", "subject_id": "灰塑", "source_ids": ["S07"], "introduced_by": "stop_guidance", "node_id": self.program.node_id, "turn_id": "turn:1"}])
         bundle = self._bundle(coverage=coverage)

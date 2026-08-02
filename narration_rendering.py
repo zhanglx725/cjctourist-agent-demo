@@ -8,6 +8,7 @@ snapshot, then returns prose plus candidates that a later A4 node may commit.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Any, Iterable, Mapping
 
 from guidance_evidence_bundle import CoverageCandidate, EvidencePacket, GuidanceEvidenceBundle
@@ -231,6 +232,21 @@ def _definition_slot(craft: str, sentence: str) -> str:
     return normalized
 
 
+_RAW_LIST_PREFIX = re.compile(r"^\s*(?:[-*+]\s+|\d+[.)]\s+)")
+_RAW_BOLD_LABEL_PREFIX = re.compile(r"^\*\*[^*]+\*\*\s*[：:]\s*")
+
+
+def _visitor_craft_sentence(sentence: str) -> str:
+    """Remove source Markdown labels while preserving the reviewed fact.
+
+    Craft packets originate in a field-labelled Markdown source.  Those labels
+    are useful for retrieval and audit, but visitor narration must not expose
+    the source's list marker or field formatting as if it were a guide script.
+    """
+    cleaned = _RAW_LIST_PREFIX.sub("", sentence.strip())
+    return _RAW_BOLD_LABEL_PREFIX.sub("", cleaned).strip()
+
+
 def _craft_segment(
     craft: str, packet: EvidencePacket, style: NarrationStylePolicy | None, style_id: str
 ) -> tuple[list[str], tuple[str, ...], bool, str | None]:
@@ -248,13 +264,14 @@ def _craft_segment(
             break
     if not selected:
         return [], (), False, f"{craft}缺少可用于首次介绍的工艺证据"
+    visitor_selected = [(_visitor_craft_sentence(sentence), source_ids) for sentence, source_ids in selected]
     template_line = _template(style, "first_craft_intro_style", {
         "craft_name": craft,
-        "craft_definition": _definition_slot(craft, selected[0][0]),
+        "craft_definition": _definition_slot(craft, visitor_selected[0][0]),
         "object_name": "", "observation_location": "", "visible_detail": "", "evidence_fact": "",
     })
-    lines = [template_line or f"先认识{craft}：{selected[0][0]}"]
-    lines.extend(sentence for sentence, _ in selected[1:])
+    lines = [template_line or f"先认识{craft}：{visitor_selected[0][0]}"]
+    lines.extend(sentence for sentence, _ in visitor_selected[1:])
     lines.append(_style_observation(style_id, f"{craft}对象的造型、细部和所在构件"))
     source_ids = tuple(sorted({source for _, values in selected for source in values}))
     complete = len(covered_dimensions) >= 2
