@@ -12,6 +12,7 @@ _REGISTRY_CAPABILITY = {
     Capability.TERM: "term", Capability.ORNAMENT_DETAIL: "object",
     Capability.POINT_INVENTORY: "point_inventory", Capability.CRAFT_LOCATION: "craft",
     Capability.SINGLE_FACT: "single_fact", Capability.VISIT_SERVICE: "visit_service",
+    Capability.CONTROLLED_KNOWLEDGE: "controlled_knowledge",
     Capability.RESEARCH: "research", Capability.COMPARISON: "comparison",
     Capability.PHOTO: "photo",
 }

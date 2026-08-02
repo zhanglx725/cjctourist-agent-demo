@@ -129,3 +129,32 @@ def answer_reviewed_service_rule(
         knowledge_plan=plan.to_dict(), source_ids=sorted({source for item in scoped for source in item.get("source_ids", [])}),
         retrieval_strategy="controlled_knowledge",
     )
+
+
+def answer_reviewed_controlled_knowledge(
+    user_text: str,
+    evidence: Iterable[dict[str, Any]],
+    *,
+    invoke_model: Callable[[str], str],
+) -> ReadToolResult:
+    """Run the existing closed knowledge renderer through the CA-03 envelope.
+
+    This deliberately reuses the legacy plan recognizer and renderer.  It is
+    not a second knowledge source and accepts only caller-supplied evidence.
+    """
+    plan = identify_controlled_knowledge_plan(user_text)
+    if plan is None:
+        return _result(
+            "controlled_knowledge", "not_eligible",
+            "当前问题不属于可由受控知识通道安全回答的范围，因此不作推测。",
+            (), knowledge_plan=None, retrieval_strategy="controlled_knowledge",
+        )
+    supplied = tuple(dict(item) for item in evidence if isinstance(item, dict))
+    scoped = filter_plan_evidence(plan, supplied)
+    message = render_controlled_knowledge_answer(plan, scoped, invoke_model)
+    return _result(
+        "controlled_knowledge", "ok" if scoped else "insufficient_evidence", message, scoped,
+        knowledge_plan=plan.to_dict(),
+        source_ids=sorted({source for item in scoped for source in item.get("source_ids", [])}),
+        retrieval_strategy="controlled_knowledge",
+    )

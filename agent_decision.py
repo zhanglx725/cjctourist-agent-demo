@@ -52,6 +52,7 @@ class Capability(StrEnum):
     CRAFT_LOCATION = "craft_location"
     SINGLE_FACT = "single_fact"
     VISIT_SERVICE = "visit_service"
+    CONTROLLED_KNOWLEDGE = "controlled_knowledge"
     RESEARCH = "research"
     ACADEMIC_ADVISOR = "academic_advisor"
     COMPARISON = "comparison"
@@ -87,7 +88,7 @@ _CAPABILITIES_BY_INTENT: dict[Intent, frozenset[Capability]] = {
     Intent.STOP_INVENTORY: frozenset({Capability.POINT_INVENTORY}),
     Intent.CRAFT_LOCATION: frozenset({Capability.CRAFT_LOCATION}),
     Intent.FACT_QUESTION: frozenset({Capability.SINGLE_FACT}),
-    Intent.SERVICE_RULE: frozenset({Capability.VISIT_SERVICE}),
+    Intent.SERVICE_RULE: frozenset({Capability.VISIT_SERVICE, Capability.CONTROLLED_KNOWLEDGE}),
     Intent.RESEARCH: frozenset({Capability.RESEARCH}),
     Intent.ACADEMIC_ADVISOR: frozenset({Capability.ACADEMIC_ADVISOR}),
     Intent.COMPARISON: frozenset({Capability.COMPARISON}),

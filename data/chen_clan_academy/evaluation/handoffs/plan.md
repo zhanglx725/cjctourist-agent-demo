@@ -1,7 +1,7 @@
 # 陈家祠受控 Agent 分阶段实施计划
 
 > 文档性质：基于当前工作区、`CONTROLLED_AGENT_ARCHITECTURE_UPGRADE_PLAN.md`、目标架构图和现有问题台账形成的执行拆解。  
-> 生成日期：2026-08-01；状态同步：2026-08-02
+> 生成日期：2026-08-01；状态同步：2026-08-02（`experiment/agent-orchestration-v2@1b418dc`）
 > 目标文件：`data/chen_clan_academy/evaluation/handoffs/plan.md`  
 > 当前结论：先收敛正确性与契约，再迁移受控 Agent；学术、多模态和游后推荐不得抢跑。
 
@@ -9,13 +9,13 @@
 
 ### 1.1 实际 Git 状态
 
-- 当前分支：`main`。
-- 当前本地 HEAD：`56688f7d9bda505da2b426021553afb54a05c5ce`（`fix: route stop completion through deterministic control`）。
-- 本地与 `origin/main`：同一提交；工作树干净。
+- 当前开发分支：`experiment/agent-orchestration-v2`。
+- 当前本地 HEAD：`1b418dc145846bf5b795fddbda8fde7327708edc`（`feat: add read-only rollout contract`）。
+- 当前分支与 `origin/experiment/agent-orchestration-v2`：同一提交；工作树干净。`main` 与 `origin/main` 当前停留在 `9eec98d`，实验分支尚未合并。
 - 原审计时列出的架构方案、八天计划和数据文件修改均已纳入历史提交；当前不存在需先认领的未跟踪或未提交文件。
-- 当前完整回归已在 `56688f7` 上运行，`770/770` 通过（0 failure、0 error）；P0 定向安全/游客输出矩阵 `59/59` 通过。P0-03/CA-00 行为矩阵见 `data/chen_clan_academy/evaluation/p0_gate_0_behavior_matrix_v1.yaml`。
+- 负责人于 2026-08-02 在重建的 Python 3.12.7 项目虚拟环境中运行 `python -m unittest discover -v`：P2-05 接入前 `1b418dc` 为 `827/827`；本轮工作树的 P2-05 实现为 `831/831`（0 failure、0 error，35.528 秒）。P0 定向安全/游客输出矩阵最近记录为 `59/59` 通过。P0-03/CA-00 行为矩阵见 `data/chen_clan_academy/evaluation/p0_gate_0_behavior_matrix_v1.yaml`。
 
-Git 同步和工作区归属已完成；Gate 0 当前为 `conditional_pass`：自动化护栏绿色，但本提交尚缺当前 LangSmith Trace，且 P1-04 仍有外部空间数据阻塞。仍禁止以文档计划替代真实代码、测试和 LangSmith 证据。
+Git 同步、工作区归属和当前实验分支自动化基线已完成；Gate 0 仍为 `conditional_pass`：自动化护栏绿色，`1b418dc` 已完成 CA00-SF-01～04 四个安全实链并记录 Thread/Run ID，但 Trace URL 与其余矩阵仍待复核，且 P1-04 仍有外部空间数据阻塞。CA-01～CA-05、Policy Gate、受控只读 Executor、原子多意图只读计划、路线/重规划 proposal、确认后状态迁移适配器和只读灰度契约已经进入实验分支；这些实现尚不能替代 Gate 1～Gate 3 的实链验收。四项证据见 `data/chen_clan_academy/evaluation/handoffs/p0_current_commit_live_safety_evidence_20260802.md`。
 
 ### 1.2 本计划读取的主要依据
 
@@ -28,10 +28,10 @@ Git 同步和工作区归属已完成；Gate 0 当前为 `conditional_pass`：�
 - `CONTROLLED_AGENT_ARCHITECTURE_UPGRADE_PLAN.md`
 - `NEXT_STAGE_ISSUE_AND_ROADMAP.md`
 - 当前 `agent_graph.py`、TourState、VisitorProfile、路线、RAG、知识卡、讲解和安全模块
-- 当前 92 个 `test_*.py` 测试文件
+- 当前 105 个 `test_*.py` 测试文件
 - `outputs/chen_clan_controlled_agent_architecture.png`
 
-本计划没有重新运行完整测试。本文中的“已通过”只复述现有台账；凡缺少当前 commit、thread ID 或 Trace URL 的人工结果，仍应视为待复核。
+本文记录的 `827/827` 来自负责人在当前提交上的本机完整回归；凡缺少当前 commit、thread ID 或 Trace URL 的 LangSmith 人工结果，仍应视为待复核。
 
 ## 2. 目标产品与不可变边界
 
@@ -509,12 +509,18 @@ Place → Ornament → Craft/Term → Source/ResearchCard/ComparisonCard
 
 不要从流程图最上方的 ASR 开始，也不要先开发 Academic Advisor。当前最合适的顺序是：
 
-1. 已完成：本地/远端分叉和未提交文件归属已收敛为干净的 `main@56688f7`。
-2. 已完成：项目虚拟环境完整回归为 `770/770`，P0 安全/游客输出矩阵为 `59/59`；CA-00 行为矩阵已建立，Gate 0 为 `conditional_pass`。
+1. 已完成：本地/远端分叉和未提交文件归属已收敛；当前开发基线为干净且已推送的 `experiment/agent-orchestration-v2@1b418dc`，尚未合并 `main`。
+2. 已完成：Python 3.12.7 项目虚拟环境已重建；当前提交完整回归为 `827/827`，P0 安全/游客输出矩阵最近记录为 `59/59`；CA-00 行为矩阵已建立，Gate 0 仍为 `conditional_pass`。
 3. 完成 P0-01/P0-02 的 LangSmith 守护矩阵，以及 P1-19/P1-21 的跨出口游客渲染复测；定向安全通过不等于实链通过。
 4. 复测并收口 P1-07/08/09/11/12/13/14/16；P1-12C1/C4 的自动化已通过，当前提交仍待 LangSmith；P1-04 继续等待空间负责人决策。
-5. 用 CA-00 行为矩阵补齐当前提交的 LangSmith 证据，并由负责人审核是否从 `conditional_pass` 提升为 `passed`。
-6. 只有 Gate 0 通过后，才依次实施 CA-01 AgentDecision schema、CA-02 Tool Registry、CA-03/04 只读 adapter 和 CA-05 Shadow Planner。
+5. 用 CA-00 行为矩阵补齐 `1b418dc` 的 LangSmith 证据，并由负责人审核是否从 `conditional_pass` 提升为 `passed`。
+6. 已在实验分支完成：CA-01 AgentDecision schema、CA-02 Tool Registry、CA-03/04 只读 adapter、CA-05 Shadow Planner、Policy Gate、受控只读 Executor、原子多意图只读计划、路线/重规划 proposal、确认后状态迁移适配器和只读灰度契约。
+7. 待完成：以独立线程执行 Gate 1～Gate 3 LangSmith 矩阵，核对候选/旧路由差异、游客正文、evidence、状态 diff、proposal 确认边界和线程隔离；未通过前不启用写操作灰度。
+8. 待完成：LangSmith 通过并审核后，将实验分支按可回滚边界合并到 `main`，记录合并提交与回滚提交。
+
+### P2-05 Graph 灰度接入第一阶段（CA-14 前半）
+
+当前实验分支已将 `controlled_knowledge` 接到 Graph 的 pre-tour 闭合知识问答入口：`off` 保持原 `direct_rag`；`shadow` 运行候选并保留旧链游客正文；`read_only_active` 仅在 AgentDecision、Policy Gate、Executor 和公开输出校验全部成功时展示候选，否则回退到旧的受控知识渲染，不得回退原始 RAG 文本。配置由 `CJC_READ_ONLY_ROLLOUT_MODE` 与 `CJC_READ_ONLY_ROLLOUT_CAPABILITIES` 控制，候选/旧链差异只写入 thread-local `controlled_rollout_evaluations`。定向 26 项与本机完整 831 项回归均通过；shadow 和 active 独立 Studio 实链均通过并确认状态不变。路线和控制事件不接入本阶段；待在 LangSmith UI 关联并归档 Trace URL。
 
 这 8 步完成前，不建议开始语音、多语言、附近实时推荐或图数据库。它们依赖稳定的 Renderer、证据包、状态事件和工具权限；过早接入只会放大当前分散路由的问题。
 

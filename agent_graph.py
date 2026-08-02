@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from langchain_deepseek import ChatDeepSeek
 from langgraph.checkpoint.memory import MemorySaver
@@ -81,6 +82,17 @@ from controlled_knowledge_query import (
     public_visitor_message_or_fallback,
     render_controlled_knowledge_answer,
 )
+from agent_decision import Capability, validate_agent_decision
+from controlled_executor import execute_approved_read_tool
+from controlled_rollout import (
+    CONTROLLED_KNOWLEDGE,
+    RolloutMode,
+    evaluation_record,
+    rollout_from_environment,
+)
+from policy_gate import evaluate_policy
+from reviewed_read_tools import answer_reviewed_controlled_knowledge
+from tool_registry import RuntimePhase
 from single_fact_answer import (
     FACT_KINDS,
     identify_single_fact_kind,
@@ -154,6 +166,9 @@ class AgentState(TypedDict, total=False):
     # P1-11 first confirmation stage.  It requests an explicit live budget and
     # deliberately does not infer one from the original route duration.
     pending_replan_time_confirmation: dict[str, Any] | None
+    # P2-05 audit only.  This stays in the LangGraph checkpoint for one
+    # thread and is never rendered in the visitor response.
+    controlled_rollout_evaluations: list[dict[str, Any]]
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -1552,6 +1567,132 @@ def _search_controlled_knowledge_evidence(
     )
 
 
+def _rollout_thread_id(config: RunnableConfig | None) -> str:
+    configurable = (config or {}).get("configurable", {})
+    value = configurable.get("thread_id") if isinstance(configurable, dict) else None
+    return str(value) if value else "local_unscoped_thread"
+
+
+def _controlled_knowledge_marker(
+    knowledge_plan: ControlledKnowledgePlan,
+    evidence: list[dict[str, Any]],
+    message: str,
+) -> AIMessage:
+    """Create the existing direct-RAG completion marker without raw output."""
+    return AIMessage(
+        content="本地检索已完成，正在根据证据整理回答。",
+        additional_kwargs={
+            "direct_rag_evidence": True,
+            "direct_single_fact_answer": None,
+            "direct_controlled_knowledge_answer": {
+                "message": public_visitor_message_or_fallback(message),
+                "domain": knowledge_plan.domain,
+                "question_type": knowledge_plan.question_type,
+                "source_ids": sorted(
+                    {
+                        source
+                        for item in evidence
+                        for source in item.get("source_ids", [])
+                        if isinstance(source, str) and source
+                    }
+                ),
+            },
+        },
+    )
+
+
+def controlled_knowledge_rollout_node(
+    state: AgentState, config: RunnableConfig,
+) -> dict[str, Any]:
+    """Run the P2-05 shadow/active bridge for closed pre-tour knowledge only.
+
+    The legacy renderer is always calculated first.  Shadow preserves its
+    visitor message and records a candidate comparison; active uses a gate and
+    executor result only when it is valid, otherwise it falls back to this
+    same reviewed legacy path.  No raw RAG content is ever a fallback.
+    """
+    started = time.perf_counter()
+    query = _latest_user_text(state)
+    plan = _effective_knowledge_plan(state)
+    if plan is None:
+        return direct_rag_node(state)
+    try:
+        evidence = json.loads(_search_controlled_knowledge_evidence(plan)).get("evidence", [])
+    except (json.JSONDecodeError, TypeError, ValueError):
+        evidence = []
+    legacy_message = render_controlled_knowledge_answer(
+        plan, evidence, _invoke_grounded_knowledge_model,
+    )
+    legacy = {"status": "ok", "message": legacy_message}
+    rollout = rollout_from_environment()
+    candidate: dict[str, Any] | None = None
+    outcome = "legacy_off"
+    selected_message = legacy_message
+    if rollout.observes(CONTROLLED_KNOWLEDGE) or rollout.enabled(CONTROLLED_KNOWLEDGE):
+        validation = validate_agent_decision(
+            {
+                "intent": "service_rule",
+                "sub_intents": [],
+                "requested_capability": "controlled_knowledge",
+                "target_text": query,
+                "evidence_span": query,
+                "confidence": 1.0,
+                "requires_clarification": False,
+                "requires_confirmation": False,
+                "side_effect_level": "read_only",
+            },
+            user_text=query,
+        )
+        verdict = evaluate_policy(
+            validation,
+            phase=RuntimePhase.PRE_TOUR,
+            evidence_claims=("closed_category", "registered_source"),
+        )
+        execution = execute_approved_read_tool(
+            verdict,
+            {"user_text": query, "evidence": evidence},
+            {
+                "reviewed_controlled_knowledge": lambda payload: answer_reviewed_controlled_knowledge(
+                    payload["user_text"], payload["evidence"],
+                    invoke_model=_invoke_grounded_knowledge_model,
+                )
+            },
+        )
+        candidate = {
+            "status": execution.status,
+            "message": execution.result.message if execution.result is not None else None,
+            "audit_reason": execution.audit_reason,
+            "gate_reason": verdict.reason,
+        }
+        if rollout.enabled(CONTROLLED_KNOWLEDGE) and execution.result is not None:
+            selected_message = execution.result.message
+            outcome = "candidate_active"
+        elif rollout.enabled(CONTROLLED_KNOWLEDGE):
+            outcome = "candidate_failed_legacy_fallback"
+        else:
+            outcome = "candidate_shadow"
+    record = evaluation_record(
+        _rollout_thread_id(config), legacy, candidate, mode=rollout.mode, outcome=outcome,
+    )
+    history = [*state.get("controlled_rollout_evaluations", []), record][-20:]
+    return {
+        "messages": [_controlled_knowledge_marker(plan, evidence, selected_message)],
+        "retrieved_evidence": evidence,
+        "qa_context": clear_qa_context(state.get("qa_context")),
+        "pending_ornament_clarification": None,
+        "controlled_rollout_evaluations": history,
+        "performance_metrics": _append_metric(
+            state,
+            "controlled_knowledge_rollout",
+            time.perf_counter() - started,
+            mode=rollout.mode.value,
+            outcome=outcome,
+            evidence_count=len(evidence),
+            candidate_status=candidate.get("status") if candidate else None,
+        ),
+    }
+
+
 def direct_rag_node(state: AgentState) -> dict[str, Any]:
     """Retrieve clearly in-domain facts without an unnecessary tool-selection LLM."""
     query = _latest_user_text(state)
@@ -2109,6 +2250,15 @@ def route_initial_request(state: AgentState) -> str:
     if duration_kind is not None and state.get("tour_state", {}).get("route_status") != "touring":
         return "profile_collection"
     if _effective_knowledge_plan(state) is not None:
+        rollout = rollout_from_environment()
+        if (
+            not state.get("tour_state")
+            and (
+                rollout.observes(CONTROLLED_KNOWLEDGE)
+                or rollout.enabled(CONTROLLED_KNOWLEDGE)
+            )
+        ):
+            return "controlled_knowledge_rollout"
         return (
             "tour_qa"
             if state.get("tour_state") and state.get("tour_interaction_state")
@@ -2240,6 +2390,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("llm_think", llm_think_node)
     workflow.add_node("rag_tool", rag_tool_node)
     workflow.add_node("direct_rag", direct_rag_node)
+    workflow.add_node("controlled_knowledge_rollout", controlled_knowledge_rollout_node)
     workflow.add_node("tour_qa", tour_qa_node)
     workflow.add_node("qa_follow_up_detail", qa_follow_up_detail_node)
     workflow.add_node("direct_route", direct_route_node)
@@ -2262,12 +2413,13 @@ def build_agent_graph(with_checkpointer: bool = True):
         "semantic_normalization",
         route_initial_request,
         {
-            "direct_rag": "direct_rag", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "tour_event": "tour_event",
+            "direct_rag": "direct_rag", "controlled_knowledge_rollout": "controlled_knowledge_rollout", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "tour_event": "tour_event",
             "clarification": "clarification", "prepare_replan": "prepare_replan", "prepare_replan_candidate": "prepare_replan_candidate", "prepare_duration_replan": "prepare_duration_replan",
             "confirm_replan": "confirm_replan", "cancel_replan": "cancel_replan", "show_replan": "show_replan", "show_replan_time": "show_replan_time", "llm_think": "llm_think",
         },
     )
     workflow.add_edge("direct_rag", "llm_think")
+    workflow.add_edge("controlled_knowledge_rollout", "llm_think")
     workflow.add_edge("tour_qa", END)
     workflow.add_edge("qa_follow_up_detail", END)
     workflow.add_edge("direct_route", END)
