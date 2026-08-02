@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import os
 import unittest
+from unittest.mock import patch
 
 from atomic_intent_shadow_planner import observe_atomic_read_intents
+from agent_graph import atomic_read_plan_shadow_node
+from langchain_core.messages import AIMessage, HumanMessage
 from tool_registry import RuntimePhase
 
 
@@ -22,6 +26,29 @@ class AtomicIntentShadowPlannerTests(unittest.TestCase):
             phase=RuntimePhase.PRE_TOUR,
         )
         self.assertEqual(result.decision_kind, "atomic_read_plan")
+
+    def test_graph_shadow_reads_human_input_after_legacy_ai_response(self):
+        state = {
+            "messages": [
+                HumanMessage(content="陈家祠什么时候开始筹建,再团队订单电子发票规则是什么？"),
+                AIMessage(content="旧链路最终正文"),
+            ],
+            "atomic_read_plan_evaluations": [],
+        }
+        with patch.dict(
+            os.environ,
+            {
+                "CJC_READ_ONLY_ROLLOUT_MODE": "shadow",
+                "CJC_READ_ONLY_ROLLOUT_CAPABILITIES": "atomic_read_plan",
+            },
+            clear=False,
+        ):
+            update = atomic_read_plan_shadow_node(
+                state, {"configurable": {"thread_id": "shadow-test-thread"}}
+            )
+        record = update["atomic_read_plan_evaluations"][0]
+        self.assertEqual(record["thread_id"], "shadow-test-thread")
+        self.assertEqual(record["decision_kind"], "atomic_read_plan")
 
     def test_control_or_route_combinations_only_record_clarification(self):
         for text in (

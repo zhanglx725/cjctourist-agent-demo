@@ -254,6 +254,16 @@ def _latest_user_text(state: AgentState) -> str:
     return content if isinstance(content, str) else str(content)
 
 
+def _latest_human_text(state: AgentState) -> str:
+    """Return the current turn's input after downstream nodes append AI output."""
+    for message in reversed(state.get("messages", [])):
+        if getattr(message, "type", None) != "human":
+            continue
+        content = message.content
+        return content if isinstance(content, str) else str(content)
+    return ""
+
+
 def _effective_control_text(state: AgentState) -> str:
     """Return a bounded canonical control phrase, otherwise the raw message.
 
@@ -1701,7 +1711,7 @@ def atomic_read_plan_shadow_node(state: AgentState, config: RunnableConfig) -> d
     rollout = rollout_from_environment()
     if not rollout.observes(ATOMIC_READ_PLAN):
         return {}
-    result = observe_atomic_read_intents(_latest_user_text(state), phase=RuntimePhase.PRE_TOUR)
+    result = observe_atomic_read_intents(_latest_human_text(state), phase=RuntimePhase.PRE_TOUR)
     record = {"thread_id": _rollout_thread_id(config), **result.audit_dict()}
     return {"atomic_read_plan_evaluations": [*state.get("atomic_read_plan_evaluations", []), record][-20:]}
 
