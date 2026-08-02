@@ -101,6 +101,8 @@ class CraftKnowledgeTests(unittest.TestCase):
             "陶塑和灰塑分别在什么地方能看到？",
             "石雕、木雕主要分布在哪些部位？",
             "砖雕和铜铁铸应该怎么找？",
+            "我想分别看看砖雕、石雕和灰塑，应该重点留意哪里？",
+            "砖雕和灰塑重点看哪里？",
         ):
             with self.subTest(query=query):
                 self.assertIsNotNone(parse_craft_location_request(query))
@@ -155,6 +157,37 @@ class CraftKnowledgeTests(unittest.TestCase):
                 "messages": [HumanMessage(content=query)],
                 "performance_metrics": [],
             }
+            self.assertEqual(route_initial_request(state), "tour_qa")
+
+    def test_multi_craft_location_observation_wording_uses_controlled_path(self):
+        query = "我想分别看看砖雕、石雕和灰塑，应该重点留意哪里？"
+        request = parse_craft_location_request(query)
+        self.assertIsNotNone(request)
+        self.assertEqual(request.crafts, ("砖雕", "石雕", "灰塑"))
+
+        no_route_answer = answer_tour_question(query, None, None, self._no_rag)
+        self.assertEqual(no_route_answer["mode"], "multi_craft_location")
+
+        before_tour = deepcopy(self.tour)
+        before_interaction = deepcopy(self.interaction)
+        answer = answer_tour_question(query, self.tour, self.interaction, self._no_rag)
+        self.assertEqual(answer["mode"], "multi_craft_location")
+        self.assertEqual([item["craft"] for item in answer["evidence"]], ["砖雕", "石雕", "灰塑"])
+        self.assertIn("砖雕", answer["message"])
+        self.assertNotIn(".md", answer["message"])
+        self.assertNotIn("source_ids", answer["message"])
+        self.assertEqual(self.tour, before_tour)
+        self.assertEqual(self.interaction, before_interaction)
+
+        for state in (
+            {"messages": [HumanMessage(content=query)], "performance_metrics": []},
+            {
+                "tour_state": self.tour,
+                "tour_interaction_state": self.interaction,
+                "messages": [HumanMessage(content=query)],
+                "performance_metrics": [],
+            },
+        ):
             self.assertEqual(route_initial_request(state), "tour_qa")
 
     def test_brief_field_policy_is_complete_and_exact(self):

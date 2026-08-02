@@ -196,6 +196,10 @@ def parse_craft_location_request(text: str) -> CraftLocationRequest | None:
             "哪能看到",
             "分布",
             "怎么找",
+            "重点留意哪里",
+            "重点看哪里",
+            "留意哪里",
+            "看哪里",
         )
     ):
         return None
