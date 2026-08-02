@@ -1,7 +1,7 @@
 # 陈家祠受控 Agent 分阶段实施计划
 
 > 文档性质：基于当前工作区、`CONTROLLED_AGENT_ARCHITECTURE_UPGRADE_PLAN.md`、目标架构图和现有问题台账形成的执行拆解。  
-> 生成日期：2026-08-01  
+> 生成日期：2026-08-01；状态同步：2026-08-02
 > 目标文件：`data/chen_clan_academy/evaluation/handoffs/plan.md`  
 > 当前结论：先收敛正确性与契约，再迁移受控 Agent；学术、多模态和游后推荐不得抢跑。
 
@@ -10,15 +10,12 @@
 ### 1.1 实际 Git 状态
 
 - 当前分支：`main`。
-- 当前本地 HEAD：`1037914 docs: add controlled agent architecture diagram`。
-- 本地与 `origin/main` 状态：`ahead 1, behind 2`，已发生分叉。
-- 审计时已有、且本计划不覆盖的工作区修改：
-  - `CONTROLLED_AGENT_ARCHITECTURE_UPGRADE_PLAN.md`
-  - `data/chen_clan_academy/routes/node_guide_cards_v1.json`
-  - `data/chen_clan_academy/routes/term_stop_associations_v1.json`
-  - 未跟踪文件 `EIGHT_DAY_IMPLEMENTATION_TASK_PLAN.md`
+- 当前本地 HEAD：`fe84be23819c03f56d3a8fce1077dd45af53f004`（`test: close safety and visitor output gates`）。
+- 本地与 `origin/main`：同一提交；工作树干净。
+- 原审计时列出的架构方案、八天计划和数据文件修改均已纳入历史提交；当前不存在需先认领的未跟踪或未提交文件。
+- 但这不是绿色功能基线：`p0_safety_output_gate_acceptance_v1.md` 记录的最近完整回归为 757 项中 16 个失败、1 个错误；失败未被本计划重新归因或修复。P0 定向安全/输出矩阵为 59 项通过，不能替代完整回归。
 
-因此，开始任何实现任务前必须先由负责人确认这些修改的归属并完成安全同步。不得在当前分叉且脏的 `main` 上直接执行 `pull`、批量格式化或覆盖式合并。
+Git 同步和工作区归属已完成；下一步不是直接进入受控 Agent 实现，而是先取得可重复的完整回归结论并收口 P0/P1 待验证项。仍禁止使用覆盖式同步或以文档计划替代真实代码、测试和 LangSmith 证据。
 
 ### 1.2 本计划读取的主要依据
 
@@ -31,7 +28,7 @@
 - `CONTROLLED_AGENT_ARCHITECTURE_UPGRADE_PLAN.md`
 - `NEXT_STAGE_ISSUE_AND_ROADMAP.md`
 - 当前 `agent_graph.py`、TourState、VisitorProfile、路线、RAG、知识卡、讲解和安全模块
-- 当前 91 个 `test_*.py` 测试文件
+- 当前 92 个 `test_*.py` 测试文件
 - `outputs/chen_clan_controlled_agent_architecture.png`
 
 本计划没有重新运行完整测试。本文中的“已通过”只复述现有台账；凡缺少当前 commit、thread ID 或 Trace URL 的人工结果，仍应视为待复核。
@@ -80,7 +77,7 @@
 | VisitorProfile | 已实现 | `visitor_profile.py` 及 profile 模块 | 经典/定制模式及最少收集契约未冻结 |
 | 点位讲解/E5 | 已实现、部分待验 | `guide_program_*`、`narration_rendering.py`、`narration_coverage.py` | 版式、回退出口、完整矩阵仍待收口 |
 | 术语/研究/比较/打卡卡 | 数据、注册和被动问答已实现 | 各卡片 runtime/retrieval | 到点主动调度尚未建立 |
-| 安全门控 | 已实现、待实链复核 | `visit_safety_rules.py`、`photo_spot_runtime.py` | 所有入口都必须保持最高优先级 |
+| 安全门控与游客输出边界 | P0 定向矩阵已通过，完整/实链待收口 | `visit_safety_rules.py`、`photo_spot_runtime.py`、`public_visitor_message_or_fallback` | P0 记录 59 项定向通过；完整回归仍有 16 失败、1 错误 |
 | 受控 Planner/Gate/Registry/Executor | 未实现 | 仅存在目标方案 | 需要分阶段 shadow → 灰度，不可一次重写 |
 | 经典/定制模式 | 未冻结 | 无唯一 `tour_mode` 归属 | 先做契约，不能随意加字段 |
 | 游后总结/成就 | 未形成正式产品链 | Coverage 可复用 | 缺统计口径、规则库和输出控制 |
@@ -119,14 +116,12 @@ P7 图辅助检索、全面评测、旧路由收敛与发布
 
 具体步骤：
 
-1. 逐项确认当前 3 个修改文件和 `EIGHT_DAY_IMPLEMENTATION_TASK_PLAN.md` 的负责人、用途及是否提交。
-2. 将需要保留的成员修改分别提交到其分支；不要把无关文件塞进规划提交。
-3. `fetch` 后比较本地 `1037914`、远端新增 2 个提交和本地独有 1 个提交。
-4. 通过普通 merge/rebase 策略建立负责人确认的新基线；禁止 `reset --hard`。
-5. 记录 `baseline_commit`、Python 版本、依赖锁定方式、索引 manifest 版本、LangGraph CLI 版本。
-6. 运行完整 unittest、`git diff --check`，保存输出摘要。
+1. 已完成：确认并同步原先分叉的成员修改；当前 `main == origin/main == fe84be2`，工作树干净。
+2. 已完成：记录当前受控 Agent/八天计划已进入提交历史，不再作为“未认领修改”。
+3. 待完成：在可用项目虚拟环境中重新运行完整 `unittest discover -v`，按根因归类 16 个失败与 1 个错误；不能沿用旧的非项目 Python 结果。
+4. 待完成：记录实际解释器、依赖锁定方式、索引 manifest、LangGraph CLI、测试命令和执行提交；再判定是否形成绿色功能基线。
 
-完成门槛：工作树干净；本地和远端基线关系明确；完整测试结果可重复。任何成员修改归属不明时停止。
+完成门槛：工作树干净、本地远端一致、完整测试结果可重复且全部通过或有负责人批准的隔离/阻塞结论。当前仅满足前两项，P0-00 仍未关闭。
 
 ### P0-01 关闭安全与游客输出门控的待验项
 
@@ -514,14 +509,12 @@ Place → Ornament → Craft/Term → Source/ResearchCard/ComparisonCard
 
 不要从流程图最上方的 ASR 开始，也不要先开发 Academic Advisor。当前最合适的顺序是：
 
-1. 处理本地/远端分叉和未提交文件归属，冻结新 baseline。
-2. 完成 P0-02、P1-19、P1-21 及 P1-07/08/09/11/12/13/14/16 的缺失 LangSmith 证据。
-3. 取得 P1-04 空间负责人决策；在此之前保持失败关闭。
-4. 建立 CA-00 基线测试与双模式能力矩阵。
-5. 单独实施 CA-01 AgentDecision schema，不接图。
-6. 单独实施 CA-02 Tool Registry，不改变工具后端。
-7. 再实施 CA-03/04 只读工具 adapter 和 Typed Evidence。
-8. 进入 CA-05 Shadow Planner；只有 shadow 指标满足门槛后才继续 Gate/Executor。
+1. 已完成：本地/远端分叉和未提交文件归属已收敛为干净的 `main@fe84be2`。
+2. 先运行并归类完整回归；当前记录为 757 项、16 失败、1 错误，尚不能冻结功能基线。
+3. 完成 P0-01/P0-02 的 LangSmith 守护矩阵，以及 P1-19/P1-21 的跨出口游客渲染复测；定向安全通过不等于实链通过。
+4. 复测并收口 P1-07/08/09/11/12/13/14/16；其中 P1-12C1 已更新代码但待本机与 LangSmith，P1-04 继续等待空间负责人决策。
+5. 在上述证据完成后建立 CA-00 基线测试与双模式能力矩阵。
+6. 只有 Gate 0 通过后，才依次实施 CA-01 AgentDecision schema、CA-02 Tool Registry、CA-03/04 只读 adapter 和 CA-05 Shadow Planner。
 
 这 8 步完成前，不建议开始语音、多语言、附近实时推荐或图数据库。它们依赖稳定的 Renderer、证据包、状态事件和工具权限；过早接入只会放大当前分散路由的问题。
 
@@ -540,4 +533,3 @@ Place → Ornament → Craft/Term → Source/ResearchCard/ComparisonCard
 - 学术工作区不伪造来源、不越权使用全文、不污染导游状态。
 - 文字、字幕和语音事实一致，所有内部字段只留在审计。
 - 自动测试、LangSmith 实链、故障注入、线程隔离和回滚演练全部通过。
-

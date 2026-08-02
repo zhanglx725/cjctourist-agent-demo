@@ -5,7 +5,7 @@ document_status: proposed_pending_owner_approval
 baseline_commit: e03c0920f6c66d9a1eb78feec78b39aa1f8295f9
 branch: main
 created_at: 2026-08-01
-updated_at: 2026-08-01
+updated_at: 2026-08-02
 requirements_source: data/chen_clan_academy/evaluation/handoffs/NEXT_STAGE_ISSUE_AND_ROADMAP.md
 owner: pending_owner_confirmation
 implementation_status: not_started
@@ -31,6 +31,8 @@ cross_requirement_priority: pending_owner_consolidation
 ```
 
 > 本文是架构设计与迁移计划，不代表生产 Agent 已完成升级。本次交付不改变任何运行行为；未经负责人确认，不得执行 Phase 1。
+
+> 2026-08-02 执行状态同步：当前集成基线为 `main@fe84be2`（与 `origin/main` 一致、工作树干净）。P0 定向安全/游客输出矩阵记录 59 项通过，但完整回归最新记录为 757 项、16 个失败、1 个错误；CA-00 及后续受控 Agent 迁移仍未开始。该结果只更新实施前置判断，不将本设计改写为已实现功能。
 
 ## 1. 升级背景
 
