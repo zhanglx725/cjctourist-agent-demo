@@ -382,3 +382,10 @@ python inspect_route_plan.py deep_dive_90
 - 可保留接受/拒绝证据的结构化审计，但游客文本不得展示内部路径、来源编号、对象或节点标识。
 - 同名候选可按审核名称、工艺、点位与公开位置分组；只有审核实体关系明确为 canonical/alias 时，才可在构建期归一为一个游客候选。`orn_051/orn_052` 已由项目负责人确认同一物理实体：`orn_051` 为 canonical，`orn_052` 为保留审计的 alias，不投影为运行对象。其他无此审核关系的同字段对象仍必须 `ambiguous_group` 失败关闭。
 - P1-20 已于 2026-07-31 标记 `verified_fixed`：LangSmith 新线程验证了木雕 canonical 选择与显式木雕直答；当次 thread/Trace 标识未记录，后续验收必须在运行记录中保存真实标识，不能补写虚构链接。
+
+## P0-03 / CA-00 共享边界：Gate 0 行为冻结
+
+- 当前自动化基线为 `main@56688f7`：完整回归 `770/770`、P0 安全/游客输出矩阵 `59/59`；矩阵事实源为 `data/chen_clan_academy/evaluation/p0_gate_0_behavior_matrix_v1.yaml`。
+- 后续 P1 架构工作不得改变 TourState 的 A1 事件写入边界、VisitorProfile 的受控更新边界、审核路线/空间事实源，或让控制语句回落到 `llm_think` / `rag_tool`。
+- 游客正文必须继续隐藏内部来源、ID、路径和评分；结构化证据必须保留在审计字段和 Trace。
+- 当前 Gate 0 为 `conditional_pass`，不是 `passed`：补齐当前提交的 LangSmith 记录并处理/保持外部数据阻塞后，负责人才能授权进入 AgentDecision、Tool Registry、Policy Gate、Executor 或 Shadow Planner。

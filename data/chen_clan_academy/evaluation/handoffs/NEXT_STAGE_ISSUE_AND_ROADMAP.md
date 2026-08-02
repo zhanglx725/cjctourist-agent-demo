@@ -4,7 +4,7 @@
 
 **最近更新：** 2026-08-02
 
-**检查基线：** `fe84be23819c03f56d3a8fce1077dd45af53f004`（`main == origin/main`，工作树干净）
+**检查基线：** `56688f7d9bda505da2b426021553afb54a05c5ce`（`main == origin/main`；P0-03 文档工作区待负责人审核）
 **性质：** 规划与交接材料；不改变现有冻结契约、公共 Agent 代码、空间图或知识卡原始数据。
 
 ## 1. 目标与判断原则
@@ -26,9 +26,9 @@
 ### 2.0 当前执行基线（2026-08-02 同步）
 
 - Git 同步已完成；原先的分叉和未提交文件不再构成开始工作的阻塞。
-- 最近 P0 定向安全/游客输出矩阵为 59 项通过；完整回归记录为 757 项中 16 个失败、1 个错误，因此 **P0 绿色基线尚未形成**。
-- P1-12C1 的高频自然到达代码已提交，但尚未有更新后的本机完整回归和 LangSmith Trace；不得将其写成 `verified_fixed`。
-- 受控 Agent 的 CA-00 及后续 schema/registry/gate/executor 尚未开始；不得以架构计划或现有语义归一模块冒充已迁移的 Agent 控制面。
+- `56688f7` 上 P0 定向安全/游客输出矩阵 `59/59` 通过，完整回归 `770/770` 通过。P0-03/CA-00 行为矩阵已建立，Gate 0 为 `conditional_pass`，尚未形成完整 LangSmith 收口。
+- P1-12C1 与 C4 均已提交并完成当前本机回归；其自然到达和完成本站的 LangSmith Trace 待补，仍不得写成 `verified_fixed`。
+- 受控 Agent 的 CA-00 行为基线已经建立；后续 AgentDecision/schema/registry/gate/executor 尚未开始，不得以现有语义归一模块冒充已迁移的 Agent 控制面。
 
 | 优先级 | 阶段目标 | 主要问题 | 是否应立即改公共代码 |
 | --- | --- | --- | --- |
@@ -58,7 +58,7 @@
 | --- | --- | --- | --- |
 | P0-02 馆方安全禁令及允许例外自然改写 | `implemented_pending_langsmith_verification` | 复测“商业宣传片”“庭院休息区吃点东西” | 安全结论须先于拍照与到达流程 |
 | P0-01 危险拍照安全门控 | `implemented_pending_langsmith_verification` | 对抗复测危险动作改写 | 不放宽门控 |
-| P1-12 跨流程自然语言同义表达 | `implemented_pending_local_and_langsmith_verification` | 先完成 C1 本机验证，再复测自然到达同义表达；C4“完成”同义表达仍待实现或验证 | 保留更新前人工失败证据；候选不能直接写 TourState |
+| P1-12 跨流程自然语言同义表达 | `automated_verified_pending_langsmith` | 复测自然到达和完成本站同义表达的当前提交 Trace | 保留更新前人工失败证据；候选不能直接写 TourState |
 | P1-07 单一事实、访问服务与受控计算 | `implemented_pending_langsmith_verification` | 游览前后复测 11 项事实／计算 | 无证据失败关闭 |
 | P1-08 站点讲解观察提示与数量一致性 | `implemented_pending_langsmith_verification` | 已完成基础 Studio 复测；继续复测前庭、后西庭、短预算、listen_only 与 E5 失败回退 | 基础复测未见机械重复或数量不一致，仍不能代替完整矩阵验收 |
 | P1-09 证据驱动的对象级讲解 | `implemented_pending_langsmith_verification` | 复测月台/后西庭对象详情、到站首讲、追问、短预算与多对象版式 | 仅使用同一 `ornament_id` 的对象级证据；无证据关闭 |
@@ -78,7 +78,7 @@
 | 问题 | 人工测试结论 | 已通过部分 | 失败／待复测部分 | 与当前实现的关系 |
 | --- | --- | --- | --- | --- |
 | P1-11 | `partial_langsmith_verification` | 月台偏航后按“剩余时间 → 候选路线 → 确认应用”重规划成功；混合到达、讲解、重排安全澄清 | 后西庭明确位置不被接受；未知小院错误生成默认 90 分钟路线 | 当前人工结果有效；须修复明确审核点位解析顺序和未知地点保护后再复测 |
-| P1-12 | `implemented_pending_local_and_langsmith_verification` | 裸“到了”、无路线澄清、当前点未完成前拦截下一站、途中表达不写到达基本正确 | “已经抵达这里／终于走到月台／我人到了”在更新前曾落入自由问答；“完成”未稳定进入完成确认 | C1 在人工测试后已有更新但尚未完成本机与 LangSmith 复测；C4“完成”同义表达仍待实现或验证，不得覆盖原失败证据 |
+| P1-12 | `automated_verified_pending_langsmith` | 裸“到了”、无路线澄清、当前点未完成前拦截下一站、途中表达不写到达基本正确；C1/C4 当前自动化回归通过 | “已经抵达这里／终于走到月台／我人到了”与“完成”曾落入自由问答 | 已在 `56688f7` 完成当前本机完整回归；仍待 LangSmith 复测，不得覆盖原失败证据 |
 | P1-13 | `partial_langsmith_verification` | 综合服务处、电子身份证或其他有效证件换实体票的核心流程正确 | “忘带／丢失”措辞边界不一致；游客文本显示文件名和来源编号 | 当前人工结果有效；统一同义表达的事实集合和游客输出边界后复测 |
 | P1-14 | `partial_langsmith_verification` | 五工艺标准列表及灰塑／石雕两工艺位置概览基本可用 | 三工艺自然问法在规划前后路由不一致，缺少砖雕结论并泄漏原始检索内容 | 当前人工结果有效；应以“多工艺实体＋位置意图”统一规划前后入口 |
 | P1-15 | `passed` | 1959 年机构成立、1983-02-13 复馆、1994 年更名三种口径在规划前后均正确，且未见内部字段泄漏或状态变化 | 无 | 更新为 `verified_fixed`；具体 commit、thread 与 Trace 未记录 |

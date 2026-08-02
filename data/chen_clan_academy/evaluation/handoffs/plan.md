@@ -10,12 +10,12 @@
 ### 1.1 实际 Git 状态
 
 - 当前分支：`main`。
-- 当前本地 HEAD：`fe84be23819c03f56d3a8fce1077dd45af53f004`（`test: close safety and visitor output gates`）。
+- 当前本地 HEAD：`56688f7d9bda505da2b426021553afb54a05c5ce`（`fix: route stop completion through deterministic control`）。
 - 本地与 `origin/main`：同一提交；工作树干净。
 - 原审计时列出的架构方案、八天计划和数据文件修改均已纳入历史提交；当前不存在需先认领的未跟踪或未提交文件。
-- 但这不是绿色功能基线：`p0_safety_output_gate_acceptance_v1.md` 记录的最近完整回归为 757 项中 16 个失败、1 个错误；失败未被本计划重新归因或修复。P0 定向安全/输出矩阵为 59 项通过，不能替代完整回归。
+- 当前完整回归已在 `56688f7` 上运行，`770/770` 通过（0 failure、0 error）；P0 定向安全/游客输出矩阵 `59/59` 通过。P0-03/CA-00 行为矩阵见 `data/chen_clan_academy/evaluation/p0_gate_0_behavior_matrix_v1.yaml`。
 
-Git 同步和工作区归属已完成；下一步不是直接进入受控 Agent 实现，而是先取得可重复的完整回归结论并收口 P0/P1 待验证项。仍禁止使用覆盖式同步或以文档计划替代真实代码、测试和 LangSmith 证据。
+Git 同步和工作区归属已完成；Gate 0 当前为 `conditional_pass`：自动化护栏绿色，但本提交尚缺当前 LangSmith Trace，且 P1-04 仍有外部空间数据阻塞。仍禁止以文档计划替代真实代码、测试和 LangSmith 证据。
 
 ### 1.2 本计划读取的主要依据
 
@@ -77,7 +77,7 @@ Git 同步和工作区归属已完成；下一步不是直接进入受控 Agent 
 | VisitorProfile | 已实现 | `visitor_profile.py` 及 profile 模块 | 经典/定制模式及最少收集契约未冻结 |
 | 点位讲解/E5 | 已实现、部分待验 | `guide_program_*`、`narration_rendering.py`、`narration_coverage.py` | 版式、回退出口、完整矩阵仍待收口 |
 | 术语/研究/比较/打卡卡 | 数据、注册和被动问答已实现 | 各卡片 runtime/retrieval | 到点主动调度尚未建立 |
-| 安全门控与游客输出边界 | P0 定向矩阵已通过，完整/实链待收口 | `visit_safety_rules.py`、`photo_spot_runtime.py`、`public_visitor_message_or_fallback` | P0 记录 59 项定向通过；完整回归仍有 16 失败、1 错误 |
+| 安全门控与游客输出边界 | 自动化已通过，实链待收口 | `visit_safety_rules.py`、`photo_spot_runtime.py`、`public_visitor_message_or_fallback` | P0 矩阵 `59/59`、完整回归 `770/770`；当前提交的 LangSmith Trace 待补 |
 | 受控 Planner/Gate/Registry/Executor | 未实现 | 仅存在目标方案 | 需要分阶段 shadow → 灰度，不可一次重写 |
 | 经典/定制模式 | 未冻结 | 无唯一 `tour_mode` 归属 | 先做契约，不能随意加字段 |
 | 游后总结/成就 | 未形成正式产品链 | Coverage 可复用 | 缺统计口径、规则库和输出控制 |
@@ -116,7 +116,7 @@ P7 图辅助检索、全面评测、旧路由收敛与发布
 
 具体步骤：
 
-1. 已完成：确认并同步原先分叉的成员修改；当前 `main == origin/main == fe84be2`，工作树干净。
+1. 已完成：确认并同步原先分叉的成员修改；当前 `main == origin/main == 56688f7`，工作树干净。
 2. 已完成：记录当前受控 Agent/八天计划已进入提交历史，不再作为“未认领修改”。
 3. 待完成：在可用项目虚拟环境中重新运行完整 `unittest discover -v`，按根因归类 16 个失败与 1 个错误；不能沿用旧的非项目 Python 结果。
 4. 待完成：记录实际解释器、依赖锁定方式、索引 manifest、LangGraph CLI、测试命令和执行提交；再判定是否形成绿色功能基线。
@@ -167,7 +167,7 @@ P7 图辅助检索、全面评测、旧路由收敛与发布
 - 线程互不串状态、上下文和 evidence。
 - 工具/模型不可用时失败关闭或退回既有确定性路径。
 
-输出：新的基线测试和 handoff；此步不修改生产路由。
+输出：`data/chen_clan_academy/evaluation/p0_gate_0_behavior_matrix_v1.yaml` 与 `data/chen_clan_academy/evaluation/handoffs/p0_gate_0_behavior_baseline_v1.md`；此步不修改生产路由。当前状态：`conditional_pass_pending_review`。
 
 ## 6. P1：建立受控 Agent 基础控制面
 
@@ -509,11 +509,11 @@ Place → Ornament → Craft/Term → Source/ResearchCard/ComparisonCard
 
 不要从流程图最上方的 ASR 开始，也不要先开发 Academic Advisor。当前最合适的顺序是：
 
-1. 已完成：本地/远端分叉和未提交文件归属已收敛为干净的 `main@fe84be2`。
-2. 先运行并归类完整回归；当前记录为 757 项、16 失败、1 错误，尚不能冻结功能基线。
+1. 已完成：本地/远端分叉和未提交文件归属已收敛为干净的 `main@56688f7`。
+2. 已完成：项目虚拟环境完整回归为 `770/770`，P0 安全/游客输出矩阵为 `59/59`；CA-00 行为矩阵已建立，Gate 0 为 `conditional_pass`。
 3. 完成 P0-01/P0-02 的 LangSmith 守护矩阵，以及 P1-19/P1-21 的跨出口游客渲染复测；定向安全通过不等于实链通过。
-4. 复测并收口 P1-07/08/09/11/12/13/14/16；其中 P1-12C1 已更新代码但待本机与 LangSmith，P1-04 继续等待空间负责人决策。
-5. 在上述证据完成后建立 CA-00 基线测试与双模式能力矩阵。
+4. 复测并收口 P1-07/08/09/11/12/13/14/16；P1-12C1/C4 的自动化已通过，当前提交仍待 LangSmith；P1-04 继续等待空间负责人决策。
+5. 用 CA-00 行为矩阵补齐当前提交的 LangSmith 证据，并由负责人审核是否从 `conditional_pass` 提升为 `passed`。
 6. 只有 Gate 0 通过后，才依次实施 CA-01 AgentDecision schema、CA-02 Tool Registry、CA-03/04 只读 adapter 和 CA-05 Shadow Planner。
 
 这 8 步完成前，不建议开始语音、多语言、附近实时推荐或图数据库。它们依赖稳定的 Renderer、证据包、状态事件和工具权限；过早接入只会放大当前分散路由的问题。
