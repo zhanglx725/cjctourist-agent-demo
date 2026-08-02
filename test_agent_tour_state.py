@@ -193,6 +193,24 @@ class AgentTourStateTests(unittest.TestCase):
             "profile_collection",
         )
 
+    def test_bare_duration_without_route_enters_profile_collection(self):
+        for text in ("1.5个小时", "1.5小时", "一个半小时", "90分钟"):
+            with self.subTest(text=text):
+                self.assertEqual(route_initial_request(_message_state(text)), "profile_collection")
+
+    def test_bare_duration_on_active_route_uses_replan_time_event(self):
+        initial = self._started()
+        before = initial["tour_state"]
+        request = _message_state("1.5个小时", initial)
+        self.assertEqual(route_initial_request(request), "prepare_duration_replan")
+        result = agent_graph.prepare_duration_replan_node(request)
+        self.assertIsNotNone(result.get("pending_replan_proposal"))
+        self.assertEqual(result["tour_state"]["selected_route_id"], before["selected_route_id"])
+
+    def test_duration_knowledge_questions_do_not_enter_duration_control(self):
+        initial = self._started()
+        self.assertEqual(route_initial_request(_message_state("闭馆前1.5小时能进入吗？", initial)), "tour_qa")
+
     def test_point_inventory_question_uses_tour_qa_after_tour_exists(self):
         initial = self._started()
         self.assertEqual(route_initial_request(_message_state("月台有什么？", initial)), "tour_qa")

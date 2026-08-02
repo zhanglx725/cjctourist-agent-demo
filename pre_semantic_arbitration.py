@@ -19,6 +19,7 @@ from research_card_retrieval import is_explicit_research_question
 from comparison_retrieval import is_explicit_comparison_question
 from extended_profile_control import parse_extended_profile_control
 from profile_update import is_profile_update_request
+from duration_control import classify_duration_control_text
 from single_fact_answer import identify_single_fact_kind
 from tour_intent import classify_tour_intent, looks_like_arrival_control
 from tour_qa import is_point_inventory_request, resolve_ornament_story_scope_request
@@ -87,6 +88,15 @@ def resolve_pre_semantic_action(
             route_target=(
                 "tour_event" if decision.route_kind == "tour_event" else decision.route_kind
             ),
+            model_required=False,
+        )
+
+    duration_kind = classify_duration_control_text(user_text)
+    if duration_kind is not None:
+        return PreSemanticAction(
+            True,
+            reason=f"explicit_duration_{duration_kind}",
+            route_target="duration_control",
             model_required=False,
         )
 

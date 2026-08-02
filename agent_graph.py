@@ -19,6 +19,7 @@ from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 from dotenv import load_dotenv
 from duration_parser import has_route_duration_context, parse_duration_minutes
+from duration_control import classify_duration_control_text
 from rag_retrieval import ChenClanHybridRetriever
 from route_planner import CATALOG_FILE, recommend_route, _read_catalog
 from tour_navigation import (
@@ -798,7 +799,11 @@ def profile_collection_node(state: AgentState) -> dict[str, Any]:
     decision = classify_tour_intent(
         query, state.get("tour_state"), state.get("tour_interaction_state")
     )
-    start_collection = decision.route_kind == "route_request" or should_direct_route(query)
+    start_collection = (
+        decision.route_kind == "route_request"
+        or should_direct_route(query)
+        or classify_duration_control_text(query) is not None
+    )
     started = time.perf_counter()
     result = collect_profile_input(
         state.get("profile_collection"), query, start_collection=start_collection,
@@ -1160,6 +1165,54 @@ def prepare_replan_candidate_node(state: AgentState) -> dict[str, Any]:
         "pending_ornament_clarification": None,
         "performance_metrics": _append_metric(
             state, "prepare_replan_candidate", time.perf_counter() - started,
+            ok=True, origin_node_id=origin, remaining_minutes=parsed.minutes,
+        ),
+    }
+
+
+def prepare_duration_replan_node(state: AgentState) -> dict[str, Any]:
+    """Preview an active-route duration change without applying it."""
+    started = time.perf_counter()
+    tour = state.get("tour_state")
+    interaction = state.get("tour_interaction_state")
+    parsed = parse_duration_minutes(_latest_user_text(state))
+    origin = (tour or {}).get("current_stop_id") if isinstance(tour, dict) else None
+    if not isinstance(tour, dict) or not isinstance(interaction, dict) or not isinstance(origin, str) or not parsed.ok:
+        message = "请提供20到120分钟内的明确剩余时间。"
+        return {
+            "messages": [AIMessage(content=message)],
+            "tour_presentation": present_clarification(message, interaction),
+            "pending_replan_proposal": None,
+            "performance_metrics": _append_metric(state, "prepare_duration_replan", time.perf_counter() - started, ok=False),
+        }
+    try:
+        proposal = prepare_remaining_route_proposal(
+            tour,
+            origin_node_id=origin,
+            origin_source="explicit_duration_control",
+            remaining_minutes=parsed.minutes,
+        ).to_dict()
+    except (ValueError, KeyError) as exc:
+        message = f"无法按您提供的 {parsed.minutes} 分钟生成可靠的后续路线候选：{exc}"
+        return {
+            "messages": [AIMessage(content=message)],
+            "tour_presentation": present_clarification(message, interaction),
+            "pending_replan_proposal": None,
+            "performance_metrics": _append_metric(state, "prepare_duration_replan", time.perf_counter() - started, ok=False),
+        }
+    updated_interaction = {**interaction, "pending_action_kind": "replan_route_confirmation"}
+    presentation = present_replan_proposal(proposal)
+    return {
+        "messages": [AIMessage(content=presentation["message"])],
+        "tour_state": tour,
+        "tour_interaction_state": updated_interaction,
+        "tour_presentation": presentation,
+        "pending_replan_proposal": proposal,
+        "pending_replan_time_confirmation": None,
+        "qa_context": clear_qa_context(state.get("qa_context")),
+        "pending_ornament_clarification": None,
+        "performance_metrics": _append_metric(
+            state, "prepare_duration_replan", time.perf_counter() - started,
             ok=True, origin_node_id=origin, remaining_minutes=parsed.minutes,
         ),
     }
@@ -1983,6 +2036,11 @@ def route_initial_request(state: AgentState) -> str:
         # into a vague global clarification.  Re-show the explicit choices;
         # this neither recalculates nor changes the formal route.
         return "show_replan"
+    duration_kind = classify_duration_control_text(raw_text)
+    if duration_kind is not None and state.get("tour_state") and state.get("tour_state", {}).get("route_status") not in {None, "completed"}:
+        if duration_kind == "parsed":
+            return "prepare_duration_replan"
+        return "clarification"
     # P1-11 is a deliberately narrow composition: reviewed arrival followed
     # by remaining-route preview.  It must win before broad route/profile
     # matching, otherwise “规划” would start a fresh collection flow.
@@ -2043,6 +2101,12 @@ def route_initial_request(state: AgentState) -> str:
     # Broad knowledge questions use the same reviewed category boundary and
     # evidence-grounded renderer before and during a tour.  The plan contains
     # no facts and cannot mutate route or visitor state.
+    duration_kind = classify_duration_control_text(raw_text)
+    if duration_kind is not None and not (
+        state.get("tour_state")
+        and state.get("tour_state", {}).get("route_status") not in {None, "completed"}
+    ):
+        return "profile_collection"
     if _effective_knowledge_plan(state) is not None:
         return (
             "tour_qa"
@@ -2184,6 +2248,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("tour_event", tour_event_node)
     workflow.add_node("prepare_replan", prepare_replan_node)
     workflow.add_node("prepare_replan_candidate", prepare_replan_candidate_node)
+    workflow.add_node("prepare_duration_replan", prepare_duration_replan_node)
     workflow.add_node("confirm_replan", confirm_replan_node)
     workflow.add_node("confirm_replan_and_next", confirm_replan_and_next_node)
     workflow.add_node("cancel_replan", cancel_replan_node)
@@ -2197,7 +2262,7 @@ def build_agent_graph(with_checkpointer: bool = True):
         route_initial_request,
         {
             "direct_rag": "direct_rag", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "tour_event": "tour_event",
-            "clarification": "clarification", "prepare_replan": "prepare_replan", "prepare_replan_candidate": "prepare_replan_candidate",
+            "clarification": "clarification", "prepare_replan": "prepare_replan", "prepare_replan_candidate": "prepare_replan_candidate", "prepare_duration_replan": "prepare_duration_replan",
             "confirm_replan": "confirm_replan", "cancel_replan": "cancel_replan", "show_replan": "show_replan", "show_replan_time": "show_replan_time", "llm_think": "llm_think",
         },
     )
@@ -2214,6 +2279,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_conditional_edges("tour_event", route_after_tour_event, {"stop_guidance": "stop_guidance", END: END})
     workflow.add_edge("prepare_replan", END)
     workflow.add_edge("prepare_replan_candidate", END)
+    workflow.add_edge("prepare_duration_replan", END)
     workflow.add_conditional_edges("confirm_replan", route_after_confirm_replan, {"stop_guidance": "stop_guidance", END: END})
     workflow.add_edge("confirm_replan_and_next", END)
     workflow.add_edge("cancel_replan", END)

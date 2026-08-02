@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from duration_parser import has_remaining_duration_context, has_route_duration_context, parse_duration_minutes
+from duration_control import classify_duration_control_text
 from arrival_control import is_safe_arrival_report_text, looks_like_arrival_control
 from tour_interaction import EVENTS
 
@@ -601,6 +602,19 @@ def classify_tour_intent(
     replan = _classify_remaining_route_replan(text, tour_state)
     if replan is not None:
         return replan
+
+    # A bare explicit duration is a remaining-time update only when an active
+    # tour already exists.  Pending replan stages are handled by the graph's
+    # higher-priority resolver; a no-route duration remains profile input.
+    duration_kind = classify_duration_control_text(text)
+    if _active_tour(tour_state) and duration_kind is not None:
+        if duration_kind == "parsed":
+            return validate_event_suggestion(
+                "replan_time", {"available_minutes": parsed_duration.minutes}
+            )
+        if duration_kind == "ambiguous":
+            return clarification("ambiguous_duration", "时间表达包含多个不同分钟数，请只确认一个剩余时间。")
+        return clarification("invalid_duration", "请提供20到120分钟内的明确可用时间。")
 
     hits = _event_hits(text)
     # A control action plus a factual request must not partly execute in A1-2.

@@ -41,6 +41,20 @@ class PreSemanticArbitrationTests(unittest.TestCase):
         self.assertFalse(result.consumed)
         self.assertTrue(result.model_required)
 
+    def test_explicit_duration_is_owned_before_semantic_model(self):
+        for text in ("1.5个小时", "1.5小时", "一个半小时", "90分钟", "我有1.5个小时", "我还剩1.5小时"):
+            with self.subTest(text=text):
+                result = resolve_pre_semantic_action({}, text)
+                self.assertTrue(result.consumed)
+                self.assertEqual(result.route_target, "duration_control")
+                self.assertFalse(result.model_required)
+
+    def test_duration_questions_and_vague_time_are_not_claimed(self):
+        for text in ("闭馆前1.5小时能进入吗？", "这个故事讲了1.5小时吗？", "时间不多"):
+            with self.subTest(text=text):
+                result = resolve_pre_semantic_action({}, text)
+                self.assertFalse(result.consumed)
+
     def test_arrival_shaped_but_unsafe_text_is_consumed_as_clarification(self):
         """Arrival control may never use semantic-model failure as a RAG fallback."""
         for text in (
