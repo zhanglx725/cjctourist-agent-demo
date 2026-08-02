@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from duration_parser import has_remaining_duration_context, has_route_duration_context, parse_duration_minutes
-from semantic_normalization import is_safe_arrival_report_text
+from arrival_control import is_safe_arrival_report_text, looks_like_arrival_control
 from tour_interaction import EVENTS
 
 
@@ -219,50 +219,8 @@ def _has_arrival_language(text: str) -> bool:
     )
 
 
-def looks_like_arrival_control(text: str) -> bool:
-    """Return whether a turn is arrival-shaped and must not fall into RAG.
-
-    It deliberately has no node-resolution or event-execution authority.  A
-    true result means only that the turn is visitor-location control shaped;
-    unresolved, negated, in-transit, third-party, or malformed variants must
-    be clarified rather than answered by a free knowledge path.
-    """
-    raw = str(text or "").strip()
-    if not raw:
-        return False
-    # A temporal condition followed by a factual question remains knowledge
-    # Q&A: “到达月台以后能看到什么？” must not be treated as an arrival.
-    temporal_knowledge = bool(re.search(
-        r"(?:抵达|到达|来到|走到|走进).{0,12}(?:以后|之后|后).{0,16}"
-        r"(?:什么|为什么|有哪些|能看到|介绍|讲讲|特点|故事)",
-        raw,
-    ))
-    if temporal_knowledge:
-        return False
-    # Hypothetical and verification wording is still arrival-control shaped:
-    # it must be clarified, not passed to free knowledge retrieval.  The
-    # temporal-question exception above keeps “到达月台以后能看到什么” in Q&A.
-    if re.search(r"(?:如果|是不是|算).{0,12}(?:抵达|到达|来到|走到|走进|到了|到)", raw):
-        return True
-    if re.match(r"^(?:我现在在|现在人在)\s*[^？?。！!]+$", raw):
-        return True
-    arrival_stem = r"(?:抵达|到达|来到|走到|走进|到了|到位|到)"
-    explicit_subject_or_completion = r"(?:我|我们|朋友|孩子|导游|终于|已经|已|刚)"
-    if re.search(arrival_stem, raw) and re.search(explicit_subject_or_completion, raw):
-        return True
-    # These are still position-control statements even though they negate or
-    # defer arrival.  They must clarify instead of being treated as free RAG.
-    return bool(
-        re.search(
-            r"(?:我|我们|朋友|孩子|导游).{0,8}(?:还在路上|正在去|准备去|打算去|"
-            r"还没(?:到|抵达|到达|来到|走到)|没有(?:到|抵达|到达|来到|走到)|尚未(?:到|抵达|到达|来到))",
-            raw,
-        )
-    )
-
-
 def _has_destination_language(text: str) -> bool:
-    return bool(re.search(r"(?:想去|想要去|要去|去).{0,12}(?:看看|参观|逛逛|一下)", text))
+    return bool(re.search(r"(?:想去|想要去|要去|准备去|打算去|接下来去(?!哪|哪儿|哪里)|带我到|准备前往)", text))
 
 
 def _remaining_minutes(text: str) -> int | None:
@@ -377,6 +335,7 @@ def _is_generic_arrival_phrase(text: str) -> bool:
         "我们走到了",
         "我已经抵达这里了",
         "我人到了",
+        "我终于抵达啦",
         "终于走到了",
         "已经来到这一站了",
         "我们走到跟前了",
@@ -558,16 +517,6 @@ def classify_tour_intent(
     if has_remaining_duration_context(text) and parsed_duration.reason_code == "ambiguous_duration":
         return clarification("ambiguous_duration", "时间表达包含多个不同分钟数，请只确认一个剩余时间。")
 
-    # Arrival-shaped controls take precedence over all remaining-route and
-    # generic-RAG paths.  A safe report will continue to the existing A1
-    # event parser below; an unsafe or incomplete report closes with a
-    # clarification instead of guessing a location or querying knowledge.
-    if looks_like_arrival_control(text) and not is_safe_arrival_report_text(text):
-        return clarification(
-            "arrival_not_safely_resolved",
-            "我还不能安全确认您到达的具体点位。请告诉我现场点位名称，或确认是否已经到达当前路线的下一站。",
-        )
-
     replan = _classify_remaining_route_replan(text, tour_state)
     if replan is not None:
         return replan
@@ -577,6 +526,22 @@ def classify_tour_intent(
     fact_cue = _has_factual_follow_up(text) and "request_stop_detail" not in hits
     if len(hits) > 1 or (hits and fact_cue):
         return clarification("multiple_intents", "我检测到多个操作或问题，请一次告诉我一个需求。")
+
+    # A declared destination is not an arrival report.  Keep its established
+    # clarification before the broader arrival-shaped safety guard so intent
+    # wording is never reported as an unresolved physical location.
+    if _has_destination_language(text):
+        return clarification("destination_not_arrival", "这是前往意图，不会记录为已到达；如需路线请说明可用时间。")
+
+    # Arrival is the final control guard, not a shortcut around P1-11
+    # replan reasons or A1 multi-intent detection.  Its only job is to keep a
+    # malformed location-control turn out of RAG once the higher-priority
+    # specialist controls above have declined it.
+    if looks_like_arrival_control(text) and not is_safe_arrival_report_text(text):
+        return clarification(
+            "arrival_not_safely_resolved",
+            "我还不能安全确认您到达的具体点位。请告诉我现场点位名称，或确认是否已经到达当前路线的下一站。",
+        )
 
     # P1-12C1: semantic normalization can propose an arrival candidate, but
     # the original wording remains the authority for whether A1 may execute
@@ -622,8 +587,6 @@ def classify_tour_intent(
 
     if any(term in text for term in ("快一点", "快些", "赶时间")):
         return clarification("missing_remaining_minutes", "请告诉我还剩多少分钟，例如“我只剩 20 分钟”。")
-    if _has_destination_language(text):
-        return clarification("destination_not_arrival", "这是前往意图，不会记录为已到达；如需路线请说明可用时间。")
     if _looks_like_route_request(text):
         return _decision("route_request", confidence="high", reason_code="explicit_route_request")
     if _looks_like_question(text):

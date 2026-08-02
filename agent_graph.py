@@ -1999,7 +1999,16 @@ def route_initial_request(state: AgentState) -> str:
     # A validated deterministic arrival must retain its A1 execution path.
     # The control-shaped guard below only closes unsafe/unresolved forms that
     # would otherwise drift into semantic/RAG fallbacks.
-    if early_decision.route_kind == "tour_event":
+    if (
+        early_decision.route_kind == "tour_event"
+        and early_decision.event_type == "arrive_at_stop"
+    ):
+        # Only an already validated arrival retains this early A1 path.
+        # Remaining-time updates, detail requests, completion and skip events
+        # must continue through their existing specialist/pending-action
+        # ordering below.
+        if is_profile_update_request(text):
+            return "profile_update"
         return "tour_event"
     # A model failure must never turn a visitor-location control into RAG.  A
     # safe arrival already returned ``tour_event`` above; every other

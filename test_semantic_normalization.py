@@ -250,7 +250,11 @@ class SemanticNormalizationTests(unittest.TestCase):
         state = self._state(text, initial)
         with patch("agent_graph.recognize_semantic_candidate", return_value=candidate):
             state.update(semantic_normalization_node(state))
-        self.assertEqual(state["semantic_arrival_audit"]["resolved_node_id"], "stop_rear_courtyard")
+        # The deterministic reviewed-node parser now owns this explicit raw
+        # arrival before semantic normalization.  A semantic audit is
+        # therefore optional; the A1 self-arrival outcome below remains the
+        # required verification.
+        self.assertIsNone(state["semantic_arrival_audit"])
         self.assertEqual(route_initial_request(state), "tour_event")
         result = tour_event_node(state)
         self.assertEqual(result["last_tour_event"]["code"], "self_arrival")
@@ -261,7 +265,7 @@ class SemanticNormalizationTests(unittest.TestCase):
             result["pending_replan_time_confirmation"]["status"],
             "replan_time_confirmation",
         )
-        self.assertEqual(result["semantic_arrival_audit"]["final_event"]["code"], "self_arrival")
+        self.assertIsNone(result["semantic_arrival_audit"])
         merged = {**initial, **result}
         for key, value in before.items():
             self.assertEqual(merged.get(key), value)
