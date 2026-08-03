@@ -103,6 +103,10 @@ P2-01 的 Shadow 节点安排在旧链路之后，以保证不改变游客正文
 
 P2-03 的正确对象是旧 P1-11 已生成的 `pending_replan_proposal`，而不是另一份重规划候选。`09a85c8` 因此只读取该 preview 和当前 TourState 快照；一旦 origin、visited/skipped 快照、时间或 schema 不一致就失败关闭。`334ea7a` 进一步要求 Shadow 模式的 capability 配置错误产生结构化 `capability_not_enabled` 审计，而不是 Trace 中出现空节点造成误判。人工实链已经看到补充 40 分钟后的 `accepted/matches_legacy=true`、未知位置澄清及取消后的 `legacy_proposal_absent`。这仍是 Shadow evidence，不允许自动确认、应用新路线或接入状态适配器。
 
+### P2-04-A Shadow：dry-run 必须与唯一一次旧链执行分离
+
+状态事件最危险的回归是为了比较结果而执行两次。`92ca888` 把普通 tour event 的共同规则抽成纯 preflight：它只读取复制的状态，输出预期阶段和原因码，不能调用 `handle_tour_event`。Graph 随后仍由旧路径执行一次，再把实际事件结果和 dry-run 建议写进 `state_transition_evaluations`。这样审计可发现差异，却不成为第二个 TourState 或第二个写入口。该轮仅覆盖普通事件；P1-11 的 replan 确认、复合确认后下一站和取消仍保留在 P2-04-B 单独审计，不能因 P2-04-A 通过而宣称状态接管已开启。
+
 ## 5. 空间网络与路线规划
 
 ### 用户问题

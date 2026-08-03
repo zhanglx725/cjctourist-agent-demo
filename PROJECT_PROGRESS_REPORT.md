@@ -1060,6 +1060,14 @@ glossary_ids
 - Studio：月台补充 40 分钟的旧 proposal 被审计为 `accepted`/`matches_legacy=true`；未知位置保持澄清；取消后记录 `legacy_proposal_absent` 且原路线保持。完整 Trace URL/revision、完整 Thread ID 与人工逐字段状态 diff 未保存，因此为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。
 - P2-03 active disabled；P2-04 未开始；Gate 3 仍 pending。
 
+## P2-04-A 普通状态迁移 Graph Shadow（功能已验收，Trace 元数据待补）
+
+- `92ca888` 在普通 `tour_event` 入口加入只读 dry-run 对照；旧 `handle_tour_event` 仍只执行一次，Shadow 不能写状态或改变游客正文。
+- 覆盖到达、讲解结束、确认完成、跳过、下一站和结束；审计字段仅写入 thread-local `state_transition_evaluations`。
+- 自动化：定向 24/24、完整回归 867/867、P0 矩阵 3/3 均通过。
+- Studio 人工验证观察到所有上述普通事件均为 accepted 且旧链执行/结果匹配。完整 Thread ID、Trace URL/revision 和逐字段状态 diff 未保存，因此状态为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。
+- P2-04-A active disabled；P2-04-B replan composite audit not started；Gate 3 pending final acceptance。
+
 ## P1-21 游客文本与内部审计来源分离（已实现，待 LangSmith 验证）
 
 - 工艺总述的游客渲染不再拼接内部来源编号；工艺和对象来源继续保留在 `evidence`、术语元数据与 Trace 审计结构中。
