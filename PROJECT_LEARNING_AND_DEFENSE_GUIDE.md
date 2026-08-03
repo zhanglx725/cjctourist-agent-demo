@@ -99,6 +99,10 @@ P2-05 的负责人 Studio 操作可证明功能路径、游客正文和可见状
 
 P2-01 的 Shadow 节点安排在旧链路之后，以保证不改变游客正文；因此最后一条 message 往往已是 AI 回答。审计若直接读取 `messages[-1]`，会把 AI 正文误当用户输入，导致多意图被误判为 `not_multi_intent`。`fa1e00f` 改为倒序读取最近 Human message，并以 Graph 级回归固定该边界。人工 Studio 已观察到 `single_fact` 与 `controlled_knowledge` 的闭合只读候选，但 Trace URL/revision 与完整状态 diff 未保存；应如实记为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。这只允许 Shadow 归档，不允许 active 执行或状态类能力接管。
 
+### P2-03 Shadow：审计必须复用旧 P1-11 proposal，而不是再规划一次
+
+P2-03 的正确对象是旧 P1-11 已生成的 `pending_replan_proposal`，而不是另一份重规划候选。`09a85c8` 因此只读取该 preview 和当前 TourState 快照；一旦 origin、visited/skipped 快照、时间或 schema 不一致就失败关闭。`334ea7a` 进一步要求 Shadow 模式的 capability 配置错误产生结构化 `capability_not_enabled` 审计，而不是 Trace 中出现空节点造成误判。人工实链已经看到补充 40 分钟后的 `accepted/matches_legacy=true`、未知位置澄清及取消后的 `legacy_proposal_absent`。这仍是 Shadow evidence，不允许自动确认、应用新路线或接入状态适配器。
+
 ## 5. 空间网络与路线规划
 
 ### 用户问题

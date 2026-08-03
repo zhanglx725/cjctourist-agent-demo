@@ -1053,6 +1053,13 @@ glossary_ids
 - Studio：30 分钟灰塑和 60 分钟灰塑+木雕均显示 `validation_status=accepted` 与 `matches_legacy=true`；10 分钟显示 `rejected_reason=invalid_profile_value` 和 `proposal=null`，游客继续看到旧的 20–120 分钟校验提示。
 - 三个 Thread ID 已在 handoff 记录；Trace URL/revision 与完整人工状态 diff 未保存，因此为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P2-02 active disabled；P2-03/P2-04 未开始。
 
+## P2-03 重规划 Proposal Graph Shadow（功能已验收，Trace 元数据待补）
+
+- `09a85c8` 接入只读 `replan_proposal_shadow`，`334ea7a` 补齐 capability 未启用时的结构化拒绝审计；该节点只包装旧 P1-11 的 `pending_replan_proposal`，不重跑重规划、不调用状态适配器、不替换正式路线。
+- 自动化：当前完整回归 `860/860`、P0 矩阵 `3/3`、`git diff --check` 均通过；P2-03 定向覆盖为 57/57，新增诊断套件 6/6。
+- Studio：月台补充 40 分钟的旧 proposal 被审计为 `accepted`/`matches_legacy=true`；未知位置保持澄清；取消后记录 `legacy_proposal_absent` 且原路线保持。完整 Trace URL/revision、完整 Thread ID 与人工逐字段状态 diff 未保存，因此为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。
+- P2-03 active disabled；P2-04 未开始；Gate 3 仍 pending。
+
 ## P1-21 游客文本与内部审计来源分离（已实现，待 LangSmith 验证）
 
 - 工艺总述的游客渲染不再拼接内部来源编号；工艺和对象来源继续保留在 `evidence`、术语元数据与 Trace 审计结构中。

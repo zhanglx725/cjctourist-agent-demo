@@ -400,3 +400,7 @@ P2-01 `fa1e00f` 已完成功能与自动化验收：定向 46/46、完整 841/84
 # P2-02 Shadow 证据分级
 
 P2-02 `d0b61e0`/`44235c3` 已通过定向 55/55、完整 852/852 与 P0 8/8。负责人 Studio 截图记录了 30/60 分钟 accepted 且 `matches_legacy=true`，以及 10 分钟的 `invalid_profile_value` reject；完整 Trace URL/revision 与逐字段状态 diff 未保存。协作中必须记为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。该状态只允许 Shadow 归档与后续只读验收；不允许 P2-02 active、自动确认路线或状态事件接管。
+
+# P2-03 Shadow 证据分级
+
+P2-03 `09a85c8`/`334ea7a` 已通过人工与自动化验收：当前完整回归 860/860、P0 3/3。Studio 显示月台补充 40 分钟后的旧 P1-11 proposal 被 Shadow 审计为 `accepted`、`matches_legacy=true`；未知位置保持旧澄清；取消后为 `legacy_proposal_absent`。未保存完整 Thread ID、Trace URL/revision 或逐字段状态 diff，协作中必须写为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P2-03 只允许 Shadow 归档；不允许 active、自动应用 proposal 或接入 P2-04 状态写入。

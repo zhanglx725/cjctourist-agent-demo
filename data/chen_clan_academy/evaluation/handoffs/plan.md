@@ -530,6 +530,10 @@ Place → Ornament → Craft/Term → Source/ResearchCard/ComparisonCard
 
 `d0b61e0`/`44235c3` 将同一份旧 `RouteSelection` 包装为审计 proposal，而不重新选择、重新规划或改变旧 `direct_route` 的 `start_tour`/正文/正式状态。accepted 候选只写入 thread-local `route_proposal_evaluations`，并对旧路线记录 `matches_legacy=true`；10 分钟非法画像被记录为 `rejected_reason=invalid_profile_value`，旧的 20–120 分钟提示不变。定向 55/55、完整 852/852、P0 8/8 均通过。负责人 Studio 提供了三个 Thread ID，但未保存 Trace URL/revision；归档为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P2-02 active disabled，P2-03/P2-04 未开始；详见 `p2_02_route_proposal_shadow_handoff.md`。
 
+### P2-03 Replan Proposal Graph Shadow（功能已验收，Trace 元数据待补）
+
+`09a85c8`/`334ea7a` 将旧 P1-11 已产生的 `pending_replan_proposal` 只读包装为 thread-local `replan_proposal_evaluations`；不重新调用重规划器，不应用或取消 proposal，不改变旧游客正文或正式状态。Studio 人工验证：月台补充 40 分钟后的同一份旧 proposal 为 `accepted` 且 `matches_legacy=true`；未知位置保持旧澄清、不生成默认 proposal；取消后旧 preview 清空，Shadow 如实记录 `legacy_proposal_absent`。当前完整回归 860/860、P0 3/3 与 `git diff --check` 通过。完整 Thread ID、Trace URL/revision 与人工逐字段状态 diff 未保存，因此归档为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P2-03 active disabled；P2-04 未开始；Gate 3 仍 pending。详见 `p2_03_replan_proposal_shadow_handoff.md`。
+
 这 8 步完成前，不建议开始语音、多语言、附近实时推荐或图数据库。它们依赖稳定的 Renderer、证据包、状态事件和工具权限；过早接入只会放大当前分散路由的问题。
 
 ## 17. 完成定义
