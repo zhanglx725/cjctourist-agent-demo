@@ -1761,6 +1761,17 @@ def route_proposal_shadow_node(state: AgentState, config: RunnableConfig) -> dic
         if isinstance(candidate, dict)
         else "legacy_route_unavailable"
     )
+    if not isinstance(candidate, dict):
+        latest_metric = next(
+            (
+                item for item in reversed(state.get("performance_metrics", []))
+                if item.get("node") == "profile_collection"
+            ),
+            {},
+        )
+        rejected_reason = str(
+            latest_metric.get("reason_code") or rejected_reason
+        )
     record = {
         "thread_id": _rollout_thread_id(config),
         "validation_status": candidate.get("validation_status") if isinstance(candidate, dict) else "rejected",
@@ -2519,7 +2530,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_edge("route_proposal_shadow", "atomic_read_plan_shadow")
     workflow.add_conditional_edges(
         "profile_collection", route_after_profile_collection,
-        {"direct_route": "direct_route", END: "atomic_read_plan_shadow"},
+        {"direct_route": "direct_route", END: "route_proposal_shadow"},
     )
     workflow.add_edge("profile_update", "atomic_read_plan_shadow")
     workflow.add_edge("extended_profile_control", "atomic_read_plan_shadow")

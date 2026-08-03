@@ -8,7 +8,7 @@ from unittest.mock import patch
 from langchain_core.messages import HumanMessage
 
 import agent_graph
-from agent_graph import direct_route_node, route_proposal_shadow_node
+from agent_graph import direct_route_node, profile_collection_node, route_proposal_shadow_node
 from route_selection import recommend_route as deterministic_recommend_route
 
 
@@ -86,6 +86,23 @@ class RouteProposalShadowTests(unittest.TestCase):
             audit = route_proposal_shadow_node({**state, **route}, {})
         self.assertNotIn("route_proposal_shadow_candidate", route)
         self.assertEqual(audit, {})
+
+    def test_invalid_profile_is_recorded_as_a_rejected_shadow_proposal(self):
+        state = {"messages": [HumanMessage(content="我只有10分钟，帮我规划一条路线。")], "performance_metrics": []}
+        collected = profile_collection_node(state)
+        with patch.dict(
+            os.environ,
+            {
+                "CJC_READ_ONLY_ROLLOUT_MODE": "shadow",
+                "CJC_READ_ONLY_ROLLOUT_CAPABILITIES": "route_proposal",
+            },
+            clear=False,
+        ):
+            audit = route_proposal_shadow_node({**state, **collected}, {})
+        record = audit["route_proposal_evaluations"][0]
+        self.assertEqual(record["validation_status"], "rejected")
+        self.assertEqual(record["rejected_reason"], "invalid_profile_value")
+        self.assertIsNone(record["proposal"])
 
     def test_shadow_preserves_all_legacy_formal_route_state(self):
         state = _state(30, ["灰塑"], "standard")
