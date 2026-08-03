@@ -563,3 +563,17 @@ Place → Ornament → Craft/Term → Source/ResearchCard/ComparisonCard
 - 学术工作区不伪造来源、不越权使用全文、不污染导游状态。
 - 文字、字幕和语音事实一致，所有内部字段只留在审计。
 - 自动测试、LangSmith 实链、故障注入、线程隔离和回滚演练全部通过。
+
+## Gate 3：P2 Shadow / 只读最终集成验收（已通过）
+
+`5ee99ea` 完成 P2 最终 Shadow/只读集成验收：P2-01 原子多意图、P2-02 路线 proposal、P2-03 重规划 proposal、P2-04-A 普通状态事件、P2-04-B 重规划复合操作均保持 Shadow；P2-05 保持其已冻结的受控只读灰度契约。所有审计字段仅存在于当前 thread checkpoint，不能成为第二份 TourState、VisitorProfile、正式路线或 proposal。
+
+Gate 3 定向 66/66、完整回归 877/877、P0 矩阵 3/3 和 `git diff --check` 通过。负责人完成四组 Studio 功能操作：游览中票务问答后继续导游、多意图安全澄清、60 分钟路线与旧选择一致、偏航后的确认新路线并前往下一站。未保存完整 Trace 元数据，统一标记 `manual_validation: passed_by_operator` 与 `langsmith_trace_status: metadata_unavailable`，不得写成 Trace 已验证。
+
+```text
+P2 integration functional validation: passed
+P2 state-class active takeover: disabled
+Gate 3: passed for shadow/read-only integration
+```
+
+详见 `p2_gate_3_integration_acceptance.md`。下一阶段在获得独立授权前不得开启任何路线、重规划或状态类 active takeover。

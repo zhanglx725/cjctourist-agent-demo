@@ -1074,6 +1074,22 @@ glossary_ids
 - 自动化：定向 5/5、关联 66/66、完整回归 874/874、P0 3/3 与 `git diff --check` 均通过。
 - Studio：负责人确认复合确认记录为 `accepted`、`formal_route_changed=true`、`matches_expected_contract=true`，proposal 清空；取消仍由旧 P1-11 清理且原路线保持。完整 Thread ID、Trace URL/revision 和逐字段状态截图未保存，因此为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P2-04 active takeover disabled；Gate 3 pending final P2 integration acceptance。详见 `p2_04b_replan_composite_shadow_handoff.md`。
 
+## P2 Gate 3：Shadow / 只读最终集成验收（已通过）
+
+- 基线：`experiment/agent-orchestration-v2@5ee99ea`。Gate 3 覆盖 P2-01 原子多意图 Shadow、P2-02 路线 proposal Shadow、P2-03 重规划 proposal Shadow、P2-04-A 普通事件 Shadow、P2-04-B 重规划复合 Shadow，以及 P2-05 已冻结的受控知识只读灰度。
+- 自动化：Gate 3 定向及 P2/Gate 1 相关套件 `66/66`、完整回归 `877/877`、P0 安全/游客输出矩阵 `3/3` 均通过；`git diff --check` 通过（仅有未修改路线 JSON 的 CRLF 提示）。
+- 人工 Studio：游览中票务问答后“下一站”正常继续；到达+问答+下一站保持旧澄清而未半执行；60 分钟路线与旧 RouteSelection 一致；偏航后“确认新路线并前往下一站”实际到达 `confirm_replan_and_next`，新 proposal 仅应用一次并导航到新路线下一站。
+- 审计字段均为 thread checkpoint 内的观测记录，不是第二份 TourState、VisitorProfile、正式路线或 proposal。没有路线、重规划或状态类 active takeover。
+- 完整 Trace URL、Thread ID、revision 未保存；状态如实归档为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`，不得写成 Trace 已验证。
+
+```text
+P2 integration functional validation: passed
+P2 state-class active takeover: disabled
+Gate 3: passed for shadow/read-only integration
+```
+
+详见 `data/chen_clan_academy/evaluation/handoffs/p2_gate_3_integration_acceptance.md`。
+
 ## P1-21 游客文本与内部审计来源分离（已实现，待 LangSmith 验证）
 
 - 工艺总述的游客渲染不再拼接内部来源编号；工艺和对象来源继续保留在 `evidence`、术语元数据与 Trace 审计结构中。
