@@ -89,6 +89,7 @@ from controlled_rollout import (
     CONTROLLED_KNOWLEDGE,
     ROUTE_PROPOSAL,
     REPLAN_PROPOSAL,
+    STATE_TRANSITION,
     RolloutMode,
     evaluation_record,
     rollout_from_environment,
@@ -96,6 +97,7 @@ from controlled_rollout import (
 from atomic_intent_shadow_planner import observe_atomic_read_intents
 from route_proposal import wrap_route_selection_for_shadow
 from replan_proposal import wrap_existing_replan_proposal_for_shadow
+from state_transition_adapter import dry_run_transition
 from policy_gate import evaluate_policy
 from reviewed_read_tools import answer_reviewed_controlled_knowledge
 from tool_registry import RuntimePhase
@@ -181,6 +183,9 @@ class AgentState(TypedDict, total=False):
     route_proposal_shadow_candidate: dict[str, Any] | None
     route_proposal_evaluations: list[dict[str, Any]]
     replan_proposal_evaluations: list[dict[str, Any]]
+    # P2-04-A audit only.  It is a bounded per-thread comparison record, not
+    # a second TourState and never participates in visitor rendering.
+    state_transition_evaluations: list[dict[str, Any]]
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -1019,7 +1024,7 @@ def extended_profile_control_node(state: AgentState) -> dict[str, Any]:
     return updates
 
 
-def tour_event_node(state: AgentState) -> dict[str, Any]:
+def tour_event_node(state: AgentState, config: RunnableConfig = None) -> dict[str, Any]:
     """Execute one already-classified tour event only through A1-1 adapter."""
     started = time.perf_counter()
     decision = classify_tour_intent(
@@ -1033,6 +1038,24 @@ def tour_event_node(state: AgentState) -> dict[str, Any]:
             "last_tour_intent": decision.to_dict(),
             "performance_metrics": _append_metric(state, "tour_event", time.perf_counter() - started, executed=False),
         }
+    rollout = rollout_from_environment()
+    shadow = None
+    normal_event = decision.event_type in {
+        "arrive_at_stop", "explanation_finished", "confirm_stop_complete",
+        "skip_stop", "next_stop", "finish_tour",
+    }
+    if rollout.mode is RolloutMode.SHADOW and normal_event:
+        shadow = (
+            dry_run_transition(
+                decision.event_type, state.get("tour_state"),
+                state.get("tour_interaction_state"), **(decision.arguments or {}),
+            )
+            if rollout.observes(STATE_TRANSITION)
+            else {
+                "accepted": False, "event_type": decision.event_type,
+                "expected_phase": None, "reason_code": "capability_not_enabled",
+            }
+        )
     result = handle_tour_event(
         state.get("tour_state"),
         state.get("tour_interaction_state"),
@@ -1103,6 +1126,30 @@ def tour_event_node(state: AgentState) -> dict[str, Any]:
             ok=result["ok"],
         ),
     }
+    if shadow is not None:
+        observed_phase = (result.get("interaction_state") or {}).get("stop_phase")
+        phase_matches = (
+            shadow["expected_phase"] is None
+            or shadow["expected_phase"] == observed_phase
+        )
+        matches = bool(
+            shadow["accepted"] == bool(result.get("ok"))
+            and shadow["reason_code"] == result.get("code")
+            and phase_matches
+        )
+        record = {
+            "thread_id": _rollout_thread_id(config),
+            "event_type": decision.event_type,
+            "shadow_validation_status": "accepted" if shadow["accepted"] else "rejected",
+            "shadow_reason_code": shadow["reason_code"],
+            "shadow_expected_phase": shadow["expected_phase"],
+            "legacy_execution_observed": True,
+            "legacy_result_matches_shadow": matches,
+            "legacy_phase_matches_shadow": phase_matches,
+            "legacy_error_code": None if result.get("ok") else result.get("code"),
+            "runtime_capabilities": sorted(rollout.enabled_capabilities),
+        }
+        updates["state_transition_evaluations"] = [*state.get("state_transition_evaluations", []), record][-20:]
     if result["tour_state"] is not None:
         updates["tour_state"] = result["tour_state"]
     if result["interaction_state"] is not None:

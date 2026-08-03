@@ -36,6 +36,92 @@ EVENTS = {
     "apply_replan_proposal",
 }
 
+# P2-04-A deliberately limits Graph shadowing to the ordinary, single A1
+# events.  Replanning remains on its existing P1-11 paths.
+NORMAL_SHADOW_EVENTS = frozenset({
+    "arrive_at_stop", "explanation_finished", "confirm_stop_complete",
+    "skip_stop", "next_stop", "finish_tour",
+})
+
+
+def validate_tour_event_transition(
+    tour_state: dict[str, Any] | None,
+    interaction_state: dict[str, Any] | None,
+    event: str,
+    **payload: Any,
+) -> dict[str, Any]:
+    """Pure preflight for one A1 event; it never calls an event handler.
+
+    The compact result is safe to retain as a Shadow audit record.  It is not
+    a state patch, proposal, or visitor response.
+    """
+    def result(accepted: bool, reason_code: str, expected_phase: str | None, effect: str) -> dict[str, Any]:
+        return {
+            "accepted": accepted, "event_type": event,
+            "expected_phase": expected_phase, "reason_code": reason_code,
+            "requires_confirmation": event == "confirm_stop_complete",
+            "side_effect_level": "read_only" if event == "next_stop" else "confirmed_state_change",
+            "expected_state_effect_summary": effect,
+        }
+
+    if event not in EVENTS:
+        return result(False, "invalid_event", None, "none")
+    if event == "finish_tour":
+        if tour_state is None or interaction_state is None:
+            return result(False, "route_not_initialized", None, "none")
+        if tour_state.get("route_status") == "completed" or interaction_state.get("stop_phase") == "finished":
+            return result(True, "tour_already_finished", "finished", "idempotent")
+        return result(True, "tour_finished", "finished", "route_completed")
+    if tour_state is None or interaction_state is None:
+        return result(False, "route_not_initialized", None, "none")
+    if interaction_state.get("tour_mode") not in VALID_TOUR_MODES or interaction_state.get("stop_phase") not in VALID_STOP_PHASES or interaction_state.get("pending_action_kind") not in VALID_PENDING_ACTION_KINDS:
+        return result(False, "invalid_phase", None, "none")
+    if tour_state.get("route_status") == "completed" or interaction_state.get("stop_phase") == "finished":
+        return result(False, "tour_finished", "finished", "none")
+
+    current, pending, phase = tour_state.get("current_stop_id"), interaction_state.get("pending_stop_id"), interaction_state.get("stop_phase")
+    if event == "arrive_at_stop":
+        node_id = payload.get("node_id")
+        if not isinstance(node_id, str) or node_id not in known_node_ids():
+            return result(False, "invalid_node_id", phase, "none")
+        if node_id == pending:
+            return result(True, "arrived", "explaining", "record_arrival_only")
+        return result(True, "self_arrival", "navigating", "record_physical_location_only")
+    if event == "explanation_finished":
+        if phase == "awaiting_confirmation" and current == pending:
+            return result(True, "explanation_already_finished", "awaiting_confirmation", "idempotent")
+        if current != pending or current not in tour_state.get("remaining_stop_ids", []):
+            return result(False, "not_current_stop", phase, "none")
+        return result(phase == "explaining", "explanation_finished" if phase == "explaining" else "invalid_phase", "awaiting_confirmation" if phase == "explaining" else phase, "await_confirmation")
+    if event == "next_stop":
+        pending_action = interaction_state.get("pending_action_kind")
+        if pending_action == "replan_time_confirmation":
+            return result(False, "pending_replan_time_confirmation", phase, "none")
+        if pending_action == "replan_route_confirmation":
+            return result(False, "pending_replan_route_confirmation", phase, "none")
+        if phase in {"explaining", "awaiting_confirmation"}:
+            return result(False, "invalid_phase", phase, "none")
+        if pending is None:
+            return result(False, "no_remaining_stop", phase, "none")
+        return result(True, "next_stop_ready", "navigating", "navigation_only")
+    if event == "skip_stop":
+        target = payload.get("node_id") or (current if current in tour_state.get("remaining_stop_ids", []) else pending)
+        if target is None:
+            return result(False, "no_remaining_stop", phase, "none")
+        if target in tour_state.get("skipped_stop_ids", []):
+            return result(True, "already_skipped", phase, "idempotent")
+        if target not in tour_state.get("remaining_stop_ids", []):
+            return result(False, "stop_not_in_route", phase, "none")
+        return result(True, "skipped", None, "mark_skipped_only")
+    if event == "confirm_stop_complete":
+        if current in tour_state.get("visited_stop_ids", []) and phase == "navigating":
+            return result(True, "already_completed", "navigating", "idempotent")
+        if current != pending or current not in tour_state.get("remaining_stop_ids", []):
+            return result(False, "not_current_stop", phase, "none")
+        return result(phase in {"explaining", "awaiting_confirmation"}, "stop_completed" if phase in {"explaining", "awaiting_confirmation"} else "invalid_phase", None, "mark_visited_only")
+    # The remaining legacy A1 events are intentionally out of P2-04-A scope.
+    return result(True, "outside_normal_shadow_scope", None, "legacy_event")
+
 
 def initialize_interaction(
     tour_state: dict[str, Any], tour_mode: str = "chat"
@@ -136,6 +222,10 @@ def handle_tour_event(
     **payload: Any,
 ) -> dict[str, Any]:
     """Handle one contract-whitelisted event without mutating either input."""
+    # P2-04-A: execute the shared pure preflight before the unchanged legacy
+    # handlers.  The handlers retain their established visitor messages and
+    # are still the sole state-transition implementation.
+    validate_tour_event_transition(tour_state, interaction_state, event, **payload)
     if event not in EVENTS:
         return _rejection(event, "invalid_event", "不支持该游览操作。", tour_state, interaction_state)
     if event == "finish_tour":

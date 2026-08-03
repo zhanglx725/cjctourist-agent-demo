@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping
-from tour_interaction import EVENTS, handle_tour_event
+from tour_interaction import EVENTS, handle_tour_event, validate_tour_event_transition
 @dataclass(frozen=True)
 class ConfirmedEvent:
  event: str
@@ -14,6 +14,15 @@ class TransitionResult:
  applied: bool
  result: dict[str, Any] | None
  reason: str
+
+def dry_run_transition(event: str, tour_state: Mapping[str, Any] | None, interaction_state: Mapping[str, Any] | None, **payload: Any) -> dict[str, Any]:
+ """Return the shared pure A1 preflight result without executing an event."""
+ return validate_tour_event_transition(
+  deepcopy(dict(tour_state)) if tour_state else None,
+  deepcopy(dict(interaction_state)) if interaction_state else None,
+  event,
+  **deepcopy(payload),
+ )
 def apply_confirmed_event(request: ConfirmedEvent, tour_state: Mapping[str, Any] | None, interaction_state: Mapping[str, Any] | None, *, handler: Callable[..., dict[str, Any]] = handle_tour_event) -> TransitionResult:
  if not request.confirmed: return TransitionResult(False,None,"confirmation_required")
  if request.event not in EVENTS: return TransitionResult(False,None,"invalid_event")
