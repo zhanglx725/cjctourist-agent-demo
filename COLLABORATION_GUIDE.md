@@ -409,3 +409,7 @@ P2-03 `09a85c8`/`334ea7a` 已通过人工与自动化验收：当前完整回归
 # P2-04-A Normal Event Shadow 证据分级
 
 P2-04-A `92ca888` 已通过定向 24/24、完整 867/867 和 P0 3/3。Shadow 对普通 tour event 只运行纯 dry-run，再将建议与唯一一次旧链执行结果对照；不得调用状态写入器或形成第二份 TourState。负责人 Studio 操作确认 arrive、explanation_finished、confirm_stop_complete、skip、next_stop、finish 均为 accepted，并显示 `legacy_execution_observed=true` 与 `legacy_result_matches_shadow=true`。没有保存完整 Thread ID、Trace URL/revision 或完整状态 diff，因此协作中必须写为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。只允许 Shadow 归档；P2-04-A active disabled，P2-04-B 重规划复合事件审计尚未开始。
+
+# P2-04-B Replan Composite Shadow 证据分级
+
+P2-04-B 只读审计旧 P1-11 的 preparation、proposal、确认、合法 `apply_replan_proposal → next_stop` 复合操作和取消；审计本身不得调用 `handle_tour_event` 或成为第二状态源。自动化为定向 5/5、关联 66/66、完整 874/874、P0 3/3。负责人 Studio 已观察到复合确认 accepted、正式路线变化和 contract match，取消仍保留原路线；完整 Thread ID/Trace URL/revision 未保存，必须写为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P2-04-B active disabled；Gate 3 等待最终 P2 集成验收。

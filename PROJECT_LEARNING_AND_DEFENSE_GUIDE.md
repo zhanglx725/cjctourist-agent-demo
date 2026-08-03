@@ -107,6 +107,10 @@ P2-03 的正确对象是旧 P1-11 已生成的 `pending_replan_proposal`，而�
 
 状态事件最危险的回归是为了比较结果而执行两次。`92ca888` 把普通 tour event 的共同规则抽成纯 preflight：它只读取复制的状态，输出预期阶段和原因码，不能调用 `handle_tour_event`。Graph 随后仍由旧路径执行一次，再把实际事件结果和 dry-run 建议写进 `state_transition_evaluations`。这样审计可发现差异，却不成为第二个 TourState 或第二个写入口。该轮仅覆盖普通事件；P1-11 的 replan 确认、复合确认后下一站和取消仍保留在 P2-04-B 单独审计，不能因 P2-04-A 通过而宣称状态接管已开启。
 
+### P2-04-B Shadow：复合旧链必须审计顺序，不能重放事件
+
+P1-11 的“确认新路线并前往下一站”是唯一合法的双事件操作，顺序固定为 `apply_replan_proposal → next_stop`。P2-04-B 只读取旧链执行前后的快照并记录该序列、proposal 状态、正式路线变化、进度变化及契约比对；它绝不能为了验证而再调用 handler。取消则不是 A1 事件，而是清理 pending action，必须证明正式路线、当前位置与 visited/skipped 不变。没有待确认 proposal 的确认保持旧澄清并写为安全无操作。P2-04-B 通过自动化 5/5、关联 66/66、完整 874/874 与 P0 3/3；人工证据为负责人确认通过，Trace 元数据未保存，active takeover 仍禁用。
+
 ## 5. 空间网络与路线规划
 
 ### 用户问题

@@ -1068,6 +1068,12 @@ glossary_ids
 - Studio 人工验证观察到所有上述普通事件均为 accepted 且旧链执行/结果匹配。完整 Thread ID、Trace URL/revision 和逐字段状态 diff 未保存，因此状态为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。
 - P2-04-A active disabled；P2-04-B replan composite audit not started；Gate 3 pending final acceptance。
 
+## P2-04-B 重规划复合事件 Shadow（功能已验收，Trace 元数据待补）
+
+- 新增纯 `replan_composite_evaluations`，只对旧 P1-11 的 preparation、候选生成、确认、合法的 `apply_replan_proposal → next_stop` 复合确认、取消及无候选确认做前后态比较；Shadow 不执行事件、不调用状态适配器、不改变游客正文。
+- 自动化：定向 5/5、关联 66/66、完整回归 874/874、P0 3/3 与 `git diff --check` 均通过。
+- Studio：负责人确认复合确认记录为 `accepted`、`formal_route_changed=true`、`matches_expected_contract=true`，proposal 清空；取消仍由旧 P1-11 清理且原路线保持。完整 Thread ID、Trace URL/revision 和逐字段状态截图未保存，因此为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P2-04 active takeover disabled；Gate 3 pending final P2 integration acceptance。详见 `p2_04b_replan_composite_shadow_handoff.md`。
+
 ## P1-21 游客文本与内部审计来源分离（已实现，待 LangSmith 验证）
 
 - 工艺总述的游客渲染不再拼接内部来源编号；工艺和对象来源继续保留在 `evidence`、术语元数据与 Trace 审计结构中。

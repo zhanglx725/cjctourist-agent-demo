@@ -97,6 +97,7 @@ from controlled_rollout import (
 from atomic_intent_shadow_planner import observe_atomic_read_intents
 from route_proposal import wrap_route_selection_for_shadow
 from replan_proposal import wrap_existing_replan_proposal_for_shadow
+from replan_composite_shadow import audit_replan_composite_operation
 from state_transition_adapter import dry_run_transition
 from policy_gate import evaluate_policy
 from reviewed_read_tools import answer_reviewed_controlled_knowledge
@@ -186,6 +187,9 @@ class AgentState(TypedDict, total=False):
     # P2-04-A audit only.  It is a bounded per-thread comparison record, not
     # a second TourState and never participates in visitor rendering.
     state_transition_evaluations: list[dict[str, Any]]
+    # P2-04-B audit only. It compares the P1-11 composite operation after the
+    # legacy node has run; it is never a proposal or state source.
+    replan_composite_evaluations: list[dict[str, Any]]
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -1161,7 +1165,65 @@ def tour_event_node(state: AgentState, config: RunnableConfig = None) -> dict[st
     return updates
 
 
-def prepare_replan_node(state: AgentState) -> dict[str, Any]:
+def _replan_composite_shadow_update(
+    state: AgentState,
+    config: RunnableConfig | None,
+    *,
+    operation_kind: str,
+    legacy_event_sequence: list[str],
+    tour_after: dict[str, Any] | None,
+    interaction_after: dict[str, Any] | None,
+    proposal_after: dict[str, Any] | None,
+    time_confirmation_after: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Append a pure P2-04-B comparison after the old P1-11 operation."""
+    rollout = rollout_from_environment()
+    if rollout.mode is RolloutMode.OFF:
+        return {}
+    if rollout.observes(STATE_TRANSITION):
+        record = audit_replan_composite_operation(
+            operation_kind=operation_kind,
+            legacy_event_sequence=legacy_event_sequence,
+            tour_before=state.get("tour_state"),
+            tour_after=tour_after,
+            interaction_before=state.get("tour_interaction_state"),
+            interaction_after=interaction_after,
+            proposal_before=state.get("pending_replan_proposal"),
+            proposal_after=proposal_after,
+            time_confirmation_before=state.get("pending_replan_time_confirmation"),
+            time_confirmation_after=time_confirmation_after,
+        )
+        validation_status = "accepted" if record["matches_expected_contract"] else "rejected"
+        rejected_reason = None if record["matches_expected_contract"] else record["reason_codes"][-1]
+    else:
+        record = {
+            "operation_kind": operation_kind,
+            "legacy_event_sequence": list(legacy_event_sequence),
+            "proposal_before_status": (state.get("pending_replan_proposal") or {}).get("status"),
+            "proposal_after_status": (proposal_after or {}).get("status"),
+            "formal_route_changed": False,
+            "visited_or_skipped_changed": False,
+            "pending_stop_before_after": {"before": None, "after": None},
+            "matches_expected_contract": False,
+            "reason_codes": ["capability_not_enabled"],
+        }
+        validation_status, rejected_reason = "rejected", "capability_not_enabled"
+    record.update({
+        "thread_id": _rollout_thread_id(config),
+        "capability": STATE_TRANSITION,
+        "mode": "shadow",
+        "validation_status": validation_status,
+        "rejected_reason": rejected_reason,
+        "runtime_capabilities": sorted(rollout.enabled_capabilities),
+    })
+    return {
+        "replan_composite_evaluations": [
+            *state.get("replan_composite_evaluations", []), record
+        ][-20:]
+    }
+
+
+def prepare_replan_node(state: AgentState, config: RunnableConfig | None = None) -> dict[str, Any]:
     """Record/reuse a reviewed origin, then request explicit live time."""
     started = time.perf_counter()
     decision = classify_tour_intent(
@@ -1203,7 +1265,7 @@ def prepare_replan_node(state: AgentState) -> dict[str, Any]:
         }
     interaction = {**interaction, "pending_action_kind": "replan_time_confirmation"}
     presentation = present_replan_time_confirmation(confirmation)
-    return {
+    updates = {
         "messages": [AIMessage(content=presentation["message"])], "tour_state": tour, "tour_interaction_state": interaction,
         "tour_presentation": presentation, "last_tour_intent": decision.to_dict(),
         "last_tour_event": {"event": "arrive_at_stop", "code": "self_arrival" if args.get("record_arrival") else "unchanged", "ok": True},
@@ -1213,9 +1275,16 @@ def prepare_replan_node(state: AgentState) -> dict[str, Any]:
         "pending_ornament_clarification": None,
         "performance_metrics": _append_metric(state, "prepare_replan", time.perf_counter() - started, ok=True, origin_node_id=origin),
     }
+    updates.update(_replan_composite_shadow_update(
+        state, config, operation_kind="prepare_replan",
+        legacy_event_sequence=["arrive_at_stop"] if args.get("record_arrival") else [],
+        tour_after=tour, interaction_after=interaction, proposal_after=None,
+        time_confirmation_after=confirmation,
+    ))
+    return updates
 
 
-def prepare_replan_candidate_node(state: AgentState) -> dict[str, Any]:
+def prepare_replan_candidate_node(state: AgentState, config: RunnableConfig | None = None) -> dict[str, Any]:
     """Use a newly supplied explicit time only to prepare a route preview."""
     started = time.perf_counter()
     confirmation = state.get("pending_replan_time_confirmation")
@@ -1264,7 +1333,7 @@ def prepare_replan_candidate_node(state: AgentState) -> dict[str, Any]:
         }
     interaction = {**interaction, "pending_action_kind": "replan_route_confirmation"}
     presentation = present_replan_proposal(proposal)
-    return {
+    updates = {
         "messages": [AIMessage(content=presentation["message"])],
         "tour_state": tour,
         "tour_interaction_state": interaction,
@@ -1278,9 +1347,15 @@ def prepare_replan_candidate_node(state: AgentState) -> dict[str, Any]:
             ok=True, origin_node_id=origin, remaining_minutes=parsed.minutes,
         ),
     }
+    updates.update(_replan_composite_shadow_update(
+        state, config, operation_kind="prepare_replan_candidate",
+        legacy_event_sequence=[], tour_after=tour, interaction_after=interaction,
+        proposal_after=proposal, time_confirmation_after=None,
+    ))
+    return updates
 
 
-def prepare_duration_replan_node(state: AgentState) -> dict[str, Any]:
+def prepare_duration_replan_node(state: AgentState, config: RunnableConfig | None = None) -> dict[str, Any]:
     """Preview an active-route duration change without applying it."""
     started = time.perf_counter()
     tour = state.get("tour_state")
@@ -1312,7 +1387,7 @@ def prepare_duration_replan_node(state: AgentState) -> dict[str, Any]:
         }
     updated_interaction = {**interaction, "pending_action_kind": "replan_route_confirmation"}
     presentation = present_replan_proposal(proposal)
-    return {
+    updates = {
         "messages": [AIMessage(content=presentation["message"])],
         "tour_state": tour,
         "tour_interaction_state": updated_interaction,
@@ -1326,9 +1401,15 @@ def prepare_duration_replan_node(state: AgentState) -> dict[str, Any]:
             ok=True, origin_node_id=origin, remaining_minutes=parsed.minutes,
         ),
     }
+    updates.update(_replan_composite_shadow_update(
+        state, config, operation_kind="prepare_replan_candidate",
+        legacy_event_sequence=[], tour_after=tour, interaction_after=updated_interaction,
+        proposal_after=proposal, time_confirmation_after=None,
+    ))
+    return updates
 
 
-def confirm_replan_node(state: AgentState) -> dict[str, Any]:
+def confirm_replan_node(state: AgentState, config: RunnableConfig | None = None) -> dict[str, Any]:
     """Apply a fresh preview atomically via the A1 event adapter."""
     started = time.perf_counter()
     proposal = state.get("pending_replan_proposal")
@@ -1349,10 +1430,17 @@ def confirm_replan_node(state: AgentState) -> dict[str, Any]:
     if result["ok"] and proposal:
         updates["active_route_plan"] = {**proposal, "route_strategy": "replanned_from_current"}
         updates["selected_route_id"] = str(proposal["route_id"])
+    updates.update(_replan_composite_shadow_update(
+        state, config, operation_kind="confirm_replan",
+        legacy_event_sequence=["apply_replan_proposal"],
+        tour_after=updates.get("tour_state", state.get("tour_state")),
+        interaction_after=updates.get("tour_interaction_state", state.get("tour_interaction_state")),
+        proposal_after=updates["pending_replan_proposal"], time_confirmation_after=None,
+    ))
     return updates
 
 
-def confirm_replan_and_next_node(state: AgentState) -> dict[str, Any]:
+def confirm_replan_and_next_node(state: AgentState, config: RunnableConfig | None = None) -> dict[str, Any]:
     """Apply a fresh proposal only when its next navigation is valid.
 
     This is the sole C4 composite: an explicit "use new route and go to the
@@ -1367,7 +1455,7 @@ def confirm_replan_and_next_node(state: AgentState) -> dict[str, Any]:
         "apply_replan_proposal", proposal=proposal,
     )
     if not applied.get("ok"):
-        return confirm_replan_node(state)
+        return confirm_replan_node(state, config)
     navigation = handle_tour_event(
         applied.get("tour_state"), applied.get("interaction_state"), "next_stop"
     )
@@ -1376,7 +1464,7 @@ def confirm_replan_and_next_node(state: AgentState) -> dict[str, Any]:
             "新路线尚未应用，因为当前不能立即前往下一站："
             f"{navigation.get('message', '请按当前阶段继续。')}"
         )
-        return {
+        updates = {
             "messages": [AIMessage(content=message)],
             "tour_presentation": present_clarification(
                 message, state.get("tour_interaction_state")
@@ -1388,10 +1476,18 @@ def confirm_replan_and_next_node(state: AgentState) -> dict[str, Any]:
                 ok=False, code="next_stop_not_available_after_replan_preview",
             ),
         }
+        updates.update(_replan_composite_shadow_update(
+            state, config, operation_kind="confirm_replan_and_next",
+            legacy_event_sequence=["apply_replan_proposal", "next_stop"],
+            tour_after=state.get("tour_state"),
+            interaction_after=state.get("tour_interaction_state"),
+            proposal_after=proposal, time_confirmation_after=None,
+        ))
+        return updates
     applied_presentation = present_tour_event(applied)
     navigation_presentation = present_tour_event(navigation)
     message = f"{applied_presentation['message']}\n\n{navigation_presentation['message']}"
-    return {
+    updates = {
         "messages": [AIMessage(content=message)],
         "tour_state": applied["tour_state"],
         "tour_interaction_state": applied["interaction_state"],
@@ -1410,15 +1506,22 @@ def confirm_replan_and_next_node(state: AgentState) -> dict[str, Any]:
             ok=True, code="replan_applied_then_next_stop_ready",
         ),
     }
+    updates.update(_replan_composite_shadow_update(
+        state, config, operation_kind="confirm_replan_and_next",
+        legacy_event_sequence=["apply_replan_proposal", "next_stop"],
+        tour_after=applied["tour_state"], interaction_after=applied["interaction_state"],
+        proposal_after=None, time_confirmation_after=None,
+    ))
+    return updates
 
 
-def cancel_replan_node(state: AgentState) -> dict[str, Any]:
+def cancel_replan_node(state: AgentState, config: RunnableConfig | None = None) -> dict[str, Any]:
     """Discard a pending time/proposal action without changing formal route."""
     tour, interaction = state.get("tour_state"), state.get("tour_interaction_state")
     if interaction:
         interaction = {**interaction, "pending_action_kind": None}
     presentation = present_tour_state(tour, interaction, message="已取消后续路线候选，原路线保持不变；导航将从您当前的位置继续计算。")
-    return {
+    updates = {
         "messages": [AIMessage(content=presentation["message"])], "tour_presentation": presentation,
         "tour_interaction_state": interaction,
         "pending_replan_proposal": None,
@@ -1426,17 +1529,35 @@ def cancel_replan_node(state: AgentState) -> dict[str, Any]:
         "qa_context": clear_qa_context(state.get("qa_context")),
         "pending_ornament_clarification": None,
     }
+    updates.update(_replan_composite_shadow_update(
+        state, config, operation_kind="cancel_replan", legacy_event_sequence=[],
+        tour_after=tour, interaction_after=interaction, proposal_after=None,
+        time_confirmation_after=None,
+    ))
+    return updates
 
 
-def show_replan_node(state: AgentState) -> dict[str, Any]:
+def show_replan_node(state: AgentState, config: RunnableConfig | None = None) -> dict[str, Any]:
     """Repeat the active replan preview without recalculating or mutating it."""
     proposal = state.get("pending_replan_proposal")
     if not proposal:
         message = "当前没有等待确认的后续行程候选。"
-        return {
+        updates = {
             "messages": [AIMessage(content=message)],
             "tour_presentation": present_clarification(message, state.get("tour_interaction_state")),
         }
+        expression = _normalize_pending_action_expression(_effective_control_text(state))
+        if (
+            expression in _REPLAN_CONFIRM_EXPRESSIONS
+            or _is_confirm_replan_then_next_expression(expression)
+        ):
+            updates.update(_replan_composite_shadow_update(
+                state, config, operation_kind="confirm_replan_without_pending",
+                legacy_event_sequence=[], tour_after=state.get("tour_state"),
+                interaction_after=state.get("tour_interaction_state"), proposal_after=None,
+                time_confirmation_after=state.get("pending_replan_time_confirmation"),
+            ))
+        return updates
     presentation = present_replan_proposal(proposal)
     return {
         "messages": [AIMessage(content=presentation["message"])],

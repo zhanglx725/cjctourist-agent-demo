@@ -542,6 +542,10 @@ Place → Ornament → Craft/Term → Source/ResearchCard/ComparisonCard
 
 `route_initial_request()` 已有合法复合目标 `confirm_replan_and_next`，但 `semantic_normalization` 的条件映射曾缺少该 key，导致本地 Studio 抛出 `KeyError`。最小修复仅将既有节点加入映射，保留冻结顺序 `apply_replan_proposal → next_stop`，不属于 P2 active 接管。定向 54/54、完整 869/869、P0 3/3 与 `git diff --check` 通过；负责人手动验证新路线只应用一次并输出下一站导航。未保存完整 Thread ID/Trace URL，状态为 `manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P1-11 confirm_replan_and_next Graph reachability: verified；P2-04-B: not started; prerequisite repaired。
 
+### P2-04-B 重规划复合事件 Shadow（功能已验收，Trace 元数据待补）
+
+在不接管旧 P1-11 的前提下，`replan_composite_evaluations` 只记录 preparation、候选生成、确认、合法 `apply_replan_proposal → next_stop` 与取消的旧链前后差异。它不调用事件执行器、状态适配器或路线规划器，也不构成第二份状态。定向 5/5、关联 66/66、完整 874/874、P0 3/3 和 `git diff --check` 通过。负责人 Studio 观察到复合确认 accepted、formal route changed、contract match 和 proposal 清空；取消保留原路线。完整 Thread/Trace URL/revision 未保存，归档为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P2-04-B active disabled；Gate 3 pending final P2 integration acceptance。详见 `p2_04b_replan_composite_shadow_handoff.md`。
+
 这 8 步完成前，不建议开始语音、多语言、附近实时推荐或图数据库。它们依赖稳定的 Renderer、证据包、状态事件和工具权限；过早接入只会放大当前分散路由的问题。
 
 ## 17. 完成定义
