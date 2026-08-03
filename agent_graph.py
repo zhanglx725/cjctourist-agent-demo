@@ -27,7 +27,13 @@ from tour_navigation import (
     format_next_stop_navigation,
     next_stop_navigation,
 )
-from tour_interaction import handle_tour_event, initialize_interaction
+from tour_interaction import (
+    explicit_journey_mode_choice,
+    handle_tour_event,
+    initialize_interaction,
+    journey_mode_from_interaction,
+    update_session_control,
+)
 from tour_intent import (
     classify_tour_intent,
     is_unresolved_navigation_control,
@@ -113,7 +119,7 @@ from single_fact_answer import (
     single_fact_retrieval_query_for_kind,
 )
 from guide_program_evidence import build_stop_guidance, reexpress_current_stop_guidance
-from profile_dialogue import collect_profile_input
+from profile_dialogue import CLASSIC_PROFILE_FIELDS, collect_profile_input
 from profile_update import apply_profile_update, is_profile_update_request
 from extended_profile_control import apply_extended_profile_control, parse_extended_profile_control
 from visitor_profile import VisitorProfileError, create_visitor_profile, profile_from_dict
@@ -221,6 +227,21 @@ def _append_metric(
         **details,
     }
     return [*state.get("performance_metrics", []), metric]
+
+
+def _read_only_resume_target(state: AgentState) -> str | None:
+    """Read the existing controlled stage to resume after a factual answer.
+
+    The target lives in interaction/session control, but a read-only question
+    must not write it: P0 requires factual and safety answers to leave all
+    control state untouched.
+    """
+    collection = state.get("profile_collection") or {}
+    if collection.get("status") == "collecting":
+        return "profile_collection"
+    if state.get("tour_state") and state.get("tour_interaction_state"):
+        return "guided_tour"
+    return None
 
 
 def should_direct_rag(user_text: str) -> bool:
@@ -754,7 +775,24 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         }
     catalog = _read_catalog(CATALOG_FILE)
     tour = start_tour(plan, interests=interests, detail_level=profile.detail_level)
-    interaction = initialize_interaction(tour)
+    prior_interaction = state.get("tour_interaction_state")
+    journey_mode = (
+        "classic"
+        if (state.get("tour_state") or {}).get("route_status") == "completed"
+        else journey_mode_from_interaction(prior_interaction)
+    )
+    interaction = initialize_interaction(tour, journey_mode=journey_mode)
+    # This is an auditable capture of the final session choice, not an input to
+    # the route planner and not a second route fact source.
+    plan_data = {
+        **plan_data,
+        "journey_mode_audit": {
+            "selected_mode": journey_mode,
+            "source": "tour_interaction_state",
+            "captured_at": "route_selection",
+            "used_for_route_calculation": False,
+        },
+    }
     stop_lines = []
     for index, node_id in enumerate(guide_stop_ids, start=1):
         card = catalog[node_id]
@@ -877,9 +915,21 @@ def profile_collection_node(state: AgentState) -> dict[str, Any]:
         or classify_duration_control_text(query) is not None
     )
     started = time.perf_counter()
+    explicit_mode = explicit_journey_mode_choice(query)
+    # The transparent default is classic.  Only the narrow explicit phrases
+    # above can select custom; no profile signal is used to infer it.
+    session_control = update_session_control(
+        state.get("tour_interaction_state"),
+        journey_mode=explicit_mode or journey_mode_from_interaction(
+            state.get("tour_interaction_state")
+        ),
+        resume_after_read_only=None,
+    )
+    journey_mode = journey_mode_from_interaction(session_control)
     result = collect_profile_input(
         state.get("profile_collection"), query, start_collection=start_collection,
         base_profile=state.get("visitor_profile"),
+        required_fields=(CLASSIC_PROFILE_FIELDS if journey_mode == "classic" else None),
     )
     if result is None:
         # The router should only enter this node for a route request or an
@@ -896,15 +946,25 @@ def profile_collection_node(state: AgentState) -> dict[str, Any]:
             ),
         }
     payload = result.to_dict()
+    session_control = update_session_control(
+        session_control,
+        resume_after_read_only=(
+            "profile_collection"
+            if payload["profile_collection"]["status"] == "collecting"
+            else None
+        ),
+    )
     return {
         "messages": [AIMessage(content=payload["message"])],
         "qa_context": clear_qa_context(state.get("qa_context")),
         "pending_ornament_clarification": None,
         "visitor_profile": payload["visitor_profile"],
         "profile_collection": payload["profile_collection"],
+        "tour_interaction_state": session_control,
         "performance_metrics": _append_metric(
             state, "profile_collection", time.perf_counter() - started,
             status=payload["status"], reason_code=payload["reason_code"],
+            journey_mode=journey_mode,
             resolved_fields=payload["profile_collection"]["resolved_fields"],
         ),
     }
@@ -2052,7 +2112,7 @@ def direct_rag_node(state: AgentState) -> dict[str, Any]:
             ),
         },
     )
-    return {
+    updates = {
         "messages": [marker],
         "retrieved_evidence": evidence,
         "qa_context": clear_qa_context(state.get("qa_context")),
@@ -2087,6 +2147,7 @@ def direct_rag_node(state: AgentState) -> dict[str, Any]:
             ),
         ),
     }
+    return updates
 
 
 def tour_qa_node(state: AgentState) -> dict[str, Any]:
@@ -2179,7 +2240,7 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
         ),
     }
     # The presenter is UI data, not a state transition.  Deliberately do not
-    # return tour_state or tour_interaction_state here.
+    # return TourState or interaction/session control here.
     if result["presentation"] is not None:
         updates["tour_presentation"] = {**result["presentation"], "message": public_message}
     return updates

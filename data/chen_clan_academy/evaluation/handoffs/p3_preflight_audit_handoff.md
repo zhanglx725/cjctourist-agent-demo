@@ -28,7 +28,7 @@ enable state-class active takeover.
 | Step | Deliverable | Dependency | Authority | Current result |
 | --- | --- | --- | --- | --- |
 | P3-00 | preflight audit and executable sequence | P2 Gate 3 | documentation only | completed by this handoff |
-| P3-01 / CA-12 | freeze classic/custom mode ownership and interruption/recovery contract | owner decision | product and state-contract decision | blocked pending owner confirmation |
+| P3-01 / CA-12 | freeze classic/custom mode ownership and interruption/recovery contract | owner decision recorded 2026-08-03 | product and state-contract decision | implementation in progress; see `p3_01_journey_mode_handoff.md` |
 | P3-02 | connect the existing narration-style policy without a second profile | P3-01 only if a selectable product mode changes style lifecycle | pure display policy | already implemented on the E5 legacy rendering path; no duplicate implementation is safe |
 | P3-03 / CA-13 | read-only CardDispatcher enhancement candidates | approved P3-01 mode contract, E5 evidence, card eligibility | proposal/read-only only | not started |
 | P3-04 | facts-only narration composition and visitor layout | P3-02 equivalence regression and P3-03 output contract | renderer only | not started; P2-07 remains a separate layout-quality acceptance item |
@@ -57,29 +57,28 @@ advance P3 safely.
 
 ```text
 计划要求：P3 继续接入经典/定制模式、卡片调度和讲解组织。
-当前实现：tour_mode 已出现在 interaction control 中，但 P3 plan and
-controlled-agent plan both state that its sole ownership, lifecycle and
-interruption/recovery semantics are not frozen.
+负责人确认后的实施结论：既有 `tour_mode` 继续只表示交互形式
+(`chat` / `button_guided` / `continuous`)；同一 interaction/session
+control 的独立 `journey_mode` 表示产品模式 (`classic` / `custom`)。
 影响范围：P3-01, selectable narration styles, CardDispatcher inputs,
 profile collection/resume behaviour, and any future rollout audit.
 为什么不能安全自行处理：choosing session control, VisitorProfile or route
 snapshot as the authoritative mode changes a product/state contract; choosing
 one in code would either create a second profile-like source or silently alter
 recovery semantics.
-推荐方案：approve P3-01 with session/interaction control as the per-journey
-selection owner, persist only the selected final mode into an immutable route
-snapshot, and keep VisitorProfile free of mode. Freeze classic/custom defaults,
-interruption/resume and reset behaviour before implementation.
+已确认方案：interaction/session control 是每轮产品模式的唯一运行归属；
+最终选用模式只复制到不可变路线审计快照，VisitorProfile 不保存模式。
+默认 classic；仅游客明确选择时进入 custom；只读问答读取既有恢复目标、
+不得在问答期间写入控制状态。
 需要负责人决定的选项：accept the recommended ownership, or explicitly select
 VisitorProfile / route snapshot and provide migration and recovery semantics.
 ```
 
-## Next executable task after the decision
+## 已确认后的可执行任务
 
-P3-01 should be one independent task: add the approved mode contract and its
-tests only. It must not change TourState, create a second VisitorProfile,
-activate route/replan/state takeover, or dispatch cards. Its acceptance must
-cover classic/custom defaults, no inference from tone, knowledge-question
+P3-01 是一个独立任务：仅新增已批准的模式契约和测试。它不得改变 TourState、
+创建第二份 VisitorProfile、启用路线/重规划/状态接管，或调度卡片。验收必须
+覆盖 classic/custom 默认、不得从语气推断、知识问答
 interruption and restoration, per-thread isolation, reset, and rollback.
 
 Only after that task is verified should P3-03 produce read-only card-enhancement

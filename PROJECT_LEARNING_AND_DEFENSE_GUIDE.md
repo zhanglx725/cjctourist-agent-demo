@@ -1,5 +1,9 @@
 # 陈家祠金牌导游 Agent：项目学习与答辩说明
 
+## P3-01：为什么产品模式不复用 `tour_mode`
+
+`tour_mode` 已冻结为交互形式，直接改为经典/定制会破坏 A1 校验。因此 P3-01 在同一 interaction/session control 内新增 `journey_mode`，而非复制 VisitorProfile 或 TourState。它只决定收集协议：classic 只要求时长；custom 只接受游客显式提供的最小偏好。路线完成后模式仅留在不可参与计算的审计快照中。这样保留旧 Graph 和既有状态事实源，也为 P3-03 的 CardDispatcher 提供受控输入，而不让模型或卡片越权写状态。
+
 > 用途：学习项目代码、答辩和新人交接。进度只看 `PROJECT_PROGRESS_REPORT.md`，需求只看 `PROJECT_REQUIREMENTS.md`。
 >
 > 状态标记：**已实现并验证** = 代码与相关测试/人工验收均已通过；**已实现，待本机验证** = 已完成代码但尚待本轮本地测试；**仅保留接口** = 协议/字段已定义但未接入；**未来规划** = 尚未实现。

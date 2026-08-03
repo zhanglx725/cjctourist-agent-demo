@@ -22,6 +22,8 @@ from tour_state import (
 
 
 VALID_TOUR_MODES = {"chat", "button_guided", "continuous"}
+VALID_JOURNEY_MODES = {"classic", "custom"}
+VALID_READ_ONLY_RESUME_TARGETS = {None, "profile_collection", "guided_tour"}
 VALID_STOP_PHASES = {"navigating", "explaining", "awaiting_confirmation", "finished"}
 VALID_PENDING_ACTION_KINDS = {None, "replan_time_confirmation", "replan_route_confirmation"}
 EVENTS = {
@@ -123,8 +125,72 @@ def validate_tour_event_transition(
     return result(True, "outside_normal_shadow_scope", None, "legacy_event")
 
 
+def normalize_journey_mode(value: Any) -> str:
+    """Return the explicit product mode, defaulting transparently to classic.
+
+    ``tour_mode`` remains the frozen UI interaction mode.  This separate
+    field is deliberately session-only and never becomes a TourState or
+    VisitorProfile fact.
+    """
+    if value is None:
+        return "classic"
+    if value not in VALID_JOURNEY_MODES:
+        raise TourStateError(f"未知游览产品模式：{value}")
+    return str(value)
+
+
+def journey_mode_from_interaction(interaction_state: dict[str, Any] | None) -> str:
+    """Read the session product mode without requiring a route interaction."""
+    if not isinstance(interaction_state, dict):
+        return "classic"
+    try:
+        return normalize_journey_mode(interaction_state.get("journey_mode"))
+    except TourStateError:
+        return "classic"
+
+
+def explicit_journey_mode_choice(text: str) -> str | None:
+    """Recognize only an explicit classic/custom product-mode choice.
+
+    This is not a preference inference: ordinary requests mentioning interests,
+    tone, age, or devices never select a journey mode.
+    """
+    value = str(text or "").replace(" ", "")
+    classic = any(token in value for token in ("经典模式", "选择经典", "用经典"))
+    custom = any(token in value for token in ("定制模式", "选择定制", "用定制"))
+    if classic == custom:
+        return None
+    return "classic" if classic else "custom"
+
+
+def update_session_control(
+    interaction_state: dict[str, Any] | None,
+    *,
+    journey_mode: str | None = None,
+    resume_after_read_only: str | None = None,
+) -> dict[str, Any]:
+    """Copy the single session-control dictionary without touching tour facts.
+
+    Before a route exists this can contain only session fields.  Once the
+    route is initialized, ``initialize_interaction`` merges the same fields
+    into the existing A1 interaction state.
+    """
+    updated = deepcopy(interaction_state) if isinstance(interaction_state, dict) else {}
+    selected_mode = journey_mode if journey_mode is not None else updated.get("journey_mode")
+    try:
+        updated["journey_mode"] = normalize_journey_mode(selected_mode)
+    except TourStateError:
+        # A stale or malformed session value must not become a route/profile
+        # fact or crash a read path. Use the transparent product default.
+        updated["journey_mode"] = "classic"
+    if resume_after_read_only not in VALID_READ_ONLY_RESUME_TARGETS:
+        raise TourStateError(f"未知只读问答恢复目标：{resume_after_read_only}")
+    updated["resume_after_read_only"] = resume_after_read_only
+    return updated
+
+
 def initialize_interaction(
-    tour_state: dict[str, Any], tour_mode: str = "chat"
+    tour_state: dict[str, Any], tour_mode: str = "chat", *, journey_mode: str = "classic"
 ) -> dict[str, Any]:
     """Create UI-neutral interaction state for an initialized route."""
     if tour_mode not in VALID_TOUR_MODES:
@@ -134,6 +200,12 @@ def initialize_interaction(
     return {
         "pending_stop_id": pending,
         "tour_mode": tour_mode,
+        "journey_mode": normalize_journey_mode(journey_mode),
+        # This is established when the controlled tour begins. Read-only
+        # questions inspect it but do not write interaction state.
+        "resume_after_read_only": (
+            None if tour_state.get("route_status") == "completed" else "guided_tour"
+        ),
         "stop_phase": "finished" if tour_state.get("route_status") == "completed" else "navigating",
         "pending_action_kind": None,
     }
@@ -483,7 +555,15 @@ def _finish(tour_state: dict[str, Any] | None, interaction_state: dict[str, Any]
             tour_state=tour_state, interaction_state=interaction_state, idempotent=True,
         )
     updated_tour = _finish_tour(tour_state)
-    updated_interaction = {**interaction_state, "pending_stop_id": None, "stop_phase": "finished"}
+    # A completed tour closes its session product-mode lifecycle.  The adopted
+    # mode remains available only in the immutable route audit snapshot.
+    updated_interaction = {
+        **interaction_state,
+        "pending_stop_id": None,
+        "stop_phase": "finished",
+        "journey_mode": "classic",
+        "resume_after_read_only": None,
+    }
     return _result(
         ok=True, event="finish_tour", code="tour_finished", message="已结束本次游览，并保留真实游览记录。",
         tour_state=updated_tour, interaction_state=updated_interaction,

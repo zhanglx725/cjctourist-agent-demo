@@ -24,6 +24,7 @@ from visitor_profile import (
 
 
 PROFILE_FIELD_ORDER = ("available_minutes", "interests", "detail_level")
+CLASSIC_PROFILE_FIELDS = ("available_minutes",)
 INTEREST_TERMS = (
     "建筑装饰", "灰塑", "木雕", "石雕", "砖雕", "陶塑", "三国", "故事", "吉祥", "工艺",
 )
@@ -49,6 +50,7 @@ class ProfileCollection:
     profile: VisitorProfile
     resolved_fields: tuple[str, ...] = ()
     status: str = "collecting"
+    required_fields: tuple[str, ...] = PROFILE_FIELD_ORDER
 
     def __post_init__(self) -> None:
         invalid = set(self.resolved_fields).difference(ACTIVE_FIELDS)
@@ -56,22 +58,31 @@ class ProfileCollection:
             raise ProfileDialogueError(f"画像收集状态含未知字段：{', '.join(sorted(invalid))}")
         if self.status not in {"collecting", "ready"}:
             raise ProfileDialogueError("画像收集状态无效。")
+        invalid_required = set(self.required_fields).difference(PROFILE_FIELD_ORDER)
+        if invalid_required or not self.required_fields:
+            raise ProfileDialogueError("画像收集所需字段无效。")
+        object.__setattr__(self, "required_fields", tuple(
+            field for field in PROFILE_FIELD_ORDER if field in self.required_fields
+        ))
         object.__setattr__(self, "resolved_fields", tuple(
             field for field in PROFILE_FIELD_ORDER if field in self.resolved_fields
         ))
-        expected_status = "ready" if len(self.resolved_fields) == len(PROFILE_FIELD_ORDER) else "collecting"
+        expected_status = "ready" if all(
+            field in self.resolved_fields for field in self.required_fields
+        ) else "collecting"
         if self.status != expected_status:
             raise ProfileDialogueError("画像收集状态与已解决字段不一致。")
 
     @property
     def next_missing_field(self) -> str | None:
-        return next((field for field in PROFILE_FIELD_ORDER if field not in self.resolved_fields), None)
+        return next((field for field in self.required_fields if field not in self.resolved_fields), None)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "profile": self.profile.to_dict(),
             "resolved_fields": list(self.resolved_fields),
             "status": self.status,
+            "required_fields": list(self.required_fields),
             "next_missing_field": self.next_missing_field,
         }
 
@@ -95,23 +106,35 @@ class ProfileCollectionResult:
         }
 
 
-def new_profile_collection(initial_profile: VisitorProfile | None = None) -> ProfileCollection:
+def new_profile_collection(
+    initial_profile: VisitorProfile | None = None,
+    *,
+    required_fields: tuple[str, ...] = PROFILE_FIELD_ORDER,
+) -> ProfileCollection:
     """Start an empty collection; C1 defaults are not treated as user input."""
-    return ProfileCollection(profile=initial_profile or create_visitor_profile())
+    return ProfileCollection(
+        profile=initial_profile or create_visitor_profile(),
+        required_fields=required_fields,
+    )
 
 
 def collection_from_dict(
     value: dict[str, Any] | None,
     initial_profile: VisitorProfile | None = None,
+    *,
+    required_fields: tuple[str, ...] | None = None,
 ) -> ProfileCollection:
     if value is None:
-        return new_profile_collection(initial_profile)
+        return new_profile_collection(
+            initial_profile, required_fields=required_fields or PROFILE_FIELD_ORDER
+        )
     if not isinstance(value, dict) or not isinstance(value.get("profile"), dict):
         raise ProfileDialogueError("画像收集状态格式无效。")
     return ProfileCollection(
         profile=profile_from_dict(value["profile"]),
         resolved_fields=tuple(value.get("resolved_fields", [])),
         status=str(value.get("status", "collecting")),
+        required_fields=tuple(value.get("required_fields", required_fields or PROFILE_FIELD_ORDER)),
     )
 
 
@@ -196,6 +219,7 @@ def collect_profile_input(
     *,
     start_collection: bool = False,
     base_profile: VisitorProfile | dict[str, Any] | None = None,
+    required_fields: tuple[str, ...] | None = None,
 ) -> ProfileCollectionResult | None:
     """Process one route-profile turn without invoking an LLM or a planner.
 
@@ -206,7 +230,11 @@ def collect_profile_input(
         base_profile if isinstance(base_profile, VisitorProfile)
         else profile_from_dict(base_profile) if isinstance(base_profile, dict) else None
     )
-    collection = collection_from_dict(collection_data, initial_profile) if collection_data else None
+    required = required_fields or PROFILE_FIELD_ORDER
+    collection = (
+        collection_from_dict(collection_data, initial_profile, required_fields=required)
+        if collection_data else None
+    )
     active = collection is not None and collection.status == "collecting"
     if not active and not start_collection:
         return None
@@ -214,7 +242,7 @@ def collect_profile_input(
     # already active collection is handed back to the normal RAG router.
     if not start_collection and any(term in user_text for term in QUESTION_TERMS):
         return None
-    collection = collection or new_profile_collection(initial_profile)
+    collection = collection or new_profile_collection(initial_profile, required_fields=required)
     patch, fields, conflict = _extract_patch(
         user_text,
         allow_bare_detail=True,
@@ -236,8 +264,11 @@ def collect_profile_input(
         return ProfileCollectionResult("clarification", collection, f"{exc} 请重新说明。", {}, "invalid_profile_value")
 
     resolved = tuple(field for field in PROFILE_FIELD_ORDER if field in set(collection.resolved_fields).union(fields))
-    next_field = next((field for field in PROFILE_FIELD_ORDER if field not in resolved), None)
-    updated = ProfileCollection(profile, resolved, "ready" if next_field is None else "collecting")
+    next_field = next((field for field in collection.required_fields if field not in resolved), None)
+    updated = ProfileCollection(
+        profile, resolved, "ready" if next_field is None else "collecting",
+        required_fields=collection.required_fields,
+    )
     if next_field:
         return ProfileCollectionResult("collecting", updated, _prompt(next_field), patch, "profile_field_missing")
     return ProfileCollectionResult(

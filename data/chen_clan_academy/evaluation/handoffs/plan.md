@@ -1,5 +1,22 @@
 # 陈家祠受控 Agent 分阶段实施计划
 
+## P3-01 / CA-12 已冻结的模式契约（2026-08-03）
+
+- 保留既有 `tour_mode`：`chat`、`button_guided`、`continuous`；它继续只表达交互形式。
+- 在同一份 `tour_interaction_state` 中增加 `journey_mode`：`classic`、`custom`；默认值透明地为 `classic`，仅接受游客明确的模式选择，不从语气、身份或偏好推断。
+- `VisitorProfile`、`TourState` 均不保存 `journey_mode`。路线确认时只在不可变的路线审计快照记录最终采用模式，且该审计字段不参与路线计算。
+- 只读问答的恢复目标仅保存在 interaction/session control；问答不得重建或覆盖既有路线、TourState、VisitorProfile、StopProgram 或 NarrationCoverage。
+
+在经典模式中，调度规则应是：
+
+- 术语卡：可在当前点确有相关工艺、且基础讲解需要解释时主动补充；
+- 比较卡：只在有明确、合格的比较对象和证据时补充，不能把比较结论说成基础事实；
+- 打卡点卡：仅在游客有明确拍照意图，或产品后续明确批准“低打扰推荐”时使用；必须先过安全与点位门控；
+- 研究/学术摘要卡：经典模式一律不主动注入；
+- 无合格卡：正常结束基础讲解，不硬塞卡片内容。
+
+“撰写卡片内容且无需关键词就直接讲解输出”不在 P3-01 完成；它属于 P3-03 CardDispatcher 的实现与验收范围。P3-01 只冻结经典/定制模式下哪些卡具备主动调度资格；P3-04 再统一卡片与基础讲解的段落、长度和朗读版式。P3-01 不实现 CardDispatcher 或任何卡片主动输出。
+
 > 文档性质：基于当前工作区、`CONTROLLED_AGENT_ARCHITECTURE_UPGRADE_PLAN.md`、目标架构图和现有问题台账形成的执行拆解。  
 > 生成日期：2026-08-01；状态同步：2026-08-02（`experiment/agent-orchestration-v2@1b418dc`）
 > 目标文件：`data/chen_clan_academy/evaluation/handoffs/plan.md`  
@@ -304,7 +321,12 @@ Planner 只能提交事件请求；adapter 再调用冻结的 `handle_tour_event
 
 ### P3-01 冻结经典/定制模式与恢复协议（CA-12）
 
-这是当前明确的规划—实现未决事项。负责人必须先决定 `tour_mode` 唯一归属：会话控制、VisitorProfile 还是路线快照。推荐将“本轮模式选择”放在会话/规划控制层，并把最终采用的模式写入不可变路线快照；不要把它变成长期身份画像。
+负责人已于 2026-08-03 冻结双维 session 模型：既有 `tour_mode` 仍只表示
+`chat` / `button_guided` / `continuous` 交互形式；同一 `tour_interaction_state`
+的 `journey_mode` 表示 `classic` / `custom` 产品模式。默认 classic，只有游客
+明确选择才进入 custom；VisitorProfile 与 TourState 不保存此字段，路线确认后
+仅在不可变审计快照记录最终模式且不得参与路线计算。只读问答只读取既有恢复
+目标，不得写入控制状态。
 
 - 经典模式：只强制收集时间，其他用透明中性默认；不主动插研究/比较/摄影卡。
 - 定制模式：最多收集明确兴趣、讲解风格、可选目的/同行情况；未填保持中性。
@@ -584,4 +606,7 @@ Gate 3: passed for shadow/read-only integration
 
 `P3-02` 是风险最低的核查项，但不应重复实现：当前唯一链路已是 `GuidancePolicy → compile_narration_style() → NarrationStylePolicy → narration_rendering`，只读取确认策略、未知/异常失败关闭为 neutral，且不改变证据、路线、TourState、VisitorProfile、StopProgram 或 NarrationCoverage。新建第二风格状态、第二画像或自由文本选风格都会违反既有 E5 契约。
 
-当前阻塞为 P3-01 / CA-12：`tour_mode` 的唯一归属、生命周期和知识问答打断后的恢复语义尚未经负责人冻结。它会决定经典/定制默认、卡片调度输入以及后续 Agent 灰度范围；不得自行写入 VisitorProfile、TourState 或新的会话事实源。建议负责人确认“本轮模式由 interaction/session control 持有，最终选定模式仅写入不可变路线快照，VisitorProfile 不持有模式”。完整审计与后续任务边界见 `p3_preflight_audit_handoff.md`。
+P3-01 / CA-12 的模式归属、生命周期与知识问答恢复语义已由负责人冻结，
+当前进入独立实现与测试阶段。它不得写入 VisitorProfile、TourState 或新的会话
+事实源；完整审计、实现边界与验收记录见 `p3_preflight_audit_handoff.md` 和
+`p3_01_journey_mode_handoff.md`。

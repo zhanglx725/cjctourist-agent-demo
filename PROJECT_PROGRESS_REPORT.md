@@ -1,5 +1,12 @@
 # 陈家祠金牌导游 Agent：现阶段技术进度与业务逻辑说明
 
+## P3-01 / CA-12 模式契约（2026-08-03）
+
+- 已实现并通过定向自动测试：既有 `tour_mode` 保留为交互形式；同一 `tour_interaction_state` 新增 session-owned 的 `journey_mode`（`classic` / `custom`）。
+- 默认 `classic` 只要求游览时长；只有游客显式选择 `custom` 才收集最小明确偏好。模式不写入 TourState 或 VisitorProfile。
+- 路线创建后，最终模式仅记录于 `active_route_plan.journey_mode_audit`，并明确标记为不参与路线计算；结束游览会清理 session 模式，路线审计仍保留。
+- 只读问答可标记恢复目标，但不会写 TourState、路线、StopProgram 或 NarrationCoverage。P3-03 CardDispatcher、主动卡片输出及 P3-04 版式尚未实现；状态类 active takeover 继续禁用。
+
 > 学习、答辩和项目全貌说明已独立迁移至 `PROJECT_LEARNING_AND_DEFENSE_GUIDE.md`。本文件只维护当前实现进度、验证状态与后续事项，避免将“计划”误写为“已实现”。
 
 > 报告日期：2026-07-25；最近状态同步：2026-08-02

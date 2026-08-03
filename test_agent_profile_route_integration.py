@@ -130,7 +130,8 @@ class AgentProfileRouteIntegrationTests(unittest.TestCase):
         self.assertIn("三国", collected["visitor_profile"]["interests"])
         self.assertIn("故事", collected["visitor_profile"]["interests"])
         self.assertIn("工艺", collected["visitor_profile"]["interests"])
-        self.assertEqual(collected["profile_collection"]["next_missing_field"], "detail_level")
+        self.assertIsNone(collected["profile_collection"]["next_missing_field"])
+        self.assertEqual(collected["profile_collection"]["required_fields"], ["available_minutes"])
 
     def test_complete_route_action_with_comparison_interest_starts_sixty_minute_route(self):
         text = "我要参观一个小时，我对三国故事相关的工艺比较感兴趣，标准讲解，请帮我规划路线"

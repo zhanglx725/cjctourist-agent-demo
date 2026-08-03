@@ -1,5 +1,9 @@
 # 陈家祠金牌导游 Agent：多人协作公共说明
 
+## P3-01 协作边界（2026-08-03）
+
+`tour_mode` 仍只能表示 `chat` / `button_guided` / `continuous`。产品模式必须使用同一 `tour_interaction_state` 中的 `journey_mode`（`classic` / `custom`）；禁止写入 VisitorProfile、TourState 或创建第二会话状态。默认 classic 必须透明，custom 必须由游客明确选择。任何只读问答只能更新受控恢复标记，不得修改游览事实、路线、StopProgram 或 Coverage。CardDispatcher 与主动卡片内容属于 P3-03，协作者不得提前接入。
+
 本文件面向当前三人协作。目标是让不同知识库可以独立建设，并通过稳定 ID
 接入同一 Agent；不要直接修改彼此模块的事实内容或空间主键。
 
