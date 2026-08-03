@@ -526,6 +526,10 @@ Place → Ornament → Craft/Term → Source/ResearchCard/ComparisonCard
 
 `fa1e00f` 将既有 `atomic_read_plan.py` 接到旧 Graph 末端的审计 Shadow：旧路径完成后，从最近 Human 输入生成闭合只读候选，并仅写入 thread-local `atomic_read_plan_evaluations`。`read_only_active` 未开放，候选不执行、不产生游客正文、不写 TourState、VisitorProfile、proposal、StopProgram 或 NarrationCoverage。定向 46/46、完整 841/841 与 P0 8/8 均通过。负责人 Studio 正向验证记录的 Thread ID 为 `019fc3b7-67ea-77d2-8131-6a3b93a7fcd3`，候选为 `single_fact` + `controlled_knowledge`，且 `decision_kind=atomic_read_plan`；Trace URL/revision 未保存，状态为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。详见 `p2_01_graph_shadow_handoff.md`。Gate 2 仍 pending，Gate 3 仍 blocked；P2-02/P2-03/P2-04 不得因此开启。
 
+### P2-02 Route Proposal Graph Shadow（功能已验收，Trace 元数据待补）
+
+`d0b61e0`/`44235c3` 将同一份旧 `RouteSelection` 包装为审计 proposal，而不重新选择、重新规划或改变旧 `direct_route` 的 `start_tour`/正文/正式状态。accepted 候选只写入 thread-local `route_proposal_evaluations`，并对旧路线记录 `matches_legacy=true`；10 分钟非法画像被记录为 `rejected_reason=invalid_profile_value`，旧的 20–120 分钟提示不变。定向 55/55、完整 852/852、P0 8/8 均通过。负责人 Studio 提供了三个 Thread ID，但未保存 Trace URL/revision；归档为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P2-02 active disabled，P2-03/P2-04 未开始；详见 `p2_02_route_proposal_shadow_handoff.md`。
+
 这 8 步完成前，不建议开始语音、多语言、附近实时推荐或图数据库。它们依赖稳定的 Renderer、证据包、状态事件和工具权限；过早接入只会放大当前分散路由的问题。
 
 ## 17. 完成定义

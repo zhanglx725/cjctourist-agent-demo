@@ -396,3 +396,7 @@ python inspect_route_plan.py deep_dive_90
 # P2-01 Shadow 证据分级
 
 P2-01 `fa1e00f` 已完成功能与自动化验收：定向 46/46、完整 841/841、P0 8/8。负责人 Studio 截图记录了 Thread `019fc3b7-67ea-77d2-8131-6a3b93a7fcd3` 的 `atomic_read_plan` 候选，但未保存 Trace URL/revision 或逐字段状态 diff。因此协作中必须写为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`，不得伪造 Trace 或说状态 diff 已被人工完整复核。该 evidence debt 允许后续只读验收继续，不允许开启 P2-01 active、路线 proposal 或状态事件接管。
+
+# P2-02 Shadow 证据分级
+
+P2-02 `d0b61e0`/`44235c3` 已通过定向 55/55、完整 852/852 与 P0 8/8。负责人 Studio 截图记录了 30/60 分钟 accepted 且 `matches_legacy=true`，以及 10 分钟的 `invalid_profile_value` reject；完整 Trace URL/revision 与逐字段状态 diff 未保存。协作中必须记为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。该状态只允许 Shadow 归档与后续只读验收；不允许 P2-02 active、自动确认路线或状态事件接管。
