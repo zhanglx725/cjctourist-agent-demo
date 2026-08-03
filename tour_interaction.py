@@ -149,6 +149,11 @@ def journey_mode_from_interaction(interaction_state: dict[str, Any] | None) -> s
         return "classic"
 
 
+def derived_guidance_detail_level(interaction_state: dict[str, Any] | None) -> str | None:
+    """Return the non-persistent narration policy implied by journey mode."""
+    return "deep" if journey_mode_from_interaction(interaction_state) == "custom" else None
+
+
 def explicit_journey_mode_choice(text: str) -> str | None:
     """Recognize only an explicit classic/custom product-mode choice.
 

@@ -52,10 +52,29 @@ class JourneyModeContractTests(unittest.TestCase):
         self.assertEqual(update["tour_interaction_state"]["journey_mode"], "custom")
         self.assertEqual(
             update["profile_collection"]["required_fields"],
-            ["available_minutes", "interests", "detail_level"],
+            ["available_minutes", "interests"],
         )
         self.assertEqual(update["profile_collection"]["next_missing_field"], "available_minutes")
         self.assertEqual(explicit_journey_mode_choice("我喜欢灰塑，讲详细一点"), None)
+
+    def test_custom_collects_time_and_interests_without_a_depth_question(self):
+        first = profile_collection_node(_state(
+            "\u9009\u62e9\u5b9a\u5236\u6a21\u5f0f\uff0c\u6211\u670930\u5206\u949f"
+        ))
+        self.assertEqual(first["profile_collection"]["next_missing_field"], "interests")
+        self.assertNotIn("\u8bb2\u89e3\u6df1\u5ea6", first["messages"][0].content)
+        self.assertNotIn("\u7b80\u7565\u8fd8\u662f\u8be6\u7ec6", first["messages"][0].content)
+
+        ready = profile_collection_node(_state(
+            "\u6211\u559c\u6b22\u7070\u5851\uff0c\u5e2e\u6211\u89c4\u5212", first
+        ))
+        self.assertEqual(ready["profile_collection"]["status"], "ready")
+        self.assertEqual(
+            ready["profile_collection"]["required_fields"],
+            ["available_minutes", "interests"],
+        )
+        self.assertNotIn("journey_mode", ready["visitor_profile"])
+        self.assertEqual(ready["visitor_profile"]["detail_level"], "standard")
 
     def test_custom_mode_is_captured_only_as_non_computational_route_audit(self):
         collected = profile_collection_node(_state(
@@ -68,6 +87,16 @@ class JourneyModeContractTests(unittest.TestCase):
         self.assertEqual(route["tour_interaction_state"]["journey_mode"], "custom")
         self.assertNotIn("journey_mode", route["tour_state"])
         self.assertNotIn("journey_mode", route["visitor_profile"])
+
+    def test_custom_detail_policy_is_derived_not_persisted_in_profile_or_route(self):
+        collected = profile_collection_node(_state(
+            "\u9009\u62e9\u5b9a\u5236\u6a21\u5f0f\uff0c\u6211\u670930\u5206\u949f\uff0c\u559c\u6b22\u7070\u5851\uff0c\u5e2e\u6211\u89c4\u5212"
+        ))
+        route = direct_route_node(_state("\u7ee7\u7eed", collected))
+        self.assertEqual(route["visitor_profile"]["detail_level"], "standard")
+        self.assertNotIn("journey_mode", route["visitor_profile"])
+        self.assertFalse(route["active_route_plan"]["journey_mode_audit"]["used_for_route_calculation"])
+        self.assertEqual(route["tour_interaction_state"]["journey_mode"], "custom")
 
     def test_read_only_interruption_reads_session_resume_without_writing_state(self):
         collecting = profile_collection_node(_state("帮我规划路线"))

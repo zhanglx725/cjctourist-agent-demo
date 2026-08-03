@@ -25,6 +25,7 @@ from visitor_profile import (
 
 PROFILE_FIELD_ORDER = ("available_minutes", "interests", "detail_level")
 CLASSIC_PROFILE_FIELDS = ("available_minutes",)
+CUSTOM_PROFILE_FIELDS = ("available_minutes", "interests")
 INTEREST_TERMS = (
     "建筑装饰", "灰塑", "木雕", "石雕", "砖雕", "陶塑", "三国", "故事", "吉祥", "工艺",
 )

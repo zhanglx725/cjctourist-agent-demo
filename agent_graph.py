@@ -119,7 +119,7 @@ from single_fact_answer import (
     single_fact_retrieval_query_for_kind,
 )
 from guide_program_evidence import build_stop_guidance, reexpress_current_stop_guidance
-from profile_dialogue import CLASSIC_PROFILE_FIELDS, collect_profile_input
+from profile_dialogue import CLASSIC_PROFILE_FIELDS, CUSTOM_PROFILE_FIELDS, collect_profile_input
 from profile_update import apply_profile_update, is_profile_update_request
 from extended_profile_control import apply_extended_profile_control, parse_extended_profile_control
 from visitor_profile import VisitorProfileError, create_visitor_profile, profile_from_dict
@@ -929,7 +929,9 @@ def profile_collection_node(state: AgentState) -> dict[str, Any]:
     result = collect_profile_input(
         state.get("profile_collection"), query, start_collection=start_collection,
         base_profile=state.get("visitor_profile"),
-        required_fields=(CLASSIC_PROFILE_FIELDS if journey_mode == "classic" else None),
+        required_fields=(
+            CLASSIC_PROFILE_FIELDS if journey_mode == "classic" else CUSTOM_PROFILE_FIELDS
+        ),
     )
     if result is None:
         # The router should only enter this node for a route request or an

@@ -16,6 +16,7 @@ from guidance_evidence_bundle import build_guidance_evidence_bundle
 from narration_coverage import load_narration_coverage
 from narration_rendering import render_guidance_evidence
 from guidance_policy import GuidancePolicy, build_guidance_policy
+from tour_interaction import derived_guidance_detail_level
 from tour_presenter import present_tour_state
 from tour_qa import load_guide_cards, parse_rag_payload
 from visitor_profile import VisitorProfileError, create_visitor_profile, profile_from_dict
@@ -71,7 +72,7 @@ def _program_from_state(
         node_id,
         budget,
         interests=tour_state.get("interests", []),
-        detail_level=tour_state.get("detail_level", "standard"),
+        detail_level={"short": "short", "standard": "standard", "detailed": "deep"}[guidance_policy.explanation_length],
         guidance_policy=guidance_policy,
     )
 
@@ -95,7 +96,7 @@ def reexpress_current_stop_guidance(
     if current_program.get("node_id") != tour_state.get("current_stop_id"):
         return {"ok": False, "message": "当前讲解包与所在点位不一致，未重新组织讲解。"}
     try:
-        policy = _guidance_policy_for_tour(tour_state, visitor_profile)
+        policy = _guidance_policy_for_tour(tour_state, visitor_profile, interaction_state)
         items = tuple(SelectedItem(**item) for item in current_program.get("selected_items", []))
         program = StopProgram(
             node_id=current_program["node_id"], display_name=current_program["display_name"],
@@ -128,7 +129,9 @@ def reexpress_current_stop_guidance(
 
 
 def _guidance_policy_for_tour(
-    tour_state: dict[str, Any], visitor_profile: dict[str, Any] | None
+    tour_state: dict[str, Any],
+    visitor_profile: dict[str, Any] | None,
+    interaction_state: dict[str, Any] | None,
 ) -> GuidancePolicy:
     """Use the C5 profile when present, with a legacy TourState fallback.
 
@@ -137,12 +140,15 @@ def _guidance_policy_for_tour(
     as a second profile or used to modify tour progress.
     """
     if visitor_profile is not None:
-        return build_guidance_policy(profile_from_dict(visitor_profile))
+        return build_guidance_policy(
+            profile_from_dict(visitor_profile),
+            detail_level_override=derived_guidance_detail_level(interaction_state),
+        )
     return build_guidance_policy(create_visitor_profile(
         available_minutes=tour_state["available_minutes"],
         interests=tour_state.get("interests", []),
         detail_level=tour_state.get("detail_level", "standard"),
-    ))
+    ), detail_level_override=derived_guidance_detail_level(interaction_state))
 
 
 def build_stop_guidance(
@@ -170,7 +176,7 @@ def build_stop_guidance(
 
     assert tour_state is not None and interaction_state is not None
     try:
-        guidance_policy = _guidance_policy_for_tour(tour_state, visitor_profile)
+        guidance_policy = _guidance_policy_for_tour(tour_state, visitor_profile, interaction_state)
     except VisitorProfileError as exc:
         message = f"当前导览偏好无效，无法安全生成个性化讲解：{exc}"
         return {
