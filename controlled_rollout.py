@@ -13,6 +13,7 @@ class RolloutMode(StrEnum):
 CONTROLLED_KNOWLEDGE = "controlled_knowledge"
 ATOMIC_READ_PLAN = "atomic_read_plan"
 ROUTE_PROPOSAL = "route_proposal"
+REPLAN_PROPOSAL = "replan_proposal"
 
 
 @dataclass(frozen=True)

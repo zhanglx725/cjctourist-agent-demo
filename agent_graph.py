@@ -88,12 +88,14 @@ from controlled_rollout import (
     ATOMIC_READ_PLAN,
     CONTROLLED_KNOWLEDGE,
     ROUTE_PROPOSAL,
+    REPLAN_PROPOSAL,
     RolloutMode,
     evaluation_record,
     rollout_from_environment,
 )
 from atomic_intent_shadow_planner import observe_atomic_read_intents
 from route_proposal import wrap_route_selection_for_shadow
+from replan_proposal import wrap_existing_replan_proposal_for_shadow
 from policy_gate import evaluate_policy
 from reviewed_read_tools import answer_reviewed_controlled_knowledge
 from tool_registry import RuntimePhase
@@ -178,6 +180,7 @@ class AgentState(TypedDict, total=False):
     # source and is only produced after the legacy selection has completed.
     route_proposal_shadow_candidate: dict[str, Any] | None
     route_proposal_evaluations: list[dict[str, Any]]
+    replan_proposal_evaluations: list[dict[str, Any]]
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -1794,6 +1797,25 @@ def route_proposal_shadow_node(state: AgentState, config: RunnableConfig) -> dic
     }
     return {"route_proposal_evaluations": [*state.get("route_proposal_evaluations", []), record][-20:]}
 
+def replan_proposal_shadow_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+    """Audit the existing P1-11 preview without replanning or state writes."""
+    if not rollout_from_environment().observes(REPLAN_PROPOSAL): return {}
+    audit=wrap_existing_replan_proposal_for_shadow(state.get("pending_replan_proposal"),state.get("tour_state"))
+    proposal=audit.proposal
+    record={
+        "thread_id":_rollout_thread_id(config),"capability":REPLAN_PROPOSAL,"mode":"shadow",
+        "validation_status":audit.validation_status,"rejected_reason":audit.rejected_reason,
+        "origin_node":proposal.get("origin_node_id") if proposal else None,
+        "visited_stop_ids_snapshot":proposal.get("visited_stop_ids_snapshot") if proposal else None,
+        "skipped_stop_ids_snapshot":proposal.get("skipped_stop_ids_snapshot") if proposal else None,
+        "remaining_minutes":proposal.get("remaining_minutes") if proposal else None,
+        "candidate_stop_ids":proposal.get("guide_stop_ids") if proposal else None,
+        "route_version":proposal.get("schema_version") if proposal else None,
+        "proposal":proposal,
+        "matches_legacy":bool(proposal is not None and proposal==state.get("pending_replan_proposal")),
+    }
+    return {"replan_proposal_evaluations":[*state.get("replan_proposal_evaluations",[]),record][-20:]}
+
 
 def direct_rag_node(state: AgentState) -> dict[str, Any]:
     """Retrieve clearly in-domain facts without an unnecessary tool-selection LLM."""
@@ -2495,6 +2517,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("controlled_knowledge_rollout", controlled_knowledge_rollout_node)
     workflow.add_node("atomic_read_plan_shadow", atomic_read_plan_shadow_node)
     workflow.add_node("route_proposal_shadow", route_proposal_shadow_node)
+    workflow.add_node("replan_proposal_shadow", replan_proposal_shadow_node)
     workflow.add_node("tour_qa", tour_qa_node)
     workflow.add_node("qa_follow_up_detail", qa_follow_up_detail_node)
     workflow.add_node("direct_route", direct_route_node)
@@ -2535,14 +2558,15 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_edge("profile_update", "atomic_read_plan_shadow")
     workflow.add_edge("extended_profile_control", "atomic_read_plan_shadow")
     workflow.add_conditional_edges("tour_event", route_after_tour_event, {"stop_guidance": "stop_guidance", END: "atomic_read_plan_shadow"})
-    workflow.add_edge("prepare_replan", "atomic_read_plan_shadow")
-    workflow.add_edge("prepare_replan_candidate", "atomic_read_plan_shadow")
-    workflow.add_edge("prepare_duration_replan", "atomic_read_plan_shadow")
-    workflow.add_conditional_edges("confirm_replan", route_after_confirm_replan, {"stop_guidance": "stop_guidance", END: "atomic_read_plan_shadow"})
-    workflow.add_edge("confirm_replan_and_next", "atomic_read_plan_shadow")
-    workflow.add_edge("cancel_replan", "atomic_read_plan_shadow")
-    workflow.add_edge("show_replan", "atomic_read_plan_shadow")
-    workflow.add_edge("show_replan_time", "atomic_read_plan_shadow")
+    workflow.add_edge("prepare_replan", "replan_proposal_shadow")
+    workflow.add_edge("prepare_replan_candidate", "replan_proposal_shadow")
+    workflow.add_edge("prepare_duration_replan", "replan_proposal_shadow")
+    workflow.add_conditional_edges("confirm_replan", route_after_confirm_replan, {"stop_guidance": "stop_guidance", END: "replan_proposal_shadow"})
+    workflow.add_edge("confirm_replan_and_next", "replan_proposal_shadow")
+    workflow.add_edge("cancel_replan", "replan_proposal_shadow")
+    workflow.add_edge("show_replan", "replan_proposal_shadow")
+    workflow.add_edge("show_replan_time", "replan_proposal_shadow")
+    workflow.add_edge("replan_proposal_shadow", "atomic_read_plan_shadow")
     workflow.add_edge("stop_guidance", "atomic_read_plan_shadow")
     workflow.add_edge("clarification", "atomic_read_plan_shadow")
     workflow.add_conditional_edges("llm_think", route_after_llm, {"rag_tool": "rag_tool", END: "atomic_read_plan_shadow"})
