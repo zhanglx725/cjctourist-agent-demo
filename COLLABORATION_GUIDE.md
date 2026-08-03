@@ -421,3 +421,9 @@ P2-04-A `92ca888` 已通过定向 24/24、完整 867/867 和 P0 3/3。Shadow 对
 # P2-04-B Replan Composite Shadow 证据分级
 
 P2-04-B 只读审计旧 P1-11 的 preparation、proposal、确认、合法 `apply_replan_proposal → next_stop` 复合操作和取消；审计本身不得调用 `handle_tour_event` 或成为第二状态源。自动化为定向 5/5、关联 66/66、完整 874/874、P0 3/3。负责人 Studio 已观察到复合确认 accepted、正式路线变化和 contract match，取消仍保留原路线；完整 Thread ID/Trace URL/revision 未保存，必须写为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P2-04-B active disabled；Gate 3 等待最终 P2 集成验收。
+
+# P3 前置审计协作边界
+
+P3 从 `experiment/agent-orchestration-v2@9d744d3` 开始，P2 Gate 3 的结论仍仅是 Shadow／只读集成通过；路线、重规划、到达、完成、跳过、下一站和结束的 active takeover 均未获授权。协作者不得因 P2 审计字段存在而将其作为新的状态、路线、proposal 或游客输出事实源。
+
+P3-02 已核实复用现有的 `GuidancePolicy → NarrationStylePolicy → narration_rendering` 单链，不应新建风格状态或复制 VisitorProfile。下一项 P3-01 / CA-12 必须由负责人先冻结 `tour_mode` 的唯一归属、生命周期与问答打断恢复。未获决定前，不实现 CardDispatcher、经典/定制选择或新的 active Graph 接管；完整拆分见 `data/chen_clan_academy/evaluation/handoffs/p3_preflight_audit_handoff.md`。

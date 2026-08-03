@@ -1090,6 +1090,13 @@ Gate 3: passed for shadow/read-only integration
 
 详见 `data/chen_clan_academy/evaluation/handoffs/p2_gate_3_integration_acceptance.md`。
 
+## P3 前置审计（2026-08-03）
+
+- 基线为 `experiment/agent-orchestration-v2@9d744d3`；P2 Gate 3 已通过 Shadow／只读集成，状态类 active takeover 继续禁用。
+- 审计确认 P3-02 的 E5 风格链已实际存在：`GuidancePolicy → compile_narration_style() → NarrationStylePolicy → narration_rendering`。它是纯展示策略，不复制 VisitorProfile，不改证据、状态、路线、StopProgram 或 Coverage；因此本轮没有新增重复实现。
+- P3-01 / CA-12 是下一项真正实现前置：`tour_mode` 的唯一归属、生命周期和问答打断恢复规则未冻结。此项涉及产品/状态契约，不能自行选择 VisitorProfile、TourState、路线快照或新的会话事实源。
+- 已形成 P3-00 审计、后续拆分和建议方案，见 `data/chen_clan_academy/evaluation/handoffs/p3_preflight_audit_handoff.md`。在负责人确认模式归属前，不启动 CardDispatcher、模式选择或新的 Graph active rollout。
+
 ## P1-21 游客文本与内部审计来源分离（已实现，待 LangSmith 验证）
 
 - 工艺总述的游客渲染不再拼接内部来源编号；工艺和对象来源继续保留在 `evidence`、术语元数据与 Trace 审计结构中。

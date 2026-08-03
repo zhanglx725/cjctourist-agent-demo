@@ -577,3 +577,11 @@ Gate 3: passed for shadow/read-only integration
 ```
 
 详见 `p2_gate_3_integration_acceptance.md`。下一阶段在获得独立授权前不得开启任何路线、重规划或状态类 active takeover。
+
+## P3 前置审计与执行顺序（2026-08-03）
+
+以 `experiment/agent-orchestration-v2@9d744d3` 为基线的审计确认：P2 Gate 3 已通过 Shadow／只读集成，但所有状态类 active takeover 仍禁用。P3 必须按 `P3-01 模式契约 → P3-03 只读 CardDispatcher 候选 → P3-04 事实型 NarrationComposer/版式 → P3-05 分能力灰度` 推进，每步独立测试、独立提交和可回滚。
+
+`P3-02` 是风险最低的核查项，但不应重复实现：当前唯一链路已是 `GuidancePolicy → compile_narration_style() → NarrationStylePolicy → narration_rendering`，只读取确认策略、未知/异常失败关闭为 neutral，且不改变证据、路线、TourState、VisitorProfile、StopProgram 或 NarrationCoverage。新建第二风格状态、第二画像或自由文本选风格都会违反既有 E5 契约。
+
+当前阻塞为 P3-01 / CA-12：`tour_mode` 的唯一归属、生命周期和知识问答打断后的恢复语义尚未经负责人冻结。它会决定经典/定制默认、卡片调度输入以及后续 Agent 灰度范围；不得自行写入 VisitorProfile、TourState 或新的会话事实源。建议负责人确认“本轮模式由 interaction/session control 持有，最终选定模式仅写入不可变路线快照，VisitorProfile 不持有模式”。完整审计与后续任务边界见 `p3_preflight_audit_handoff.md`。
