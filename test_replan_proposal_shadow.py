@@ -30,6 +30,13 @@ class ReplanProposalShadowTests(unittest.TestCase):
  def test_disabled_shadow_writes_nothing(self):
   with patch.dict("os.environ",{"CJC_READ_ONLY_ROLLOUT_MODE":"off","CJC_READ_ONLY_ROLLOUT_CAPABILITIES":"replan_proposal"},clear=False): self.assertEqual(replan_proposal_shadow_node(self.state,{}),{})
 
+ def test_shadow_mode_reports_a_capability_configuration_mismatch(self):
+  env={"CJC_READ_ONLY_ROLLOUT_MODE":"shadow","CJC_READ_ONLY_ROLLOUT_CAPABILITIES":"atomic_read_plan"}
+  with patch.dict("os.environ",env,clear=False): result=replan_proposal_shadow_node(self.state,{"configurable":{"thread_id":"one"}})
+  record=result["replan_proposal_evaluations"][0]
+  self.assertEqual((record["validation_status"],record["rejected_reason"],record["proposal"]),("rejected","capability_not_enabled",None))
+  self.assertEqual(record["runtime_capabilities"],["atomic_read_plan"])
+
  def test_shadow_never_calls_replanner_or_state_adapter(self):
   with patch.dict("os.environ",self.env,clear=False), patch("agent_graph.prepare_remaining_route_proposal") as replan, patch("agent_graph.handle_tour_event") as transition:
    replan_proposal_shadow_node(self.state,{"configurable":{"thread_id":"one"}})

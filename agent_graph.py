@@ -1799,12 +1799,20 @@ def route_proposal_shadow_node(state: AgentState, config: RunnableConfig) -> dic
 
 def replan_proposal_shadow_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """Audit the existing P1-11 preview without replanning or state writes."""
-    if not rollout_from_environment().observes(REPLAN_PROPOSAL): return {}
-    audit=wrap_existing_replan_proposal_for_shadow(state.get("pending_replan_proposal"),state.get("tour_state"))
-    proposal=audit.proposal
+    rollout=rollout_from_environment()
+    if rollout.mode is RolloutMode.OFF: return {}
+    audit=(
+        wrap_existing_replan_proposal_for_shadow(state.get("pending_replan_proposal"),state.get("tour_state"))
+        if rollout.observes(REPLAN_PROPOSAL)
+        else None
+    )
+    validation_status=audit.validation_status if audit is not None else "rejected"
+    rejected_reason=audit.rejected_reason if audit is not None else "capability_not_enabled"
+    proposal=audit.proposal if audit is not None else None
     record={
         "thread_id":_rollout_thread_id(config),"capability":REPLAN_PROPOSAL,"mode":"shadow",
-        "validation_status":audit.validation_status,"rejected_reason":audit.rejected_reason,
+        "validation_status":validation_status,"rejected_reason":rejected_reason,
+        "runtime_capabilities":sorted(rollout.enabled_capabilities),
         "origin_node":proposal.get("origin_node_id") if proposal else None,
         "visited_stop_ids_snapshot":proposal.get("visited_stop_ids_snapshot") if proposal else None,
         "skipped_stop_ids_snapshot":proposal.get("skipped_stop_ids_snapshot") if proposal else None,
