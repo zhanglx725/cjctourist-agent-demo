@@ -2597,7 +2597,7 @@ def build_agent_graph(with_checkpointer: bool = True):
         {
             "direct_rag": "direct_rag", "controlled_knowledge_rollout": "controlled_knowledge_rollout", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "tour_event": "tour_event",
             "clarification": "clarification", "prepare_replan": "prepare_replan", "prepare_replan_candidate": "prepare_replan_candidate", "prepare_duration_replan": "prepare_duration_replan",
-            "confirm_replan": "confirm_replan", "cancel_replan": "cancel_replan", "show_replan": "show_replan", "show_replan_time": "show_replan_time", "llm_think": "llm_think",
+            "confirm_replan": "confirm_replan", "confirm_replan_and_next": "confirm_replan_and_next", "cancel_replan": "cancel_replan", "show_replan": "show_replan", "show_replan_time": "show_replan_time", "llm_think": "llm_think",
         },
     )
     workflow.add_edge("direct_rag", "llm_think")

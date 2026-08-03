@@ -1096,6 +1096,8 @@ P1-20 已在 2026-07-31 通过新线程人工验收并标记 `verified_fixed`。
 
 ## P1-11 学习说明：为什么中途重规划必须先候选、后确认
 
+`confirm_replan_and_next` 不是重复执行错误，而是唯一被允许的复合操作：先应用已确认、仍新鲜的 proposal，再取得下一站。2026-08-03 发现并修复的是 Graph 映射缺口，而不是状态语义缺陷：入口已经会返回该路由目标，但 `semantic_normalization` 的条件映射没有目标 key，导致 Studio `KeyError`。最小修复只恢复既有节点可达性；定向 54/54、完整 869/869、P0 3/3 通过，人工 Studio 显示新路线只应用一次且直接给出下一站。P1-11 confirm_replan_and_next Graph reachability: verified；P2-04-B: not started; prerequisite repaired。
+
 初始路线规划可以从产品默认入口建立新会话；中途调整则必须保留已访问、已跳过和当前真实位置。`current_stop_id` 是唯一物理位置事实，候选中的 `origin_node_id` 只是创建候选时的审计快照，不能成为可独立修改的第二位置源。
 
 因此流程固定为“审核到达 → 若为非 pending 的自主到达则询问本轮剩余时间 → 用明确时间从 current 计算候选 → 等待路线确认 → freshness 校验后原子应用”。初始路线预算不是现场剩余时间，不能在偏航后直接复用。两阶段的 `next_stop` 都被状态门控拦截，避免旧 pending、空候选或尚未确认的路线被误当成已完成行程。答辩可概括为：确认式重规划把可撤销的产品选择、显式时间输入与不可伪造的 TourState 事实分离。

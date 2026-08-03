@@ -538,6 +538,10 @@ Place → Ornament → Craft/Term → Source/ResearchCard/ComparisonCard
 
 `92ca888` 为普通 `tour_event` 增加纯 dry-run 审计：到达、讲解结束、确认完成、跳过、下一站和结束只读取状态快照；旧 Graph 仍是唯一执行者，且每个事件只调用一次 `handle_tour_event`。thread-local `state_transition_evaluations` 记录预期阶段、拒绝/原因码和与旧链实际结果的比对，不构成第二份 TourState。定向 24/24、完整 867/867、P0 3/3 均通过。Studio 人工操作已看到六类普通事件均为 accepted 且 `legacy_execution_observed=true`、`legacy_result_matches_shadow=true`；完整 Thread/Trace URL/revision 未保存，故归档为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P2-04-A active disabled；P2-04-B 重规划复合事件审计未开始；Gate 3 仍等待 P2-04-B 与最终验收。详见 `p2_04a_normal_event_shadow_handoff.md`。
 
+### P1-11 confirm_replan_and_next Graph 可达性修复
+
+`route_initial_request()` 已有合法复合目标 `confirm_replan_and_next`，但 `semantic_normalization` 的条件映射曾缺少该 key，导致本地 Studio 抛出 `KeyError`。最小修复仅将既有节点加入映射，保留冻结顺序 `apply_replan_proposal → next_stop`，不属于 P2 active 接管。定向 54/54、完整 869/869、P0 3/3 与 `git diff --check` 通过；负责人手动验证新路线只应用一次并输出下一站导航。未保存完整 Thread ID/Trace URL，状态为 `manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P1-11 confirm_replan_and_next Graph reachability: verified；P2-04-B: not started; prerequisite repaired。
+
 这 8 步完成前，不建议开始语音、多语言、附近实时推荐或图数据库。它们依赖稳定的 Renderer、证据包、状态事件和工具权限；过早接入只会放大当前分散路由的问题。
 
 ## 17. 完成定义

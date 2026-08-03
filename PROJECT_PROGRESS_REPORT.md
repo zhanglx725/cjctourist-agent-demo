@@ -1091,6 +1091,7 @@ glossary_ids
 
 ## P1-11 显式当前位置的确认式后续重规划（自动化已验证，待 LangSmith 验证）
 
+- 2026-08-03 修复 `confirm_replan_and_next` 的 Graph 可达性：`route_initial_request()` 已可返回该目标，但 `semantic_normalization` 的条件路由映射此前遗漏该 key，Studio 会抛出 `KeyError`。现已只补齐既有 `confirm_replan_and_next_node` 的映射，不改变其冻结的 `apply_replan_proposal → next_stop` 顺序或任何状态契约。定向 54/54、完整回归 869/869、P0 3/3 和 `git diff --check` 通过。负责人在新的本地 Studio 服务手动验证“确认使用新路线，然后前往下一站”：实际进入 `confirm_replan_and_next`，`crafts_60_replanned` 只应用一次、pending proposal 清空，并输出前院中部的下一站导航；未保存完整 Thread ID/Trace URL，故为 `manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P1-11 confirm_replan_and_next Graph reachability: verified；P2-04-B: not started; prerequisite repaired。
 - 活跃路线中，任何明确到达且不同于正式 pending 的审核点位都视为路线偏航：先以审核解析结果写入唯一位置事实 `TourState.current_stop_id`，再进入 `replan_time_confirmation` 询问游客本轮还剩多少时间；显式“重新安排后续行程”仍支持，但不再是必要条件。不得以初始路线总时长生成候选。
 - 解析到明确分钟数后，才从 `current_stop_id` 生成 `awaiting_route_confirmation` 候选；候选的 `origin_node_id` 与 `physical_node_snapshot` 都只是审计快照。A1 `apply_replan_proposal` 验证二者仍一致后才原子替换剩余路线并保留 visited/skipped；取消只清除待确认动作。
 - `pending_action_kind` 明确区分时间确认与路线确认。两阶段的“下一站”都会被拦截，不能调用 `next_stop`、静默应用候选或把路线写为 completed；路线确认阶段使用统一控制表达归一化和“否定 → 疑问/查看 → freshness → 确认”仲裁，支持“确认新路线”“使用新路线”“就按新路线走”等，否定或问句不会应用候选。

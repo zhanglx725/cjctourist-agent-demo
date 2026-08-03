@@ -68,6 +68,7 @@
 
 ### P1-11 共享边界：显式当前位置的后续路线候选
 
+- `confirm_replan_and_next` 是既有 P1-11 的合法复合节点，不是 P2 状态接管：必须保持 `apply_replan_proposal → next_stop` 的旧链顺序。2026-08-03 已补齐 `semantic_normalization` 条件映射中遗漏的目标 key；定向 54/54、完整 869/869、P0 3/3 均通过，Studio 操作员验证节点可达、候选只应用一次并输出下一站。未保存完整 Thread ID/Trace URL，必须标记 `manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P1-11 confirm_replan_and_next Graph reachability: verified；P2-04-B: not started; prerequisite repaired。
 - `TourState.current_stop_id` 仍是唯一物理位置事实；`pending_replan_proposal.origin_node_id` 只允许保存创建候选时的只读快照，不能作为第二位置字段。
 - `prepare_remaining_route_proposal()` 只生成候选，不得改写正式路线；`apply_replan_proposal` 是唯一可应用候选的 A1 事件，必须验证 current 与 origin 一致、候选未过期，才原子保留 visited/skipped 并替换 remaining/pending。
 - 活跃路线中明确自主到达非 pending 审核点位会先进入 `replan_time_confirmation`，要求游客明确本轮剩余分钟数；不得把初始总时长冒充现场剩余时间。收到可解析时间后才准备路线候选并进入 `replan_route_confirmation`。未知/歧义点位、从头重置和混入完成/跳过/知识问答的多意图必须澄清。

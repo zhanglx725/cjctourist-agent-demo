@@ -46,6 +46,7 @@
 | ---: | --- | --- | --- | --- |
 | 0 | P1-04 空间节点冲突 | `blocked_pending_owner_confirmation` | 等空间负责人确认“后西庭/后庭西侧”的权威节点与别名 | 禁止模型或代码自建点位别名 |
 | 1 | P1-11 新位置后的重规划 | `partial_langsmith_verification` | 修复后西庭明确位置识别和未知地点安全澄清，再执行新线程复测 | 月台主链路和混合请求安全澄清通过；后西庭与未知小院仍失败 |
+| 1a | P1-11 confirm_replan_and_next Graph 可达性 | `verified` | 保持既有复合顺序，后续仅做 P2-04-B 只读审计 | 2026-08-03 已补齐 `semantic_normalization` 条件映射；定向 54/54、完整 869/869、P0 3/3 通过，Studio 验证新 proposal 应用一次后进入下一站；Trace 元数据未保存 |
 | 2 | P1-20 规划前对象故事请求可能越过对象级证据边界 | `verified_fixed` | 2026-07-31 已完成 LangSmith 新线程验证；保留后续回归 | 只有同一对象的审核 `08` 证据可输出故事；不得隐式扩大用户指定来源范围 |
 | 3 | P1-10 术语—实例关联被通用知识计划抢占 | `verified_fixed` | 已完成当前点严格实例范围及 Studio 复测 | 不放宽术语资格或英语门控；当前点不是可见保证 |
 | 4 | P1-21 通用工艺问答仍显示内部来源编号 | `implemented_pending_langsmith_verification` | 复测工艺总述和真实 `controlled_knowledge` 两个游客出口 | 不与 P1-19 的 B3 回退泄漏混为同一出口 |

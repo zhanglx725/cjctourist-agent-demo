@@ -2,9 +2,11 @@
 
 import unittest
 from copy import deepcopy
+from unittest.mock import patch
 
 from langchain_core.messages import HumanMessage
 
+import agent_graph
 from agent_graph import (
     cancel_replan_node,
     clarification_node,
@@ -325,6 +327,62 @@ class AgentExplicitLocationReplanTests(unittest.TestCase):
         self.assertIsNone(applied["pending_replan_proposal"])
         self.assertEqual(route_after_confirm_replan(applied_state), "stop_guidance")
         self.assertNotEqual(applied["last_tour_event"]["code"], "tour_finished")
+
+    def test_graph_reaches_confirm_then_next_with_one_legal_composite_sequence(self):
+        # A confirmed physical label is not itself a formal, unconfirmed guide
+        # stop. This is the P1-11 case in which applying a replan and moving
+        # to the next stop is a legal composite operation.
+        state = self._active_state()
+        state["messages"] = [HumanMessage(content="我到月台了")]
+        time_confirmation = tour_event_node(state)
+        candidate_state = {
+            **state,
+            **time_confirmation,
+            "messages": [HumanMessage(content="我还有40分钟")],
+        }
+        candidate = prepare_replan_candidate_node(candidate_state)
+        state = {**candidate_state, **candidate}
+        self.assertFalse(
+            state["pending_replan_proposal"]["current_is_formal_unconfirmed_stop"]
+        )
+        proposal = deepcopy(state["pending_replan_proposal"])
+        request = {
+            **state,
+            "messages": [HumanMessage(content="确认使用新路线，然后前往下一站")],
+            "tool_loops": 0,
+            "retrieved_evidence": [],
+            "performance_metrics": [],
+        }
+        self.assertEqual(route_initial_request(request), "confirm_replan_and_next")
+        observed_events: list[str] = []
+        legacy_handler = agent_graph.handle_tour_event
+
+        def record_event(*args, **kwargs):
+            observed_events.append(args[2])
+            return legacy_handler(*args, **kwargs)
+
+        with patch.object(agent_graph, "handle_tour_event", side_effect=record_event):
+            result = agent_graph.build_agent_graph(with_checkpointer=False).invoke(
+                request, config={"configurable": {"thread_id": "p1-11-confirm-next"}}
+            )
+
+        self.assertEqual(observed_events, ["apply_replan_proposal", "next_stop"])
+        self.assertIsNone(result["pending_replan_proposal"])
+        self.assertEqual(result["selected_route_id"], proposal["route_id"])
+        self.assertEqual(result["tour_interaction_state"]["pending_action_kind"], None)
+        self.assertEqual(
+            result["tour_interaction_state"]["pending_stop_id"],
+            result["tour_state"]["remaining_stop_ids"][0],
+        )
+        self.assertNotIn("llm_think", [metric["node"] for metric in result["performance_metrics"]])
+        self.assertNotIn("rag_tool", [metric["node"] for metric in result["performance_metrics"]])
+
+    def test_confirm_then_next_without_pending_proposal_does_not_mutate_route(self):
+        state = self._active_state()
+        before = deepcopy(state["tour_state"])
+        state["messages"] = [HumanMessage(content="确认使用新路线，然后前往下一站")]
+        self.assertNotEqual(route_initial_request(state), "confirm_replan_and_next")
+        self.assertEqual(state["tour_state"], before)
 
     def test_pending_route_confirmation_accepts_normalized_confirm_expressions(self):
         expressions = (
