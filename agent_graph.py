@@ -87,11 +87,13 @@ from controlled_executor import execute_approved_read_tool
 from controlled_rollout import (
     ATOMIC_READ_PLAN,
     CONTROLLED_KNOWLEDGE,
+    ROUTE_PROPOSAL,
     RolloutMode,
     evaluation_record,
     rollout_from_environment,
 )
 from atomic_intent_shadow_planner import observe_atomic_read_intents
+from route_proposal import wrap_route_selection_for_shadow
 from policy_gate import evaluate_policy
 from reviewed_read_tools import answer_reviewed_controlled_knowledge
 from tool_registry import RuntimePhase
@@ -172,6 +174,10 @@ class AgentState(TypedDict, total=False):
     # thread and is never rendered in the visitor response.
     controlled_rollout_evaluations: list[dict[str, Any]]
     atomic_read_plan_evaluations: list[dict[str, Any]]
+    # P2-02 transient audit input.  It is never a formal proposal or route
+    # source and is only produced after the legacy selection has completed.
+    route_proposal_shadow_candidate: dict[str, Any] | None
+    route_proposal_evaluations: list[dict[str, Any]]
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -787,7 +793,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
     )
     marker = AIMessage(content=message, additional_kwargs={"direct_route_plan": True})
     presentation = present_tour_state(tour, interaction)
-    return {
+    updates = {
         "messages": [marker],
         "selected_route_id": route_id,
         "active_route_plan": plan_data,
@@ -819,6 +825,32 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
             route_selection_reason=plan.selection_reason,
         ),
     }
+    rollout = rollout_from_environment()
+    if rollout.observes(ROUTE_PROPOSAL):
+        try:
+            audit = wrap_route_selection_for_shadow(
+                selection_result.selected,
+                input_snapshot={
+                    "available_minutes": minutes,
+                    "interests": interests,
+                    "detail_level": profile.detail_level,
+                    "route_constraint": profile.route_constraint,
+                },
+                route_data_version={
+                    "route_templates": "route_templates_v1",
+                    "route_stop_catalog": "route_stop_catalog_v1",
+                    "dynamic_route_policy": "dynamic_route_policy_v1",
+                    "node_guide_cards": "node_guide_cards_v1",
+                },
+            )
+            updates["route_proposal_shadow_candidate"] = audit.to_dict()
+        except (TypeError, ValueError, RuntimeError):
+            updates["route_proposal_shadow_candidate"] = {
+                "proposal": None,
+                "validation_status": "rejected",
+                "rejected_reason": "shadow_wrapper_failed",
+            }
+    return updates
 
 
 def profile_collection_node(state: AgentState) -> dict[str, Any]:
@@ -1716,6 +1748,42 @@ def atomic_read_plan_shadow_node(state: AgentState, config: RunnableConfig) -> d
     return {"atomic_read_plan_evaluations": [*state.get("atomic_read_plan_evaluations", []), record][-20:]}
 
 
+def route_proposal_shadow_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+    """Persist a P2-02 audit envelope without changing the legacy route."""
+    rollout = rollout_from_environment()
+    if not rollout.observes(ROUTE_PROPOSAL):
+        return {}
+    candidate = state.get("route_proposal_shadow_candidate")
+    legacy = state.get("active_route_plan") or {}
+    proposal = candidate.get("proposal") if isinstance(candidate, dict) else None
+    rejected_reason = (
+        candidate.get("rejected_reason")
+        if isinstance(candidate, dict)
+        else "legacy_route_unavailable"
+    )
+    record = {
+        "thread_id": _rollout_thread_id(config),
+        "validation_status": candidate.get("validation_status") if isinstance(candidate, dict) else "rejected",
+        "rejected_reason": rejected_reason,
+        "proposal": proposal,
+        "legacy_route": {
+            "selected_route_id": state.get("selected_route_id"),
+            "route_strategy": legacy.get("route_strategy"),
+            "guide_stop_ids": legacy.get("guide_stop_ids"),
+            "estimated_total_seconds": legacy.get("estimated_total_seconds"),
+        },
+        "matches_legacy": bool(
+            isinstance(proposal, dict)
+            and proposal.get("selected_route_id") == state.get("selected_route_id")
+            and proposal.get("guide_stop_ids") == legacy.get("guide_stop_ids")
+            and proposal.get("estimated_total_seconds") == legacy.get("estimated_total_seconds")
+            and proposal.get("route_strategy") == legacy.get("route_strategy")
+        ),
+        "planner_mode": "shadow",
+    }
+    return {"route_proposal_evaluations": [*state.get("route_proposal_evaluations", []), record][-20:]}
+
+
 def direct_rag_node(state: AgentState) -> dict[str, Any]:
     """Retrieve clearly in-domain facts without an unnecessary tool-selection LLM."""
     query = _latest_user_text(state)
@@ -2415,6 +2483,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("direct_rag", direct_rag_node)
     workflow.add_node("controlled_knowledge_rollout", controlled_knowledge_rollout_node)
     workflow.add_node("atomic_read_plan_shadow", atomic_read_plan_shadow_node)
+    workflow.add_node("route_proposal_shadow", route_proposal_shadow_node)
     workflow.add_node("tour_qa", tour_qa_node)
     workflow.add_node("qa_follow_up_detail", qa_follow_up_detail_node)
     workflow.add_node("direct_route", direct_route_node)
@@ -2446,7 +2515,8 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_edge("controlled_knowledge_rollout", "llm_think")
     workflow.add_edge("tour_qa", "atomic_read_plan_shadow")
     workflow.add_edge("qa_follow_up_detail", "atomic_read_plan_shadow")
-    workflow.add_edge("direct_route", "atomic_read_plan_shadow")
+    workflow.add_edge("direct_route", "route_proposal_shadow")
+    workflow.add_edge("route_proposal_shadow", "atomic_read_plan_shadow")
     workflow.add_conditional_edges(
         "profile_collection", route_after_profile_collection,
         {"direct_route": "direct_route", END: "atomic_read_plan_shadow"},
