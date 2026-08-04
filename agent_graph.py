@@ -121,7 +121,12 @@ from single_fact_answer import (
     single_fact_retrieval_query_for_kind,
 )
 from guide_program_evidence import build_stop_guidance, reexpress_current_stop_guidance
-from profile_dialogue import CLASSIC_PROFILE_FIELDS, CUSTOM_PROFILE_FIELDS, collect_profile_input
+from profile_dialogue import (
+    CLASSIC_PROFILE_FIELDS,
+    CUSTOM_PROFILE_FIELDS,
+    collect_profile_input,
+    is_optional_profile_skip,
+)
 from profile_update import apply_profile_update, is_profile_update_request
 from extended_profile_control import apply_extended_profile_control, parse_extended_profile_control
 from visitor_profile import VisitorProfileError, create_visitor_profile, profile_from_dict
@@ -2580,6 +2585,11 @@ def route_initial_request(state: AgentState) -> str:
         if duration_kind == "parsed":
             return "prepare_duration_replan"
         return "clarification"
+    # A bare "skip" is ambiguous globally. During the two explicitly
+    # skippable custom-profile questions, the active collection owns it;
+    # outside that narrow context, normal stop-skip control keeps priority.
+    if is_optional_profile_skip(state.get("profile_collection"), raw_text):
+        return "profile_collection"
     # P1-11 is a deliberately narrow composition: reviewed arrival followed
     # by remaining-route preview.  It must win before broad route/profile
     # matching, otherwise “规划” would start a fresh collection flow.

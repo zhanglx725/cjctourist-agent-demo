@@ -45,10 +45,25 @@ MINIMIZE_WALKING_TERMS = (
     "不要走太多",
 )
 SKIP_TERMS = ("跳过", "默认", "都可以", "无所谓", "没有偏好")
+OPTIONAL_PROFILE_FIELDS = frozenset({"explanation_style", "language"})
 
 
 class ProfileDialogueError(ValueError):
     """Raised only for malformed persisted collection metadata."""
+
+
+def is_optional_profile_skip(
+    collection_data: dict[str, Any] | None, user_text: str
+) -> bool:
+    """Reserve a bare skip for the optional field currently being collected."""
+    if not isinstance(collection_data, dict):
+        return False
+    if collection_data.get("status") != "collecting":
+        return False
+    if collection_data.get("next_missing_field") not in OPTIONAL_PROFILE_FIELDS:
+        return False
+    normalized = user_text.strip().strip("。.!！?？")
+    return normalized in SKIP_TERMS
 
 
 @dataclass(frozen=True)

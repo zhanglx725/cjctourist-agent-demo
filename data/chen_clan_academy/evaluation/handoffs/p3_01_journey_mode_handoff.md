@@ -67,6 +67,21 @@ Result: the P3-01 custom-detail contract and policy tests passed 14/14; the supp
   translation/TTS voice generation remains a separate multilingual delivery
   capability and is not claimed by this supplement.
 
+### Studio feedback and follow-up
+
+- Case 1 (45 minutes, woodcarving and grey sculpture, interactive style,
+  Korean) was reported as passed: `journey_mode=custom`, style `interactive`,
+  language `ko`, ready collection, and no interest contamination or visitor
+  boundary leak. Thread/Trace identifiers were not included in the report.
+- Case 2 exposed a real routing defect: bare `跳过` at the optional style
+  question was classified as a stop-skip control and returned clarification.
+- The follow-up fix gives a bare skip to `profile_collection` only while its
+  current missing field is `explanation_style` or `language`. Outside that
+  narrow active context, existing stop-skip behavior is unchanged.
+- Offline regression covers both optional skips through `ready`, absence of a
+  skipped language value, and preservation of normal skip clarification. The
+  original Studio Case 2 must be rerun on the follow-up commit.
+
 ## Next step
 
 P3-03 may design and implement a read-only CardDispatcher. It must use this contract only as eligibility input and follow the approved classic-mode dispatch rules in `plan.md`; it must not introduce a second mode, a second state source, or active state takeover.

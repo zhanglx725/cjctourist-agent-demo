@@ -17,6 +17,29 @@ def _state(text: str, initial: dict | None = None) -> dict:
 
 
 class AgentProfileCollectionTests(unittest.TestCase):
+    def test_bare_skip_belongs_to_active_optional_custom_profile_question(self):
+        first = profile_collection_node(_state(
+            "选择定制模式，安排30分钟路线，我喜欢灰塑"
+        ))
+        self.assertEqual(
+            first["profile_collection"]["next_missing_field"],
+            "explanation_style",
+        )
+        skip_style = _state("跳过", first)
+        self.assertEqual(route_initial_request(skip_style), "profile_collection")
+        second = profile_collection_node(skip_style)
+        self.assertEqual(second["visitor_profile"]["explanation_style"], "standard")
+        self.assertEqual(second["profile_collection"]["next_missing_field"], "language")
+
+        skip_language = _state("跳过", second)
+        self.assertEqual(route_initial_request(skip_language), "profile_collection")
+        ready = profile_collection_node(skip_language)
+        self.assertEqual(ready["profile_collection"]["status"], "ready")
+        self.assertNotIn("language", ready["visitor_profile"])
+
+    def test_bare_skip_outside_optional_profile_collection_keeps_tour_control(self):
+        self.assertEqual(route_initial_request(_state("跳过")), "clarification")
+
     def test_route_request_missing_fields_enters_collector_before_planning(self):
         state = _state("帮我规划路线")
         self.assertEqual(route_initial_request(state), "profile_collection")
