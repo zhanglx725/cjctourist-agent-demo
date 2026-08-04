@@ -1,5 +1,13 @@
 # 陈家祠金牌导游 Agent：现阶段技术进度与业务逻辑说明
 
+## P3-04 NarrationComposer 与游客版式（2026-08-04）
+
+- 新增确定性 `narration_composer.py`，组合既有证据讲解和 P3-03 只读候选；不调用模型、不重写基础事实、不接入 Graph，也不提交 Coverage 或修改任何路线/状态/画像/StopProgram。
+- 可选增强统一插入“下一步”之前，最多两项并共享剩余预算；术语只读审核定义，研究强制作者归因与范围限制，比较强制研究口径与适用范围，摄影再次通过同点位选择器并保留安全边界。
+- 游客正文移除 Markdown 列表前缀，不生成嵌套列表；最大 1800 字，统一经过公共游客输出边界。客户端显示与 TTS 使用完全相同的安全正文，内部 card/source/file/URL 信息仅留在审计结果。
+- P3-04 专项 7/7、讲解/风格/边界/Coverage 相关 68/68、完整回归 901/901（29.610 秒）通过。该层尚未进入 Graph，故本步未运行 LangSmith；P2-07 Studio 版式实链验收留待 P3-05 灰度接入。
+- 独立交接见 `data/chen_clan_academy/evaluation/handoffs/p3_04_narration_composer_handoff.md`。下一步为 P3-05 分能力灰度。
+
 ## P3-03 / CA-13 只读 CardDispatcher（2026-08-04）
 
 - 新增确定性 `card_dispatcher.py`，只输出有序、不可变增强候选，不输出卡片正文，不接入 Graph，不修改路线、TourState、VisitorProfile、StopProgram、对象选择或 NarrationCoverage。
