@@ -6,7 +6,11 @@ import unittest
 
 from langchain_core.messages import HumanMessage
 
-from agent_graph import profile_collection_node, route_initial_request
+from agent_graph import (
+    journey_mode_selection_node,
+    profile_collection_node,
+    route_initial_request,
+)
 
 
 def _state(text: str, initial: dict | None = None) -> dict:
@@ -75,14 +79,16 @@ class AgentProfileCollectionTests(unittest.TestCase):
 
     def test_route_request_missing_fields_enters_collector_before_planning(self):
         state = _state("帮我规划路线")
-        self.assertEqual(route_initial_request(state), "profile_collection")
-        update = profile_collection_node(state)
-        self.assertEqual(update["profile_collection"]["next_missing_field"], "available_minutes")
+        self.assertEqual(route_initial_request(state), "journey_mode_selection")
+        update = journey_mode_selection_node(state)
+        self.assertEqual(update["journey_mode_selection"]["status"], "awaiting_choice")
+        self.assertIn("经典模式", update["messages"][0].content)
+        self.assertIn("定制模式", update["messages"][0].content)
         self.assertNotIn("tour_state", update)
         self.assertNotIn("active_route_plan", update)
 
     def test_minimize_walking_request_asks_time_and_keeps_constraint(self):
-        state = _state("给我规划一条少走路的路线")
+        state = _state("选择经典模式，给我规划一条少走路的路线")
         self.assertEqual(route_initial_request(state), "profile_collection")
         update = profile_collection_node(state)
         self.assertEqual(
@@ -105,7 +111,7 @@ class AgentProfileCollectionTests(unittest.TestCase):
         self.assertNotIn("tour_state", update)
 
     def test_english_minute_route_input_does_not_ask_for_time_again(self):
-        state = _state("30min路线，木雕，详细")
+        state = _state("选择经典模式，30min路线，木雕，详细")
         self.assertEqual(route_initial_request(state), "profile_collection")
         update = profile_collection_node(state)
         self.assertEqual(update["visitor_profile"]["available_minutes"], 30)

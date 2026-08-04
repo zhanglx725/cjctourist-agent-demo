@@ -117,7 +117,7 @@ class ControlledRolloutTests(unittest.TestCase):
         }, clear=False):
             self.assertEqual(
                 route_initial_request({"messages": [HumanMessage(content="帮我规划路线")]}),
-                "profile_collection",
+                "journey_mode_selection",
             )
 
 

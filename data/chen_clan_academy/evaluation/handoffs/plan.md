@@ -3,7 +3,7 @@
 ## P3-01 / CA-12 已冻结的模式契约（2026-08-03）
 
 - 保留既有 `tour_mode`：`chat`、`button_guided`、`continuous`；它继续只表达交互形式。
-- 在同一份 `tour_interaction_state` 中增加 `journey_mode`：`classic`、`custom`；默认值透明地为 `classic`，仅接受游客明确的模式选择，不从语气、身份或偏好推断。
+- 在同一份 `tour_interaction_state` 中增加 `journey_mode`：`classic`、`custom`；新路线请求必须由游客明确选择模式，不从默认值、语气、身份或偏好推断。内部缺失/异常状态仍可安全回退为 `classic`，但该兼容回退不得替代游客端模式选择。
 - `VisitorProfile`、`TourState` 均不保存 `journey_mode`。路线确认时只在不可变的路线审计快照记录最终采用模式，且该审计字段不参与路线计算。
 - 只读问答的恢复目标仅保存在 interaction/session control；问答不得重建或覆盖既有路线、TourState、VisitorProfile、StopProgram 或 NarrationCoverage。
 - 经典模式只主动收集游览时长；定制模式只收集游客明确给出的最小偏好（例如兴趣），**不再询问讲解深度**。

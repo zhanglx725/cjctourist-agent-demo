@@ -9,7 +9,9 @@ from langchain_core.messages import HumanMessage
 from agent_graph import (
     _read_only_resume_target,
     direct_route_node,
+    journey_mode_selection_node,
     profile_collection_node,
+    route_after_journey_mode_selection,
     route_initial_request,
 )
 from route_planner import plan_template
@@ -39,6 +41,30 @@ def _finish_custom_optional(state: dict) -> dict:
 
 
 class JourneyModeContractTests(unittest.TestCase):
+    def test_unspecified_route_request_requires_explicit_mode_selection(self):
+        initial = _state("我现在想规划路线。")
+        self.assertEqual(route_initial_request(initial), "journey_mode_selection")
+        prompted = journey_mode_selection_node(initial)
+        self.assertEqual(
+            prompted["journey_mode_selection"]["status"], "awaiting_choice"
+        )
+        self.assertIn("经典模式", prompted["messages"][0].content)
+        self.assertIn("定制模式", prompted["messages"][0].content)
+
+        choice_state = _state("选择定制模式", prompted)
+        self.assertEqual(route_initial_request(choice_state), "journey_mode_selection")
+        selected = journey_mode_selection_node(choice_state)
+        self.assertEqual(route_after_journey_mode_selection(selected), "profile_collection")
+        self.assertEqual(
+            selected["tour_interaction_state"]["journey_mode"], "custom"
+        )
+        collecting = profile_collection_node(_state("选择定制模式", selected))
+        self.assertEqual(
+            collecting["profile_collection"]["next_missing_field"],
+            "available_minutes",
+        )
+        self.assertNotIn("tour_state", collecting)
+
     def test_custom_mode_and_duration_shorthands_start_profile_collection(self):
         for text in (
             "定制，60min",

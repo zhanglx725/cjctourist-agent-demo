@@ -170,6 +170,9 @@ class AgentState(TypedDict, total=False):
     # will explicitly copy a validated profile when a route is initialized.
     visitor_profile: dict[str, Any]
     profile_collection: dict[str, Any]
+    # Explicit pre-route product-mode choice. It is session control only and
+    # never becomes VisitorProfile or TourState data.
+    journey_mode_selection: dict[str, Any] | None
     last_profile_update: dict[str, Any]
     last_extended_profile_control: dict[str, Any]
     # Per-turn, auditable input normalization.  This is not TourState or a
@@ -925,6 +928,7 @@ def profile_collection_node(state: AgentState) -> dict[str, Any]:
         or should_direct_route(query)
         or classify_duration_control_text(query) is not None
         or (explicit_mode is not None and parse_duration_minutes(query).ok)
+        or (state.get("journey_mode_selection") or {}).get("status") == "selected"
     )
     started = time.perf_counter()
     # The transparent default is classic.  Only the narrow explicit phrases
@@ -979,6 +983,45 @@ def profile_collection_node(state: AgentState) -> dict[str, Any]:
             status=payload["status"], reason_code=payload["reason_code"],
             journey_mode=journey_mode,
             resolved_fields=payload["profile_collection"]["resolved_fields"],
+        ),
+    }
+
+
+def journey_mode_selection_node(state: AgentState) -> dict[str, Any]:
+    """Require an explicit classic/custom choice before a new route profile."""
+    started = time.perf_counter()
+    query = _effective_control_text(state)
+    selected = explicit_journey_mode_choice(query)
+    if selected is None:
+        return {
+            "messages": [AIMessage(content=(
+                "可以选择两种游览方式：\n"
+                "1. 经典模式：只需提供游览时间，快速生成代表性路线。\n"
+                "2. 定制模式：可以进一步选择兴趣、讲解风格和讲解语言。\n"
+                "请选择“经典模式”或“定制模式”。"
+            ))],
+            "journey_mode_selection": {"status": "awaiting_choice"},
+            "performance_metrics": _append_metric(
+                state, "journey_mode_selection", time.perf_counter() - started,
+                status="awaiting_choice",
+            ),
+        }
+    session_control = update_session_control(
+        state.get("tour_interaction_state"),
+        journey_mode=selected,
+        resume_after_read_only="profile_collection",
+    )
+    return {
+        "messages": [AIMessage(content=(
+            "已选择经典模式，请继续提供游览时间。"
+            if selected == "classic"
+            else "已选择定制模式，请继续提供游览时间和偏好。"
+        ))],
+        "journey_mode_selection": {"status": "selected", "selected_mode": selected},
+        "tour_interaction_state": session_control,
+        "performance_metrics": _append_metric(
+            state, "journey_mode_selection", time.perf_counter() - started,
+            status="selected", selected_mode=selected,
         ),
     }
 
@@ -2520,6 +2563,8 @@ def route_initial_request(state: AgentState) -> str:
     # venue fact.  Keep it out of RAG in both pre-tour and active-tour modes.
     if is_identity_document_civil_service_request(raw_text):
         return "tour_qa"
+    if (state.get("journey_mode_selection") or {}).get("status") == "awaiting_choice":
+        return "journey_mode_selection"
 
     # First confirmation stage: no inferred default budget is available, so a
     # bare confirmation cannot silently create or apply a route.
@@ -2590,6 +2635,11 @@ def route_initial_request(state: AgentState) -> str:
     # skippable custom-profile questions, the active collection owns it;
     # outside that narrow context, normal stop-skip control keeps priority.
     if is_optional_profile_skip(state.get("profile_collection"), raw_text):
+        return "profile_collection"
+    if (
+        (state.get("profile_collection") or {}).get("status") == "collecting"
+        and parse_duration_minutes(raw_text).ok
+    ):
         return "profile_collection"
     # An explicit product-mode choice plus one valid duration is a complete
     # route-initialization control shape even without words such as "route"
@@ -2663,7 +2713,12 @@ def route_initial_request(state: AgentState) -> str:
     # no facts and cannot mutate route or visitor state.
     duration_kind = classify_duration_control_text(raw_text)
     if duration_kind is not None and state.get("tour_state", {}).get("route_status") != "touring":
-        return "profile_collection"
+        return (
+            "profile_collection"
+            if (state.get("journey_mode_selection") or {}).get("status") == "selected"
+            or explicit_journey_mode_choice(raw_text) is not None
+            else "journey_mode_selection"
+        )
     if _effective_knowledge_plan(state) is not None:
         rollout = rollout_from_environment()
         if (
@@ -2689,7 +2744,12 @@ def route_initial_request(state: AgentState) -> str:
         for term in ("路线", "规划", "怎么逛", "参观顺序", "带我逛")
     )
     if strong_route_action:
-        return "profile_collection"
+        return (
+            "profile_collection"
+            if explicit_journey_mode_choice(raw_text) is not None
+            or (state.get("journey_mode_selection") or {}).get("status") == "selected"
+            else "journey_mode_selection"
+        )
     # All seven generic craft explanations use one deterministic, evidence-
     # backed path before generic RAG or LLM routing.  The parser is anchored,
     # so comparisons and concrete ornament/story questions remain with their
@@ -2720,7 +2780,12 @@ def route_initial_request(state: AgentState) -> str:
     # turn. C2 validates them atomically; C8 must not partially update a
     # profile and suppress route collection.
     if decision.route_kind == "route_request" or should_direct_route(text):
-        return "profile_collection"
+        return (
+            "profile_collection"
+            if explicit_journey_mode_choice(raw_text) is not None
+            or (state.get("journey_mode_selection") or {}).get("status") == "selected"
+            else "journey_mode_selection"
+        )
     extended = parse_extended_profile_control(raw_text)
     # A physical tour event and a preference change are separate atomic turns;
     # never let the preference half silently suppress arrival/skip semantics.
@@ -2779,6 +2844,11 @@ def route_after_profile_collection(state: AgentState) -> str:
     return "direct_route" if collection.get("status") == "ready" else END
 
 
+def route_after_journey_mode_selection(state: AgentState) -> str:
+    selection = state.get("journey_mode_selection") or {}
+    return "profile_collection" if selection.get("status") == "selected" else END
+
+
 def route_after_tour_event(state: AgentState) -> str:
     """Send only successful arrival/detail events into B3 evidence guidance."""
     event = state.get("last_tour_event", {})
@@ -2818,6 +2888,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("qa_follow_up_detail", qa_follow_up_detail_node)
     workflow.add_node("direct_route", direct_route_node)
     workflow.add_node("profile_collection", profile_collection_node)
+    workflow.add_node("journey_mode_selection", journey_mode_selection_node)
     workflow.add_node("profile_update", profile_update_node)
     workflow.add_node("extended_profile_control", extended_profile_control_node)
     workflow.add_node("tour_event", tour_event_node)
@@ -2836,7 +2907,7 @@ def build_agent_graph(with_checkpointer: bool = True):
         "semantic_normalization",
         route_initial_request,
         {
-            "direct_rag": "direct_rag", "controlled_knowledge_rollout": "controlled_knowledge_rollout", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "tour_event": "tour_event",
+            "direct_rag": "direct_rag", "controlled_knowledge_rollout": "controlled_knowledge_rollout", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "journey_mode_selection": "journey_mode_selection", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "tour_event": "tour_event",
             "clarification": "clarification", "prepare_replan": "prepare_replan", "prepare_replan_candidate": "prepare_replan_candidate", "prepare_duration_replan": "prepare_duration_replan",
             "confirm_replan": "confirm_replan", "confirm_replan_and_next": "confirm_replan_and_next", "cancel_replan": "cancel_replan", "show_replan": "show_replan", "show_replan_time": "show_replan_time", "llm_think": "llm_think",
         },
@@ -2847,6 +2918,10 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_edge("qa_follow_up_detail", "atomic_read_plan_shadow")
     workflow.add_edge("direct_route", "route_proposal_shadow")
     workflow.add_edge("route_proposal_shadow", "atomic_read_plan_shadow")
+    workflow.add_conditional_edges(
+        "journey_mode_selection", route_after_journey_mode_selection,
+        {"profile_collection": "profile_collection", END: "atomic_read_plan_shadow"},
+    )
     workflow.add_conditional_edges(
         "profile_collection", route_after_profile_collection,
         {"direct_route": "direct_route", END: "route_proposal_shadow"},

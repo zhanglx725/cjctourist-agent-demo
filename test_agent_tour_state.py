@@ -189,14 +189,17 @@ class AgentTourStateTests(unittest.TestCase):
     def test_new_route_request_collects_profile_before_later_route_replacement(self):
         initial = self._started()
         self.assertEqual(
-            route_initial_request(_message_state("我有45分钟，帮我规划路线", initial)),
+            route_initial_request(_message_state("选择经典模式，我有45分钟，帮我规划路线", initial)),
             "profile_collection",
         )
 
-    def test_bare_duration_without_route_enters_profile_collection(self):
+    def test_bare_duration_without_route_requires_mode_selection(self):
         for text in ("1.5个小时", "1.5小时", "一个半小时", "90分钟"):
             with self.subTest(text=text):
-                self.assertEqual(route_initial_request(_message_state(text)), "profile_collection")
+                self.assertEqual(
+                    route_initial_request(_message_state(text)),
+                    "journey_mode_selection",
+                )
 
     def test_bare_duration_on_active_route_uses_replan_time_event(self):
         initial = self._started()

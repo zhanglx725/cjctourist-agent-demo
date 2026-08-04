@@ -12,7 +12,12 @@
 `tour_interaction_state` is the only runtime owner of `journey_mode`.
 
 - `tour_mode` remains `chat`, `button_guided`, or `continuous`.
-- `journey_mode` is `classic` or `custom`; missing/unknown session state safely defaults to classic, and only narrow explicit mode choices may select custom.
+- `journey_mode` is `classic` or `custom`. Internal malformed-state reads still
+  fail safely to classic, but a new visitor route request with no explicit
+  mode no longer uses that compatibility fallback as a product choice.
+- Unspecified new-route requests enter the dedicated
+  `journey_mode_selection` stage. The visitor sees both mode descriptions and
+  must explicitly select classic or custom before C2 profile collection starts.
 - Classic requires only `available_minutes`. Explicit interests or detail values remain usable when supplied, but the system does not prompt for them.
 - Custom collects explicit time and interests, then offers two skippable
   questions for explanation style and narration language; it never asks for a
@@ -101,6 +106,12 @@ Result: the P3-01 custom-detail contract and policy tests passed 14/14; the supp
   The narrow `定制，<duration>` shorthand is accepted without treating an
   arbitrary mention of customization as a mode choice. All three reported
   forms have offline routing and state assertions; Studio rerun is required.
+- Case 10 changed the product contract: `我现在想规划路线` must not silently
+  create a classic profile. The new `journey_mode_selection` node persists an
+  `awaiting_choice` session control, explains both modes, and routes an
+  explicit selection into the corresponding C2 required fields. A bare time
+  supplied while the choice is pending does not bypass the gate. Explicit
+  mode-plus-duration inputs still go directly to profile collection.
 
 ## Next step
 
