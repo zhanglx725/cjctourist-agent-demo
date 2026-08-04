@@ -130,6 +130,12 @@ from profile_dialogue import (
 from profile_update import apply_profile_update, is_profile_update_request
 from extended_profile_control import apply_extended_profile_control, parse_extended_profile_control
 from visitor_profile import VisitorProfileError, create_visitor_profile, profile_from_dict
+from tour_opening_program import (
+    TourOpeningProgramError,
+    apply_tour_opening_action,
+    initialize_tour_opening,
+    opening_action,
+)
 MAX_TOOL_LOOPS = 3
 DEFAULT_DEEPSEEK_MAX_TOKENS = 450
 DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
@@ -209,6 +215,10 @@ class AgentState(TypedDict, total=False):
     # P3-05 audit only. Candidate narration is never the authoritative visitor
     # message and never submits Coverage or state writes.
     narration_composition_evaluations: list[dict[str, Any]]
+    # P4-01 session program only. It does not participate in route, profile,
+    # TourState, StopProgram, or NarrationCoverage calculations.
+    tour_opening_program: dict[str, Any]
+    tour_opening_evaluations: list[dict[str, Any]]
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -853,6 +863,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         "提示：步行时间基于官网地图与已核对路线估算，现场通行、驻足和开放情况请以馆方安排为准。"
         "\n\n"
         + format_next_stop_navigation(next_stop_navigation(tour))
+        + "\n\n如需先听陈家祠总体介绍，请说“开始介绍”；也可以说“跳过介绍”。"
     )
     marker = AIMessage(content=message, additional_kwargs={"direct_route_plan": True})
     presentation = present_tour_state(tour, interaction)
@@ -868,6 +879,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         # introductions from an earlier route must not suppress first-contact
         # narration in this one.  E5-A4 will be the only later writer.
         "narration_coverage": empty_narration_coverage().to_dict(),
+        "tour_opening_program": initialize_tour_opening(),
         "active_guidance_evidence_bundle": None,
         "active_narration_render_audit": None,
         "qa_context": clear_qa_context(state.get("qa_context")),
@@ -914,6 +926,45 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
                 "rejected_reason": "shadow_wrapper_failed",
             }
     return updates
+
+
+def tour_opening_node(state: AgentState) -> dict[str, Any]:
+    """Apply one explicit P4-01 opening action without touching tour facts."""
+    started = time.perf_counter()
+    action = opening_action(_latest_user_text(state))
+    if action is None:
+        return {
+            "messages": [AIMessage(content=(
+                "请选择“开始介绍”或“跳过介绍”；已经处理后也可以说“重播开场”。"
+            ))],
+            "performance_metrics": _append_metric(
+                state, "tour_opening", time.perf_counter() - started,
+                status="clarification",
+            ),
+        }
+    try:
+        result = apply_tour_opening_action(state.get("tour_opening_program"), action)
+    except TourOpeningProgramError:
+        return {
+            "messages": [AIMessage(content=(
+                "总体介绍暂时不可用。您仍可按已确认路线前往第一站。"
+            ))],
+            "performance_metrics": _append_metric(
+                state, "tour_opening", time.perf_counter() - started,
+                status="failed_closed",
+            ),
+        }
+    evaluations = list(state.get("tour_opening_evaluations") or [])
+    evaluations.append(result["audit"])
+    return {
+        "messages": [AIMessage(content=result["message"])],
+        "tour_opening_program": result["program"],
+        "tour_opening_evaluations": evaluations[-20:],
+        "performance_metrics": _append_metric(
+            state, "tour_opening", time.perf_counter() - started,
+            status=result["program"]["status"], action=action,
+        ),
+    }
 
 
 def profile_collection_node(state: AgentState) -> dict[str, Any]:
@@ -2563,6 +2614,11 @@ def route_initial_request(state: AgentState) -> str:
     # venue fact.  Keep it out of RAG in both pre-tour and active-tour modes.
     if is_identity_document_civil_service_request(raw_text):
         return "tour_qa"
+    # P4-01 uses a deliberately narrow explicit vocabulary, so ordinary QA,
+    # navigation, and replanning continue through their established routes.
+    # Replanning never resets this program and therefore cannot auto-replay it.
+    if opening_action(raw_text) is not None and state.get("tour_state"):
+        return "tour_opening"
     if (state.get("journey_mode_selection") or {}).get("status") == "awaiting_choice":
         return "journey_mode_selection"
 
@@ -2889,6 +2945,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("direct_route", direct_route_node)
     workflow.add_node("profile_collection", profile_collection_node)
     workflow.add_node("journey_mode_selection", journey_mode_selection_node)
+    workflow.add_node("tour_opening", tour_opening_node)
     workflow.add_node("profile_update", profile_update_node)
     workflow.add_node("extended_profile_control", extended_profile_control_node)
     workflow.add_node("tour_event", tour_event_node)
@@ -2907,7 +2964,7 @@ def build_agent_graph(with_checkpointer: bool = True):
         "semantic_normalization",
         route_initial_request,
         {
-            "direct_rag": "direct_rag", "controlled_knowledge_rollout": "controlled_knowledge_rollout", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "journey_mode_selection": "journey_mode_selection", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "tour_event": "tour_event",
+            "direct_rag": "direct_rag", "controlled_knowledge_rollout": "controlled_knowledge_rollout", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "journey_mode_selection": "journey_mode_selection", "tour_opening": "tour_opening", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "tour_event": "tour_event",
             "clarification": "clarification", "prepare_replan": "prepare_replan", "prepare_replan_candidate": "prepare_replan_candidate", "prepare_duration_replan": "prepare_duration_replan",
             "confirm_replan": "confirm_replan", "confirm_replan_and_next": "confirm_replan_and_next", "cancel_replan": "cancel_replan", "show_replan": "show_replan", "show_replan_time": "show_replan_time", "llm_think": "llm_think",
         },
@@ -2918,6 +2975,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_edge("qa_follow_up_detail", "atomic_read_plan_shadow")
     workflow.add_edge("direct_route", "route_proposal_shadow")
     workflow.add_edge("route_proposal_shadow", "atomic_read_plan_shadow")
+    workflow.add_edge("tour_opening", "atomic_read_plan_shadow")
     workflow.add_conditional_edges(
         "journey_mode_selection", route_after_journey_mode_selection,
         {"profile_collection": "profile_collection", END: "atomic_read_plan_shadow"},

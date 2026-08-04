@@ -1,0 +1,21 @@
+{
+  "version": "tour_opening_evidence_v1",
+  "review_status": "approved",
+  "facts": [
+    {
+      "fact_id": "identity",
+      "public_text": "陈家祠又称陈氏书院，现为广东民间工艺博物馆馆址。",
+      "source_ids": ["official_museum_history", "guangzhou_culture_bureau"]
+    },
+    {
+      "fact_id": "layout",
+      "public_text": "主体建筑以三进三路展开，中轴厅堂与东西院落相互连接。",
+      "source_ids": ["guangzhou_culture_bureau", "official_e_map"]
+    },
+    {
+      "fact_id": "crafts",
+      "public_text": "游览中可以留意木雕、砖雕、石雕、陶塑、灰塑、铜铁铸和彩绘等建筑装饰工艺。",
+      "source_ids": ["official_museum_history", "guangzhou_culture_bureau"]
+    }
+  ]
+}
