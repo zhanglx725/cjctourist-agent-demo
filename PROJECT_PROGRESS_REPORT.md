@@ -1,5 +1,12 @@
 # 陈家祠金牌导游 Agent：现阶段技术进度与业务逻辑说明
 
+## P3-02 NarrationStylePolicy 集成验收（2026-08-04）
+
+- 已完成代码与契约审计：唯一生产链保持为 `GuidancePolicy → compile_narration_style() → NarrationStylePolicy → render_guidance_evidence()`，不新增第二画像、风格状态或路线事实。
+- 七种批准风格、未知风格回退 neutral、样式库失败关闭、`listen_only` 无问句/任务，以及同一证据下工艺、对象、来源、预算、覆盖候选不漂移均已有自动化测试覆盖。
+- 本轮未修改生产代码。已修复 Windows Python/MSI 异常，恢复 Python 3.12.7，并按 `requirements.txt` 重建 `.venv`；`pip check` 无损坏依赖，P3-02 定向测试 33/33、完整回归 887/887（30.912 秒）通过。P3-03 可以开始。
+- 独立验收记录见 `data/chen_clan_academy/evaluation/handoffs/p3_02_narration_style_acceptance.md`。
+
 ## P3-01 / CA-12 模式契约（2026-08-03）
 
 - 已实现并通过定向自动测试：既有 `tour_mode` 保留为交互形式；同一 `tour_interaction_state` 新增 session-owned 的 `journey_mode`（`classic` / `custom`）。
