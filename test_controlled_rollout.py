@@ -10,6 +10,7 @@ import unittest
 from langchain_core.messages import HumanMessage
 
 from agent_graph import (
+    _rollout_thread_id,
     controlled_knowledge_rollout_node,
     route_initial_request,
 )
@@ -35,6 +36,11 @@ def _state() -> dict:
 
 
 class ControlledRolloutTests(unittest.TestCase):
+    def test_thread_id_supports_api_metadata_and_local_configurable_context(self):
+        self.assertEqual(_rollout_thread_id({"configurable": {"thread_id": "local-a"}}), "local-a")
+        self.assertEqual(_rollout_thread_id({"metadata": {"thread_id": "api-a"}}), "api-a")
+        self.assertEqual(_rollout_thread_id({"metadata": {"langgraph_thread_id": "api-b"}}), "api-b")
+
     def test_configuration_is_capability_scoped_and_invalid_values_fail_closed(self):
         self.assertEqual(
             rollout_from_environment({

@@ -1651,7 +1651,7 @@ def show_replan_time_node(state: AgentState) -> dict[str, Any]:
     }
 
 
-def stop_guidance_node(state: AgentState, config: RunnableConfig | None = None) -> dict[str, Any]:
+def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict[str, Any]:
     """Generate sourced current-stop guidance without advancing TourState."""
     started = time.perf_counter()
     last_event = state.get("last_tour_event", {})
@@ -1875,6 +1875,10 @@ def _search_controlled_knowledge_evidence(
 def _rollout_thread_id(config: RunnableConfig | None) -> str:
     configurable = (config or {}).get("configurable", {})
     value = configurable.get("thread_id") if isinstance(configurable, dict) else None
+    if not value:
+        metadata = (config or {}).get("metadata", {})
+        if isinstance(metadata, dict):
+            value = metadata.get("thread_id") or metadata.get("langgraph_thread_id")
     return str(value) if value else "local_unscoped_thread"
 
 

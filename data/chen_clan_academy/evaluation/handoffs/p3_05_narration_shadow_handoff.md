@@ -63,9 +63,40 @@ Results:
 
 - P3 narration rollout focused: `23/23` passed.
 - P2 Gate/transition/guidance/Coverage related: `39/39` passed.
-- Complete discovery: `905/905` passed in 30.925 seconds.
+- Complete discovery after the API thread-context fix: `906/906` passed in
+  35.670 seconds.
 - `git diff --check`: passed.
 - Existing LangGraph annotation warnings remain; no test failed or errored.
+
+## Local API evidence (2026-08-04)
+
+The local LangGraph API was exercised with UTF-8 request bodies against graph
+`chen_clan_academy_agent` and assistant
+`067143aa-ad3c-5ff0-a987-cd8cfc754135`. LangSmith metadata submission returned
+HTTP 204, but no Studio browser was available in this environment, so a Trace
+URL/revision has not been visually reviewed and the overall status remains
+pending.
+
+- Accepted evidence thread: `019fcbed-10ab-7260-bb39-fb018385beb6`.
+- Inputs: `选择定制模式，安排30分钟路线，我对灰塑感兴趣`, then
+  `我已到达前院中部，请开始讲解`.
+- Result: route `highlights_30`, current stop
+  `stop_front_courtyard_center`; legacy Coverage committed craft `灰塑` and
+  ornaments `orn_005`, `orn_008`.
+- Shadow audit: `validation_status=accepted`, real audit `thread_id` equals the
+  API thread ID, `legacy_message_preserved=true`,
+  `same_public_message=true`, `display_tts_equal=true`, and `state_writes=[]`.
+- Repeating the arrival/guidance event produced a second thread-scoped audit
+  while retaining the same Coverage subjects; no P3 audit became a Coverage
+  source.
+- Excluded diagnostic threads: `019fcbe7-9d6c-77b2-9f9d-9d7c02aaf30f`
+  (invalid Chinese request encoding) and
+  `019fcbe8-2c64-75f0-bc78-365e22051396` / subsequent pre-fix runs
+  (`local_unscoped_thread` audit defect). They are not acceptance evidence.
+
+The real-chain thread-context defect was fixed by using a LangGraph-compatible
+`RunnableConfig` node signature and accepting both configurable and API
+metadata thread IDs. Automated coverage now exercises all supported locations.
 
 ## Required LangSmith acceptance
 
