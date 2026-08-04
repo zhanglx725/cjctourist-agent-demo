@@ -30,7 +30,7 @@ enable state-class active takeover.
 | P3-00 | preflight audit and executable sequence | P2 Gate 3 | documentation only | completed by this handoff |
 | P3-01 / CA-12 | freeze classic/custom mode ownership and interruption/recovery contract | owner decision recorded 2026-08-03 | product and state-contract decision | implementation in progress; see `p3_01_journey_mode_handoff.md` |
 | P3-02 | connect the existing narration-style policy without a second profile | P3-01 only if a selectable product mode changes style lifecycle | pure display policy | accepted; existing E5 legacy rendering path is the single implementation; targeted 33/33 and complete 887/887 passed; see `p3_02_narration_style_acceptance.md` |
-| P3-03 / CA-13 | read-only CardDispatcher enhancement candidates | approved P3-01 mode contract, E5 evidence, card eligibility | proposal/read-only only | not started |
+| P3-03 / CA-13 | read-only CardDispatcher enhancement candidates | approved P3-01 mode contract, E5 evidence, card eligibility | proposal/read-only only | completed; focused 7/7, card-related 52/52 and complete 894/894 passed; see `p3_03_card_dispatcher_handoff.md` |
 | P3-04 | facts-only narration composition and visitor layout | P3-02 equivalence regression and P3-03 output contract | renderer only | not started; P2-07 remains a separate layout-quality acceptance item |
 | P3-05 | per-capability Graph rollout | each prior capability's tests and review | existing P2 rollout controls | not started; state-class active takeover remains prohibited |
 

@@ -1,5 +1,13 @@
 # 陈家祠金牌导游 Agent：现阶段技术进度与业务逻辑说明
 
+## P3-03 / CA-13 只读 CardDispatcher（2026-08-04）
+
+- 新增确定性 `card_dispatcher.py`，只输出有序、不可变增强候选，不输出卡片正文，不接入 Graph，不修改路线、TourState、VisitorProfile、StopProgram、对象选择或 NarrationCoverage。
+- 顺序固定为基础对象事实、术语、研究、比较、摄影。术语必须绑定当前点且绑定本次实际选择对象；研究仅在 custom/深度策略、明确兴趣和当前点审核映射均满足时进入，并强制归因；比较只接受 StopProgram 显式绑定卡；摄影必须同时具备明确意图、上游安全清关和同点位审核候选。
+- 所有可选候选共享并逐项扣减剩余讲解预算；无合格增强时正常保留基础讲解。经典模式不会主动注入研究或比较卡。
+- P3-03 专项 7/7、卡片资格相关 52/52、完整回归 894/894（30.248 秒）通过。该层尚无 Graph/游客正文路径，因此本步未运行 LangSmith。
+- 独立交接见 `data/chen_clan_academy/evaluation/handoffs/p3_03_card_dispatcher_handoff.md`。下一步为 P3-04 NarrationComposer 与游客版式。
+
 ## P3-02 NarrationStylePolicy 集成验收（2026-08-04）
 
 - 已完成代码与契约审计：唯一生产链保持为 `GuidancePolicy → compile_narration_style() → NarrationStylePolicy → render_guidance_evidence()`，不新增第二画像、风格状态或路线事实。
