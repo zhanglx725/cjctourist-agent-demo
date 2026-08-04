@@ -96,6 +96,7 @@ from controlled_rollout import (
     ROUTE_PROPOSAL,
     REPLAN_PROPOSAL,
     STATE_TRANSITION,
+    NARRATION_COMPOSITION,
     RolloutMode,
     evaluation_record,
     rollout_from_environment,
@@ -104,6 +105,7 @@ from atomic_intent_shadow_planner import observe_atomic_read_intents
 from route_proposal import wrap_route_selection_for_shadow
 from replan_proposal import wrap_existing_replan_proposal_for_shadow
 from replan_composite_shadow import audit_replan_composite_operation
+from narration_composition_shadow import observe_narration_composition
 from state_transition_adapter import dry_run_transition
 from policy_gate import evaluate_policy
 from reviewed_read_tools import answer_reviewed_controlled_knowledge
@@ -196,6 +198,9 @@ class AgentState(TypedDict, total=False):
     # P2-04-B audit only. It compares the P1-11 composite operation after the
     # legacy node has run; it is never a proposal or state source.
     replan_composite_evaluations: list[dict[str, Any]]
+    # P3-05 audit only. Candidate narration is never the authoritative visitor
+    # message and never submits Coverage or state writes.
+    narration_composition_evaluations: list[dict[str, Any]]
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -1646,7 +1651,7 @@ def show_replan_time_node(state: AgentState) -> dict[str, Any]:
     }
 
 
-def stop_guidance_node(state: AgentState) -> dict[str, Any]:
+def stop_guidance_node(state: AgentState, config: RunnableConfig | None = None) -> dict[str, Any]:
     """Generate sourced current-stop guidance without advancing TourState."""
     started = time.perf_counter()
     last_event = state.get("last_tour_event", {})
@@ -1736,6 +1741,28 @@ def stop_guidance_node(state: AgentState) -> dict[str, Any]:
             **result["narration_render_audit"],
             "coverage_commit": commit_audit,
         }
+    rollout = rollout_from_environment()
+    if rollout.observes(NARRATION_COMPOSITION):
+        try:
+            record = observe_narration_composition(
+                thread_id=_rollout_thread_id(config), legacy_result=result,
+                interaction_state=state.get("tour_interaction_state"),
+                visitor_profile=state.get("visitor_profile"),
+            )
+        except Exception as exc:
+            # Shadow observability must never suppress the authoritative
+            # legacy guidance or its Coverage commit.
+            record = {
+                "thread_id": _rollout_thread_id(config),
+                "capability": NARRATION_COMPOSITION,
+                "mode": "shadow", "active_takeover": False,
+                "validation_status": "rejected",
+                "rejected_reason": f"observer_unavailable:{type(exc).__name__}",
+                "legacy_message_preserved": True,
+            }
+        updates["narration_composition_evaluations"] = [
+            *state.get("narration_composition_evaluations", []), record,
+        ][-20:]
     # Deliberately do not return tour_state or tour_interaction_state.  The
     # A1 adapter remains the only mutation entry point.
     return updates

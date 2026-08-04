@@ -15,6 +15,7 @@ ATOMIC_READ_PLAN = "atomic_read_plan"
 ROUTE_PROPOSAL = "route_proposal"
 REPLAN_PROPOSAL = "replan_proposal"
 STATE_TRANSITION = "state_transition"
+NARRATION_COMPOSITION = "narration_composition"
 
 
 @dataclass(frozen=True)

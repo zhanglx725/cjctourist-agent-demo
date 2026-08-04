@@ -1,5 +1,13 @@
 # 陈家祠金牌导游 Agent：现阶段技术进度与业务逻辑说明
 
+## P3-05 讲解组合 Graph Shadow（2026-08-04）
+
+- 新增 `narration_composition` 灰度能力，并在 `stop_guidance_node` 接入纯 Shadow 审计。旧 E5 讲解正文仍是唯一游客输出和 Coverage 提交依据；P3-03/04 只复用同一次旧结果，不二次检索、规划、选对象或提交 Coverage。
+- 默认 off；仅 `CJC_READ_ONLY_ROLLOUT_MODE=shadow` 且 capability 显式包含 `narration_composition` 时写线程内审计。误设 `read_only_active` 也不会接管正文；观察器异常被 Graph 吞掉并记录拒绝原因，旧正文和 Coverage 继续。
+- 审计记录候选安全正文、与旧正文是否一致、候选/省略卡、预算、警告、显示/TTS 一致性，并固定 `active_takeover=false`、`state_writes=[]`；每线程最多保留 20 条。
+- P3 Shadow 专项 23/23、P2 Gate/状态/讲解/Coverage 相关 39/39、完整回归 905/905（30.925 秒）通过。当前状态为 `implemented_pending_langsmith_verification`；完成五类新线程 Trace 验收前不得开启 active 或进入 P4。
+- 独立交接见 `data/chen_clan_academy/evaluation/handoffs/p3_05_narration_shadow_handoff.md`。
+
 ## P3-04 NarrationComposer 与游客版式（2026-08-04）
 
 - 新增确定性 `narration_composer.py`，组合既有证据讲解和 P3-03 只读候选；不调用模型、不重写基础事实、不接入 Graph，也不提交 Coverage 或修改任何路线/状态/画像/StopProgram。
