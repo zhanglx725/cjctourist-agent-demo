@@ -17,6 +17,39 @@ def _state(text: str, initial: dict | None = None) -> dict:
 
 
 class AgentProfileCollectionTests(unittest.TestCase):
+    def test_route_request_with_conflicting_or_unknown_style_fails_closed(self):
+        conflict_state = _state(
+            "选择定制模式，我有60分钟，选择儿童友好讲解风格和专业讲解风格。"
+        )
+        self.assertEqual(route_initial_request(conflict_state), "profile_collection")
+        conflict = profile_collection_node(conflict_state)
+        self.assertEqual(conflict["profile_collection"]["status"], "collecting")
+        self.assertIn("多个不同选择", conflict["messages"][0].content)
+        self.assertEqual(conflict["visitor_profile"]["explanation_style"], "standard")
+
+        unknown_state = _state(
+            "选择定制模式，我有60分钟，选择抽象讲解风格。"
+        )
+        self.assertEqual(route_initial_request(unknown_state), "profile_collection")
+        unknown = profile_collection_node(unknown_state)
+        self.assertEqual(unknown["profile_collection"]["status"], "collecting")
+        self.assertIn("暂不支持", unknown["messages"][0].content)
+        self.assertEqual(unknown["visitor_profile"]["explanation_style"], "standard")
+        self.assertNotIn("tour_state", unknown)
+
+    def test_repeat_current_stop_routes_to_controlled_tour_event(self):
+        state = _state("请再讲一次当前点。", {
+            "tour_state": {
+                "route_status": "touring",
+                "current_stop_id": "stop_front_courtyard_center",
+            },
+            "tour_interaction_state": {
+                "stop_phase": "explaining",
+                "journey_mode": "custom",
+            },
+        })
+        self.assertEqual(route_initial_request(state), "tour_event")
+
     def test_bare_skip_belongs_to_active_optional_custom_profile_question(self):
         first = profile_collection_node(_state(
             "选择定制模式，安排30分钟路线，我喜欢灰塑"

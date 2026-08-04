@@ -88,6 +88,12 @@ Result: the P3-01 custom-detail contract and policy tests passed 14/14; the supp
   a genuine `三国故事` interest when no style phrase is present. Offline tests
   cover all five supported explanation styles plus the reported full input;
   Studio Case 4 must be rerun on the new follow-up commit.
+- Additional Studio feedback was supplied from obsolete baseline `f80c67e`
+  without Thread/Trace metadata. On the current branch, route requests with
+  conflicting style labels now stay in `profile_collection`, reject the whole
+  turn, and ask for one supported style; `抽象讲解风格` is explicitly rejected
+  with the supported choices instead of silently planning with `standard`.
+  These cases require rerun on the follow-up commit before acceptance.
 
 ## Next step
 

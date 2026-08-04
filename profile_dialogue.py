@@ -54,12 +54,13 @@ STYLE_ALIASES = {
     "standard": ("标准", "自然", "普通"),
 }
 EXPLICIT_STYLE_PHRASES = {
-    "story": ("故事风格", "叙事风格", "故事方式", "叙事方式"),
-    "technical": ("技术风格", "技术方式", "工艺原理风格"),
-    "interactive": ("互动风格", "互动问答风格", "问答风格", "互动方式"),
-    "expert": ("专家风格", "专家方式", "专业风格", "专业方式"),
-    "standard": ("标准风格", "自然风格", "普通风格"),
+    "story": ("故事风格", "故事讲解风格", "叙事风格", "故事方式", "叙事方式"),
+    "technical": ("技术风格", "技术讲解风格", "技术方式", "工艺原理风格"),
+    "interactive": ("互动风格", "互动讲解风格", "互动问答风格", "问答风格", "互动方式"),
+    "expert": ("专家风格", "专家讲解风格", "专家方式", "专业风格", "专业讲解风格", "专业方式"),
+    "standard": ("标准风格", "标准讲解风格", "自然风格", "普通风格"),
 }
+UNSUPPORTED_STYLE_PHRASES = ("儿童友好讲解风格", "抽象讲解风格")
 
 
 class ProfileDialogueError(ValueError):
@@ -204,6 +205,21 @@ def _without_explicit_style_phrases(text: str) -> str:
     return remaining
 
 
+def _style_request_issue(text: str) -> str | None:
+    supported = {
+        value for value, phrases in EXPLICIT_STYLE_PHRASES.items()
+        if any(phrase in text for phrase in phrases)
+    }
+    unsupported = {
+        phrase for phrase in UNSUPPORTED_STYLE_PHRASES if phrase in text
+    }
+    if len(supported) + len(unsupported) > 1:
+        return "讲解风格包含多个不同选择，请只选择标准、故事、技术、互动或专家中的一种。"
+    if unsupported:
+        return "暂不支持该讲解风格，请选择标准、故事、技术、互动或专家中的一种。"
+    return None
+
+
 def _language_candidate(text: str, *, allow_free_text: bool = False) -> str | None:
     aliases = {
         "zh": ("中文", "普通话", "汉语", "mandarin", "chinese"),
@@ -256,6 +272,9 @@ def _extract_patch(
     """Extract one atomic patch; conflicting fields reject the whole turn."""
     duration = parse_duration_minutes(text)
     detail = _detail_candidates(text, allow_bare_detail=allow_bare_detail)
+    style_issue = _style_request_issue(text)
+    if style_issue:
+        return {}, set(), style_issue
     if duration.reason_code == "ambiguous_duration":
         return {}, set(), "时间表达包含多个不同分钟数，请只确认一个可用时间。"
     if len(detail) > 1:

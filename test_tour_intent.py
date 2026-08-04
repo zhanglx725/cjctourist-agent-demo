@@ -211,6 +211,11 @@ class TourIntentTests(unittest.TestCase):
         decision = self.classify("再讲详细一点")
         self.assertEqual(decision.event_type, "request_stop_detail")
 
+    def test_repeat_current_stop_is_a_controlled_detail_request(self):
+        decision = self.classify("请再讲一次当前点。")
+        self.assertEqual(decision.route_kind, "tour_event")
+        self.assertEqual(decision.event_type, "request_stop_detail")
+
     def test_finish_tour_phrase(self):
         decision = self.classify("结束导览")
         self.assertEqual(decision.event_type, "finish_tour")

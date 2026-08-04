@@ -546,7 +546,10 @@ def _event_hits(text: str) -> set[str]:
         hits.add("replan_time")
     if "explanation_finished" not in hits and any(term in text for term in ("结束导览", "结束游览", "结束路线", "路线结束", "游览结束", "结束了")):
         hits.add("finish_tour")
-    if any(term in text for term in ("再讲详细", "详细一点", "讲细一点", "展开讲解")):
+    if any(term in text for term in (
+        "再讲详细", "详细一点", "讲细一点", "展开讲解",
+        "再讲一次当前点", "再讲一遍当前点", "重新讲一次当前点",
+    )):
         hits.add("request_stop_detail")
     # “讲完了，去下一站” is one confirmation intent, not two events.
     if "confirm_stop_complete" not in hits and _is_next_stop_navigation_phrase(text):

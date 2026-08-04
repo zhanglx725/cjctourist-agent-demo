@@ -116,3 +116,14 @@ protected-state diff.
    visitor message.
 
 Until those traces are reviewed, P3-05 remains pending and P4 must not start.
+
+## Studio repeat-guidance feedback
+
+An operator report from obsolete baseline `f80c67e` (Thread/Trace metadata
+unavailable) found that `请再讲一次当前点。` fell through to free LLM/RAG
+instead of `stop_guidance`, so it could not demonstrate Shadow audit or
+Coverage idempotence. The controlled intent vocabulary now maps this explicit
+same-stop repetition to `request_stop_detail`, which routes through
+`tour_event -> stop_guidance` without advancing TourState. Offline routing and
+guidance regressions pass; the case must be rerun on the follow-up commit with
+`narration_composition_evaluations` and Coverage expanded before acceptance.

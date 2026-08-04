@@ -2705,6 +2705,11 @@ def route_initial_request(state: AgentState) -> str:
         if previous_kind not in {"stop_guidance"}:
             return "qa_follow_up_detail"
     decision = early_decision
+    # An explicit new-route request owns any preferences supplied in the same
+    # turn. C2 validates them atomically; C8 must not partially update a
+    # profile and suppress route collection.
+    if decision.route_kind == "route_request" or should_direct_route(text):
+        return "profile_collection"
     extended = parse_extended_profile_control(raw_text)
     # A physical tour event and a preference change are separate atomic turns;
     # never let the preference half silently suppress arrival/skip semantics.
