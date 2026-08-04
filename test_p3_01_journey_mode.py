@@ -28,6 +28,15 @@ def _state(text: str, initial: dict | None = None) -> dict:
     return state
 
 
+def _finish_custom_optional(state: dict) -> dict:
+    value = state
+    if value["profile_collection"]["next_missing_field"] == "explanation_style":
+        value = profile_collection_node(_state("标准风格", value))
+    if value["profile_collection"]["next_missing_field"] == "language":
+        value = profile_collection_node(_state("英语", value))
+    return value
+
+
 class JourneyModeContractTests(unittest.TestCase):
     def test_legacy_tour_mode_is_preserved_and_journey_mode_is_separate(self):
         tour = start_tour(plan_template("highlights_30"))
@@ -52,7 +61,7 @@ class JourneyModeContractTests(unittest.TestCase):
         self.assertEqual(update["tour_interaction_state"]["journey_mode"], "custom")
         self.assertEqual(
             update["profile_collection"]["required_fields"],
-            ["available_minutes", "interests"],
+            ["available_minutes", "interests", "explanation_style", "language"],
         )
         self.assertEqual(update["profile_collection"]["next_missing_field"], "available_minutes")
         self.assertEqual(explicit_journey_mode_choice("我喜欢灰塑，讲详细一点"), None)
@@ -65,21 +74,44 @@ class JourneyModeContractTests(unittest.TestCase):
         self.assertNotIn("\u8bb2\u89e3\u6df1\u5ea6", first["messages"][0].content)
         self.assertNotIn("\u7b80\u7565\u8fd8\u662f\u8be6\u7ec6", first["messages"][0].content)
 
-        ready = profile_collection_node(_state(
+        interests = profile_collection_node(_state(
             "\u6211\u559c\u6b22\u7070\u5851\uff0c\u5e2e\u6211\u89c4\u5212", first
         ))
+        self.assertEqual(interests["profile_collection"]["next_missing_field"], "explanation_style")
+        style = profile_collection_node(_state("故事风格", interests))
+        self.assertEqual(style["profile_collection"]["next_missing_field"], "language")
+        ready = profile_collection_node(_state("跳过", style))
         self.assertEqual(ready["profile_collection"]["status"], "ready")
         self.assertEqual(
             ready["profile_collection"]["required_fields"],
-            ["available_minutes", "interests"],
+            ["available_minutes", "interests", "explanation_style", "language"],
         )
         self.assertNotIn("journey_mode", ready["visitor_profile"])
         self.assertEqual(ready["visitor_profile"]["detail_level"], "standard")
+        self.assertEqual(ready["visitor_profile"]["explanation_style"], "story")
+        self.assertNotIn("language", ready["visitor_profile"])
+
+    def test_custom_accepts_typed_style_language_and_independent_skips(self):
+        first = profile_collection_node(_state("选择定制模式，我有45分钟，喜欢木雕"))
+        self.assertEqual(first["profile_collection"]["next_missing_field"], "explanation_style")
+        styled = profile_collection_node(_state("我喜欢互动问答风格", first))
+        self.assertEqual(styled["visitor_profile"]["explanation_style"], "interactive")
+        self.assertEqual(styled["profile_collection"]["next_missing_field"], "language")
+        korean = profile_collection_node(_state("韩语", styled))
+        self.assertEqual(korean["profile_collection"]["status"], "ready")
+        self.assertEqual(korean["visitor_profile"]["language"], "ko")
+
+        second = profile_collection_node(_state("选择定制模式，我有30分钟，喜欢灰塑"))
+        skipped_style = profile_collection_node(_state("跳过", second))
+        self.assertEqual(skipped_style["visitor_profile"]["explanation_style"], "standard")
+        free_language = profile_collection_node(_state("泰语", skipped_style))
+        self.assertEqual(free_language["visitor_profile"]["language"], "泰语")
 
     def test_custom_mode_is_captured_only_as_non_computational_route_audit(self):
         collected = profile_collection_node(_state(
             "选择定制模式，我有30分钟，喜欢灰塑，标准讲解，帮我规划路线"
         ))
+        collected = _finish_custom_optional(collected)
         route = direct_route_node(_state("继续", collected))
         audit = route["active_route_plan"]["journey_mode_audit"]
         self.assertEqual(audit["selected_mode"], "custom")
@@ -92,6 +124,7 @@ class JourneyModeContractTests(unittest.TestCase):
         collected = profile_collection_node(_state(
             "\u9009\u62e9\u5b9a\u5236\u6a21\u5f0f\uff0c\u6211\u670930\u5206\u949f\uff0c\u559c\u6b22\u7070\u5851\uff0c\u5e2e\u6211\u89c4\u5212"
         ))
+        collected = _finish_custom_optional(collected)
         route = direct_route_node(_state("\u7ee7\u7eed", collected))
         self.assertEqual(route["visitor_profile"]["detail_level"], "standard")
         self.assertNotIn("journey_mode", route["visitor_profile"])

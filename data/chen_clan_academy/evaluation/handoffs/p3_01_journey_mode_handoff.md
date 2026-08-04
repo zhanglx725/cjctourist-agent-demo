@@ -14,7 +14,9 @@
 - `tour_mode` remains `chat`, `button_guided`, or `continuous`.
 - `journey_mode` is `classic` or `custom`; missing/unknown session state safely defaults to classic, and only narrow explicit mode choices may select custom.
 - Classic requires only `available_minutes`. Explicit interests or detail values remain usable when supplied, but the system does not prompt for them.
-- Custom collects only explicit time and interests; it never asks for a narration-depth choice.
+- Custom collects explicit time and interests, then offers two skippable
+  questions for explanation style and narration language; it never asks for a
+  narration-depth choice.
 - `journey_mode == custom` derives the existing deep/detailed `GuidancePolicy` only while organising stop narration. This is not persisted to VisitorProfile, TourState, StopProgram route facts, or route-calculation inputs. Classic retains the existing neutral profile default.
 - Neither `TourState` nor `VisitorProfile` stores `journey_mode`.
 - A selected route receives `journey_mode_audit` only after the deterministic planner has selected it. The audit declares `used_for_route_calculation: false`.
@@ -48,6 +50,22 @@ Result: the P3-01 custom-detail contract and policy tests passed 14/14; the supp
 - The session-owned custom mode derives detailed guidance only at narration time. It remains subject to reviewed evidence, StopProgram budget, no-evidence failure closure, visitor-text boundary, and `listen_only` constraints.
 - This supplement does not implement P3-03 CardDispatcher, proactive card output, P3-04 paragraph/length/read-aloud composition, or any state-class active takeover.
 - LangSmith: not run for this supplement.
+
+## P3-01 supplement: optional style and language collection
+
+- Custom collection order is time, interests, explanation style, language.
+- Style and language are explicitly skippable. `跳过`, `默认`, `都可以`,
+  `无所谓`, and `没有偏好` resolve only the question currently being asked.
+- Style accepts typed controlled choices: standard, story, technical,
+  interactive, or expert, with reviewed Chinese aliases.
+- Language accepts reviewed aliases for Chinese, English, Korean, Japanese,
+  Cantonese, French, German, and Spanish. While the language question is
+  active, a short typed language name such as `泰语` is also retained.
+- Skipped style keeps the neutral `standard` default; skipped language remains
+  absent. Classic mode still asks only for available time.
+- This step collects and persists the requested narration language. End-to-end
+  translation/TTS voice generation remains a separate multilingual delivery
+  capability and is not claimed by this supplement.
 
 ## Next step
 

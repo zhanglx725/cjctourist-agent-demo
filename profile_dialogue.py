@@ -12,7 +12,6 @@ from typing import Any
 
 from duration_parser import parse_duration_minutes
 from visitor_profile import (
-    ACTIVE_FIELDS,
     DEFAULT_AVAILABLE_MINUTES,
     DEFAULT_DETAIL_LEVEL,
     VisitorProfile,
@@ -24,8 +23,13 @@ from visitor_profile import (
 
 
 PROFILE_FIELD_ORDER = ("available_minutes", "interests", "detail_level")
+COLLECTION_FIELD_ORDER = (
+    "available_minutes", "interests", "detail_level", "explanation_style", "language",
+)
 CLASSIC_PROFILE_FIELDS = ("available_minutes",)
-CUSTOM_PROFILE_FIELDS = ("available_minutes", "interests")
+CUSTOM_PROFILE_FIELDS = (
+    "available_minutes", "interests", "explanation_style", "language",
+)
 INTEREST_TERMS = (
     "建筑装饰", "灰塑", "木雕", "石雕", "砖雕", "陶塑", "三国", "故事", "吉祥", "工艺",
 )
@@ -40,6 +44,7 @@ MINIMIZE_WALKING_TERMS = (
     "不想走太多",
     "不要走太多",
 )
+SKIP_TERMS = ("跳过", "默认", "都可以", "无所谓", "没有偏好")
 
 
 class ProfileDialogueError(ValueError):
@@ -54,19 +59,19 @@ class ProfileCollection:
     required_fields: tuple[str, ...] = PROFILE_FIELD_ORDER
 
     def __post_init__(self) -> None:
-        invalid = set(self.resolved_fields).difference(ACTIVE_FIELDS)
+        invalid = set(self.resolved_fields).difference(COLLECTION_FIELD_ORDER)
         if invalid:
             raise ProfileDialogueError(f"画像收集状态含未知字段：{', '.join(sorted(invalid))}")
         if self.status not in {"collecting", "ready"}:
             raise ProfileDialogueError("画像收集状态无效。")
-        invalid_required = set(self.required_fields).difference(PROFILE_FIELD_ORDER)
+        invalid_required = set(self.required_fields).difference(COLLECTION_FIELD_ORDER)
         if invalid_required or not self.required_fields:
             raise ProfileDialogueError("画像收集所需字段无效。")
         object.__setattr__(self, "required_fields", tuple(
-            field for field in PROFILE_FIELD_ORDER if field in self.required_fields
+            field for field in COLLECTION_FIELD_ORDER if field in self.required_fields
         ))
         object.__setattr__(self, "resolved_fields", tuple(
-            field for field in PROFILE_FIELD_ORDER if field in self.resolved_fields
+            field for field in COLLECTION_FIELD_ORDER if field in self.resolved_fields
         ))
         expected_status = "ready" if all(
             field in self.resolved_fields for field in self.required_fields
@@ -144,7 +149,44 @@ def _prompt(field: str) -> str:
         "available_minutes": "您有多少分钟可用于游览？例如“30分钟”。",
         "interests": "您更想看什么？例如“灰塑和木雕”；如果没有特别偏好，可以说“都可以”。",
         "detail_level": "您希望怎样讲解？可说“简单讲讲”“标准讲解”或“想深入学习”。",
+        "explanation_style": "您喜欢哪种讲解风格？可输入“标准、故事、技术、互动或专家”，也可以说“跳过”。",
+        "language": "您需要哪种讲解语言？例如中文、英语、韩语，也可以输入其他语言或说“跳过”。",
     }[field]
+
+
+def _explanation_style_candidate(text: str) -> str | None:
+    aliases = {
+        "story": ("故事", "叙事"), "technical": ("技术", "工艺原理"),
+        "interactive": ("互动", "问答"), "expert": ("专家", "专业"),
+        "standard": ("标准", "自然", "普通"),
+    }
+    matches = [value for value, terms in aliases.items() if any(term in text for term in terms)]
+    return matches[0] if len(set(matches)) == 1 else None
+
+
+def _language_candidate(text: str, *, allow_free_text: bool = False) -> str | None:
+    aliases = {
+        "zh": ("中文", "普通话", "汉语", "mandarin", "chinese"),
+        "en": ("英语", "英文", "english"),
+        "ko": ("韩语", "韩文", "한국어", "korean"),
+        "ja": ("日语", "日文", "日本語", "japanese"),
+        "yue": ("粤语", "广东话", "cantonese"),
+        "fr": ("法语", "法文", "french"), "de": ("德语", "德文", "german"),
+        "es": ("西班牙语", "spanish"),
+    }
+    lowered = text.casefold()
+    if any(term in text for term in SKIP_TERMS):
+        return None
+    matches = [value for value, terms in aliases.items() if any(term.casefold() in lowered for term in terms)]
+    if len(set(matches)) == 1:
+        return matches[0]
+    candidate = text.strip().strip("。.!！")
+    if allow_free_text and 1 < len(candidate) <= 40 and (
+        candidate.endswith(("语", "文"))
+        or (candidate.isascii() and all(char.isalpha() or char in " -" for char in candidate))
+    ):
+        return candidate
+    return None
 
 
 def _detail_candidates(text: str, *, allow_bare_detail: bool = False) -> set[str]:
@@ -169,6 +211,7 @@ def _extract_patch(
     text: str,
     *,
     allow_bare_detail: bool = False,
+    current_field: str | None = None,
 ) -> tuple[dict[str, Any], set[str], str | None]:
     """Extract one atomic patch; conflicting fields reject the whole turn."""
     duration = parse_duration_minutes(text)
@@ -182,13 +225,23 @@ def _extract_patch(
     if duration.ok:
         patch["available_minutes"] = duration.minutes
         fields.add("available_minutes")
-    interests = [term for term in INTEREST_TERMS if term in text]
+    interests = [
+        term for term in INTEREST_TERMS if term in text
+    ] if current_field in {None, "available_minutes", "interests"} else []
     if interests:
         patch["interests"] = interests
         fields.add("interests")
     if detail:
         patch["detail_level"] = next(iter(detail))
         fields.add("detail_level")
+    style = _explanation_style_candidate(text)
+    if style:
+        patch["explanation_style"] = style
+        fields.add("explanation_style")
+    language = _language_candidate(text, allow_free_text=current_field == "language")
+    if language:
+        patch["language"] = language
+        fields.add("language")
     if any(term in text for term in MINIMIZE_WALKING_TERMS):
         # This optional route preference is stored in the one VisitorProfile
         # but never becomes a fourth required collection question.
@@ -211,6 +264,8 @@ def _neutral_value(field: str) -> Any:
         "available_minutes": DEFAULT_AVAILABLE_MINUTES,
         "interests": [],
         "detail_level": DEFAULT_DETAIL_LEVEL,
+        "explanation_style": "standard",
+        "language": None,
     }[field]
 
 
@@ -247,13 +302,14 @@ def collect_profile_input(
     patch, fields, conflict = _extract_patch(
         user_text,
         allow_bare_detail=True,
+        current_field=collection.next_missing_field,
     )
     if conflict:
         return ProfileCollectionResult("clarification", collection, conflict, {}, "conflicting_profile_values")
 
     # “都可以” resolves only the field that is currently being asked for;
     # it never guesses interests or applies defaults to unrelated fields.
-    if not patch and any(term in user_text for term in NEUTRAL_TERMS):
+    if not patch and any(term in user_text for term in (*NEUTRAL_TERMS, *SKIP_TERMS)):
         missing = collection.next_missing_field
         if missing:
             patch = {missing: _neutral_value(missing)}
@@ -264,7 +320,7 @@ def collect_profile_input(
     except VisitorProfileError as exc:
         return ProfileCollectionResult("clarification", collection, f"{exc} 请重新说明。", {}, "invalid_profile_value")
 
-    resolved = tuple(field for field in PROFILE_FIELD_ORDER if field in set(collection.resolved_fields).union(fields))
+    resolved = tuple(field for field in COLLECTION_FIELD_ORDER if field in set(collection.resolved_fields).union(fields))
     next_field = next((field for field in collection.required_fields if field not in resolved), None)
     updated = ProfileCollection(
         profile, resolved, "ready" if next_field is None else "collecting",
