@@ -107,6 +107,36 @@ class JourneyModeContractTests(unittest.TestCase):
         free_language = profile_collection_node(_state("泰语", skipped_style))
         self.assertEqual(free_language["visitor_profile"]["language"], "泰语")
 
+    def test_one_turn_style_phrases_do_not_contaminate_interests(self):
+        cases = {
+            "故事风格": "story",
+            "技术风格": "technical",
+            "互动问答风格": "interactive",
+            "专家风格": "expert",
+            "标准风格": "standard",
+        }
+        for phrase, expected_style in cases.items():
+            with self.subTest(phrase=phrase):
+                result = profile_collection_node(_state(
+                    "选择定制模式，安排45分钟路线，我喜欢木雕和灰塑，"
+                    f"希望使用{phrase}，讲解语言选择英语"
+                ))
+                self.assertEqual(result["profile_collection"]["status"], "ready")
+                self.assertEqual(result["visitor_profile"]["interests"], ["木雕", "灰塑"])
+                self.assertEqual(
+                    result["visitor_profile"]["explanation_style"], expected_style
+                )
+                self.assertEqual(result["visitor_profile"]["language"], "en")
+
+        interest_only = profile_collection_node(_state(
+            "选择定制模式，我有45分钟，对三国故事感兴趣"
+        ))
+        self.assertEqual(interest_only["visitor_profile"]["interests"], ["三国", "故事"])
+        self.assertEqual(
+            interest_only["profile_collection"]["next_missing_field"],
+            "explanation_style",
+        )
+
     def test_custom_mode_is_captured_only_as_non_computational_route_audit(self):
         collected = profile_collection_node(_state(
             "选择定制模式，我有30分钟，喜欢灰塑，标准讲解，帮我规划路线"

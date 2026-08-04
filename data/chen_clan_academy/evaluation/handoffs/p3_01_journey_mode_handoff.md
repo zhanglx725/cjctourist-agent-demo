@@ -81,6 +81,13 @@ Result: the P3-01 custom-detail contract and policy tests passed 14/14; the supp
 - Offline regression covers both optional skips through `ready`, absence of a
   skipped language value, and preservation of normal skip clarification. The
   original Studio Case 2 must be rerun on the follow-up commit.
+- Case 4 exposed a separate one-turn field-isolation defect: `故事风格` was
+  correctly stored as style `story` but its `故事` token was also copied into
+  interests. The follow-up parser now recognizes explicit style phrases,
+  removes only those phrase spans before interest extraction, and still keeps
+  a genuine `三国故事` interest when no style phrase is present. Offline tests
+  cover all five supported explanation styles plus the reported full input;
+  Studio Case 4 must be rerun on the new follow-up commit.
 
 ## Next step
 

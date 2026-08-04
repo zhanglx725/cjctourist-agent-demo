@@ -46,6 +46,20 @@ MINIMIZE_WALKING_TERMS = (
 )
 SKIP_TERMS = ("跳过", "默认", "都可以", "无所谓", "没有偏好")
 OPTIONAL_PROFILE_FIELDS = frozenset({"explanation_style", "language"})
+STYLE_ALIASES = {
+    "story": ("故事", "叙事"),
+    "technical": ("技术", "工艺原理"),
+    "interactive": ("互动", "问答"),
+    "expert": ("专家", "专业"),
+    "standard": ("标准", "自然", "普通"),
+}
+EXPLICIT_STYLE_PHRASES = {
+    "story": ("故事风格", "叙事风格", "故事方式", "叙事方式"),
+    "technical": ("技术风格", "技术方式", "工艺原理风格"),
+    "interactive": ("互动风格", "互动问答风格", "问答风格", "互动方式"),
+    "expert": ("专家风格", "专家方式", "专业风格", "专业方式"),
+    "standard": ("标准风格", "自然风格", "普通风格"),
+}
 
 
 class ProfileDialogueError(ValueError):
@@ -169,14 +183,25 @@ def _prompt(field: str) -> str:
     }[field]
 
 
-def _explanation_style_candidate(text: str) -> str | None:
-    aliases = {
-        "story": ("故事", "叙事"), "technical": ("技术", "工艺原理"),
-        "interactive": ("互动", "问答"), "expert": ("专家", "专业"),
-        "standard": ("标准", "自然", "普通"),
-    }
-    matches = [value for value, terms in aliases.items() if any(term in text for term in terms)]
+def _explanation_style_candidate(text: str, *, allow_bare: bool = False) -> str | None:
+    matches = [
+        value for value, phrases in EXPLICIT_STYLE_PHRASES.items()
+        if any(phrase in text for phrase in phrases)
+    ]
+    if not matches and allow_bare:
+        matches = [
+            value for value, terms in STYLE_ALIASES.items()
+            if any(term in text for term in terms)
+        ]
     return matches[0] if len(set(matches)) == 1 else None
+
+
+def _without_explicit_style_phrases(text: str) -> str:
+    remaining = text
+    for phrases in EXPLICIT_STYLE_PHRASES.values():
+        for phrase in phrases:
+            remaining = remaining.replace(phrase, "")
+    return remaining
 
 
 def _language_candidate(text: str, *, allow_free_text: bool = False) -> str | None:
@@ -240,8 +265,9 @@ def _extract_patch(
     if duration.ok:
         patch["available_minutes"] = duration.minutes
         fields.add("available_minutes")
+    interest_text = _without_explicit_style_phrases(text)
     interests = [
-        term for term in INTEREST_TERMS if term in text
+        term for term in INTEREST_TERMS if term in interest_text
     ] if current_field in {None, "available_minutes", "interests"} else []
     if interests:
         patch["interests"] = interests
@@ -249,7 +275,9 @@ def _extract_patch(
     if detail:
         patch["detail_level"] = next(iter(detail))
         fields.add("detail_level")
-    style = _explanation_style_candidate(text)
+    style = _explanation_style_candidate(
+        text, allow_bare=current_field == "explanation_style"
+    )
     if style:
         patch["explanation_style"] = style
         fields.add("explanation_style")
