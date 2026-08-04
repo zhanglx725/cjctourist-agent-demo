@@ -94,6 +94,13 @@ Result: the P3-01 custom-detail contract and policy tests passed 14/14; the supp
   turn, and ask for one supported style; `抽象讲解风格` is explicitly rejected
   with the supported choices instead of silently planning with `standard`.
   These cases require rerun on the follow-up commit before acceptance.
+- Autonomous testing then found that `定制，60min`, `定制模式，60分钟`, and
+  `选择定制模式，60分钟` fell through to free LLM/RAG. Explicit mode plus one
+  valid duration is now a deterministic route-initialization shape ahead of
+  fact/RAG routing, and the collector uses the same condition to start C2.
+  The narrow `定制，<duration>` shorthand is accepted without treating an
+  arbitrary mention of customization as a mode choice. All three reported
+  forms have offline routing and state assertions; Studio rerun is required.
 
 ## Next step
 

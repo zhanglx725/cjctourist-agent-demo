@@ -10,6 +10,7 @@ from agent_graph import (
     _read_only_resume_target,
     direct_route_node,
     profile_collection_node,
+    route_initial_request,
 )
 from route_planner import plan_template
 from tour_interaction import (
@@ -38,6 +39,25 @@ def _finish_custom_optional(state: dict) -> dict:
 
 
 class JourneyModeContractTests(unittest.TestCase):
+    def test_custom_mode_and_duration_shorthands_start_profile_collection(self):
+        for text in (
+            "定制，60min",
+            "定制模式，60分钟",
+            "选择定制模式，60分钟",
+        ):
+            with self.subTest(text=text):
+                state = _state(text)
+                self.assertEqual(route_initial_request(state), "profile_collection")
+                update = profile_collection_node(state)
+                self.assertEqual(
+                    update["tour_interaction_state"]["journey_mode"], "custom"
+                )
+                self.assertEqual(update["visitor_profile"]["available_minutes"], 60)
+                self.assertEqual(
+                    update["profile_collection"]["next_missing_field"], "interests"
+                )
+                self.assertNotIn("tour_state", update)
+
     def test_legacy_tour_mode_is_preserved_and_journey_mode_is_separate(self):
         tour = start_tour(plan_template("highlights_30"))
         interaction = initialize_interaction(

@@ -919,13 +919,14 @@ def profile_collection_node(state: AgentState) -> dict[str, Any]:
     decision = classify_tour_intent(
         query, state.get("tour_state"), state.get("tour_interaction_state")
     )
+    explicit_mode = explicit_journey_mode_choice(query)
     start_collection = (
         decision.route_kind == "route_request"
         or should_direct_route(query)
         or classify_duration_control_text(query) is not None
+        or (explicit_mode is not None and parse_duration_minutes(query).ok)
     )
     started = time.perf_counter()
-    explicit_mode = explicit_journey_mode_choice(query)
     # The transparent default is classic.  Only the narrow explicit phrases
     # above can select custom; no profile signal is used to infer it.
     session_control = update_session_control(
@@ -2589,6 +2590,16 @@ def route_initial_request(state: AgentState) -> str:
     # skippable custom-profile questions, the active collection owns it;
     # outside that narrow context, normal stop-skip control keeps priority.
     if is_optional_profile_skip(state.get("profile_collection"), raw_text):
+        return "profile_collection"
+    # An explicit product-mode choice plus one valid duration is a complete
+    # route-initialization control shape even without words such as "route"
+    # or "plan". Keep it ahead of semantic fact/RAG classification.
+    explicit_mode = explicit_journey_mode_choice(raw_text)
+    if (
+        explicit_mode is not None
+        and parse_duration_minutes(raw_text).ok
+        and not any(marker in raw_text for marker in ("?", "？", "为什么", "是否"))
+    ):
         return "profile_collection"
     # P1-11 is a deliberately narrow composition: reviewed arrival followed
     # by remaining-route preview.  It must win before broad route/profile
