@@ -1,0 +1,233 @@
+# P4-04 馆外附近推荐卡人工填写模板
+#
+# 使用方法：复制 cards 下的完整占位卡，每个 POI 填写一份。
+# 审核原则：
+# 1. 不得把馆外 POI 写入陈家祠馆内路线或 TourState。
+# 2. 地址、类型、稳定特色等放 stable_facts；营业时间、票价、排队、交通耗时等
+#    易变化内容必须放 volatile_facts，并填写核验时间、有效期和直接来源。
+# 3. 没有有效来源的易变信息不得作为确定事实输出，只能引导游客查看官方页面或地图。
+# 4. 不得推断游客消费能力、宗教信仰、健康状况或家庭身份。
+# 5. review_status: approved 且 enabled: true 的卡片才允许进入运行时推荐池。
+# 6. 暂无人工审核译文时保留空字符串，不得用未审核机器翻译直接上线。
+
+schema_version: nearby_poi_card_authoring_v1
+catalog_version: "0.1.0-draft"
+venue_id: chen_clan_academy
+locale_default: zh-CN
+
+catalog_policy:
+  recommendation_count:
+    min: 2
+    max: 3
+  require_category_diversity: true
+  runtime_approved_only: true
+  isolate_from_indoor_tour_state: true
+  allowed_categories:
+    - food
+    - cafe_or_rest
+    - heritage_site
+    - museum_or_gallery
+    - park_or_public_space
+    - shopping_or_craft
+    - transport_service
+    - visitor_service
+  budget_bands:
+    - free
+    - low
+    - medium
+    - high
+    - unknown
+  source_priority:
+    - poi_official
+    - government_or_public_institution
+    - official_map_listing
+    - reviewed_editorial
+  volatile_information_types:
+    - opening_hours
+    - admission_or_price
+    - temporary_closure
+    - queue_or_crowding
+    - walking_time
+    - public_transport_time
+    - availability
+  required_public_uncertainty_zh: 营业、价格、排队和交通信息可能变化，出发前请以商家、场馆或地图的最新信息为准。
+
+cards:
+  - poi_id: fill_stable_unique_id
+    names:
+      zh-CN: 待填写中文名称
+      en: ""
+      ko: ""
+    category: food
+    secondary_categories: []
+
+    editorial:
+      one_line_summary_zh: 待填写；只描述已核验特色，不使用“最好”“必去”等排名词。
+      why_nearby_zh: 待填写；说明它与陈家祠参观后的合理衔接关系。
+      cultural_context_zh: ""
+      recommendation_tags:
+        - fill_interest_tag
+      suitable_time_windows:
+        - after_visit
+      estimated_visit_minutes:
+        min: 30
+        max: 60
+      budget_band: unknown
+      suitable_for: []
+      unsuitable_or_caution_for: []
+
+    location:
+      address_zh: 待填写
+      district: 荔湾区
+      city: 广州市
+      latitude: null
+      longitude: null
+      nearest_chen_clan_academy_exit: unknown
+      meeting_or_entrance_note_zh: ""
+      map_query_text: 待填写用于地图检索的完整名称与地址
+
+    # 稳定事实也必须有来源；不要把营业时间、价格和交通耗时写在这里。
+    stable_facts:
+      - claim_id: fill_poi_identity_claim
+        claim_kind: identity_or_category
+        public_text_zh: 待填写，例如“这是一处……类型的场所”。
+        source_ids:
+          - SRC_FILL_001
+        verified_at: "YYYY-MM-DD"
+        review_status: draft
+      - claim_id: fill_poi_feature_claim
+        claim_kind: reviewed_feature
+        public_text_zh: 待填写已核验特色。
+        source_ids:
+          - SRC_FILL_001
+        verified_at: "YYYY-MM-DD"
+        review_status: draft
+
+    # 每项易变信息独立记录。unknown 表示不可向游客给出确定值。
+    volatile_facts:
+      opening_hours:
+        value_zh: unknown
+        status: unverified
+        source_ids: []
+        verified_at: ""
+        valid_until: ""
+        official_check_url: ""
+      admission_or_price:
+        value_zh: unknown
+        currency: CNY
+        status: unverified
+        source_ids: []
+        verified_at: ""
+        valid_until: ""
+        official_check_url: ""
+      temporary_closure:
+        value_zh: unknown
+        status: unverified
+        source_ids: []
+        verified_at: ""
+        valid_until: ""
+        official_check_url: ""
+      queue_or_crowding:
+        value_zh: unknown
+        status: unverified
+        source_ids: []
+        verified_at: ""
+        valid_until: ""
+        official_check_url: ""
+      walking_time:
+        origin_zh: 陈家祠待确认出口
+        destination_zh: 待填写入口
+        value_zh: unknown
+        status: unverified
+        source_ids: []
+        verified_at: ""
+        valid_until: ""
+        official_check_url: ""
+      public_transport_time:
+        origin_zh: 陈家祠待确认出口
+        destination_zh: 待填写入口
+        value_zh: unknown
+        status: unverified
+        source_ids: []
+        verified_at: ""
+        valid_until: ""
+        official_check_url: ""
+
+    visitor_constraints:
+      accessibility:
+        status: unknown
+        public_note_zh: 暂无已核验无障碍信息，请出发前向场所确认。
+        source_ids: []
+        verified_at: ""
+      dietary_or_allergen:
+        status: not_applicable_or_unknown
+        public_note_zh: ""
+        source_ids: []
+        verified_at: ""
+      child_or_family:
+        status: unknown
+        public_note_zh: ""
+        source_ids: []
+        verified_at: ""
+      weather_exposure:
+        status: unknown
+        public_note_zh: ""
+      reservation:
+        status: unknown
+        public_note_zh: ""
+        source_ids: []
+        verified_at: ""
+
+    recommendation_boundaries:
+      do_not_recommend_when: []
+      required_disclosures:
+        - volatile_information_may_change
+      prohibited_claims:
+        - best_or_top_ranking_without_evidence
+        - guaranteed_open
+        - guaranteed_price
+        - guaranteed_no_queue
+        - inferred_spending_capacity
+      fallback_action_zh: 易变信息无法核实时，请游客查看该 POI 官方页面或地图实时信息。
+
+    sources:
+      - source_id: SRC_FILL_001
+        title: 待填写来源标题
+        publisher: 待填写发布机构
+        source_type: poi_official
+        url: https://example.invalid/replace-with-direct-source
+        published_at: ""
+        accessed_at: "YYYY-MM-DDTHH:MM:SS+08:00"
+        supports_claim_ids:
+          - fill_poi_identity_claim
+          - fill_poi_feature_claim
+        archive_or_snapshot: ""
+        notes: 必须替换示例 URL，并链接到直接支持对应事实的页面。
+
+    review:
+      content_review_status: draft
+      cultural_review_status: pending
+      safety_review_status: pending
+      location_review_status: pending
+      volatile_data_review_status: pending
+      reviewed_by: []
+      reviewed_at: ""
+      next_review_due: ""
+      rejection_or_revision_notes: []
+    enabled: false
+
+review_checklist:
+  - poi_id 全局唯一且长期稳定
+  - POI 类型位于 allowed_categories
+  - 中文名称、地址和入口已经核实
+  - 每条稳定事实都有直接支持它的来源
+  - 营业时间、价格、关闭、排队和交通耗时均放在 volatile_facts
+  - 所有已输出的易变信息都有 verified_at、valid_until 和来源
+  - 过期或未核验的易变信息不会作为确定事实输出
+  - 推荐理由不包含无证据排名或夸张承诺
+  - 未根据游客画像推断消费能力或敏感属性
+  - 无障碍、饮食和儿童信息未知时明确标记 unknown
+  - 地图路线只用于馆外推荐且不会写入馆内 TourState
+  - 翻译经过对应语言人工审核
+  - content、safety、location 和 volatile data 审核均通过
+  - 只有 approved 且 enabled 的卡片进入运行时推荐池
