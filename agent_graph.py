@@ -137,6 +137,7 @@ from tour_opening_program import (
     is_tour_start_entry,
     opening_action,
 )
+from visit_summary_engine import VisitSummaryError, build_visit_summary
 MAX_TOOL_LOOPS = 3
 DEFAULT_DEEPSEEK_MAX_TOKENS = 450
 DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
@@ -221,6 +222,13 @@ class AgentState(TypedDict, total=False):
     tour_opening_program: dict[str, Any]
     tour_opening_evaluations: list[dict[str, Any]]
     last_tour_opening_action: dict[str, Any]
+    # P4-02 derived end-of-tour view. TourState and NarrationCoverage remain
+    # its only inputs and are never modified by summary generation.
+    visit_summary: dict[str, Any] | None
+    visit_summary_evaluations: list[dict[str, Any]]
+    # One bounded audit entry per visitor QA turn after route initialization.
+    # Raw question text is intentionally not duplicated here.
+    tour_question_log: list[dict[str, Any]]
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -883,6 +891,8 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         # narration in this one.  E5-A4 will be the only later writer.
         "narration_coverage": empty_narration_coverage().to_dict(),
         "tour_opening_program": initialize_tour_opening(),
+        "visit_summary": None,
+        "tour_question_log": [],
         "active_guidance_evidence_bundle": None,
         "active_narration_render_audit": None,
         "qa_context": clear_qa_context(state.get("qa_context")),
@@ -992,6 +1002,51 @@ def tour_opening_node(state: AgentState) -> dict[str, Any]:
         "performance_metrics": _append_metric(
             state, "tour_opening", time.perf_counter() - started,
             status=result["program"]["status"], action=action,
+        ),
+    }
+
+
+def visit_summary_node(state: AgentState) -> dict[str, Any]:
+    """Render P4-02 from completed TourState and successful Coverage only."""
+    started = time.perf_counter()
+    try:
+        summary = build_visit_summary(
+            state.get("tour_state"), state.get("narration_coverage"),
+            state.get("tour_question_log"), state.get("visitor_profile"),
+        ).to_dict()
+    except VisitSummaryError:
+        return {
+            "messages": [AIMessage(content=(
+                "本次导览已结束，但当前记录不足以安全生成游览总结。"
+            ))],
+            "visit_summary": None,
+            "performance_metrics": _append_metric(
+                state, "visit_summary", time.perf_counter() - started,
+                status="failed_closed",
+            ),
+        }
+    evaluations = list(state.get("visit_summary_evaluations") or [])
+    evaluations.append({
+        "schema_version": summary["schema_version"],
+        "completion_kind": summary["completion_kind"],
+        "visited_stop_count": summary["visited_stop_count"],
+        "introduced_ornament_count": summary["introduced_ornament_count"],
+        "introduced_craft_count": summary["introduced_craft_count"],
+        "coverage_status": summary["coverage_status"],
+        "question_count": summary["question_count"],
+        "question_count_status": summary["question_count_status"],
+        "title_basis": summary["title_basis"],
+        "state_writes": ["visit_summary"],
+        "tour_state_preserved": True,
+        "narration_coverage_preserved": True,
+    })
+    return {
+        "messages": [AIMessage(content=summary["message"])],
+        "visit_summary": summary,
+        "visit_summary_evaluations": evaluations[-20:],
+        "performance_metrics": _append_metric(
+            state, "visit_summary", time.perf_counter() - started,
+            status="accepted", completion_kind=summary["completion_kind"],
         ),
     }
 
@@ -2312,6 +2367,22 @@ def direct_rag_node(state: AgentState) -> dict[str, Any]:
     return updates
 
 
+def _next_tour_question_log(
+    state: AgentState, node: str,
+) -> list[dict[str, Any]] | None:
+    """Append one auditable visitor QA turn only inside an active tour."""
+    tour = state.get("tour_state") or {}
+    if tour.get("route_status") not in {"not_started", "touring", "replanning"}:
+        return None
+    history = list(state.get("tour_question_log") or [])
+    history.append({
+        "sequence": len(history) + 1,
+        "route_id": tour.get("selected_route_id"),
+        "node": node,
+    })
+    return history
+
+
 def tour_qa_node(state: AgentState) -> dict[str, Any]:
     """Answer a factual question with active-tour context but no state mutation.
 
@@ -2405,6 +2476,9 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
     # return TourState or interaction/session control here.
     if result["presentation"] is not None:
         updates["tour_presentation"] = {**result["presentation"], "message": public_message}
+    question_log = _next_tour_question_log(state, "tour_qa")
+    if question_log is not None:
+        updates["tour_question_log"] = question_log
     return updates
 
 
@@ -2442,6 +2516,9 @@ def qa_follow_up_detail_node(state: AgentState) -> dict[str, Any]:
     }
     if result.get("presentation") is not None:
         updates["tour_presentation"] = {**result["presentation"], "message": public_message}
+    question_log = _next_tour_question_log(state, "qa_follow_up_detail")
+    if question_log is not None:
+        updates["tour_question_log"] = question_log
     return updates
 
 
@@ -2941,6 +3018,12 @@ def route_after_tour_event(state: AgentState) -> str:
     event = state.get("last_tour_event", {})
     if (
         event.get("ok")
+        and (state.get("tour_state") or {}).get("route_status") == "completed"
+        and event.get("event") in {"confirm_stop_complete", "skip_stop", "finish_tour"}
+    ):
+        return "visit_summary"
+    if (
+        event.get("ok")
         and event.get("event") == "arrive_at_stop"
         and event.get("code") == "arrived"
         and (state.get("tour_opening_program") or {}).get("status") == "pending"
@@ -2989,6 +3072,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("profile_collection", profile_collection_node)
     workflow.add_node("journey_mode_selection", journey_mode_selection_node)
     workflow.add_node("tour_opening", tour_opening_node)
+    workflow.add_node("visit_summary", visit_summary_node)
     workflow.add_node("profile_update", profile_update_node)
     workflow.add_node("extended_profile_control", extended_profile_control_node)
     workflow.add_node("tour_event", tour_event_node)
@@ -3034,8 +3118,9 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_edge("extended_profile_control", "atomic_read_plan_shadow")
     workflow.add_conditional_edges(
         "tour_event", route_after_tour_event,
-        {"tour_opening": "tour_opening", "stop_guidance": "stop_guidance", END: "atomic_read_plan_shadow"},
+        {"tour_opening": "tour_opening", "stop_guidance": "stop_guidance", "visit_summary": "visit_summary", END: "atomic_read_plan_shadow"},
     )
+    workflow.add_edge("visit_summary", "atomic_read_plan_shadow")
     workflow.add_edge("prepare_replan", "replan_proposal_shadow")
     workflow.add_edge("prepare_replan_candidate", "replan_proposal_shadow")
     workflow.add_edge("prepare_duration_replan", "replan_proposal_shadow")
