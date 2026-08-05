@@ -219,6 +219,7 @@ class AgentState(TypedDict, total=False):
     # TourState, StopProgram, or NarrationCoverage calculations.
     tour_opening_program: dict[str, Any]
     tour_opening_evaluations: list[dict[str, Any]]
+    last_tour_opening_action: dict[str, Any]
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -863,7 +864,8 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         "提示：步行时间基于官网地图与已核对路线估算，现场通行、驻足和开放情况请以馆方安排为准。"
         "\n\n"
         + format_next_stop_navigation(next_stop_navigation(tour))
-        + "\n\n如需先听陈家祠总体介绍，请说“开始介绍”；也可以说“跳过介绍”。"
+        + "\n\n到达第一站后，我会先自动进行陈家祠总体介绍，再开始本点讲解。"
+        + "如需跳过，请在到站前明确说“跳过总体介绍”。"
     )
     marker = AIMessage(content=message, additional_kwargs={"direct_route_plan": True})
     presentation = present_tour_state(tour, interaction)
@@ -929,9 +931,17 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
 
 
 def tour_opening_node(state: AgentState) -> dict[str, Any]:
-    """Apply one explicit P4-01 opening action without touching tour facts."""
+    """Apply explicit control or the mandatory first-arrival opening."""
     started = time.perf_counter()
-    action = opening_action(_latest_user_text(state))
+    event = state.get("last_tour_event") or {}
+    program = state.get("tour_opening_program") or {}
+    automatic_arrival = bool(
+        event.get("ok")
+        and event.get("event") == "arrive_at_stop"
+        and event.get("code") == "arrived"
+        and program.get("status") == "pending"
+    )
+    action = "play" if automatic_arrival else opening_action(_latest_user_text(state))
     if action is None:
         return {
             "messages": [AIMessage(content=(
@@ -941,6 +951,9 @@ def tour_opening_node(state: AgentState) -> dict[str, Any]:
                 state, "tour_opening", time.perf_counter() - started,
                 status="clarification",
             ),
+            "last_tour_opening_action": {
+                "trigger": "explicit", "continue_to_stop_guidance": False,
+            },
         }
     try:
         result = apply_tour_opening_action(state.get("tour_opening_program"), action)
@@ -953,13 +966,28 @@ def tour_opening_node(state: AgentState) -> dict[str, Any]:
                 state, "tour_opening", time.perf_counter() - started,
                 status="failed_closed",
             ),
+            "last_tour_opening_action": {
+                "trigger": "first_arrival" if automatic_arrival else "explicit",
+                "continue_to_stop_guidance": automatic_arrival,
+                "status": "failed_closed",
+            },
         }
+    audit = {
+        **result["audit"],
+        "trigger": "first_arrival" if automatic_arrival else "explicit",
+    }
     evaluations = list(state.get("tour_opening_evaluations") or [])
-    evaluations.append(result["audit"])
+    evaluations.append(audit)
     return {
         "messages": [AIMessage(content=result["message"])],
         "tour_opening_program": result["program"],
         "tour_opening_evaluations": evaluations[-20:],
+        "last_tour_opening_action": {
+            "trigger": audit["trigger"],
+            "action": action,
+            "continue_to_stop_guidance": automatic_arrival,
+            "status": result["program"]["status"],
+        },
         "performance_metrics": _append_metric(
             state, "tour_opening", time.perf_counter() - started,
             status=result["program"]["status"], action=action,
@@ -2908,12 +2936,24 @@ def route_after_journey_mode_selection(state: AgentState) -> str:
 def route_after_tour_event(state: AgentState) -> str:
     """Send only successful arrival/detail events into B3 evidence guidance."""
     event = state.get("last_tour_event", {})
+    if (
+        event.get("ok")
+        and event.get("event") == "arrive_at_stop"
+        and event.get("code") == "arrived"
+        and (state.get("tour_opening_program") or {}).get("status") == "pending"
+    ):
+        return "tour_opening"
     if event.get("ok") and (
         (event.get("event") == "arrive_at_stop" and event.get("code") == "arrived")
         or (event.get("event") == "request_stop_detail" and event.get("code") == "detail_requested")
     ):
         return "stop_guidance"
     return END
+
+
+def route_after_tour_opening(state: AgentState) -> str:
+    action = state.get("last_tour_opening_action") or {}
+    return "stop_guidance" if action.get("continue_to_stop_guidance") else END
 
 
 def route_after_confirm_replan(state: AgentState) -> str:
@@ -2975,7 +3015,10 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_edge("qa_follow_up_detail", "atomic_read_plan_shadow")
     workflow.add_edge("direct_route", "route_proposal_shadow")
     workflow.add_edge("route_proposal_shadow", "atomic_read_plan_shadow")
-    workflow.add_edge("tour_opening", "atomic_read_plan_shadow")
+    workflow.add_conditional_edges(
+        "tour_opening", route_after_tour_opening,
+        {"stop_guidance": "stop_guidance", END: "atomic_read_plan_shadow"},
+    )
     workflow.add_conditional_edges(
         "journey_mode_selection", route_after_journey_mode_selection,
         {"profile_collection": "profile_collection", END: "atomic_read_plan_shadow"},
@@ -2986,7 +3029,10 @@ def build_agent_graph(with_checkpointer: bool = True):
     )
     workflow.add_edge("profile_update", "atomic_read_plan_shadow")
     workflow.add_edge("extended_profile_control", "atomic_read_plan_shadow")
-    workflow.add_conditional_edges("tour_event", route_after_tour_event, {"stop_guidance": "stop_guidance", END: "atomic_read_plan_shadow"})
+    workflow.add_conditional_edges(
+        "tour_event", route_after_tour_event,
+        {"tour_opening": "tour_opening", "stop_guidance": "stop_guidance", END: "atomic_read_plan_shadow"},
+    )
     workflow.add_edge("prepare_replan", "replan_proposal_shadow")
     workflow.add_edge("prepare_replan_candidate", "replan_proposal_shadow")
     workflow.add_edge("prepare_duration_replan", "replan_proposal_shadow")

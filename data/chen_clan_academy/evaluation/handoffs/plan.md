@@ -372,8 +372,10 @@ Planner 只能提交事件请求；adapter 再调用冻结的 `handle_tour_event
 
 路线确认后给一次可跳过、可重播的陈家祠总体介绍；使用独立审核 evidence。问答打断后恢复，重规划不重复播放。
 
-当前实现状态（2026-08-04）：已启动 P4-01。本地工作树已新增独立审核
-evidence、确定性 `TourOpeningProgram`、窄控制表达和 Graph 节点；仅写入
+当前实现状态（2026-08-05）：已启动 P4-01。本地工作树已新增独立审核
+evidence、确定性 `TourOpeningProgram`、窄控制表达和 Graph 节点。人工
+反馈后，契约修正为首个正式点位成功到达时自动执行开场，随后同轮进入
+`stop_guidance`；只有游客到站前明确说“跳过总体介绍”才绕过。该程序仅写入
 thread-local 开场程序/审计，不写 TourState、VisitorProfile、路线或
 NarrationCoverage。待负责人本机完成定向与全量回归后，再进入 LangSmith
 五案例验收；未通过前不得开始 P4-02。

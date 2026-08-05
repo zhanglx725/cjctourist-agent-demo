@@ -32,7 +32,10 @@ def initialize_tour_opening() -> dict[str, Any]:
 
 def opening_action(text: str) -> str | None:
     compact = "".join(str(text).strip().split()).rstrip("。！!？?")
-    if compact in {"跳过开场", "跳过介绍", "不用介绍", "直接开始游览", "直接开始导游"}:
+    if compact in {
+        "跳过开场", "跳过介绍", "跳过总体介绍", "不用介绍",
+        "直接开始游览", "直接开始导游",
+    }:
         return "skip"
     if compact in {"重播开场", "重播介绍", "再讲一次开场", "再介绍一次陈家祠"}:
         return "replay"

@@ -2,15 +2,17 @@
 
 ## Scope
 
-P4-01 adds one deterministic, optional opening program per newly initialized
-route. It is separate from TourState, VisitorProfile, StopProgram, and
+P4-01 adds one deterministic opening program per newly initialized route. It
+automatically plays after the first successful formal-stop arrival unless the
+visitor explicitly skipped it beforehand. It is separate from TourState, VisitorProfile, StopProgram, and
 NarrationCoverage.
 
 ## Contract
 
 - A successful new route initializes `tour_opening_program.status=pending`.
-- The route response offers `开始介绍` and `跳过介绍`.
-- Explicit play renders only approved facts from
+- The route response explains that the introduction will play automatically
+  after first arrival and offers an explicit `跳过总体介绍` control.
+- First successful arrival renders only approved facts from
   `tour_opening_evidence_v1.json` and changes the status to `played`.
 - Explicit skip changes the status to `skipped` without loading or claiming
   narration coverage.
@@ -21,6 +23,8 @@ NarrationCoverage.
   it afterward.
 - Replanning does not initialize or overwrite the opening program, preventing
   automatic duplicate playback.
+- After automatic opening, the same arrival turn continues into authoritative
+  `stop_guidance`; the opening does not replace the first-stop narration.
 - Source IDs and fact IDs remain in `tour_opening_evaluations`; they never
   appear in the visitor body.
 
@@ -48,14 +52,15 @@ operator must run these commands in the working local `.venv` before commit.
 Use a new thread for each case and retain tested commit, Thread ID, Trace URL,
 node path, final opening program, audit, protected-state diff, and visitor body.
 
-1. Establish a route, then `开始介绍`: path reaches `tour_opening`, status is
-   `played`, play count is 1, and no protected state changes.
-2. Establish a route, then `跳过介绍`: status is `skipped`, Coverage stays
+1. Establish a route and report arrival at the first stop: path reaches
+   `tour_event -> tour_opening -> stop_guidance`, status is `played`, play
+   count is 1, and no protected state changes are attributable to opening.
+2. Establish a route, then `跳过总体介绍`: status is `skipped`, Coverage stays
    empty, and navigation remains available.
 3. After play or skip, `重播开场`: same approved body, play count increments,
    and no Coverage is submitted.
-4. While pending, ask an ordinary venue question, then `开始介绍`: QA uses its
-   controlled route, opening remains pending during QA, and resumes afterward.
+4. While pending, ask an ordinary venue question, then arrive at the first
+   stop: QA uses its controlled route, opening remains pending during QA, and
+   automatically runs on arrival.
 5. Play once, perform an accepted replan, then continue: replan does not reset
    or automatically replay the opening.
-
