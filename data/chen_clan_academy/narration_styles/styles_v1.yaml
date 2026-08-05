@@ -1,3 +1,58 @@
+# 人工新增讲解风格说明
+#
+# 本文件是实际讲解渲染风格库。新增风格不能只在 styles 列表末尾添加 YAML：
+# 还必须同步更新以下代码，否则可能出现风格库校验失败，或游客画像已保存风格、
+# 实际讲解却仍回退 neutral 的情况。
+#
+# 必须同步修改：
+# 1. narration_style_policy.py
+#    - 将新 style_id 加入完整风格集合校验；
+#    - 在 compile_narration_style() 中定义它由哪些 GuidancePolicy 条件选中；
+#    - 未命中或非法输入仍必须确定性回退 neutral。
+# 2. profile_dialogue.py（如果允许游客在定制模式主动选择该风格）
+#    - 在 STYLE_ALIASES 中加入稳定画像值及窄范围别名；
+#    - 在 EXPLICIT_STYLE_PHRASES 中加入“某某风格/某某讲解风格”等明确表达；
+#    - 确保风格片段不会同时被抽取为 interests；
+#    - 多个互相冲突的风格必须澄清，不能静默选择其中一个。
+# 3. GuidancePolicy 的偏好到渲染策略映射
+#    - 明确 VisitorProfile.explanation_style 如何派生 narrative_mode、
+#      interaction_mode、audience_mode 或 knowledge_level；
+#    - 不允许渲染器直接读取原始聊天文本猜测风格。
+#
+# style_id 与字段规则：
+# - style_id 必须是全局唯一、稳定的小写英文 ID；上线后不要改名复用。
+# - display_name 是游客可见名称，不应暗示官方认证、专业资质或能力评级。
+# - schema_version 必须保持 narration_style_v1。
+# - fallback_style_id 必须指向已存在风格；一般使用 neutral。
+# - applicable_policy_conditions 只作审核说明；真正运行选择逻辑仍在
+#   narration_style_policy.py 的 compile_narration_style() 中。
+# - allowed_devices 只能声明允许的表达手段，不能增加未经审核的事实能力。
+# - prohibited_patterns 至少应继续禁止 unsupported_fact；互动型风格也不得
+#   强迫游客回答、完成任务或触摸文物。
+#
+# 模板安全规则：
+# - templates 必须完整包含以下四个键：
+#   first_craft_intro_style、repeat_craft_style、
+#   first_ornament_intro_style、repeat_ornament_style。
+# - 模板只允许使用以下占位符：craft_name、craft_definition、object_name、
+#   observation_location、visible_detail、evidence_fact。
+# - 模板中不得写具体陈家祠事实、来源编号、source_ids、文件路径或 URL。
+# - listen_only 风格的模板不得包含问号，也不得要求游客回答或互动。
+# - observation_prompt_patterns 同样只能组织观察方式，不能补造现场事实。
+#
+# 新增或修改后必须补充测试：
+# - YAML schema、必填字段、重复 style_id 和非法占位符校验；
+# - GuidancePolicy 到 style_id 的确定性映射；
+# - 游客中英文/自然表达别名解析及未知风格回退；
+# - 多风格冲突澄清、风格与 interests 字段隔离；
+# - 实际 narration rendering 使用新风格且预算不超限；
+# - 不泄漏 source_ids、文件路径、URL、节点 ID 或内部工具名称；
+# - fallback、重复讲解、Coverage 与 TourState 幂等回归。
+#
+# 推荐新增卡片写法：复制 neutral 或最接近的已审核风格，使用 YAML merge
+# `<<: *base` 继承完整模板，再只覆盖确有差异的字段。新增条目完成代码联动和
+# 人工审核前不得在游客端启用。
+
 schema_version: narration_style_library_v1
 styles:
   - &base
