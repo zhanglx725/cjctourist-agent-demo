@@ -1,0 +1,210 @@
+# P4-03 人工称号库填写模板
+#
+# 填写规则：
+# 1. 不要修改 category_id；它必须与 post_visit_award.py 中的稳定 ID 对应。
+# 2. 每个 candidate_id 在整个文件中必须唯一，建议使用小写英文和下划线。
+# 3. title_zh 建议为 4～8 个汉字，不得暗示官方认证、能力评级或身份认定。
+# 4. reason_template 与 blessing_template 只能引用 allowed_placeholders 中的变量。
+# 5. 新条目先保持 review_status: draft；人工审核通过后改为 approved。
+# 6. enabled 仅能在 review_status: approved 后设为 true。
+# 7. 暂无翻译时将对应字段保留为空字符串，不要使用机器生成内容冒充人工审核译文。
+
+schema_version: post_visit_title_catalog_authoring_v1
+catalog_version: "0.1.0-draft"
+locale_default: zh-CN
+
+global_policy:
+  selection_mode: deterministic
+  official_certification: false
+  public_disclaimer_zh: 这是本次游览的趣味纪念称号，不是官方认证或游客评级。
+  title_length_zh:
+    min_characters: 4
+    max_characters: 8
+  prohibited_claims:
+    - 官方认证
+    - 专业资质
+    - 能力等级
+    - 身份鉴定
+    - 性格诊断
+  allowed_placeholders:
+    - question_count
+    - visited_stop_count
+    - matched_interests
+    - introduced_crafts
+    - introduced_topics
+    - explanation_style
+    - language
+
+categories:
+  - category_id: curious_explorer
+    trigger_summary: 游览中的有效提问次数不少于 3 次
+    priority: 1
+    candidates:
+      - candidate_id: curious_explorer_default
+        title_zh: 好奇探索家
+        title_en: Curious Explorer
+        title_ko: ""
+        reason_template_zh: 本次游览中提出了 {question_count} 次问题。
+        blessing_template_zh: 愿这份认真追问的好奇心，继续带你发现建筑与工艺里的细节。
+        cultural_note: 中性好奇类称号，不推断游客知识水平。
+        review_status: approved
+        reviewed_by: existing_policy_v1
+        reviewed_at: "2026-08-05"
+        enabled: true
+      - candidate_id: fill_unique_id_here
+        title_zh: 待填写
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: ""
+        blessing_template_zh: ""
+        cultural_note: ""
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+
+  - category_id: interest_connoisseur
+    trigger_summary: 实际讲解内容与至少 2 项游客明确兴趣匹配
+    priority: 2
+    candidates:
+      - candidate_id: interest_connoisseur_default
+        title_zh: 岭南知艺人
+        title_en: Lingnan Arts Enthusiast
+        title_ko: ""
+        reason_template_zh: 实际讲解覆盖了你关注的内容：{matched_interests}。
+        blessing_template_zh: 愿今天遇见的工艺细节，成为你继续认识岭南文化的一扇窗。
+        cultural_note: “知艺”表示关注和欣赏，不代表专业资质。
+        review_status: approved
+        reviewed_by: existing_policy_v1
+        reviewed_at: "2026-08-05"
+        enabled: true
+      - candidate_id: fill_unique_id_here_2
+        title_zh: 待填写
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: ""
+        blessing_template_zh: ""
+        cultural_note: ""
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+
+  - category_id: many_arts_wanderer
+    trigger_summary: 成功讲解覆盖至少 5 类工艺或题材信号
+    priority: 3
+    candidates:
+      - candidate_id: many_arts_wanderer_default
+        title_zh: 百艺巡游者
+        title_en: Wanderer Among Many Arts
+        title_ko: ""
+        reason_template_zh: 本次成功讲解覆盖了多类工艺与题材：{introduced_crafts}、{introduced_topics}。
+        blessing_template_zh: 愿不同工艺与题材留下的印象，在离开后仍能慢慢展开。
+        cultural_note: “百艺”是趣味概括，不表示准确数量为一百。
+        review_status: approved
+        reviewed_by: existing_policy_v1
+        reviewed_at: "2026-08-05"
+        enabled: true
+      - candidate_id: fill_unique_id_here_3
+        title_zh: 待填写
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: ""
+        blessing_template_zh: ""
+        cultural_note: ""
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+
+  - category_id: story_tracer
+    trigger_summary: 选择故事风格且实际听到至少 2 项审核题材
+    priority: 4
+    candidates:
+      - candidate_id: story_tracer_default
+        title_zh: 故事寻踪者
+        title_en: Story Tracer
+        title_ko: ""
+        reason_template_zh: 选择了故事风格，并听到了这些题材：{introduced_topics}。
+        blessing_template_zh: 愿今天听见的故事，陪你把建筑上的人物与纹样记得更久。
+        cultural_note: 只依据实际成功讲解的审核题材。
+        review_status: approved
+        reviewed_by: existing_policy_v1
+        reviewed_at: "2026-08-05"
+        enabled: true
+      - candidate_id: fill_unique_id_here_4
+        title_zh: 待填写
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: ""
+        blessing_template_zh: ""
+        cultural_note: ""
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+
+  - category_id: route_finisher
+    trigger_summary: 完成全部路线且正式完成点位不少于 2 个
+    priority: 5
+    candidates:
+      - candidate_id: route_finisher_default
+        title_zh: 陈家祠行旅完成者
+        title_en: Chen Clan Academy Journey Finisher
+        title_ko: ""
+        reason_template_zh: 按本轮记录完成了全部路线，共确认参观 {visited_stop_count} 个讲解点。
+        blessing_template_zh: 愿这段完整行程为你留下一份从整体到细节的岭南记忆。
+        cultural_note: 仅描述本次路线完成情况，不作游客能力评价。
+        review_status: approved
+        reviewed_by: existing_policy_v1
+        reviewed_at: "2026-08-05"
+        enabled: true
+      - candidate_id: fill_unique_id_here_5
+        title_zh: 待填写
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: ""
+        blessing_template_zh: ""
+        cultural_note: ""
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+
+  - category_id: mindful_visitor
+    trigger_summary: 未命中更高优先级规则时的中性回退
+    priority: 6
+    candidates:
+      - candidate_id: mindful_visitor_default
+        title_zh: 陈家祠漫游者
+        title_en: Chen Clan Academy Wanderer
+        title_ko: ""
+        reason_template_zh: 依据本轮可审计的实际参观记录授予中性纪念称号。
+        blessing_template_zh: 愿今天的一段驻足，为你留下轻松而清晰的文化记忆。
+        cultural_note: 必须始终保留至少一个已审核且启用的中性回退称号。
+        review_status: approved
+        reviewed_by: existing_policy_v1
+        reviewed_at: "2026-08-05"
+        enabled: true
+      - candidate_id: fill_unique_id_here_6
+        title_zh: 待填写
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: ""
+        blessing_template_zh: ""
+        cultural_note: ""
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+
+review_checklist:
+  - candidate_id 全局唯一
+  - category_id 与既有策略一致
+  - 中文称号长度符合约束
+  - 称号不包含官方认证或能力评级暗示
+  - 理由只使用可审计的游览事实
+  - 祝福为原创或已确认拥有使用权
+  - 占位符全部位于 allowed_placeholders
+  - 翻译经过对应语言人工审核
+  - 至少保留一个已审核且启用的中性回退称号
