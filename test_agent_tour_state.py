@@ -9,6 +9,7 @@ import agent_graph
 from agent_graph import (
     direct_route_node,
     inactive_tour_end_node,
+    route_after_tour_event,
     route_initial_request,
     tour_event_node,
 )
@@ -64,6 +65,21 @@ class AgentTourStateTests(unittest.TestCase):
         self.assertIn("当前没有进行中的游览", result["messages"][0].content)
         for protected in ("tour_state", "visitor_profile", "narration_coverage"):
             self.assertNotIn(protected, result)
+
+    def test_early_finish_beats_stale_mode_selection_and_routes_to_summary(self):
+        started = self._started()
+        arrived = tour_event_node(_message_state("到达", started))
+        completed_first = tour_event_node(_message_state("完成本点", arrived))
+        state = _message_state("结束游览", {
+            **completed_first,
+            "journey_mode_selection": {"status": "awaiting_choice"},
+        })
+        self.assertEqual(state["tour_state"]["route_status"], "touring")
+        self.assertEqual(route_initial_request(state), "tour_event")
+        finished = tour_event_node(state)
+        self.assertEqual(finished["last_tour_event"]["event"], "finish_tour")
+        self.assertEqual(finished["tour_state"]["route_status"], "completed")
+        self.assertEqual(route_after_tour_event(finished), "visit_summary")
 
     def test_generic_arrival_uses_pending_stop_only_through_adapter(self):
         initial = self._started()

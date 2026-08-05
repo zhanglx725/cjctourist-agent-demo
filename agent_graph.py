@@ -2793,6 +2793,11 @@ def route_initial_request(state: AgentState) -> str:
             if state.get("visit_summary")
             else "visit_summary"
         )
+    # An explicit finish for an active route is a tour lifecycle event.  It
+    # must win over stale profile/mode-selection gates left in thread state;
+    # otherwise an early finish can incorrectly restart route initialization.
+    if repeated_finish and (state.get("tour_state") or {}).get("route_status") == "touring":
+        return "tour_event"
     if repeated_finish and (state.get("tour_state") or {}).get("route_status") != "touring":
         return "inactive_tour_end"
     if not state.get("tour_state") and is_tour_start_entry(raw_text):
