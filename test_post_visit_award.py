@@ -65,8 +65,10 @@ class PostVisitAwardTests(unittest.TestCase):
         summary_update = visit_summary_node(state)
         self.assertEqual(route_after_visit_summary(summary_update), "post_visit_title_blessing")
         award_update = post_visit_title_blessing_node({**state, **summary_update})
-        self.assertIn("称号", award_update["messages"][0].content)
-        self.assertIn("祝福", award_update["messages"][0].content)
+        public_message = award_update["messages"][0].content
+        self.assertIn("称号", public_message)
+        self.assertIn(award_update["post_visit_award"]["blessing"], public_message)
+        self.assertNotIn("祝福：", public_message)
         for field in ("tour_state", "visitor_profile", "narration_coverage"):
             self.assertNotIn(field, award_update)
 

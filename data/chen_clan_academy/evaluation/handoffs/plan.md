@@ -423,6 +423,32 @@ NarrationCoverage。待负责人本机完成定向与全量回归后，再进入
 不写 TourState、VisitorProfile、路线或 Coverage。同期补齐 active route 下
 “到达/我到下一个点位了/我到下一站了”的确定性到站解析，禁止回退 LLM/RAG。
 
+后续产品方案采用“人工审核称号库 + 确定性类别选择 + API 受约束生成表达 +
+本地模板回退”，不允许 API 自由发明称号或自行评判游客：
+
+1. `TitleAwardPolicy` 继续根据 `title_basis` 以固定优先级确定稳定
+   `category_id`；同一份审计输入必须得到同一类别。
+2. 称号候选由团队人工填写和审核。编写模板位于
+   `evaluation/manual_reviews/p4_03_title_catalog_authoring_template_v1.yaml`；
+   每个候选必须有全局唯一 `candidate_id`、审核状态、文化说明及多语言字段。
+3. 运行时只能从对应类别中选择 `review_status=approved` 且 `enabled=true`
+   的称号；不得使用 draft 条目。候选选择必须稳定可复现，并始终保留一个
+   已审核的中性 fallback。
+4. API 仅可根据已选称号和允许的审计字段润色“授予理由”和原创短祝福，
+   可按游客明确选择的讲解语言输出；不得改变称号类别、生成新称号、推断
+   性格/身份/年龄/能力，或写入 TourState、VisitorProfile、路线和 Coverage。
+5. API 输出须经过结构、占位符、安全声明和敏感推断校验。超时、异常、
+   缺证据或校验失败时，立即使用人工审核的 `reason_template` 与
+   `blessing_template`，不得调用自由 LLM 补救。
+6. 游客正文始终说明称号是趣味纪念而非官方认证或评级；多语言译文只有在
+   对应语言人工审核后才能启用，缺少审核译文时使用已审核的默认语言模板。
+
+该混合方案的验收至少覆盖：类别优先级确定性、draft 不可见、候选稳定选择、
+API 成功润色、API 失败回退、非法新称号拒绝、未授权占位符拒绝、多语言回退、
+重复请求幂等，以及所有受保护状态保持不变。当前 v1 确定性称号与本地祝福
+继续作为上线基线；人工目录接入和可选 API 润色应作为后续独立变更实施，
+不得阻塞现有 P4-03 安全出口。
+
 ### P4-04 NearbyRecommendationService
 
 先建设少量审核 POI 卡，再考虑外部动态查询。

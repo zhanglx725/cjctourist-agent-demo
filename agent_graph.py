@@ -1072,7 +1072,7 @@ def post_visit_title_blessing_node(state: AgentState) -> dict[str, Any]:
         }
     message = (
         f"你的本次游览称号是“{award['title']}”。{award['reason']}\n\n"
-        f"{award['disclaimer']}\n\n祝福：{award['blessing']}"
+        f"{award['disclaimer']}\n\n{award['blessing']}"
     )
     evaluations = list(state.get("post_visit_award_evaluations") or [])
     evaluations.append({
@@ -1200,6 +1200,24 @@ def journey_mode_selection_node(state: AgentState) -> dict[str, Any]:
         "performance_metrics": _append_metric(
             state, "journey_mode_selection", time.perf_counter() - started,
             status="selected", selected_mode=selected,
+        ),
+    }
+
+
+def inactive_tour_end_node(state: AgentState) -> dict[str, Any]:
+    """Close a route-less finish request without starting a new journey."""
+    started = time.perf_counter()
+    return {
+        "messages": [AIMessage(content=(
+            "当前没有进行中的游览，已退出路线初始化。"
+            "如需开始新的导览，请告诉我“开始导游”。"
+        ))],
+        "journey_mode_selection": {"status": "cancelled"},
+        "qa_context": clear_qa_context(state.get("qa_context")),
+        "pending_ornament_clarification": None,
+        "performance_metrics": _append_metric(
+            state, "inactive_tour_end", time.perf_counter() - started,
+            status="no_active_tour",
         ),
     }
 
@@ -2775,6 +2793,8 @@ def route_initial_request(state: AgentState) -> str:
             if state.get("visit_summary")
             else "visit_summary"
         )
+    if repeated_finish and (state.get("tour_state") or {}).get("route_status") != "touring":
+        return "inactive_tour_end"
     if not state.get("tour_state") and is_tour_start_entry(raw_text):
         return "journey_mode_selection"
     # P4-01 uses a deliberately narrow explicit vocabulary, so ordinary QA,
@@ -3130,6 +3150,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("direct_route", direct_route_node)
     workflow.add_node("profile_collection", profile_collection_node)
     workflow.add_node("journey_mode_selection", journey_mode_selection_node)
+    workflow.add_node("inactive_tour_end", inactive_tour_end_node)
     workflow.add_node("tour_opening", tour_opening_node)
     workflow.add_node("visit_summary", visit_summary_node)
     workflow.add_node("post_visit_title_blessing", post_visit_title_blessing_node)
@@ -3151,7 +3172,7 @@ def build_agent_graph(with_checkpointer: bool = True):
         "semantic_normalization",
         route_initial_request,
         {
-            "direct_rag": "direct_rag", "controlled_knowledge_rollout": "controlled_knowledge_rollout", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "journey_mode_selection": "journey_mode_selection", "tour_opening": "tour_opening", "visit_summary": "visit_summary", "post_visit_title_blessing": "post_visit_title_blessing", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "tour_event": "tour_event",
+            "direct_rag": "direct_rag", "controlled_knowledge_rollout": "controlled_knowledge_rollout", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "journey_mode_selection": "journey_mode_selection", "inactive_tour_end": "inactive_tour_end", "tour_opening": "tour_opening", "visit_summary": "visit_summary", "post_visit_title_blessing": "post_visit_title_blessing", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "tour_event": "tour_event",
             "clarification": "clarification", "prepare_replan": "prepare_replan", "prepare_replan_candidate": "prepare_replan_candidate", "prepare_duration_replan": "prepare_duration_replan",
             "confirm_replan": "confirm_replan", "confirm_replan_and_next": "confirm_replan_and_next", "cancel_replan": "cancel_replan", "show_replan": "show_replan", "show_replan_time": "show_replan_time", "llm_think": "llm_think",
         },
@@ -3185,6 +3206,7 @@ def build_agent_graph(with_checkpointer: bool = True):
         {"post_visit_title_blessing": "post_visit_title_blessing", END: "atomic_read_plan_shadow"},
     )
     workflow.add_edge("post_visit_title_blessing", "atomic_read_plan_shadow")
+    workflow.add_edge("inactive_tour_end", "atomic_read_plan_shadow")
     workflow.add_edge("prepare_replan", "replan_proposal_shadow")
     workflow.add_edge("prepare_replan_candidate", "replan_proposal_shadow")
     workflow.add_edge("prepare_duration_replan", "replan_proposal_shadow")

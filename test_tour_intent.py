@@ -28,6 +28,12 @@ class TourIntentTests(unittest.TestCase):
         self.assertEqual(decision.event_type, "arrive_at_stop")
         self.assertEqual(decision.arguments["node_id"], "stop_front_courtyard_center")
 
+    def test_subject_omitted_completed_arrival_maps_known_node(self):
+        decision = self.classify("已到前院中部")
+        self.assertEqual(decision.route_kind, "tour_event")
+        self.assertEqual(decision.event_type, "arrive_at_stop")
+        self.assertEqual(decision.arguments["node_id"], "stop_front_courtyard_center")
+
     def test_explicit_walking_arrival_is_available_to_controlled_replan(self):
         decision = self.classify("我自己走到了后西庭，想从这里重新安排后续行程。")
         self.assertEqual(decision.route_kind, "replan_request")
