@@ -64,3 +64,12 @@ node path, final opening program, audit, protected-state diff, and visitor body.
    automatically runs on arrival.
 5. Play once, perform an accepted replan, then continue: replan does not reset
    or automatically replay the opening.
+
+## Studio follow-up fixes (2026-08-05)
+
+- With no active route, the narrow entry controls `开始导游`, `开始导览`,
+  `开始游览`, and `带我参观` now deterministically enter
+  `journey_mode_selection`; they cannot fall through to `llm_think`.
+- The reviewed question `陈家祠为什么又叫陈氏书院？` now has a
+  deterministic, evidence-bounded `history_architecture` single-fact answer.
+  It does not alter a pending opening program, and source IDs remain audit-only.

@@ -67,6 +67,7 @@ FACT_KINDS = frozenset(
         "museum_establishment",
         "museum_reopening",
         "museum_renaming",
+        "academy_name_reason",
     }
 )
 
@@ -157,6 +158,10 @@ def identify_single_fact_kind(user_query: str) -> str | None:
             return "museum_reopening"
         if asks_time and any(term in text for term in ("成立", "设立", "创立")):
             return "museum_establishment"
+    if has_site and (
+        any(term in text for term in ("为什么又叫陈氏书院", "为什么叫陈氏书院", "为何又叫陈氏书院", "为何叫陈氏书院"))
+    ):
+        return "academy_name_reason"
     if has_site and (
         any(term in text for term in ("由谁设计", "谁设计", "设计者", "设计人"))
         or any(term in text for term in ("奠基", "动工日期"))
@@ -263,6 +268,7 @@ def single_fact_categories_for_kind(fact_kind: str | None) -> list[str] | None:
         "museum_establishment",
         "museum_reopening",
         "museum_renaming",
+        "academy_name_reason",
     }:
         return ["history_architecture"]
     if fact_kind == "closed_day":
@@ -306,6 +312,9 @@ def single_fact_retrieval_query_for_kind(
         "museum_renaming": (
             "广东民间工艺馆 1994年 更名 广东民间工艺博物馆 "
             "1959年 成立"
+        ),
+        "academy_name_reason": (
+            "陈家祠 陈氏书院 合族祠 应考 办理事务 暂住 祭祀 功能"
         ),
         "site_address": "陈家祠 地址 馆址 恩龙里34号",
         "closed_day": "陈家祠 常规闭馆日 周二 法定节假日",
@@ -632,6 +641,45 @@ def _museum_history_answer(
     )
 
 
+def _academy_name_reason_answer(
+    evidence: list[dict[str, Any]],
+) -> SingleFactAnswer:
+    matches: list[tuple[int, dict[str, Any]]] = []
+    for index, item in enumerate(evidence):
+        compact = _compact(str(item.get("content") or ""))
+        if (
+            "陈氏书院" in compact
+            and "合族祠" in compact
+            and any(term in compact for term in ("应考", "办事", "办理事务", "暂住"))
+        ):
+            matches.append((index, item))
+    items = [item for _, item in matches]
+    source_ids = _source_ids(items)
+    indexes = tuple(index for index, _ in matches)
+    categories = _categories(items)
+    if not matches or not source_ids:
+        return SingleFactAnswer(
+            fact_kind="academy_name_reason",
+            message="现有资料不足以安全说明陈家祠又称陈氏书院的原因，因此不作推测。",
+            source_ids=source_ids,
+            evidence_indexes=indexes,
+            evidence_categories=categories,
+            ok=False,
+        )
+    return SingleFactAnswer(
+        fact_kind="academy_name_reason",
+        message=(
+            "陈家祠又称陈氏书院，是因为它历史上不只承担宗族祭祀功能，"
+            "也为参与兴建的陈氏子弟到广州应考或办理事务时提供暂住和联络空间。"
+            "因此，它兼有合族祠与书院相关功能。"
+        ),
+        source_ids=source_ids,
+        evidence_indexes=indexes,
+        evidence_categories=categories,
+        ok=True,
+    )
+
+
 def _address_answer(evidence: list[dict[str, Any]]) -> SingleFactAnswer:
     matches: list[tuple[int, dict[str, Any], str]] = []
     for index, item in enumerate(evidence):
@@ -876,6 +924,8 @@ def render_single_fact_answer(
     ]
     if resolved_fact_kind == "site_address":
         result = _address_answer(normalized_evidence)
+    elif resolved_fact_kind == "academy_name_reason":
+        result = _academy_name_reason_answer(normalized_evidence)
     elif resolved_fact_kind == "identity_admission_workaround":
         result = _identity_admission_answer(
             normalized_evidence, user_query=user_query,

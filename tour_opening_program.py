@@ -44,6 +44,14 @@ def opening_action(text: str) -> str | None:
     return None
 
 
+def is_tour_start_entry(text: str) -> bool:
+    """Recognize route-less tour entry controls without claiming site QA."""
+    compact = "".join(str(text).strip().split()).rstrip("。！!？?")
+    return compact in {
+        "开始导游", "开始导览", "开始游览", "带我参观", "带我游览",
+    }
+
+
 def _load_approved_evidence() -> dict[str, Any]:
     try:
         payload = json.loads(EVIDENCE_FILE.read_text(encoding="utf-8"))

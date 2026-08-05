@@ -134,6 +134,7 @@ from tour_opening_program import (
     TourOpeningProgramError,
     apply_tour_opening_action,
     initialize_tour_opening,
+    is_tour_start_entry,
     opening_action,
 )
 MAX_TOOL_LOOPS = 3
@@ -2642,6 +2643,8 @@ def route_initial_request(state: AgentState) -> str:
     # venue fact.  Keep it out of RAG in both pre-tour and active-tour modes.
     if is_identity_document_civil_service_request(raw_text):
         return "tour_qa"
+    if not state.get("tour_state") and is_tour_start_entry(raw_text):
+        return "journey_mode_selection"
     # P4-01 uses a deliberately narrow explicit vocabulary, so ordinary QA,
     # navigation, and replanning continue through their established routes.
     # Replanning never resets this program and therefore cannot auto-replay it.

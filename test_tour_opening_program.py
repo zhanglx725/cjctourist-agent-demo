@@ -16,6 +16,7 @@ from agent_graph import (
 from tour_opening_program import (
     apply_tour_opening_action,
     initialize_tour_opening,
+    is_tour_start_entry,
     opening_action,
 )
 
@@ -42,6 +43,16 @@ class TourOpeningProgramTests(unittest.TestCase):
         self.assertEqual(opening_action("跳过总体介绍。"), "skip")
         self.assertEqual(opening_action("重播开场"), "replay")
         self.assertIsNone(opening_action("陈家祠为什么又叫书院？"))
+        self.assertTrue(is_tour_start_entry("开始导游"))
+        self.assertFalse(is_tour_start_entry("介绍一下陈家祠"))
+
+    def test_route_less_start_tour_requires_journey_mode_selection(self):
+        for text in ("开始导游", "开始导览", "开始游览", "带我参观"):
+            with self.subTest(text=text):
+                self.assertEqual(
+                    route_initial_request({"messages": [HumanMessage(content=text)]}),
+                    "journey_mode_selection",
+                )
 
     def test_graph_route_initializes_one_pending_opening(self):
         graph = build_agent_graph(with_checkpointer=False)
