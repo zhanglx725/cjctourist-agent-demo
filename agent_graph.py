@@ -138,6 +138,7 @@ from tour_opening_program import (
     opening_action,
 )
 from visit_summary_engine import VisitSummaryError, build_visit_summary
+from post_visit_award import PostVisitAwardError, build_post_visit_award, is_post_visit_request
 MAX_TOOL_LOOPS = 3
 DEFAULT_DEEPSEEK_MAX_TOKENS = 450
 DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
@@ -229,6 +230,8 @@ class AgentState(TypedDict, total=False):
     # One bounded audit entry per visitor QA turn after route initialization.
     # Raw question text is intentionally not duplicated here.
     tour_question_log: list[dict[str, Any]]
+    post_visit_award: dict[str, Any] | None
+    post_visit_award_evaluations: list[dict[str, Any]]
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -893,6 +896,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         "tour_opening_program": initialize_tour_opening(),
         "visit_summary": None,
         "tour_question_log": [],
+        "post_visit_award": None,
         "active_guidance_evidence_bundle": None,
         "active_narration_render_audit": None,
         "qa_context": clear_qa_context(state.get("qa_context")),
@@ -1047,6 +1051,45 @@ def visit_summary_node(state: AgentState) -> dict[str, Any]:
         "performance_metrics": _append_metric(
             state, "visit_summary", time.perf_counter() - started,
             status="accepted", completion_kind=summary["completion_kind"],
+        ),
+    }
+
+
+def post_visit_title_blessing_node(state: AgentState) -> dict[str, Any]:
+    """Apply deterministic P4-03 policy without changing tour/profile facts."""
+    started = time.perf_counter()
+    try:
+        award = build_post_visit_award(state.get("visit_summary"))
+    except PostVisitAwardError:
+        return {
+            "messages": [AIMessage(content=(
+                "本次游览已经结束，但当前总结不足以安全生成称号和祝福。"
+            ))],
+            "performance_metrics": _append_metric(
+                state, "post_visit_title_blessing", time.perf_counter() - started,
+                status="failed_closed",
+            ),
+        }
+    message = (
+        f"你的本次游览称号是“{award['title']}”。{award['reason']}\n\n"
+        f"{award['disclaimer']}\n\n祝福：{award['blessing']}"
+    )
+    evaluations = list(state.get("post_visit_award_evaluations") or [])
+    evaluations.append({
+        "policy_version": award["policy_version"],
+        "title_id": award["title_id"],
+        "state_writes": ["post_visit_award"],
+        "tour_state_preserved": True,
+        "visitor_profile_preserved": True,
+        "narration_coverage_preserved": True,
+    })
+    return {
+        "messages": [AIMessage(content=message)],
+        "post_visit_award": award,
+        "post_visit_award_evaluations": evaluations[-20:],
+        "performance_metrics": _append_metric(
+            state, "post_visit_title_blessing", time.perf_counter() - started,
+            status="accepted", title_id=award["title_id"],
         ),
     }
 
@@ -2720,6 +2763,18 @@ def route_initial_request(state: AgentState) -> str:
     # venue fact.  Keep it out of RAG in both pre-tour and active-tour modes.
     if is_identity_document_civil_service_request(raw_text):
         return "tour_qa"
+    completed_tour = (state.get("tour_state") or {}).get("route_status") == "completed"
+    repeated_finish = any(
+        term in raw_text for term in (
+            "结束导览", "结束游览", "结束路线", "路线结束", "游览结束",
+        )
+    )
+    if completed_tour and (is_post_visit_request(raw_text) or repeated_finish):
+        return (
+            "post_visit_title_blessing"
+            if state.get("visit_summary")
+            else "visit_summary"
+        )
     if not state.get("tour_state") and is_tour_start_entry(raw_text):
         return "journey_mode_selection"
     # P4-01 uses a deliberately narrow explicit vocabulary, so ordinary QA,
@@ -3042,6 +3097,10 @@ def route_after_tour_opening(state: AgentState) -> str:
     return "stop_guidance" if action.get("continue_to_stop_guidance") else END
 
 
+def route_after_visit_summary(state: AgentState) -> str:
+    return "post_visit_title_blessing" if state.get("visit_summary") else END
+
+
 def route_after_confirm_replan(state: AgentState) -> str:
     """A confirmed proposal may adopt an already-arrived formal stop."""
     event = state.get("last_tour_event", {})
@@ -3073,6 +3132,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("journey_mode_selection", journey_mode_selection_node)
     workflow.add_node("tour_opening", tour_opening_node)
     workflow.add_node("visit_summary", visit_summary_node)
+    workflow.add_node("post_visit_title_blessing", post_visit_title_blessing_node)
     workflow.add_node("profile_update", profile_update_node)
     workflow.add_node("extended_profile_control", extended_profile_control_node)
     workflow.add_node("tour_event", tour_event_node)
@@ -3091,7 +3151,7 @@ def build_agent_graph(with_checkpointer: bool = True):
         "semantic_normalization",
         route_initial_request,
         {
-            "direct_rag": "direct_rag", "controlled_knowledge_rollout": "controlled_knowledge_rollout", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "journey_mode_selection": "journey_mode_selection", "tour_opening": "tour_opening", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "tour_event": "tour_event",
+            "direct_rag": "direct_rag", "controlled_knowledge_rollout": "controlled_knowledge_rollout", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "journey_mode_selection": "journey_mode_selection", "tour_opening": "tour_opening", "visit_summary": "visit_summary", "post_visit_title_blessing": "post_visit_title_blessing", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "tour_event": "tour_event",
             "clarification": "clarification", "prepare_replan": "prepare_replan", "prepare_replan_candidate": "prepare_replan_candidate", "prepare_duration_replan": "prepare_duration_replan",
             "confirm_replan": "confirm_replan", "confirm_replan_and_next": "confirm_replan_and_next", "cancel_replan": "cancel_replan", "show_replan": "show_replan", "show_replan_time": "show_replan_time", "llm_think": "llm_think",
         },
@@ -3120,7 +3180,11 @@ def build_agent_graph(with_checkpointer: bool = True):
         "tour_event", route_after_tour_event,
         {"tour_opening": "tour_opening", "stop_guidance": "stop_guidance", "visit_summary": "visit_summary", END: "atomic_read_plan_shadow"},
     )
-    workflow.add_edge("visit_summary", "atomic_read_plan_shadow")
+    workflow.add_conditional_edges(
+        "visit_summary", route_after_visit_summary,
+        {"post_visit_title_blessing": "post_visit_title_blessing", END: "atomic_read_plan_shadow"},
+    )
+    workflow.add_edge("post_visit_title_blessing", "atomic_read_plan_shadow")
     workflow.add_edge("prepare_replan", "replan_proposal_shadow")
     workflow.add_edge("prepare_replan_candidate", "replan_proposal_shadow")
     workflow.add_edge("prepare_duration_replan", "replan_proposal_shadow")

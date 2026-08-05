@@ -39,6 +39,16 @@ class AgentTourStateTests(unittest.TestCase):
         self.assertEqual(result["tour_presentation"]["phase"], "explaining")
         self.assertIn("explanation_finished", [item["id"] for item in result["tour_presentation"]["actions"]])
 
+    def test_next_point_arrival_variants_never_fall_through_to_llm_or_rag(self):
+        for text in ("到达", "我到下一个点位了。", "我到下一站了"):
+            with self.subTest(text=text):
+                initial = self._started()
+                state = _message_state(text, initial)
+                self.assertEqual(route_initial_request(state), "tour_event")
+                result = tour_event_node(state)
+                self.assertEqual(result["last_tour_intent"]["event_type"], "arrive_at_stop")
+                self.assertEqual(result["tour_state"]["visited_stop_ids"], [])
+
     def test_generic_arrival_uses_pending_stop_only_through_adapter(self):
         initial = self._started()
         state = _message_state("我到了", initial)

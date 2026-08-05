@@ -46,7 +46,10 @@ class TourIntentTests(unittest.TestCase):
                 self.assertEqual(decision.reason_code, "unresolved_replan_origin")
 
     def test_generic_arrival_uses_only_pending_stop_while_navigating(self):
-        for wording in ("我到了", "到了", "到啦", "到咯", "我到这儿了"):
+        for wording in (
+            "我到了", "到了", "到啦", "到咯", "我到这儿了", "到达",
+            "我到下一个点位了", "我到下一个点位了。", "我到下一站了",
+        ):
             with self.subTest(wording=wording):
                 decision = self.classify(wording)
                 self.assertEqual(decision.route_kind, "tour_event")

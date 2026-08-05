@@ -416,6 +416,13 @@ NarrationCoverage。待负责人本机完成定向与全量回归后，再进入
 - 祝福只使用用户明确画像；未知时使用中性文案。
 - 不使用未授权歌词；优先原创短祝福或有许可模板。
 
+当前实现状态（2026-08-05）：已新增版本化确定性称号策略和原创祝福节点。
+`visit_summary` 成功后自动进入 `post_visit_title_blessing`；结束态重复结束、
+查看总结或请求称号/祝福不会回到模式选择。规则仅消费已审计
+`title_basis`，固定优先级并提供中性 fallback、理由与“非官方认证”声明，
+不写 TourState、VisitorProfile、路线或 Coverage。同期补齐 active route 下
+“到达/我到下一个点位了/我到下一站了”的确定性到站解析，禁止回退 LLM/RAG。
+
 ### P4-04 NearbyRecommendationService
 
 先建设少量审核 POI 卡，再考虑外部动态查询。

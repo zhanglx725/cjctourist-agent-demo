@@ -45,6 +45,10 @@ BARE_ARRIVAL_SYNONYMS = frozenset(
         "我已经到了",
         "我到这了",
         "我到这儿了",
+        "到达",
+        "我到下一个点位了",
+        "我到下一站了",
+        "我已到下一个点位了",
     }
 )
 
@@ -552,7 +556,11 @@ def _event_hits(text: str) -> set[str]:
     )):
         hits.add("request_stop_detail")
     # “讲完了，去下一站” is one confirmation intent, not two events.
-    if "confirm_stop_complete" not in hits and _is_next_stop_navigation_phrase(text):
+    if (
+        "confirm_stop_complete" not in hits
+        and "arrive_at_stop" not in hits
+        and _is_next_stop_navigation_phrase(text)
+    ):
         hits.add("next_stop")
     return hits
 
