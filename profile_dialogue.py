@@ -245,6 +245,11 @@ def _language_candidate(text: str, *, allow_free_text: bool = False) -> str | No
     return None
 
 
+def parse_explanation_language(text: str) -> str | None:
+    """Parse one explicit onboarding/profile language without inferring it."""
+    return _language_candidate(text, allow_free_text=True)
+
+
 def _detail_candidates(text: str, *, allow_bare_detail: bool = False) -> set[str]:
     candidates: set[str] = set()
     if any(term in text for term in ("简单讲", "简要", "简短", "快一点")):

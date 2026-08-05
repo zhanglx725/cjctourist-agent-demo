@@ -161,8 +161,17 @@ def explicit_journey_mode_choice(text: str) -> str | None:
     tone, age, or devices never select a journey mode.
     """
     value = str(text or "").replace(" ", "")
-    classic = any(token in value for token in ("经典模式", "选择经典", "用经典")) or value == "经典" or value.startswith(("经典，", "经典,", "经典；", "经典;"))
-    custom = any(token in value for token in ("定制模式", "选择定制", "用定制")) or value == "定制" or value.startswith(("定制，", "定制,", "定制；", "定制;"))
+    lowered = value.casefold().rstrip("。！!？?")
+    classic = (
+        any(token in value for token in ("经典模式", "选择经典", "用经典"))
+        or value == "经典" or value.startswith(("经典，", "经典,", "经典；", "经典;"))
+        or lowered in {"classic", "classicmode", "chooseclassic", "useclassic"}
+    )
+    custom = (
+        any(token in value for token in ("定制模式", "选择定制", "用定制"))
+        or value == "定制" or value.startswith(("定制，", "定制,", "定制；", "定制;"))
+        or lowered in {"custom", "custommode", "choosecustom", "usecustom"}
+    )
     if classic == custom:
         return None
     return "classic" if classic else "custom"

@@ -124,12 +124,19 @@ from guide_program_evidence import build_stop_guidance, reexpress_current_stop_g
 from profile_dialogue import (
     CLASSIC_PROFILE_FIELDS,
     CUSTOM_PROFILE_FIELDS,
+    ProfileCollection,
     collect_profile_input,
     is_optional_profile_skip,
+    parse_explanation_language,
 )
 from profile_update import apply_profile_update, is_profile_update_request
 from extended_profile_control import apply_extended_profile_control, parse_extended_profile_control
-from visitor_profile import VisitorProfileError, create_visitor_profile, profile_from_dict
+from visitor_profile import (
+    VisitorProfileError,
+    create_visitor_profile,
+    profile_from_dict,
+    update_visitor_profile,
+)
 from tour_opening_program import (
     TourOpeningProgramError,
     apply_tour_opening_action,
@@ -139,6 +146,15 @@ from tour_opening_program import (
 )
 from visit_summary_engine import VisitSummaryError, build_visit_summary
 from post_visit_award import PostVisitAwardError, build_post_visit_award, is_post_visit_request
+from visitor_welcome import (
+    LANGUAGE_PROMPT,
+    MODE_PROMPT,
+    WELCOME_MESSAGE,
+    initialize_visitor_welcome,
+    is_language_skip,
+    is_ready_response,
+    visitor_welcome_already_played,
+)
 MAX_TOOL_LOOPS = 3
 DEFAULT_DEEPSEEK_MAX_TOKENS = 450
 DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
@@ -232,6 +248,8 @@ class AgentState(TypedDict, total=False):
     tour_question_log: list[dict[str, Any]]
     post_visit_award: dict[str, Any] | None
     post_visit_award_evaluations: list[dict[str, Any]]
+    # Thread-level bootstrap only. It never participates in route/profile facts.
+    visitor_welcome_program: dict[str, Any]
 
 
 _retriever: ChenClanHybridRetriever | None = None
@@ -323,10 +341,7 @@ def _route_request_from_text(user_text: str) -> tuple[int, list[str]]:
 
 def _latest_user_text(state: AgentState) -> str:
     """Return the current visitor message when routing a fresh graph turn."""
-    if not state.get("messages"):
-        return ""
-    content = state["messages"][-1].content
-    return content if isinstance(content, str) else str(content)
+    return _latest_human_text(state)
 
 
 def _latest_human_text(state: AgentState) -> str:
@@ -1202,6 +1217,117 @@ def journey_mode_selection_node(state: AgentState) -> dict[str, Any]:
             status="selected", selected_mode=selected,
         ),
     }
+
+
+def visitor_welcome_node(state: AgentState) -> dict[str, Any]:
+    """Emit the approved bilingual welcome once for each new thread."""
+    if visitor_welcome_already_played(state.get("visitor_welcome_program")):
+        return {}
+    legacy_thread = bool(
+        state.get("tour_state")
+        or state.get("journey_mode_selection")
+        or state.get("profile_collection")
+        or any(getattr(message, "type", None) == "ai" for message in state.get("messages", []))
+    )
+    if legacy_thread:
+        return {
+            "visitor_welcome_program": {
+                **initialize_visitor_welcome(),
+                "status": "completed",
+                "migration_reason": "pre_welcome_existing_thread",
+            },
+        }
+    return {
+        "messages": [AIMessage(content=WELCOME_MESSAGE)],
+        "visitor_welcome_program": initialize_visitor_welcome(),
+        "performance_metrics": _append_metric(
+            state, "visitor_welcome", 0.0,
+            status="played", model_called=False,
+        ),
+    }
+
+
+def visitor_onboarding_node(state: AgentState) -> dict[str, Any]:
+    """Collect ready confirmation, language, then product mode deterministically."""
+    started = time.perf_counter()
+    text = _latest_human_text(state)
+    program = dict(state.get("visitor_welcome_program") or initialize_visitor_welcome())
+    status = program.get("status")
+    updates: dict[str, Any] = {
+        "qa_context": clear_qa_context(state.get("qa_context")),
+        "pending_ornament_clarification": None,
+    }
+    if status == "awaiting_ready":
+        if not is_ready_response(text):
+            message = "准备好后，请回复“准备好了”或 “I'm ready”。"
+            outcome = "ready_not_confirmed"
+        else:
+            program["status"] = "awaiting_language"
+            message = LANGUAGE_PROMPT
+            outcome = "awaiting_language"
+    elif status == "awaiting_language":
+        language = parse_explanation_language(text)
+        if language is None and not is_language_skip(text):
+            message = LANGUAGE_PROMPT
+            outcome = "language_unresolved"
+        else:
+            program.update({"status": "awaiting_mode", "selected_language": language})
+            if language is not None:
+                profile = (
+                    profile_from_dict(state["visitor_profile"])
+                    if isinstance(state.get("visitor_profile"), dict)
+                    else create_visitor_profile()
+                )
+                updates["visitor_profile"] = update_visitor_profile(
+                    profile, language=language
+                ).to_dict()
+            message = MODE_PROMPT
+            outcome = "awaiting_mode"
+    elif status == "awaiting_mode":
+        selected = explicit_journey_mode_choice(text)
+        if selected is None:
+            message = MODE_PROMPT
+            outcome = "mode_unresolved"
+        else:
+            program.update({"status": "completed", "selected_mode": selected})
+            profile = (
+                profile_from_dict(state["visitor_profile"])
+                if isinstance(state.get("visitor_profile"), dict)
+                else create_visitor_profile()
+            )
+            required_fields = (
+                CLASSIC_PROFILE_FIELDS if selected == "classic" else CUSTOM_PROFILE_FIELDS
+            )
+            updates["journey_mode_selection"] = {
+                "status": "selected", "selected_mode": selected,
+            }
+            updates["profile_collection"] = ProfileCollection(
+                profile=profile,
+                resolved_fields=("language",),
+                required_fields=required_fields,
+            ).to_dict()
+            updates["tour_interaction_state"] = update_session_control(
+                state.get("tour_interaction_state"),
+                journey_mode=selected,
+                resume_after_read_only="profile_collection",
+            )
+            message = (
+                "已选择经典模式，请继续提供游览时间。"
+                if selected == "classic"
+                else "已选择定制模式，请继续提供游览时间和偏好。"
+            )
+            outcome = "completed"
+    else:
+        return {}
+    updates.update({
+        "messages": [AIMessage(content=message)],
+        "visitor_welcome_program": program,
+        "performance_metrics": _append_metric(
+            state, "visitor_onboarding", time.perf_counter() - started,
+            status=outcome, model_called=False,
+        ),
+    })
+    return updates
 
 
 def inactive_tour_end_node(state: AgentState) -> dict[str, Any]:
@@ -2781,6 +2907,9 @@ def route_initial_request(state: AgentState) -> str:
     # venue fact.  Keep it out of RAG in both pre-tour and active-tour modes.
     if is_identity_document_civil_service_request(raw_text):
         return "tour_qa"
+    onboarding_status = (state.get("visitor_welcome_program") or {}).get("status")
+    if onboarding_status in {"awaiting_ready", "awaiting_language", "awaiting_mode"}:
+        return "visitor_onboarding"
     completed_tour = (state.get("tour_state") or {}).get("route_status") == "completed"
     repeated_finish = any(
         term in raw_text for term in (
@@ -3126,6 +3255,16 @@ def route_after_visit_summary(state: AgentState) -> str:
     return "post_visit_title_blessing" if state.get("visit_summary") else END
 
 
+def route_after_visitor_welcome(state: AgentState) -> str:
+    """Continue only when the bootstrap invocation also carries user input."""
+    return "semantic_normalization" if _latest_human_text(state) else END
+
+
+def route_after_visitor_onboarding(state: AgentState) -> str:
+    program = state.get("visitor_welcome_program") or {}
+    return "profile_collection" if program.get("status") == "completed" else END
+
+
 def route_after_confirm_replan(state: AgentState) -> str:
     """A confirmed proposal may adopt an already-arrived formal stop."""
     event = state.get("last_tour_event", {})
@@ -3142,6 +3281,8 @@ def build_agent_graph(with_checkpointer: bool = True):
     the command-line ``chat`` helper retains MemorySaver for local conversations.
     """
     workflow = StateGraph(AgentState)
+    workflow.add_node("visitor_welcome", visitor_welcome_node)
+    workflow.add_node("visitor_onboarding", visitor_onboarding_node)
     workflow.add_node("semantic_normalization", semantic_normalization_node)
     workflow.add_node("llm_think", llm_think_node)
     workflow.add_node("rag_tool", rag_tool_node)
@@ -3172,12 +3313,16 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("show_replan_time", show_replan_time_node)
     workflow.add_node("stop_guidance", stop_guidance_node)
     workflow.add_node("clarification", clarification_node)
-    workflow.add_edge(START, "semantic_normalization")
+    workflow.add_edge(START, "visitor_welcome")
+    workflow.add_conditional_edges(
+        "visitor_welcome", route_after_visitor_welcome,
+        {"semantic_normalization": "semantic_normalization", END: END},
+    )
     workflow.add_conditional_edges(
         "semantic_normalization",
         route_initial_request,
         {
-            "direct_rag": "direct_rag", "controlled_knowledge_rollout": "controlled_knowledge_rollout", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "journey_mode_selection": "journey_mode_selection", "inactive_tour_end": "inactive_tour_end", "tour_opening": "tour_opening", "visit_summary": "visit_summary", "post_visit_title_blessing": "post_visit_title_blessing", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "tour_event": "tour_event",
+            "direct_rag": "direct_rag", "controlled_knowledge_rollout": "controlled_knowledge_rollout", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "visitor_onboarding": "visitor_onboarding", "journey_mode_selection": "journey_mode_selection", "inactive_tour_end": "inactive_tour_end", "tour_opening": "tour_opening", "visit_summary": "visit_summary", "post_visit_title_blessing": "post_visit_title_blessing", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "tour_event": "tour_event",
             "clarification": "clarification", "prepare_replan": "prepare_replan", "prepare_replan_candidate": "prepare_replan_candidate", "prepare_duration_replan": "prepare_duration_replan",
             "confirm_replan": "confirm_replan", "confirm_replan_and_next": "confirm_replan_and_next", "cancel_replan": "cancel_replan", "show_replan": "show_replan", "show_replan_time": "show_replan_time", "llm_think": "llm_think",
         },
@@ -3194,6 +3339,10 @@ def build_agent_graph(with_checkpointer: bool = True):
     )
     workflow.add_conditional_edges(
         "journey_mode_selection", route_after_journey_mode_selection,
+        {"profile_collection": "profile_collection", END: "atomic_read_plan_shadow"},
+    )
+    workflow.add_conditional_edges(
+        "visitor_onboarding", route_after_visitor_onboarding,
         {"profile_collection": "profile_collection", END: "atomic_read_plan_shadow"},
     )
     workflow.add_conditional_edges(
