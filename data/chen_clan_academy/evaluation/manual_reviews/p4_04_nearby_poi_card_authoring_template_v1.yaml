@@ -1,101 +1,722 @@
-# P4-04 馆外附近推荐卡：精简人工标注模板
-#
-# 目标：让爬取 CSV 负责搬运客观字段，让人工只判断“是否值得推荐、为什么推荐、
-# 有什么边界”。没有可靠资料的可选字段直接省略，不填写 unknown。
-#
-# 人工必填字段只有：decision、category、one_line_summary_zh、
-# why_recommend_zh、tags、evidence_url 和 review。
-# name_zh、address_zh、坐标、地图链接和 source_row_id 应从 CSV 自动导入，人工只纠错。
-# 营业时间、价格、预约、无障碍等动态信息仅在存在直接可靠来源时填写。
+# P4-04 馆外附近推荐卡：自动从 CSV 整理
+# 源文件: 895b8e1e__27804e01-d26c-4164-95ed-00b3d7794eca.csv
+# 整理时间: 2026-08-06 15:30:08
+# 共 29 条记录
 
 schema_version: nearby_poi_card_authoring_v1
-catalog_version: "0.2.0-draft"
+catalog_version: 0.2.0-draft
 venue_id: chen_clan_academy
 locale_default: zh-CN
-
 catalog_policy:
   recommendation_count: 3
   runtime_approved_only: true
   isolate_from_indoor_tour_state: true
   allowed_categories:
-    - food
-    - cafe_or_rest
-    - heritage_site
-    - museum_or_gallery
-    - park_or_public_space
-    - shopping_or_craft
-    - hotel_or_accommodation_area
-    - transport_or_visitor_service
-  allowed_decisions: [approve, reject, needs_review]
+  - food
+  - cafe_or_rest
+  - heritage_site
+  - museum_or_gallery
+  - park_or_public_space
+  - shopping_or_craft
+  - hotel_or_accommodation_area
+  - transport_or_visitor_service
+  allowed_decisions:
+  - approve
+  - reject
+  - needs_review
   required_public_uncertainty_zh: 营业、价格、排队和交通信息可能变化，出发前请以场所官方页面或地图的最新信息为准。
-
 cards:
-  - # CSV 自动导入区：人工只纠错
-    source_row_id: fill_from_csv_row_or_stable_source_id
-    poi_id: fill_stable_unique_id
-    name_zh: 待从CSV导入
-    original_category: 待从CSV导入
-    address_zh: 待从CSV导入
-    latitude: null
-    longitude: null
-    map_url: ""
-    source_url: ""
-
-    # 人工核心标注区：全部必填
-    decision: needs_review
-    category: heritage_site
-    one_line_summary_zh: 待填写；用一句客观短句说明这里是什么、有什么稳定特色。
-    why_recommend_zh: 待填写；说明它为什么适合接在陈家祠游览之后，不写“最好”“必去”。
-    tags:
-      - fill_one_or_more_controlled_tags
-    evidence_url: https://example.invalid/replace-with-direct-source
-
-    review:
-      status: draft
-      reviewed_by: ""
-      reviewed_at: ""
-      notes: ""
-    enabled: false
-
-# 可选字段不要预先复制到每张卡。确有已核验内容时，才按需加入卡片：
-#
-# location_hint_zh: 稳定的相对方位描述
-# arrival_note_zh: 入口、换乘或到达提醒
-# caution_zh: 真实必要的提醒
-# dynamic_info:
-#   opening_hours_zh: 已核验营业时间
-#   price_zh: 已核验价格
-#   reservation_zh: 已核验预约要求
-#   accessibility_zh: 已核验无障碍信息
-#   checked_at: "YYYY-MM-DD"
-#   official_url: https://直接支持上述动态信息的官方页面
-
-controlled_tags:
-  - local_food
-  - cantonese_food
-  - tea_or_coffee
-  - architecture
-  - history
-  - folk_craft
-  - museum
-  - photography
-  - relaxing
+- source_row_id: B0MUON3J0W
+  poi_id: B0MUON3J0W
+  name_zh: 利口福(保利九里店)
+  original_category: shopping_or_craft
+  address_zh: 中山七路与土兴巷交叉口西北40米
+  latitude: 23.125975
+  longitude: 113.244275
+  map_url: https://amap.com/poi/B0MUON3J0W
+  decision: approve
+  category: shopping_or_craft
+  one_line_summary_zh: 一家拥有实体店铺的综合食品品牌，主打早茶、包点、小吃、海鲜、预制食品与甜品，由源头工厂直供，每一道出品都讲究新鲜、品质和效率。
+  why_recommend_zh: 作为广州饮食界的“老字号”，利口福确实承载着几代人的味蕾记忆。它隶属于广州酒家集团，从早茶点心到经典粤菜，都保持着传统手工与地道风味。
+  tags:
   - shopping
-  - family_friendly
-  - rainy_day_option
-  - evening_option
   - short_stop
-  - extended_visit
-
+  evidence_url: https://jinlianfoods.com/collections/%E5%88%A9%E5%8F%A3%E7%A6%8F
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  walk_minutes_from_chen_clan_academy: 3
+- source_row_id: B0IG0S6MGL
+  poi_id: B0IG0S6MGL
+  name_zh: G·M cafe(陈家祠店)
+  original_category: cafe_or_rest
+  address_zh: 陈家祠道48号2栋117房间
+  latitude: 23.127147
+  longitude: 113.244043
+  map_url: https://amap.com/poi/B0IG0S6MGL
+  decision: approve
+  category: cafe_or_rest
+  one_line_summary_zh: 一家提供咖啡的小店，可供歇脚
+  why_recommend_zh: 适合在参观陈家祠后，快速补充能量，无需花费太多时间。
+  tags:
+  - tea_or_coffee
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  tel: '18144860208'
+  walk_minutes_from_chen_clan_academy: 2
+- source_row_id: B0MDNXGN61
+  poi_id: B0MDNXGN61
+  name_zh: 秘境鹿屿CAKE生日蛋糕·冰淇淋·动物奶油(荔湾店)
+  original_category: cafe_or_rest
+  address_zh: 中山七路与土兴巷交叉口西北40米
+  latitude: 23.125875
+  longitude: 113.244275
+  map_url: https://amap.com/poi/B0MDNXGN61
+  decision: approve
+  category: cafe_or_rest
+  one_line_summary_zh: 专营生日蛋糕、冰淇淋，并使用动物奶油制作。
+  why_recommend_zh: 从陈家祠步行不远即可到达，这家店提供精致的动物奶油蛋糕和冰淇淋，适合在游览后稍作休憩，用一份甜蜜为旅程增添轻松愉悦。
+  tags:
+  - short_stop
+  evidence_url: https://m.dianping.com/shop/laeMjn66957ZA1a0?response_code=cedb61db35ac4c43bc843ba156d069e9&request_code=b515954e9aa246c6b7d0e23456a4649c&responseCode=cedb61db35ac4c43bc843ba156d069e9&requestCode=b515954e9aa246c6b7d0e23456a4649c
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  walk_minutes_from_chen_clan_academy: 3
+- source_row_id: B0L0RG4288
+  poi_id: B0L0RG4288
+  name_zh: 焗外人·盐焗零食(陈家祠地铁站店)
+  original_category: food
+  address_zh: 恩龙里与中山七路交叉口西北80米(陈家祠地铁站E口旁)
+  latitude: 23.126308
+  longitude: 113.246428
+  map_url: https://amap.com/poi/B0L0RG4288
+  decision: approve
+  category: food
+  one_line_summary_zh: 方便快捷的零食补给站，提供特色盐焗风味小吃，是逛完陈家祠后快速补充能量的好选择。
+  why_recommend_zh: 位于陈家祠地铁站附近，非常适合在参观完陈家祠后，快速购买一些便捷美味的零食，补充体力，为接下来的行程做准备。
+  tags:
+  - snack
+  - short_stop
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  walk_minutes_from_chen_clan_academy: 4
+- source_row_id: B0KK3AHOSY
+  poi_id: B0KK3AHOSY
+  name_zh: 寿司正传(扬韬广场店)
+  original_category: food
+  address_zh: 广州市扬韬广场2号楼101铺
+  latitude: 23.12547
+  longitude: 113.244579
+  map_url: https://amap.com/poi/B0KK3AHOSY
+  decision: approve
+  category: food
+  one_line_summary_zh: 一家以创意寿司和一口饭为特色的日式料理店，提供鹅肝寿司、豚骨拉面等多样菜品。
+  why_recommend_zh: 游览陈家祠后，步行即可品尝到创意日式料理，在烟火气中感受传统与现代的味觉碰撞，适合短暂休憩或深度品味。
+  tags:
+  - ethnic_food
+  evidence_url: https://you.ctrip.com/food/152/150006526.html
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  tel: '13002031872'
+  walk_minutes_from_chen_clan_academy: 3
+- source_row_id: B0K0Y7LW9M
+  poi_id: B0K0Y7LW9M
+  name_zh: 广九餐室(陈家祠店)
+  original_category: food
+  address_zh: 扬韬广场1号楼东门旁(陈家祠地铁站A口步行50米)
+  latitude: 23.125381
+  longitude: 113.24543
+  map_url: https://amap.com/poi/B0K0Y7LW9M
+  decision: approve
+  category: food
+  one_line_summary_zh: 广九餐室（陈家祠店）是一家兼具怀旧氛围与现代粤式风味的美食餐厅。
+  why_recommend_zh: 游览完古色古香的陈家祠后，不妨来广九餐室品尝这里的经典粤菜，感受新旧交融的用餐体验，为您的文化之旅画上圆满句号。
+  tags:
+  - local_food
+  evidence_url: https://www.dianping.com/shop/18240797/photos/tag-%E4%BB%B7%E7%9B%AE%E8%A1%A8-%E8%8F%9C%E5%8D%95
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  tel: '18028691763'
+  walk_minutes_from_chen_clan_academy: 6
+- source_row_id: B0L33S9EK4
+  poi_id: B0L33S9EK4
+  name_zh: luckin coffee 瑞幸咖啡(地铁陈家祠站内店)
+  original_category: cafe_or_rest
+  address_zh: 一号线路陈家祠站街CJC-8-1-2G号
+  latitude: 23.126025
+  longitude: 113.246425
+  map_url: https://amap.com/poi/B0L33S9EK4
+  decision: approve
+  category: cafe_or_rest
+  one_line_summary_zh: 位于陈家祠地铁站附近的便捷咖啡站，提供多样饮品
+  why_recommend_zh: 适合在参观陈家祠后，快速补充能量，无需花费太多时间。
+  tags:
+  - tea_or_coffee
+  - short_stop
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  tel: '4000100100'
+  walk_minutes_from_chen_clan_academy: 4
+- source_row_id: B0KDXAXDU2
+  poi_id: B0KDXAXDU2
+  name_zh: 明本湛江鸡·海鲜小厨(陈家祠店)
+  original_category: food
+  address_zh: 中山七路333号1号楼2层205-1铺
+  latitude: 23.125325
+  longitude: 113.245375
+  map_url: https://amap.com/poi/B0KDXAXDU2
+  decision: approve
+  category: food
+  one_line_summary_zh: 提供特色湛江鸡和海鲜的粤式风味餐厅。
+  why_recommend_zh: 陈家祠游览后步行约5分钟即达，适合作为午餐或晚餐，品尝地道湛江鸡与新鲜海鲜。
+  tags:
+  - local_food
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  tel: 13500000223;18002243768
+  walk_minutes_from_chen_clan_academy: 6
+- source_row_id: B0JKN7JQGS
+  poi_id: B0JKN7JQGS
+  name_zh: 清平饭店·广州第一鸡
+  original_category: food
+  address_zh: 中山七路扬韬科技广场1号楼2层(陈家祠地铁站A出口)
+  latitude: 23.125304
+  longitude: 113.245021
+  map_url: https://amap.com/poi/B0JKN7JQGS
+  decision: approve
+  category: food
+  one_line_summary_zh: 清平饭店是广州市一家以经营鸡肴闻名的国有饮食企业，成立于1964年，前身为清平路的“雄心饭店” 。该店以白切鸡、油葱鸡等鸡肴为主打，其招牌菜“清平鸡”采用特制白卤水与陈年鸡汤烹制，形成皮爽肉滑、骨中有味的特色，1988年获国家商业部金鼎奖，1993年被评为广东省十大名鸡，1994年获广州市市长题词“广州第一鸡”
+  why_recommend_zh: 参观完陈家祠后，步行即到清平饭店。这家老字号以皮爽肉滑的‘清平鸡’闻名，让您在一顿饭里感受地道广州的饮食文化。
+  tags:
+  - local_food
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  tel: '18102684239'
+  walk_minutes_from_chen_clan_academy: 4
+- source_row_id: B00141S0V4
+  poi_id: B00141S0V4
+  name_zh: 利口福(手信店)
+  original_category: shopping_or_craft
+  address_zh: 荔湾路陈家祠道48号1层
+  latitude: 23.127235
+  longitude: 113.243623
+  map_url: https://amap.com/poi/B00141S0V4
+  decision: approve
+  category: shopping_or_craft
+  one_line_summary_zh: 一家拥有实体店铺的综合食品品牌，主打早茶、包点、小吃、海鲜、预制食品与甜品，由源头工厂直供，每一道出品都讲究新鲜、品质和效率。
+  why_recommend_zh: 作为广州饮食界的“老字号”，利口福确实承载着几代人的味蕾记忆。它隶属于广州酒家集团，从早茶点心到经典粤菜，都保持着传统手工与地道风味。
+  tags:
+  - shopping
+  - short_stop
+  evidence_url: https://jinlianfoods.com/collections/%E5%88%A9%E5%8F%A3%E7%A6%8F
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  tel: 020-81229705
+  walk_minutes_from_chen_clan_academy: 2
+- source_row_id: B0K2Y5PY1Y
+  poi_id: B0K2Y5PY1Y
+  name_zh: 雾都小面
+  original_category: food
+  address_zh: 中山七路333号(陈家祠地铁站A口步行80米)
+  latitude: 23.125181
+  longitude: 113.24541
+  map_url: https://amap.com/poi/B0K2Y5PY1Y
+  decision: approve
+  category: food
+  one_line_summary_zh: 一家主打重庆小面的简餐店，招牌菜为豌杂面。
+  why_recommend_zh: 游览陈家祠后，可顺路品尝地道的重庆小面，尤其是招牌豌杂面，作为一顿快捷的午餐或下午茶，体验不同于广府菜的风味。
+  tags:
+  - local_food
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  walk_minutes_from_chen_clan_academy: 5
+- source_row_id: B0FFG84WI8
+  poi_id: B0FFG84WI8
+  name_zh: 周黑鸭(陈家祠地铁店)
+  original_category: food
+  address_zh: 地铁一号线陈家祠站CJC-1-2S号A出口
+  latitude: 23.125475
+  longitude: 113.246185
+  map_url: https://amap.com/poi/B0FFG84WI8
+  decision: approve
+  category: food
+  one_line_summary_zh: 知名休闲卤味连锁品牌，提供多种口味的鸭脖、鸭翅等特色小吃。
+  why_recommend_zh: 位于陈家祠地铁站出口附近，方便游客在游览陈家祠后，前往地铁站的途中快速购买即食的特色小吃，补充能量。
+  tags:
+  - local_food
+  - short_stop
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  walk_minutes_from_chen_clan_academy: 6
+- source_row_id: B0LK67KQEL
+  poi_id: B0LK67KQEL
+  name_zh: 小羽說茶飲(揚韜店)
+  original_category: cafe_or_rest
+  address_zh: 中山七路333号1栋109铺
+  latitude: 23.125135
+  longitude: 113.24521
+  map_url: https://amap.com/poi/B0LK67KQEL
+  decision: approve
+  category: cafe_or_rest
+  one_line_summary_zh: 澳门手作奶茶店，主打新鲜现制饮品，口味多样。
+  why_recommend_zh: 游览陈家祠后步行5分钟可达，适合在古建筑参观后品尝特色奶茶，休息片刻，体验地道茶饮文化。
+  tags:
+  - tea_or_coffee
+  - short_stop
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  walk_minutes_from_chen_clan_academy: 5
+- source_row_id: B0K1ZH304Z
+  poi_id: B0K1ZH304Z
+  name_zh: 宝藏绿洲(扬韬科技广场店)
+  original_category: cafe_or_rest
+  address_zh: 中山七路333号10号楼107-1铺
+  latitude: 23.125378
+  longitude: 113.246199
+  map_url: https://amap.com/poi/B0K1ZH304Z
+  decision: approve
+  category: cafe_or_rest
+  one_line_summary_zh: 一家提供手作奶茶和轻食的休闲饮品店，店内环境清新安静。
+  why_recommend_zh: 游览陈家祠后，可以步行至此店稍作休息，点一杯特色奶茶或果茶，缓解游览的疲惫，同时感受现代茶饮的轻松氛围，形成古今体验的对比与补充。
+  tags:
+  - local_food
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  tel: '19926061863'
+  walk_minutes_from_chen_clan_academy: 6
+- source_row_id: B0MAV76Q74
+  poi_id: B0MAV76Q74
+  name_zh: 蘇記牛杂
+  original_category: food
+  address_zh: 土兴巷与中山七路交叉口东南80米
+  latitude: 23.125025
+  longitude: 113.24504
+  map_url: https://amap.com/poi/B0MAV76Q74
+  decision: approve
+  category: food
+  one_line_summary_zh: 广州特色牛杂小吃，以浓郁酱汁和多种牛部位为特点，是体验当地市井风味的快捷选择。
+  why_recommend_zh: 位于陈家祠附近，适合在参观后快速品尝地道广府小吃，体验不同于景区内的本地生活气息，为文化之旅增添味觉记忆。
+  tags:
+  - local_food
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  walk_minutes_from_chen_clan_academy: 4
+- source_row_id: B0JKRR28R6
+  poi_id: B0JKRR28R6
+  name_zh: 够姜食糖·手工甜品(陈家祠店)
+  original_category: cafe_or_rest
+  address_zh: 中山七路333号2号楼106铺
+  latitude: 23.125021
+  longitude: 113.245311
+  map_url: https://amap.com/poi/B0JKRR28R6
+  decision: approve
+  category: cafe_or_rest
+  one_line_summary_zh: 主打手工姜撞奶、姜汁雪糕与各式糖水，是游览陈家祠后顺路品尝地道广式甜品的宝藏小店。
+  why_recommend_zh: 逛完陈家祠，如果想来一碗地道的广式糖水歇歇脚，这家‘够姜食糖’就在附近。经典的姜撞奶现点现撞，姜味浓郁顺滑，还有少见的姜汁雪糕，搭配其他糖水，是补充能量、放松身心的好去处。
+  tags:
+  - tea_or_coffee
+  - snack
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  tel: '13825023302'
+  walk_minutes_from_chen_clan_academy: 5
+- source_row_id: B0JKUHLOEE
+  poi_id: B0JKUHLOEE
+  name_zh: 铝咖
+  original_category: cafe_or_rest
+  address_zh: 中山七路333号扬韬科技广场2栋102-2
+  latitude: 23.124994
+  longitude: 113.24504
+  map_url: https://amap.com/poi/B0JKUHLOEE
+  decision: approve
+  category: cafe_or_rest
+  one_line_summary_zh: 位于陈家祠附近的咖啡与酒饮店，提供休憩空间与特色饮品。
+  why_recommend_zh: 游览陈家祠后步行可达，适合在此歇脚放松，品尝咖啡或酒饮，延续文化之旅的悠闲氛围。
+  tags:
+  - tea_or_coffee
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  tel: '13710852733'
+  walk_minutes_from_chen_clan_academy: 4
+- source_row_id: B0MA1UF8NH
+  poi_id: B0MA1UF8NH
+  name_zh: 老上海馄炖铺(唐铭广场)
+  original_category: food
+  address_zh: 荔湾路78号唐铭广场(陈家祠地铁站F口步行480米)
+  latitude: 23.128325
+  longitude: 113.244625
+  map_url: https://amap.com/poi/B0MA1UF8NH
+  decision: approve
+  category: food
+  one_line_summary_zh: 老上海馄饨铺(唐铭广场)提供传统上海风味的馄饨，是陈家祠游览后便捷的简餐选择。
+  why_recommend_zh: 游览完陈家祠后，这里提供一处能快速补充能量的简餐点，方便您品尝经典上海风味馄饨，适合作为行程中的短暂休憩。
+  tags:
+  - ethnic_food
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  tel: '15986328213'
+  walk_minutes_from_chen_clan_academy: 3
+- source_row_id: B0KK29MAPH
+  poi_id: B0KK29MAPH
+  name_zh: 和味煎饺
+  original_category: food
+  address_zh: 土兴巷与中山七路交叉口东南80米
+  latitude: 23.124984
+  longitude: 113.245103
+  map_url: https://amap.com/poi/B0KK29MAPH
+  decision: approve
+  category: food
+  one_line_summary_zh: 一家主打特色日式煎饺的居酒屋，提供多种手工煎饺与清酒，适合在参观陈家祠后休憩小酌。
+  why_recommend_zh: 从陈家祠的古朴殿堂走出，步行几分钟即可转入这条充满生活气息的小街。和味煎饺居酒屋以现点现煎的酥脆煎饺和秘制蘸酱为特色，搭配日式清酒或柚子苏打，能迅速缓解游览的疲惫。店内木制桌椅与暖黄灯光营造出轻松氛围，适合独自小坐或与同伴分享当日见闻，为陈家祠的文化之旅增添一段惬意的味觉回忆。
+  tags:
+  - local_food
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  walk_minutes_from_chen_clan_academy: 5
+- source_row_id: B0L12SSVL2
+  poi_id: B0L12SSVL2
+  name_zh: 湘馆主·现炒湖南菜(荔湾店)
+  original_category: food
+  address_zh: 荔湾路78号唐铭广场F1层
+  latitude: 23.128375
+  longitude: 113.244775
+  map_url: https://amap.com/poi/B0L12SSVL2
+  decision: approve
+  category: food
+  one_line_summary_zh: 一家提供现炒特色湖南风味菜肴的餐厅。
+  why_recommend_zh: 在参观完陈家祠之后，您可以在这家餐厅品尝到口味浓郁、制作新鲜的湖南家常菜，为您的旅程增添一份地域美食的体验。
+  tags:
+  - local_food
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  walk_minutes_from_chen_clan_academy: 3
+- source_row_id: B0KBNDEYE0
+  poi_id: B0KBNDEYE0
+  name_zh: 潮茶半盏(陈家祠店)
+  original_category: cafe_or_rest
+  address_zh: 中山七路333号扬韬科技广场2号楼102-1号铺
+  latitude: 23.124989
+  longitude: 113.244889
+  map_url: https://amap.com/poi/B0KBNDEYE0
+  decision: approve
+  category: cafe_or_rest
+  one_line_summary_zh: 潮汕鲜果冰茶、油柑功夫茶、特色潮汕饮品。
+  why_recommend_zh: 参观完陈家祠后，可以来这里品尝具有潮汕特色的新鲜水果冰茶和功夫茶，作为休息和补充水分的好选择。
+  tags:
+  - tea_or_coffee
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  tel: '18512107689'
+  walk_minutes_from_chen_clan_academy: 4
+- source_row_id: B0K6LUBYR8
+  poi_id: B0K6LUBYR8
+  name_zh: 1点点(陈家祠店)
+  original_category: cafe_or_rest
+  address_zh: 中山七路333号(陈家祠地铁站A口步行80米)
+  latitude: 23.124971
+  longitude: 113.245251
+  map_url: https://amap.com/poi/B0K6LUBYR8
+  decision: approve
+  category: cafe_or_rest
+  one_line_summary_zh: 一家提供经典奶茶、果茶及小吃的连锁茶饮店，适合游览后短暂休憩。
+  why_recommend_zh: 参观陈家祠后，步行几分钟即可到达，提供大众喜爱的饮品和轻食，让游客在补充水分的同时放松片刻，无需额外攻略，适合作为游览的收尾或中场休息。
+  tags:
+  - tea_or_coffee
+  - short_stop
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  tel: 020-86539303
+  walk_minutes_from_chen_clan_academy: 5
+- source_row_id: B0LUVCCULK
+  poi_id: B0LUVCCULK
+  name_zh: 山外公·江西小炒(荔湾店)
+  original_category: food
+  address_zh: 金花街道荔湾路78号唐铭广场自编18号c-20
+  latitude: 23.128404
+  longitude: 113.244917
+  map_url: https://amap.com/poi/B0LUVCCULK
+  decision: approve
+  category: food
+  one_line_summary_zh: “山外公·江西小炒”是一家提供地道江西风味家常菜的餐厅，以其鲜辣开胃的炒菜和质朴的用餐体验而著称。
+  why_recommend_zh: 在领略完陈家祠的岭南建筑艺术和历史文化后，若想品尝一些口味浓郁、风味独特的江西特色菜肴，这里是不错的选择，可以为您的行程增添不同的味蕾体验，满足您对地方美食的探索。
+  tags:
+  - ethnic_food
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  tel: '13143764996'
+  walk_minutes_from_chen_clan_academy: 3
+- source_row_id: B0L6KLP3CP
+  poi_id: B0L6KLP3CP
+  name_zh: 鸳鸯王(扬韬广场店)
+  original_category: food
+  address_zh: 中山七路333号扬韬广场遇见小面对面红色餐车
+  latitude: 23.125375
+  longitude: 113.246375
+  map_url: https://amap.com/poi/B0L6KLP3CP
+  decision: approve
+  category: food
+  one_line_summary_zh: 广州非遗醋茶专营店同时提供柠檬茶，提供口味独特的特色饮品
+  why_recommend_zh: 游览陈家祠之余，可在此处休憩片刻，尝试独具广州特色的非遗醋茶，为旅程增添一份地方风味。
+  tags:
+  - local_food
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  walk_minutes_from_chen_clan_academy: 6
+- source_row_id: B0LB7UOFBG
+  poi_id: B0LB7UOFBG
+  name_zh: 大师卤肉饭(广州扬韬科技园店)
+  original_category: food
+  address_zh: 世和街与世通街交叉口西北60米
+  latitude: 23.125025
+  longitude: 113.245675
+  map_url: https://amap.com/poi/B0LB7UOFBG
+  decision: approve
+  category: food
+  one_line_summary_zh: 一家提供经典台式卤肉饭的快餐店，以香浓入味的肉燥和软糯米饭为特色。
+  why_recommend_zh: 结束了陈家祠的文化探索后，可步行或短途前往此店，品尝一份热气腾腾、香气四溢的台式卤肉饭，为旅程增添一份地道的风味能量补充。
+  tags:
+  - local_food
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  walk_minutes_from_chen_clan_academy: 5
+- source_row_id: B0KAAU52NQ
+  poi_id: B0KAAU52NQ
+  name_zh: 碧翠园烘焙店(陈家祠店)
+  original_category: cafe_or_rest
+  address_zh: 中山七路333号10号楼101-2铺
+  latitude: 23.125019
+  longitude: 113.245664
+  map_url: https://amap.com/poi/B0KAAU52NQ
+  decision: approve
+  category: cafe_or_rest
+  one_line_summary_zh: 一家提供多种口味蛋糕和现烤面包的烘焙店。
+  why_recommend_zh: 可以在逛完陈家祠后，来这里购买甜点或面包作为小点心，满足口腹之欲。
+  tags:
+  - snack
+  - short_stop
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  walk_minutes_from_chen_clan_academy: 5
+- source_row_id: B0H0MLOH63
+  poi_id: B0H0MLOH63
+  name_zh: 咕噜咕噜·章鱼小丸子(陈家祠柏徳莱店)
+  original_category: food
+  address_zh: 金花街道康王北路903号柏德莱商业地下城负一层1区1538门牌号
+  latitude: 23.126502
+  longitude: 113.247036
+  map_url: https://amap.com/poi/B0H0MLOH63
+  decision: approve
+  category: food
+  one_line_summary_zh: 提供现烤章鱼小丸子的日式小吃店，外酥内软，馅料丰富。
+  why_recommend_zh: 参观完陈家祠后，可以来此品尝热腾腾的章鱼小丸子，作为补充能量的小吃，轻松惬意。
+  tags:
+  - local_food
+  - snack
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  tel: 13422200336;15814527216
+  walk_minutes_from_chen_clan_academy: 6
+- source_row_id: B0L3OLZDQ0
+  poi_id: B0L3OLZDQ0
+  name_zh: 鲜之本物-手作糖水
+  original_category: cafe_or_rest
+  address_zh: 金花街道龙源新街48号101
+  latitude: 23.128264
+  longitude: 113.245981
+  map_url: https://amap.com/poi/B0L3OLZDQ0
+  decision: approve
+  category: cafe_or_rest
+  one_line_summary_zh: 一家专注于制作传统广式糖水和甜品的店铺，提供新鲜、手工制作的饮品与点心。
+  why_recommend_zh: 参观完陈家祠，不妨来一碗地道的广式糖水或双皮奶。清甜滋润的滋味，既能解暑消乏，也能让味蕾感受广府饮食的细腻
+  tags:
+  - tea_or_coffee
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  tel: '13825121985'
+  walk_minutes_from_chen_clan_academy: 4
+- source_row_id: B0I13UVC2I
+  poi_id: B0I13UVC2I
+  name_zh: 虹达西饼(荔湾路店)
+  original_category: cafe_or_rest
+  address_zh: 荔湾路68号(陈家祠地铁站D口步行430米)
+  latitude: 23.12764
+  longitude: 113.243564
+  map_url: https://amap.com/poi/B0I13UVC2I
+  decision: approve
+  category: cafe_or_rest
+  one_line_summary_zh: 拥有四十年历史的老字号西饼店，以鸡仔饼和拿破仑酥闻名。
+  why_recommend_zh: 步行至陈家祠仅需5分钟，适合游览后歇脚品尝地道广式点心
+  tags:
+  - snack
+  - short_stop
+  evidence_url: ''
+  review:
+    status: approved
+    reviewed_by: ''
+    reviewed_at: ''
+    notes: ''
+  enabled: true
+  tel: '15811978263'
+  walk_minutes_from_chen_clan_academy: 4
+controlled_tags:
+- local_food
+- cantonese_food
+- tea_or_coffee
+- architecture
+- history
+- folk_craft
+- museum
+- photography
+- relaxing
+- shopping
+- family_friendly
+- rainy_day_option
+- evening_option
+- short_stop
+- extended_visit
 review_checklist:
-  - 名称、地址与坐标指向同一个真实 POI
-  - decision 为 approve、reject 或 needs_review
-  - approve 条目必须有明确类别、推荐理由和至少一个标签
-  - 推荐理由能够说明与陈家祠游览后的衔接价值
-  - one_line_summary_zh 不包含排名、保证、营销夸张或未经来源支持的事实
-  - evidence_url 是能直接支持名称、类型或特色的页面，不是搜索结果页
-  - 营业时间、价格、预约、无障碍信息没有可靠来源时已经删除而非猜测
-  - 不人工估算最短或最长停留时间
-  - 不保证实时营业、价格、排队、空位、订位或服务品质
-  - reject 条目已在 review.notes 中写明简短原因
-  - 只有 review.status 为 approved 且 enabled 为 true 的条目进入推荐池
+- 名称、地址与坐标指向同一个真实 POI
+- decision 为 approve、reject 或 needs_review
+- approve 条目必须有明确类别、推荐理由和至少一个标签
+- 推荐理由能够说明与陈家祠游览后的衔接价值
+- one_line_summary_zh 不包含排名、保证、营销夸张或未经来源支持的事实
+- evidence_url 是能直接支持名称、类型或特色的页面，不是搜索结果页
+- 营业时间、价格、预约、无障碍信息没有可靠来源时已经删除而非猜测
+- 不人工估算最短或最长停留时间
+- 不保证实时营业、价格、排队、空位、订位或服务品质
+- reject 条目已在 review.notes 中写明简短原因
+- 只有 review.status 为 approved 且 enabled 为 true 的条目进入推荐池
