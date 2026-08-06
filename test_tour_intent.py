@@ -217,8 +217,11 @@ class TourIntentTests(unittest.TestCase):
         self.assertEqual(decision.reason_code, "missing_remaining_minutes")
 
     def test_detail_request_is_no_side_effect_event(self):
-        decision = self.classify("再讲详细一点")
-        self.assertEqual(decision.event_type, "request_stop_detail")
+        for text in ("再讲详细一点", "再详细讲解"):
+            with self.subTest(text=text):
+                decision = self.classify(text)
+                self.assertEqual(decision.route_kind, "tour_event")
+                self.assertEqual(decision.event_type, "request_stop_detail")
 
     def test_repeat_current_stop_is_a_controlled_detail_request(self):
         decision = self.classify("请再讲一次当前点。")

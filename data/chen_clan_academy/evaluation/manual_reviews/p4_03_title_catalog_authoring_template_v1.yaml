@@ -8,6 +8,8 @@
 # 5. 新条目先保持 review_status: draft；人工审核通过后改为 approved。
 # 6. enabled 仅能在 review_status: approved 后设为 true。
 # 7. 暂无翻译时将对应字段保留为空字符串，不要使用机器生成内容冒充人工审核译文。
+# 8. candidates 的文件顺序就是未来同类别“换一个称号”的冻结轮换顺序；已上线
+#    后调整顺序必须提升 catalog_version，不得依赖随机抽取或 API 自由生成。
 
 schema_version: post_visit_title_catalog_authoring_v1
 catalog_version: "0.1.0-draft"

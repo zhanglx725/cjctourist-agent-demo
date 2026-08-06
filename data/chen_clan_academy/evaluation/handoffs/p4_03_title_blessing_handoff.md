@@ -31,10 +31,24 @@ souvenir rather than official certification or visitor rating.
 - Repeated requests return the same deterministic result for the same summary.
 - Invalid/missing summary fails closed without free LLM generation.
 
+## Approved future candidate-rotation contract
+
+After the manually reviewed title catalog is populated, an explicit visitor
+request such as `换一个称号` may advance through approved and enabled
+candidates inside the already selected `category_id` only. Candidate order
+must be frozen and versioned; a thread-local `variant_cursor` records the
+selection so replay is deterministic and auditable. Ordinary repeat/view
+requests remain idempotent and return the current candidate.
+
+Rotation must never change `title_basis`, reclassify the visitor, select a
+draft/disabled candidate, randomly sample, or ask an API to invent a title.
+If the category contains only one approved candidate, the visitor receives a
+transparent no-alternative message. Exhaustion behavior (stop or versioned
+wraparound) must be fixed before activation and covered by tests.
+
 ## Related routing fix
 
 During a navigating phase, the bounded forms `到达`, `我到下一个点位了`, and
 `我到下一站了` bind only the one formal pending stop and enter `tour_event`.
 They never fall through to LLM/RAG and still do not mark the stop visited until
 explicit completion confirmation.
-

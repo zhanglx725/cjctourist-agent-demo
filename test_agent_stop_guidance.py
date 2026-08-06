@@ -67,18 +67,20 @@ class AgentStopGuidanceTests(unittest.TestCase):
         )
 
     def test_request_detail_reaches_guidance_and_keeps_route_progress(self):
-        state = self._arrived()
-        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
-            rag.invoke.return_value = PAYLOAD
-            first = stop_guidance_node(state)
-        detailed_event = tour_event_node(_state("再讲详细一点", {**state, **first}))
-        continued = {**state, **first, **detailed_event}
-        self.assertEqual(route_after_tour_event(continued), "stop_guidance")
-        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
-            rag.invoke.return_value = PAYLOAD
-            detailed = stop_guidance_node(continued)
-        self.assertEqual(detailed_event["tour_state"]["visited_stop_ids"], [])
-        self.assertIn("再看细一点", detailed["messages"][0].content)
+        for text in ("再讲详细一点", "再详细讲解"):
+            with self.subTest(text=text):
+                state = self._arrived()
+                with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+                    rag.invoke.return_value = PAYLOAD
+                    first = stop_guidance_node(state)
+                detailed_event = tour_event_node(_state(text, {**state, **first}))
+                continued = {**state, **first, **detailed_event}
+                self.assertEqual(route_after_tour_event(continued), "stop_guidance")
+                with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+                    rag.invoke.return_value = PAYLOAD
+                    detailed = stop_guidance_node(continued)
+                self.assertEqual(detailed_event["tour_state"]["visited_stop_ids"], [])
+                self.assertIn("再看细一点", detailed["messages"][0].content)
 
 
 if __name__ == "__main__":
