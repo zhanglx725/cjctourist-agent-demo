@@ -4,10 +4,23 @@ from __future__ import annotations
 
 import unittest
 
-from profile_dialogue import collect_profile_input, extract_profile_patch
+from profile_dialogue import STYLE_SELECTION_PROMPT, collect_profile_input, extract_profile_patch
 
 
 class ProfileDialogueTests(unittest.TestCase):
+    def test_style_prompt_lists_all_eighteen_reviewed_yaml_styles(self):
+        expected = (
+            "中性清晰", "儿童友好", "亲子共游", "研学观察", "专业讲解", "静听模式", "混合群体",
+            "霸道总裁", "奶气学弟", "古风书生", "知心姐姐", "闺蜜唠嗑", "兄弟搭子",
+            "探秘闯关", "打卡出片", "祠中宿生", "西关少爷（粤语）", "粤派讲古（粤语）",
+        )
+        self.assertIn("18种已审核风格", STYLE_SELECTION_PROMPT)
+        for display_name in expected:
+            with self.subTest(display_name=display_name):
+                self.assertEqual(STYLE_SELECTION_PROMPT.count(display_name), 1)
+        for invented_name in ("金牌导游", "故事派", "工艺派", "寻宝派"):
+            self.assertNotIn(invented_name, STYLE_SELECTION_PROMPT)
+
     def test_complete_route_input_forms_profile_without_follow_up(self):
         result = collect_profile_input(
             None, "我有30分钟，喜欢灰塑和木雕，简单讲讲，帮我规划路线", start_collection=True

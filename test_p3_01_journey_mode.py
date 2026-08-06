@@ -41,6 +41,16 @@ def _finish_custom_optional(state: dict) -> dict:
 
 
 class JourneyModeContractTests(unittest.TestCase):
+    def test_standalone_enter_custom_mode_never_falls_through_to_llm(self):
+        state = _state("进入定制模式")
+        self.assertEqual(route_initial_request(state), "journey_mode_selection")
+        selected = journey_mode_selection_node(state)
+        self.assertEqual(
+            selected["journey_mode_selection"],
+            {"status": "selected", "selected_mode": "custom"},
+        )
+        self.assertEqual(route_after_journey_mode_selection(selected), "profile_collection")
+
     def test_unspecified_route_request_requires_explicit_mode_selection(self):
         initial = _state("我现在想规划路线。")
         self.assertEqual(route_initial_request(initial), "journey_mode_selection")

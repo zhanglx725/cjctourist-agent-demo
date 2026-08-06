@@ -1,26 +1,63 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from langchain_core.messages import AIMessage, HumanMessage
 
 from agent_graph import (
     route_after_atomic_read_plan_shadow,
+    route_after_visitor_localization,
     route_after_visitor_onboarding,
     route_after_visitor_welcome,
     route_initial_request,
     visitor_onboarding_node,
     visitor_onboarding_resume_node,
+    visitor_localization_node,
     visitor_welcome_node,
 )
-from visitor_welcome import LANGUAGE_PROMPT, MODE_PROMPT, WELCOME_MESSAGE
+from visitor_welcome import (
+    LANGUAGE_PROMPT,
+    LANGUAGE_REQUIRED_PROMPT,
+    MODE_PROMPT,
+    WELCOME_MESSAGE,
+)
 
 
 class VisitorWelcomeTests(unittest.TestCase):
+    @patch("agent_graph._invoke_visitor_translation", return_value="Please choose Classic Mode or Custom Mode.")
+    def test_localization_node_replaces_only_public_message(self, translate):
+        source = AIMessage(content="请选择经典模式或定制模式。", id="public-message-1")
+        result = visitor_localization_node({
+            "messages": [source],
+            "visitor_profile": {"language": "en"},
+            "visitor_localization_audits": [],
+            "performance_metrics": [],
+            "tour_state": {"route_status": "touring"},
+        })
+        translate.assert_called_once()
+        self.assertEqual(result["messages"][0].id, "public-message-1")
+        self.assertEqual(result["messages"][0].content, "Please choose Classic Mode or Custom Mode.")
+        self.assertEqual(result["visitor_localization_audits"][-1]["state_writes"], [])
+        self.assertNotIn("tour_state", result)
+
+    @patch("agent_graph._invoke_visitor_translation")
+    def test_known_pre_language_prompt_stays_bilingual_without_api(self, translate):
+        source = AIMessage(content=LANGUAGE_REQUIRED_PROMPT, id="language-prompt-1")
+        result = visitor_localization_node({
+            "messages": [source], "performance_metrics": [],
+        })
+        translate.assert_not_called()
+        self.assertNotIn("messages", result)
+        self.assertEqual(
+            result["visitor_localization_audits"][-1]["status"],
+            "already_bilingual",
+        )
+
     def test_new_thread_receives_exact_bilingual_welcome_once(self):
         first = visitor_welcome_node({"performance_metrics": []})
         self.assertEqual(first["messages"][0].content, WELCOME_MESSAGE)
-        self.assertEqual(first["visitor_welcome_program"]["status"], "awaiting_ready")
+        self.assertEqual(first["visitor_welcome_program"]["status"], "awaiting_language")
         self.assertEqual(first["visitor_welcome_program"]["play_count"], 1)
         second = visitor_welcome_node(first)
         self.assertNotIn("messages", second)
@@ -28,7 +65,7 @@ class VisitorWelcomeTests(unittest.TestCase):
     def test_empty_bootstrap_ends_after_welcome(self):
         state = {
             "messages": [AIMessage(content=WELCOME_MESSAGE)],
-            "visitor_welcome_program": {"schema_version": "visitor_welcome_v1", "status": "awaiting_ready"},
+            "visitor_welcome_program": {"schema_version": "visitor_welcome_v1", "status": "awaiting_language"},
         }
         self.assertEqual(route_after_visitor_welcome(state), "__end__")
 
@@ -38,23 +75,23 @@ class VisitorWelcomeTests(unittest.TestCase):
                 HumanMessage(content="经典模式"),
                 AIMessage(content=WELCOME_MESSAGE),
             ],
-            "visitor_welcome_program": {"schema_version": "visitor_welcome_v1", "status": "awaiting_ready"},
+            "visitor_welcome_program": {"schema_version": "visitor_welcome_v1", "status": "awaiting_language"},
         }
         self.assertEqual(route_after_visitor_welcome(state), "semantic_normalization")
 
-    def test_ready_language_and_classic_mode_complete_onboarding(self):
-        ready = visitor_onboarding_node({
+    def test_language_and_classic_mode_complete_onboarding(self):
+        invalid = visitor_onboarding_node({
             "messages": [HumanMessage(content="I'm ready")],
             "visitor_welcome_program": {
-                "schema_version": "visitor_welcome_v1", "status": "awaiting_ready",
+                "schema_version": "visitor_welcome_v1", "status": "awaiting_language",
             },
             "performance_metrics": [],
         })
-        self.assertEqual(ready["messages"][0].content, LANGUAGE_PROMPT)
-        self.assertEqual(ready["visitor_welcome_program"]["status"], "awaiting_language")
+        self.assertEqual(invalid["messages"][0].content, LANGUAGE_REQUIRED_PROMPT)
+        self.assertEqual(invalid["visitor_welcome_program"]["status"], "awaiting_language")
 
         language = visitor_onboarding_node({
-            **ready, "messages": [HumanMessage(content="English")],
+            **invalid, "messages": [HumanMessage(content="English")],
         })
         self.assertEqual(language["messages"][0].content, MODE_PROMPT)
         self.assertEqual(language["visitor_profile"]["language"], "en")
@@ -67,16 +104,13 @@ class VisitorWelcomeTests(unittest.TestCase):
         self.assertEqual(mode["journey_mode_selection"]["selected_mode"], "classic")
         self.assertEqual(route_after_visitor_onboarding(mode), "profile_collection")
 
-    def test_chinese_ready_and_free_text_language_are_supported(self):
-        ready = visitor_onboarding_node({
-            "messages": [HumanMessage(content="我准备好了")],
+    def test_free_text_language_is_supported_without_readiness_gate(self):
+        language = visitor_onboarding_node({
+            "messages": [HumanMessage(content="泰语")],
             "visitor_welcome_program": {
-                "schema_version": "visitor_welcome_v1", "status": "awaiting_ready",
+                "schema_version": "visitor_welcome_v1", "status": "awaiting_language",
             },
             "performance_metrics": [],
-        })
-        language = visitor_onboarding_node({
-            **ready, "messages": [HumanMessage(content="泰语")],
         })
         self.assertEqual(language["visitor_profile"]["language"], "泰语")
         mode = visitor_onboarding_node({
@@ -88,9 +122,9 @@ class VisitorWelcomeTests(unittest.TestCase):
 
     def test_active_onboarding_has_priority_over_global_route_fallbacks(self):
         state = {
-            "messages": [HumanMessage(content="准备好了")],
+            "messages": [HumanMessage(content="经典模式")],
             "visitor_welcome_program": {
-                "schema_version": "visitor_welcome_v1", "status": "awaiting_ready",
+                "schema_version": "visitor_welcome_v1", "status": "awaiting_language",
             },
         }
         self.assertEqual(route_initial_request(state), "visitor_onboarding")
@@ -112,7 +146,7 @@ class VisitorWelcomeTests(unittest.TestCase):
             "performance_metrics": [],
         })
         self.assertEqual(result["messages"][0].content, WELCOME_MESSAGE)
-        self.assertEqual(result["visitor_welcome_program"]["status"], "awaiting_ready")
+        self.assertEqual(result["visitor_welcome_program"]["status"], "awaiting_language")
         combined = {
             **result,
             "messages": [HumanMessage(content="选择经典模式，安排30分钟路线")],
@@ -121,7 +155,38 @@ class VisitorWelcomeTests(unittest.TestCase):
         self.assertEqual(onboarding["visitor_welcome_program"]["status"], "awaiting_language")
         self.assertEqual(onboarding["visitor_welcome_program"]["selected_mode"], "classic")
         self.assertEqual(onboarding["visitor_profile"]["available_minutes"], 30)
-        self.assertEqual(onboarding["messages"][0].content, LANGUAGE_PROMPT)
+        self.assertEqual(onboarding["messages"][0].content, LANGUAGE_REQUIRED_PROMPT)
+
+    def test_language_and_mode_in_one_turn_do_not_reask_mode(self):
+        result = visitor_onboarding_node({
+            "messages": [HumanMessage(content="英语，经典模式")],
+            "visitor_welcome_program": {
+                "schema_version": "visitor_welcome_v1", "status": "awaiting_language",
+            },
+            "performance_metrics": [],
+        })
+        self.assertEqual(result["visitor_profile"]["language"], "en")
+        self.assertEqual(result["journey_mode_selection"]["selected_mode"], "classic")
+        self.assertEqual(result["visitor_welcome_program"]["status"], "completed")
+        self.assertEqual(result["profile_collection"]["next_missing_field"], "available_minutes")
+        self.assertNotEqual(result["messages"][0].content, MODE_PROMPT)
+
+    def test_mode_before_language_is_remembered_without_reasking(self):
+        missing = visitor_onboarding_node({
+            "messages": [HumanMessage(content="定制模式")],
+            "visitor_welcome_program": {
+                "schema_version": "visitor_welcome_v1", "status": "awaiting_language",
+            },
+            "performance_metrics": [],
+        })
+        self.assertEqual(missing["messages"][0].content, LANGUAGE_REQUIRED_PROMPT)
+        self.assertEqual(missing["visitor_welcome_program"]["selected_mode"], "custom")
+        completed = visitor_onboarding_node({
+            **missing, "messages": [HumanMessage(content="中文")],
+        })
+        self.assertEqual(completed["visitor_profile"]["language"], "zh")
+        self.assertEqual(completed["journey_mode_selection"]["selected_mode"], "custom")
+        self.assertEqual(completed["visitor_welcome_program"]["status"], "completed")
 
     def test_preferences_before_mode_are_saved_and_only_missing_slots_are_asked(self):
         preferences = visitor_onboarding_node({
@@ -172,7 +237,7 @@ class VisitorWelcomeTests(unittest.TestCase):
             "messages": [HumanMessage(content="陈家祠是哪年建立的")],
             "performance_metrics": [],
         })
-        self.assertEqual(first["visitor_welcome_program"]["status"], "awaiting_ready")
+        self.assertEqual(first["visitor_welcome_program"]["status"], "awaiting_language")
         routed_state = {
             **first,
             "messages": [HumanMessage(content="陈家祠是哪年建立的")],
@@ -181,7 +246,7 @@ class VisitorWelcomeTests(unittest.TestCase):
 
     def test_question_answer_resumes_exact_unanswered_onboarding_prompt(self):
         prompts = {
-            "awaiting_ready": "准备好",
+            "awaiting_ready": "语言",
             "awaiting_language": "讲解语言",
             "awaiting_mode": "经典模式",
         }
@@ -199,6 +264,10 @@ class VisitorWelcomeTests(unittest.TestCase):
                 }
                 self.assertEqual(
                     route_after_atomic_read_plan_shadow(state),
+                    "visitor_localization",
+                )
+                self.assertEqual(
+                    route_after_visitor_localization(state),
                     "visitor_onboarding_resume",
                 )
                 resumed = visitor_onboarding_resume_node(state)
@@ -220,6 +289,10 @@ class VisitorWelcomeTests(unittest.TestCase):
         }
         self.assertEqual(
             route_after_atomic_read_plan_shadow(profile_state),
+            "visitor_localization",
+        )
+        self.assertEqual(
+            route_after_visitor_localization(profile_state),
             "visitor_onboarding_resume",
         )
         resumed_profile = visitor_onboarding_resume_node(profile_state)
@@ -233,7 +306,8 @@ class VisitorWelcomeTests(unittest.TestCase):
                 additional_kwargs={"profile_collection_prompt": True},
             )],
         }
-        self.assertEqual(route_after_atomic_read_plan_shadow(prompt_state), "__end__")
+        self.assertEqual(route_after_atomic_read_plan_shadow(prompt_state), "visitor_localization")
+        self.assertEqual(route_after_visitor_localization(prompt_state), "__end__")
 
 
 if __name__ == "__main__":

@@ -74,12 +74,13 @@ EXPLICIT_STYLE_PHRASES = {
     "story": ("故事风格", "故事讲解风格", "叙事风格", "故事方式", "叙事方式"),
     "technical": ("技术风格", "技术讲解风格", "技术方式", "工艺原理风格"),
     "interactive": ("互动风格", "互动讲解风格", "互动问答风格", "问答风格", "互动方式"),
-    "expert": ("专家风格", "专家讲解风格", "专家方式", "专业风格", "专业讲解风格", "专业方式"),
+    "expert": ("专家风格", "专家讲解风格", "专家方式", "专业风格", "专业方式"),
     "standard": ("标准风格", "标准讲解风格", "自然风格", "普通风格"),
     "neutral": ("中性清晰风格", "中性讲解风格"),
     "child": ("儿童友好风格", "儿童友好讲解风格"),
     "family": ("亲子共游风格", "亲子讲解风格"),
     "student_research": ("研学观察风格", "研学讲解风格"),
+    "professional": ("专业讲解风格", "专业讲解"),
     "listen_only": ("静听模式", "静听讲解风格"),
     "mixed_group": ("混合群体风格", "混合团体讲解风格"),
     "dominant_ceo": ("霸道总裁风格", "霸道总裁讲解风格"),
@@ -95,10 +96,18 @@ EXPLICIT_STYLE_PHRASES = {
     "cantonese_storyteller": ("粤派讲古风格", "粤派讲古讲解风格", "粤语讲古风格"),
 }
 UNSUPPORTED_STYLE_PHRASES = ("抽象讲解风格",)
-STYLE_CHOICE_HELP = (
-    "标准、故事、技术、互动、专家，或中性清晰、儿童友好、亲子共游、研学观察、"
-    "静听模式、混合群体、霸道总裁、奶气学弟、古风书生、知心姐姐、闺蜜唠嗑、"
-    "兄弟搭子、探秘闯关、打卡出片、祠中宿生、西关少爷、粤派讲古"
+STYLE_CHOICE_HELP = "、".join((
+    "中性清晰", "儿童友好", "亲子共游", "研学观察", "专业讲解", "静听模式", "混合群体",
+    "霸道总裁", "奶气学弟", "古风书生", "知心姐姐", "闺蜜唠嗑", "兄弟搭子",
+    "探秘闯关", "打卡出片", "祠中宿生", "西关少爷（粤语）", "粤派讲古（粤语）",
+))
+STYLE_SELECTION_PROMPT = (
+    "您喜欢哪种讲解风格？目前有18种已审核风格：\n"
+    "基础与人群：中性清晰、儿童友好、亲子共游、研学观察、专业讲解、静听模式、混合群体；\n"
+    "角色与体验：霸道总裁、奶气学弟、古风书生、知心姐姐、闺蜜唠嗑、兄弟搭子、"
+    "探秘闯关、打卡出片、祠中宿生；\n"
+    "粤语特色：西关少爷（粤语）、粤派讲古（粤语）。\n"
+    "请输入其中一种，也可以说“跳过”。"
 )
 
 
@@ -218,7 +227,7 @@ def _prompt(field: str) -> str:
         "available_minutes": "您有多少分钟可用于游览？例如“30分钟”。",
         "interests": "您更想看什么？例如“灰塑和木雕”；如果没有特别偏好，可以说“都可以”。",
         "detail_level": "您希望怎样讲解？可说“简单讲讲”“标准讲解”或“想深入学习”。",
-        "explanation_style": f"您喜欢哪种讲解风格？可输入“{STYLE_CHOICE_HELP}”，也可以说“跳过”。",
+        "explanation_style": STYLE_SELECTION_PROMPT,
         "language": "您需要哪种讲解语言？例如中文、英语、韩语，也可以输入其他语言或说“跳过”。",
     }[field]
 
@@ -273,6 +282,10 @@ def _language_candidate(text: str, *, allow_free_text: bool = False) -> str | No
         "yue": ("粤语", "广东话", "cantonese"),
         "fr": ("法语", "法文", "french"), "de": ("德语", "德文", "german"),
         "es": ("西班牙语", "spanish"),
+        "th": ("thai",), "ru": ("russian",), "ar": ("arabic",),
+        "it": ("italian",), "pt": ("portuguese",),
+        "vi": ("vietnamese",), "id": ("indonesian",),
+        "ms": ("malay",), "hi": ("hindi",),
     }
     lowered = text.casefold()
     if any(term in text for term in SKIP_TERMS):
@@ -281,10 +294,7 @@ def _language_candidate(text: str, *, allow_free_text: bool = False) -> str | No
     if len(set(matches)) == 1:
         return matches[0]
     candidate = text.strip().strip("。.!！")
-    if allow_free_text and 1 < len(candidate) <= 40 and (
-        candidate.endswith(("语", "文"))
-        or (candidate.isascii() and all(char.isalpha() or char in " -" for char in candidate))
-    ):
+    if allow_free_text and 1 < len(candidate) <= 40 and candidate.endswith(("语", "文")):
         return candidate
     return None
 
