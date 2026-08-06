@@ -2,65 +2,122 @@ version: v0
 verified_at: 2026-07-26
 source_scope: >-
   点位与装饰题材来自已审核的路线停靠点和建筑装饰位置索引；拍摄条件并未进行现场复核。
+
+# =========================================================================
+# 共享默认值(由各 card <<: *card_defaults 继承)
+# 说明:
+#   - Pass 1 新增: 4 维 verification、mounting_status、node_status、
+#     target_ornaments 3 段拆解、dependency_blockers、linked_observation_disposition
+#   - Pass 2 用户 override: 旧字段名 popularity_status / review_status 保留,
+#     新增同名新字段 editorial_recommended_status / content_review_status,
+#     两者值相同,保证资格清单和外部代码不会断
+#   - 仅在 photo_spots/ 内部统一,不联动资格清单
+# =========================================================================
+.card_defaults: &card_defaults
+  # --- 旧 status 字段(保留,向后兼容) ---
+  popularity_status: editorial_recommended
+  review_status: draft_manual_review
+  # --- 新 status 字段(Pass 2 命名目标) ---
+  editorial_recommended_status: editorial_recommended
+  content_review_status: draft_manual_review
+  # --- 4 维 verification(对齐资格清单) ---
+  content_verification_status: partial
+  source_verification_status: partial
+  location_verification_status: partial
+  safety_verification_status: partial
+  # --- 挂载 / 节点(只有现场审核后才会有 mounted) ---
+  mounting_status: not_yet_mounted
+  node_status: in_node_guide_v1
+  # --- target_ornaments 3 段拆解(原 target_ornaments 字段保留在每张卡上) ---
+  verified_ornament_ids: []
+  ornament_categories: []
+  pending_ornament_review: []
+  disambiguated_ornament_ids: []
+  # --- 依赖 & 平台观察镜像 ---
+  dependency_blockers: []
+  linked_observation_disposition: []
+
 cards:
+  # -------------------------------------------------------------------------
+  # 1. 五福捧寿:家庭祝福主题
+  # -------------------------------------------------------------------------
   - photo_spot_id: photo_family_five_blessings
+    <<: *card_defaults
     title_zh: 五福捧寿：家庭祝福主题
     node_id: stop_front_courtyard_north
     target_ornaments: ["博古图、五福捧寿"]
     target_groups: [family, multigenerational, elders]
     themes: [family_blessing, longevity, traditional_pattern]
     pose_template_ids: [pose_parent_child_observation]
-    cultural_prompt_zh: 可把“五福捧寿”作为全家留影时的文化话题：先找出五福与寿意，再记录一家人同行的时刻。
-    recommended_capture_zh: 以纹样细节或“人物与纹样同框”为创作方向；具体站位、距离和是否允许合影须现场确认。
-    popularity_status: editorial_recommended
-    review_status: draft_manual_review
+    cultural_prompt_zh: 可把"五福捧寿"作为全家留影时的文化话题：先找出五福与寿意，再记录一家人同行的时刻。
+    recommended_capture_zh: 以纹样细节或"人物与纹样同框"为创作方向；具体站位、距离和是否允许合影须现场确认。
     evidence_refs: [S11]
     boundaries_zh: 传统纹样寓意仅作文化解读，不承诺现实效果；不得遮挡通行或靠近、触摸构件。
+    # 卡独有: 装饰拆解
+    verified_ornament_ids: [orn_032]
 
+  # -------------------------------------------------------------------------
+  # 2. 百子千孙:亲子与家族记忆主题
+  # -------------------------------------------------------------------------
   - photo_spot_id: photo_family_hundred_sons
+    <<: *card_defaults
     title_zh: 百子千孙：亲子与家族记忆主题
     node_id: stop_front_courtyard_east
     target_ornaments: [百子千孙, 和合二仙]
     target_groups: [family, parents_with_children, multigenerational]
     themes: [family_blessing, children_task, family_prosperity]
     pose_template_ids: [pose_parent_child_observation]
-    cultural_prompt_zh: 适合亲子同行时做“找一找家族兴旺寓意”的观察打卡，并把题材含义作为照片说明。
+    cultural_prompt_zh: 适合亲子同行时做"找一找家族兴旺寓意"的观察打卡，并把题材含义作为照片说明。
     recommended_capture_zh: 优先拍摄纹样本身与儿童观察的过程；是否适合人物合影、是否能看清细节需现场确认。
-    popularity_status: editorial_recommended
-    review_status: draft_manual_review
     evidence_refs: [S11]
-    boundaries_zh: 不把“百子千孙”直接解释为现实祝愿或生育倡议；儿童须由监护人照看，不在通道停留追逐。
+    boundaries_zh: 不把"百子千孙"直接解释为现实祝愿或生育倡议；儿童须由监护人照看，不在通道停留追逐。
+    verified_ornament_ids: [orn_002, orn_094]
 
+  # -------------------------------------------------------------------------
+  # 3. 月台通花:工艺与建筑细节主题
+  # -------------------------------------------------------------------------
   - photo_spot_id: photo_architecture_moon_platform
+    <<: *card_defaults
     title_zh: 月台通花：工艺与建筑细节主题
     node_id: label_moon_platform
     target_ornaments: ["麒麟玉书凤凰图", 三阳开泰]
     target_groups: [young_adults, friends, architecture_enthusiasts]
     themes: [architecture_signature, craft_detail, openwork]
     pose_template_ids: [pose_side_detail_gaze, pose_detail_observation]
-    cultural_prompt_zh: 用栏板、望柱与通花装饰表现陈家祠的构件细节；适合回答“建筑工艺怎么被看见”。
+    cultural_prompt_zh: 用栏板、望柱与通花装饰表现陈家祠的构件细节；适合回答"建筑工艺怎么被看见"。
     recommended_capture_zh: 建议以局部细节、重复纹样和空间层次为拍摄主题；可尝试以石栏杆或石栏板作前景、以聚贤堂方向作远景的压缩构图。具体镜位、人物是否可进入画面、是否允许使用长焦设备均须现场确认。
-    popularity_status: editorial_recommended
-    review_status: draft_manual_review
     evidence_refs: [S11]
-    platform_observation_ids: [xhs_20260726_morning_photo_time]
     boundaries_zh: 仅在开放区域、许可拍摄的前提下取景；不得倚靠栏板、翻越设施或使用闪光灯。
+    # 卡独有: 装饰拆解 + 平台观察镜像
+    verified_ornament_ids: [orn_099, orn_100]
+    platform_observation_ids: [xhs_20260726_morning_photo_time]
+    linked_observation_disposition:
+      - observation_id: xhs_20260726_morning_photo_time
+        disposition: visual_inspiration_only
+        notes: 平台帖列月台为参考点之一,内容含栏板/石栏板构图灵感;不可作光线、时段、机位的实际依据
 
+  # -------------------------------------------------------------------------
+  # 4. 前庭门厅:中轴对称与陈家祠辨识主题
+  # -------------------------------------------------------------------------
   - photo_spot_id: photo_architecture_front_facade
+    <<: *card_defaults
     title_zh: 前庭门厅：中轴对称与陈家祠辨识主题
     node_id: stop_front_courtyard_center
     target_ornaments: [石狮子, 功名富贵, 松鹤延年]
     target_groups: [young_adults, friends, first_time_visitors]
     themes: [architecture_signature, axial_symmetry, entrance_hall, first_visit]
     pose_template_ids: [pose_centered_entrance, pose_half_turn_roof_gaze]
-    cultural_prompt_zh: 可把入口前庭的中轴、门厅层次和石雕、灰塑作为“我在陈家祠”的识别元素，而不是只拍建筑外观。
+    cultural_prompt_zh: 可把入口前庭的中轴、门厅层次和石雕、灰塑作为"我在陈家祠"的识别元素，而不是只拍建筑外观。
     recommended_capture_zh: 可尝试以中轴对称和门厅层次作为画面组织；人物合影位置、可否使用三脚架和现场人流条件待审核。
-    popularity_status: editorial_recommended
-    review_status: draft_manual_review
     evidence_refs: [S11]
     boundaries_zh: 不得把石狮等文物作为攀坐、触摸或摆拍道具；通道繁忙时应放弃停留拍摄。
+    verified_ornament_ids: [orn_072, orn_012, orn_022]
 
+  # -------------------------------------------------------------------------
+  # 5. 前庭屋脊:远景中的陶塑与灰塑层次
+  # -------------------------------------------------------------------------
   - photo_spot_id: photo_architecture_roof_ridge
+    <<: *card_defaults
     title_zh: 前庭屋脊：远景中的陶塑与灰塑层次
     node_id: stop_front_courtyard_north
     target_ornaments: [鳌鱼, 瓜瓞绵绵]
@@ -69,28 +126,50 @@ cards:
     pose_template_ids: [pose_side_detail_gaze, pose_half_turn_roof_gaze]
     cultural_prompt_zh: 适合从远景观察屋脊轮廓、陶塑与灰塑如何共同构成建筑顶部的视觉层次。
     recommended_capture_zh: 建议把屋脊作为主体，保留必要的建筑轮廓作尺度参照；可依次尝试远景交代屋顶轮廓、斜向仰拍突出脊饰层次、局部特写记录人物与瑞兽细节。可否获得无遮挡视线、最佳拍摄时段待现场确认。
-    popularity_status: editorial_recommended
-    review_status: draft_manual_review
     evidence_refs: [S11]
-    platform_observation_ids: [xhs_20260726_small_deity_ao_fish, xhs_20260726_morning_photo_time, xhs_20260726_roof_ridge_crafts]
     boundaries_zh: 不为取景进入限制区域、跨越围栏或占用狭窄通道；风雨或施工期间以现场管理要求为准。
+    # 卡独有: 装饰拆解(注意瓜瓞绵绵 vs orn_085 瓜瓞连绵 拼写差异)
+    verified_ornament_ids: [orn_081, orn_085]
+    pending_ornament_review:
+      - 瓜瓞绵绵(README/卡内写法,装饰索引 orn_085 为瓜瓞连绵 — 拼写不一致,待统一)
+    platform_observation_ids: [xhs_20260726_small_deity_ao_fish, xhs_20260726_morning_photo_time, xhs_20260726_roof_ridge_crafts]
+    linked_observation_disposition:
+      - observation_id: xhs_20260726_small_deity_ao_fish
+        disposition: visual_inspiration_only
+        notes: '"鳌鱼"题材的视觉候选;动作"拿捏"未经视觉审核,不向游客推荐'
+      - observation_id: xhs_20260726_morning_photo_time
+        disposition: visual_inspiration_only
+        notes: 屋脊远景/斜向仰拍构图灵感来源
+      - observation_id: xhs_20260726_roof_ridge_crafts
+        disposition: visual_inspiration_only
+        notes: 广角远景/斜向仰拍/局部特写 三段拍法可参考;工艺名称仍须 RAG 取证
 
+  # -------------------------------------------------------------------------
+  # 6. 连廊与青云巷:透视和框景主题
+  # -------------------------------------------------------------------------
   - photo_spot_id: photo_architecture_corridor_perspective
+    <<: *card_defaults
     title_zh: 连廊与青云巷：透视和框景主题
     node_id: stop_front_courtyard_north
     target_ornaments: []
     target_groups: [young_adults, friends, photography_enthusiasts]
     themes: [architecture_signature, corridor_perspective, framing_view, spatial_layer]
     pose_template_ids: [pose_walkaway_corridor, pose_corridor_walk_toward_camera]
-    cultural_prompt_zh: 可从连廊、院落和青云巷的连续关系中寻找透视线与“框景”，把注意力放在空间节奏而非单一摆拍。
+    cultural_prompt_zh: 可从连廊、院落和青云巷的连续关系中寻找透视线与"框景"，把注意力放在空间节奏而非单一摆拍。
     recommended_capture_zh: 以廊柱、门洞或墙体形成的重复线条组织画面；可拍区域、逆光情况、是否允许停留取景待现场确认。
-    popularity_status: editorial_recommended
-    review_status: draft_manual_review
     evidence_refs: [S11, CMPREF_LUO_2006]
-    platform_observation_ids: [xhs_20260726_morning_photo_time]
     boundaries_zh: 连廊和通道优先保障通行；不得长时间架设设备、引导他人停留或拍摄到不愿入镜的游客。
+    platform_observation_ids: [xhs_20260726_morning_photo_time]
+    linked_observation_disposition:
+      - observation_id: xhs_20260726_morning_photo_time
+        disposition: visual_inspiration_only
+        notes: 廊下柱列/屋顶线条构图灵感;具体廊道位置未定位,不可作实际站位依据
 
+  # -------------------------------------------------------------------------
+  # 7. 门厅层次:情侣与朋友同行纪念
+  # -------------------------------------------------------------------------
   - photo_spot_id: photo_portrait_entrance_layers
+    <<: *card_defaults
     title_zh: 门厅层次：情侣与朋友同行纪念
     node_id: stop_front_courtyard_center
     target_ornaments: [石狮子, 功名富贵, 松鹤延年]
@@ -99,56 +178,85 @@ cards:
     pose_template_ids: [pose_centered_entrance, pose_side_detail_gaze]
     cultural_prompt_zh: 以入口门厅与前庭的空间层次作为人物纪念的背景，让照片既保留同行的人，也能辨认出陈家祠的建筑语境。
     recommended_capture_zh: 建议采用人物与门厅层次同框的方式，不以文物为摆拍道具；正面/侧面视角、光线是否稳定和人流是否适合合影均待现场确认。
-    popularity_status: editorial_recommended
-    review_status: draft_manual_review
     evidence_refs: [S11]
     boundaries_zh: 不攀坐石狮或倚靠构件；不在入口、疏散口和人流密集处停留拍摄，服从现场管理。
+    verified_ornament_ids: [orn_072, orn_012, orn_022]
 
+  # -------------------------------------------------------------------------
+  # 8. 连廊框景:独行游客的到访纪念
+  # -------------------------------------------------------------------------
   - photo_spot_id: photo_solo_corridor_frame
+    <<: *card_defaults
     title_zh: 连廊框景：独行游客的到访纪念
     node_id: stop_front_courtyard_north
     target_ornaments: []
     target_groups: [solo_travelers, friends, photography_enthusiasts]
     themes: [portrait_memory, corridor_perspective, framing_view, spatial_layer]
     pose_template_ids: [pose_walkaway_corridor]
-    cultural_prompt_zh: 可利用连廊与院落形成的前后景关系，记录“人在陈家祠空间中”的到访感，而非只拍一张建筑空景。
+    cultural_prompt_zh: 可利用连廊与院落形成的前后景关系，记录"人在陈家祠空间中"的到访感，而非只拍一张建筑空景。
     recommended_capture_zh: 以门洞、廊柱或院落开口作为人物取景框；可停留位置、光线稳定性、是否可请同行者协助拍摄待现场确认。
-    popularity_status: editorial_recommended
-    review_status: draft_manual_review
     evidence_refs: [S11, CMPREF_LUO_2006]
     boundaries_zh: 不妨碍连廊通行，不在狭窄位置久留；不使用闪光灯、补光灯或未经允许的拍摄设备。
 
+  # -------------------------------------------------------------------------
+  # 9. 三国故事:朋友同行的识图任务
+  # -------------------------------------------------------------------------
   - photo_spot_id: photo_story_three_kingdoms
+    <<: *card_defaults
     title_zh: 三国故事：朋友同行的识图任务
     node_id: stop_rear_west_courtyard
     target_ornaments: [三顾茅庐, 三英战吕布, 长坂坡救阿斗]
     target_groups: [young_adults, friends, students]
     themes: [story_task, three_kingdoms, craft_detail]
     pose_template_ids: [pose_ornament_reference_pending, pose_detail_observation]
-    cultural_prompt_zh: 适合把“认出一个三国故事，并说出人物关系”做成同行朋友之间的轻量打卡任务。
+    cultural_prompt_zh: 适合把"认出一个三国故事，并说出人物关系"做成同行朋友之间的轻量打卡任务。
     recommended_capture_zh: 以单幅故事画面或两三幅细节的组图为主；具体画面是否清晰、是否允许近拍须现场确认。
-    popularity_status: editorial_recommended
-    review_status: draft_manual_review
     evidence_refs: [S11]
     boundaries_zh: 不能把题材名称、人物身份或剧情细节仅凭肉眼猜测；讲解须由现有 RAG 取证。
+    # 卡独有: safety_verification_status=pending(姿势模板 pose_ornament_reference_pending 未启用,卡也不能输出)
+    safety_verification_status: pending
+    verified_ornament_ids: [orn_049, orn_050, orn_063]
+    dependency_blockers:
+      - blocker_id: pose_ornament_reference_pending_disabled
+        blocker_type: pose_disabled
+        blocked_target: pose_ornament_reference_pending
+        reason: 姿势模板 pose_ornament_reference_pending 处于 disabled_until_visual_review,本卡不得独立输出
+        must_resolve_before_output: true
 
+  # -------------------------------------------------------------------------
+  # 10. 七类工艺:建筑爱好者观察记录
+  # -------------------------------------------------------------------------
   - photo_spot_id: photo_craft_ornament_route
+    <<: *card_defaults
     title_zh: 七类工艺：建筑爱好者观察记录
     node_id: stop_front_courtyard_north
     target_ornaments: [灰塑, 木雕, 石雕, 陶塑]
     target_groups: [architecture_enthusiasts, art_enthusiasts, students]
     themes: [craft_detail, observation_task, architecture_signature]
     pose_template_ids: [pose_detail_observation]
-    cultural_prompt_zh: 可完成“在同一停靠点辨认两种以上工艺”的记录式打卡，照片重点是材料和工艺差异，而不是人物摆拍。
+    cultural_prompt_zh: 可完成"在同一停靠点辨认两种以上工艺"的记录式打卡，照片重点是材料和工艺差异，而不是人物摆拍。
     recommended_capture_zh: 用一张远景交代部位、两张局部记录不同工艺；拍摄范围与细部可见性待现场确认。
-    popularity_status: editorial_recommended
-    review_status: draft_manual_review
     evidence_refs: [S11]
-    platform_observation_ids: [xhs_20260726_morning_photo_time]
-    platform_observation_ids: [xhs_20260726_seven_crafts_photo, xhs_20260726_roof_ridge_crafts]
     boundaries_zh: 工艺名称、材质和制作方法须由术语卡与 RAG 证据核实；不建议为拍摄而使用补光或贴近脆弱构件。
+    # 卡独有: 工艺类别入 ornament_categories;原 platform_observation_ids 重复 key 已合并
+    ornament_categories: [灰塑, 木雕, 石雕, 陶塑]
+    platform_observation_ids: [xhs_20260726_morning_photo_time, xhs_20260726_seven_crafts_photo, xhs_20260726_roof_ridge_crafts]
+    linked_observation_disposition:
+      - observation_id: xhs_20260726_morning_photo_time
+        disposition: visual_inspiration_only
+        notes: 远景/局部组图的构图灵感
+      - observation_id: xhs_20260726_seven_crafts_photo
+        disposition: visual_inspiration_only
+        notes: '"封神机位"未配截图/正文,具体机位未定位;不引用"封神"等用语'
+      - observation_id: xhs_20260726_roof_ridge_crafts
+        disposition: visual_inspiration_only
+        notes: '木雕"整体—局部—单幅故事细节"三层拍法可参考'
 
+  # -------------------------------------------------------------------------
+  # 11. 聚贤堂屏门:木雕框景与人物留影
+  # -------------------------------------------------------------------------
   - photo_spot_id: photo_juxian_hall_screen_door
+    <<: *card_defaults
     title_zh: 聚贤堂屏门：木雕框景与人物留影
     node_id: stop_juxian_hall
     target_ornaments: [木雕屏门]
@@ -156,14 +264,36 @@ cards:
     themes: [woodcarving, framing_view, portrait_memory, craft_detail]
     pose_template_ids: [pose_side_detail_gaze, pose_detail_observation]
     cultural_prompt_zh: 可从屏门既分隔空间、又组织视线的作用切入，让人物与木雕的层次关系成为画面主题；重点是观察而非把构件当作摆拍道具。
-    recommended_capture_zh: 用户提供的参考将聚贤堂正对面的木雕屏门作为背景；可按“厅堂整体—屏门局部—单幅故事细节”组织画面，也可拍摄人物与屏门的远距离同框。实际站位、屏门可见性、室内拍摄规定和是否可使用长焦设备均须现场确认。
-    popularity_status: editorial_recommended
-    review_status: draft_manual_review
+    recommended_capture_zh: 用户提供的参考将聚贤堂正对面的木雕屏门作为背景；可按"厅堂整体—屏门局部—单幅故事细节"组织画面，也可拍摄人物与屏门的远距离同框。实际站位、屏门可见性、室内拍摄规定和是否可使用长焦设备均须现场确认。
     evidence_refs: [S11]
-    platform_observation_ids: [xhs_20260726_morning_photo_time, xhs_20260726_roof_ridge_crafts]
     boundaries_zh: 不得触摸、倚靠或遮挡屏门；如该区域属于展厅或人流通道，应以馆方管理和其他游客参观优先。
+    # 卡独有: 屏门泛指,7 个候选未消歧;node 缺;室内拍摄/木雕框景双重待审
+    content_verification_status: pending
+    safety_verification_status: pending
+    node_status: not_in_node_guide_v1
+    pending_ornament_review:
+      - 木雕屏门(泛指,7 个候选未消歧,待术语卡与现场定位)
+    disambiguated_ornament_ids: [orn_038, orn_044, orn_045, orn_047, orn_053, orn_055, orn_059]
+    platform_observation_ids: [xhs_20260726_morning_photo_time, xhs_20260726_roof_ridge_crafts]
+    linked_observation_disposition:
+      - observation_id: xhs_20260726_morning_photo_time
+        disposition: visual_inspiration_only
+        notes: 屏门与建筑层次的远景参考
+      - observation_id: xhs_20260726_roof_ridge_crafts
+        disposition: visual_inspiration_only
+        notes: '"整体—屏门/构件局部—单幅故事细节"三层拍法可参考;屏门实际位置和展线仍须现场确认'
+    dependency_blockers:
+      - blocker_id: node_missing_stop_juxian_hall
+        blocker_type: node_missing
+        blocked_target: stop_juxian_hall
+        reason: node_id stop_juxian_hall 在 node_guide_cards_v1.json 中缺失,卡无法挂载
+        must_resolve_before_output: true
 
+  # -------------------------------------------------------------------------
+  # 12. 后花园绿叶前景:庭园层次与静景人像
+  # -------------------------------------------------------------------------
   - photo_spot_id: photo_rear_garden_foliage_frame
+    <<: *card_defaults
     title_zh: 后花园绿叶前景：庭园层次与静景人像
     node_id: label_rear_garden
     target_ornaments: []
@@ -172,8 +302,19 @@ cards:
     pose_template_ids: [pose_side_detail_gaze, pose_walkaway_corridor]
     cultural_prompt_zh: 可用前景绿叶、人物和院落背景组织远近层次，记录从礼制建筑走向庭园空间后的节奏变化。
     recommended_capture_zh: 用户提供的参考建议以后花园绿叶作前景、以长焦压缩景深；可将其作为构图灵感。植物状态、可站立区域、是否适合使用长焦及当天光线均须现场确认。
-    popularity_status: editorial_recommended
-    review_status: draft_manual_review
     evidence_refs: [S11]
-    platform_observation_ids: [xhs_20260726_morning_photo_time]
     boundaries_zh: 不进入绿化带、不攀折植物、不占用游路；不得为取景踩踏、移动或触碰植物和设施。
+    # 卡独有: node 缺;长焦/绿叶/光线多因素待审
+    content_verification_status: pending
+    node_status: not_in_node_guide_v1
+    platform_observation_ids: [xhs_20260726_morning_photo_time]
+    linked_observation_disposition:
+      - observation_id: xhs_20260726_morning_photo_time
+        disposition: visual_inspiration_only
+        notes: '"绿叶作前景的长焦构图"为灵感来源,具体植物/可站立区域未定位'
+    dependency_blockers:
+      - blocker_id: node_missing_label_rear_garden
+        blocker_type: node_missing
+        blocked_target: label_rear_garden
+        reason: node_id label_rear_garden 在 node_guide_cards_v1.json 中缺失,卡无法挂载
+        must_resolve_before_output: true
