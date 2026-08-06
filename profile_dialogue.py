@@ -184,6 +184,11 @@ def _prompt(field: str) -> str:
     }[field]
 
 
+def profile_collection_prompt(field: str) -> str:
+    """Expose the approved prompt for resuming an interrupted collection."""
+    return _prompt(field)
+
+
 def _explanation_style_candidate(text: str, *, allow_bare: bool = False) -> str | None:
     matches = [
         value for value, phrases in EXPLICIT_STYLE_PHRASES.items()

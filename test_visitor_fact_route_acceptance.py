@@ -382,7 +382,7 @@ class VisitorFactRouteAcceptanceTests(unittest.TestCase):
                 )
 
     def test_two_hour_woodcarving_deep_request_uses_route_planner(self):
-        text = "选择经典模式，给我规划两小时路线，喜欢木雕，详细讲解。"
+        text = "选择经典模式，使用中文，给我规划两小时路线，喜欢木雕，详细讲解。"
         request = _state(text)
         self.assertEqual(route_initial_request(request), "profile_collection")
         graph = build_agent_graph(with_checkpointer=False)
@@ -400,7 +400,7 @@ class VisitorFactRouteAcceptanceTests(unittest.TestCase):
         nodes = [metric["node"] for metric in result["performance_metrics"]]
         self.assertEqual(
             nodes[-3:],
-            ["semantic_normalization", "profile_collection", "direct_route"],
+            ["semantic_normalization", "visitor_onboarding", "direct_route"],
         )
 
     def test_two_hour_woodcarving_request_replans_from_active_tour(self):

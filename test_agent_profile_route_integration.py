@@ -44,7 +44,7 @@ class AgentProfileRouteIntegrationTests(unittest.TestCase):
     def test_complete_input_starts_route_in_one_deterministic_graph_turn(self):
         """C3 must join C2 collection to direct_route in the compiled graph."""
         graph = build_agent_graph(with_checkpointer=False)
-        result = graph.invoke(_state("选择经典模式，我有30分钟，喜欢灰塑，标准讲解，帮我规划路线"))
+        result = graph.invoke(_state("选择经典模式，使用中文，我有30分钟，喜欢灰塑，标准讲解，帮我规划路线"))
         self.assertEqual(result["selected_route_id"], "highlights_30")
         self.assertEqual(result["visitor_profile"]["available_minutes"], 30)
         self.assertEqual(result["tour_state"]["available_minutes"], 30)
@@ -53,7 +53,7 @@ class AgentProfileRouteIntegrationTests(unittest.TestCase):
 
     def test_english_minute_route_input_starts_same_thirty_minute_route(self):
         graph = build_agent_graph(with_checkpointer=False)
-        result = graph.invoke(_state("选择经典模式，30min路线，木雕，详细"))
+        result = graph.invoke(_state("选择经典模式，中文，30min路线，木雕，详细"))
         self.assertEqual(result["selected_route_id"], "highlights_30")
         self.assertEqual(result["visitor_profile"]["available_minutes"], 30)
         self.assertEqual(result["tour_state"]["available_minutes"], 30)
@@ -63,7 +63,7 @@ class AgentProfileRouteIntegrationTests(unittest.TestCase):
     def test_minimize_walking_constraint_reaches_audited_route_selection(self):
         graph = build_agent_graph(with_checkpointer=False)
         result = graph.invoke(_state(
-            "选择经典模式，我有30分钟，喜欢灰塑，标准讲解，"
+            "选择经典模式，使用中文，我有30分钟，喜欢灰塑，标准讲解，"
             "请给我规划一条少走路的路线"
         ))
         self.assertEqual(
@@ -134,7 +134,7 @@ class AgentProfileRouteIntegrationTests(unittest.TestCase):
         self.assertEqual(collected["profile_collection"]["required_fields"], ["available_minutes"])
 
     def test_complete_route_action_with_comparison_interest_starts_sixty_minute_route(self):
-        text = "选择经典模式，我要参观一个小时，我对三国故事相关的工艺比较感兴趣，标准讲解，请帮我规划路线"
+        text = "选择经典模式，使用中文，我要参观一个小时，我对三国故事相关的工艺比较感兴趣，标准讲解，请帮我规划路线"
         state = _state(text)
         self.assertEqual(route_initial_request(state), "profile_collection")
 

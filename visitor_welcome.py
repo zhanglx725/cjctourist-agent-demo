@@ -15,6 +15,10 @@ LANGUAGE_PROMPT = """请选择您需要的讲解语言，例如中文、英语�
 
 Please enter your preferred narration language, such as Chinese, English, or Korean. You may also enter another language."""
 
+READY_PROMPT = """您准备好后，请回复“准备好了”。
+
+When you are ready, please reply “I'm ready”."""
+
 MODE_PROMPT = """请选择“经典模式”或“定制模式”。经典模式可以快速开始参观；定制模式可以继续选择工艺偏好和讲解风格。
 
 Please choose Classic Mode or Custom Mode. Classic Mode starts the visit quickly, while Custom Mode lets you continue choosing craft preferences and narration style."""
@@ -53,6 +57,11 @@ def is_ready_response(text: str) -> bool:
     if compact in NOT_READY_RESPONSES:
         return False
     return compact in READY_RESPONSES
+
+
+def is_not_ready_response(text: str) -> bool:
+    compact = " ".join(str(text or "").strip().casefold().rstrip("。！!？?").split())
+    return compact in NOT_READY_RESPONSES
 
 
 def is_language_skip(text: str) -> bool:

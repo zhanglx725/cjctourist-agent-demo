@@ -56,7 +56,7 @@ class TourOpeningProgramTests(unittest.TestCase):
 
     def test_graph_route_initializes_one_pending_opening(self):
         graph = build_agent_graph(with_checkpointer=False)
-        result = graph.invoke({"messages": [HumanMessage(content="选择经典模式，30分钟路线")]})
+        result = graph.invoke({"messages": [HumanMessage(content="选择经典模式，中文，30分钟路线")]})
         self.assertEqual(result["tour_opening_program"]["status"], "pending")
         self.assertEqual(result["tour_opening_program"]["play_count"], 0)
         self.assertIn("到达第一站后", result["messages"][-1].content)

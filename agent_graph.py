@@ -123,11 +123,14 @@ from single_fact_answer import (
 from guide_program_evidence import build_stop_guidance, reexpress_current_stop_guidance
 from profile_dialogue import (
     CLASSIC_PROFILE_FIELDS,
+    COLLECTION_FIELD_ORDER,
     CUSTOM_PROFILE_FIELDS,
     ProfileCollection,
     collect_profile_input,
+    extract_profile_patch,
     is_optional_profile_skip,
     parse_explanation_language,
+    profile_collection_prompt,
 )
 from profile_update import apply_profile_update, is_profile_update_request
 from extended_profile_control import apply_extended_profile_control, parse_extended_profile_control
@@ -149,9 +152,11 @@ from post_visit_award import PostVisitAwardError, build_post_visit_award, is_pos
 from visitor_welcome import (
     LANGUAGE_PROMPT,
     MODE_PROMPT,
+    READY_PROMPT,
     WELCOME_MESSAGE,
     initialize_visitor_welcome,
     is_language_skip,
+    is_not_ready_response,
     is_ready_response,
     visitor_welcome_already_played,
 )
@@ -352,6 +357,19 @@ def _latest_human_text(state: AgentState) -> str:
         content = message.content
         return content if isinstance(content, str) else str(content)
     return ""
+
+
+def _is_onboarding_read_only_question(text: str) -> bool:
+    """Keep factual questions available without consuming onboarding state."""
+    value = str(text or "").strip()
+    return bool(
+        "？" in value
+        or "?" in value
+        or any(term in value for term in (
+            "什么", "为什么", "哪年", "哪里", "哪些", "多少", "如何", "怎么",
+            "介绍", "讲讲", "是谁", "何时", "什么时候", "是否",
+        ))
+    )
 
 
 def _effective_control_text(state: AgentState) -> str:
@@ -1165,7 +1183,14 @@ def profile_collection_node(state: AgentState) -> dict[str, Any]:
         ),
     )
     return {
-        "messages": [AIMessage(content=payload["message"])],
+        "messages": [AIMessage(
+            content=payload["message"],
+            additional_kwargs={
+                "profile_collection_prompt": (
+                    payload["profile_collection"]["status"] == "collecting"
+                ),
+            },
+        )],
         "qa_context": clear_qa_context(state.get("qa_context")),
         "pending_ornament_clarification": None,
         "visitor_profile": payload["visitor_profile"],
@@ -1237,9 +1262,36 @@ def visitor_welcome_node(state: AgentState) -> dict[str, Any]:
                 "migration_reason": "pre_welcome_existing_thread",
             },
         }
+    program = initialize_visitor_welcome()
+    first_user_text = _latest_human_text(state)
+    first_patch, first_fields, _ = extract_profile_patch(first_user_text)
+    first_language = parse_explanation_language(first_user_text)
+    first_mode = explicit_journey_mode_choice(first_user_text)
+    contains_onboarding_answer = bool(
+        first_fields
+        or first_patch.get("route_constraint")
+        or first_language
+        or first_mode
+        or should_direct_route(first_user_text)
+    )
+    if (
+        first_user_text
+        and not is_ready_response(first_user_text)
+        and not is_not_ready_response(first_user_text)
+        and not _is_onboarding_read_only_question(first_user_text)
+        and not contains_onboarding_answer
+    ):
+        # Backward-compatible API path: older clients and deterministic tests
+        # may send a complete business request as the first graph invocation
+        # instead of performing the empty bootstrap call. Show the welcome,
+        # but never swallow or reinterpret that already-actionable request.
+        program.update({
+            "status": "completed",
+            "migration_reason": "first_invocation_contains_business_request",
+        })
     return {
         "messages": [AIMessage(content=WELCOME_MESSAGE)],
-        "visitor_welcome_program": initialize_visitor_welcome(),
+        "visitor_welcome_program": program,
         "performance_metrics": _append_metric(
             state, "visitor_welcome", 0.0,
             status="played", model_called=False,
@@ -1248,7 +1300,7 @@ def visitor_welcome_node(state: AgentState) -> dict[str, Any]:
 
 
 def visitor_onboarding_node(state: AgentState) -> dict[str, Any]:
-    """Collect ready confirmation, language, then product mode deterministically."""
+    """Collect onboarding/profile answers in any order, then ask only missing slots."""
     started = time.perf_counter()
     text = _latest_human_text(state)
     program = dict(state.get("visitor_welcome_program") or initialize_visitor_welcome())
@@ -1257,44 +1309,64 @@ def visitor_onboarding_node(state: AgentState) -> dict[str, Any]:
         "qa_context": clear_qa_context(state.get("qa_context")),
         "pending_ornament_clarification": None,
     }
-    if status == "awaiting_ready":
-        if not is_ready_response(text):
-            message = "准备好后，请回复“准备好了”或 “I'm ready”。"
-            outcome = "ready_not_confirmed"
-        else:
-            program["status"] = "awaiting_language"
-            message = LANGUAGE_PROMPT
-            outcome = "awaiting_language"
-    elif status == "awaiting_language":
-        language = parse_explanation_language(text)
-        if language is None and not is_language_skip(text):
-            message = LANGUAGE_PROMPT
-            outcome = "language_unresolved"
-        else:
-            program.update({"status": "awaiting_mode", "selected_language": language})
+    if status not in {"awaiting_ready", "awaiting_language", "awaiting_mode"}:
+        return {}
+
+    patch, fields, conflict = extract_profile_patch(text)
+    if conflict:
+        message = conflict
+        outcome = "profile_conflict"
+        patch, fields = {}, set()
+    else:
+        language = patch.get("language")
+        if language is None and status == "awaiting_language":
+            language = parse_explanation_language(text)
             if language is not None:
-                profile = (
-                    profile_from_dict(state["visitor_profile"])
-                    if isinstance(state.get("visitor_profile"), dict)
-                    else create_visitor_profile()
-                )
-                updates["visitor_profile"] = update_visitor_profile(
-                    profile, language=language
-                ).to_dict()
-            message = MODE_PROMPT
-            outcome = "awaiting_mode"
-    elif status == "awaiting_mode":
-        selected = explicit_journey_mode_choice(text)
-        if selected is None:
-            message = MODE_PROMPT
-            outcome = "mode_unresolved"
+                patch["language"] = language
+                fields.add("language")
+        selected = explicit_journey_mode_choice(text) or program.get("selected_mode")
+        if selected is not None:
+            program["selected_mode"] = selected
+        resolved = set(program.get("resolved_profile_fields") or [])
+        resolved.update(fields)
+        if status == "awaiting_language" and is_language_skip(text):
+            resolved.add("language")
+            program["selected_language"] = None
+        elif "language" in fields:
+            program["selected_language"] = patch.get("language")
+        actionable = bool(
+            is_ready_response(text)
+            or selected
+            or fields
+            or patch.get("route_constraint")
+            or should_direct_route(text)
+        )
+        if actionable:
+            program["ready_confirmed"] = True
+        program["resolved_profile_fields"] = [
+            field for field in COLLECTION_FIELD_ORDER if field in resolved
+        ]
+
+        profile = (
+            profile_from_dict(state["visitor_profile"])
+            if isinstance(state.get("visitor_profile"), dict)
+            else create_visitor_profile()
+        )
+        if patch:
+            profile = update_visitor_profile(profile, **patch)
+            updates["visitor_profile"] = profile.to_dict()
+
+        if not program.get("ready_confirmed"):
+            program["status"] = "awaiting_ready"
+            message, outcome = READY_PROMPT, "ready_not_confirmed"
+        elif "language" not in resolved:
+            program["status"] = "awaiting_language"
+            message, outcome = LANGUAGE_PROMPT, "awaiting_language"
+        elif selected is None:
+            program["status"] = "awaiting_mode"
+            message, outcome = MODE_PROMPT, "awaiting_mode"
         else:
-            program.update({"status": "completed", "selected_mode": selected})
-            profile = (
-                profile_from_dict(state["visitor_profile"])
-                if isinstance(state.get("visitor_profile"), dict)
-                else create_visitor_profile()
-            )
+            program["status"] = "completed"
             required_fields = (
                 CLASSIC_PROFILE_FIELDS if selected == "classic" else CUSTOM_PROFILE_FIELDS
             )
@@ -1303,7 +1375,7 @@ def visitor_onboarding_node(state: AgentState) -> dict[str, Any]:
             }
             updates["profile_collection"] = ProfileCollection(
                 profile=profile,
-                resolved_fields=("language",),
+                resolved_fields=tuple(resolved),
                 required_fields=required_fields,
             ).to_dict()
             updates["tour_interaction_state"] = update_session_control(
@@ -1312,15 +1384,16 @@ def visitor_onboarding_node(state: AgentState) -> dict[str, Any]:
                 resume_after_read_only="profile_collection",
             )
             message = (
-                "已选择经典模式，请继续提供游览时间。"
+                "已选择经典模式，将继续完成尚未提供的游览信息。"
                 if selected == "classic"
-                else "已选择定制模式，请继续提供游览时间和偏好。"
+                else "已选择定制模式，将继续完成尚未提供的游览偏好。"
             )
             outcome = "completed"
-    else:
-        return {}
     updates.update({
-        "messages": [AIMessage(content=message)],
+        "messages": [AIMessage(
+            content=message,
+            additional_kwargs={"visitor_onboarding_prompt": True},
+        )],
         "visitor_welcome_program": program,
         "performance_metrics": _append_metric(
             state, "visitor_onboarding", time.perf_counter() - started,
@@ -1328,6 +1401,35 @@ def visitor_onboarding_node(state: AgentState) -> dict[str, Any]:
         ),
     })
     return updates
+
+
+def visitor_onboarding_resume_node(state: AgentState) -> dict[str, Any]:
+    """Repeat only the unanswered startup/profile prompt after a read-only answer."""
+    status = (state.get("visitor_welcome_program") or {}).get("status")
+    prompt = {
+        "awaiting_ready": READY_PROMPT,
+        "awaiting_language": LANGUAGE_PROMPT,
+        "awaiting_mode": MODE_PROMPT,
+    }.get(status)
+    prompt_kind = "visitor_onboarding_prompt"
+    if prompt is None:
+        collection = state.get("profile_collection") or {}
+        next_field = collection.get("next_missing_field")
+        if collection.get("status") == "collecting" and isinstance(next_field, str):
+            prompt = profile_collection_prompt(next_field)
+            prompt_kind = "profile_collection_prompt"
+    if prompt is None:
+        return {}
+    return {
+        "messages": [AIMessage(
+            content=prompt,
+            additional_kwargs={prompt_kind: True, "resumed_after_qa": True},
+        )],
+        "performance_metrics": _append_metric(
+            state, "visitor_onboarding_resume", 0.0,
+            status=status, model_called=False,
+        ),
+    }
 
 
 def inactive_tour_end_node(state: AgentState) -> dict[str, Any]:
@@ -2908,7 +3010,10 @@ def route_initial_request(state: AgentState) -> str:
     if is_identity_document_civil_service_request(raw_text):
         return "tour_qa"
     onboarding_status = (state.get("visitor_welcome_program") or {}).get("status")
-    if onboarding_status in {"awaiting_ready", "awaiting_language", "awaiting_mode"}:
+    if (
+        onboarding_status in {"awaiting_ready", "awaiting_language", "awaiting_mode"}
+        and not _is_onboarding_read_only_question(raw_text)
+    ):
         return "visitor_onboarding"
     completed_tour = (state.get("tour_state") or {}).get("route_status") == "completed"
     repeated_finish = any(
@@ -3262,7 +3367,26 @@ def route_after_visitor_welcome(state: AgentState) -> str:
 
 def route_after_visitor_onboarding(state: AgentState) -> str:
     program = state.get("visitor_welcome_program") or {}
-    return "profile_collection" if program.get("status") == "completed" else END
+    if program.get("status") != "completed":
+        return END
+    collection = state.get("profile_collection") or {}
+    return "direct_route" if collection.get("status") == "ready" else "profile_collection"
+
+
+def route_after_atomic_read_plan_shadow(state: AgentState) -> str:
+    status = (state.get("visitor_welcome_program") or {}).get("status")
+    last = state.get("messages", [])[-1] if state.get("messages") else None
+    if isinstance(last, AIMessage) and (
+        last.additional_kwargs.get("visitor_onboarding_prompt")
+        or last.additional_kwargs.get("profile_collection_prompt")
+    ):
+        return END
+    if status in {"awaiting_ready", "awaiting_language", "awaiting_mode"}:
+        return "visitor_onboarding_resume"
+    collection = state.get("profile_collection") or {}
+    if collection.get("status") == "collecting" and collection.get("next_missing_field"):
+        return "visitor_onboarding_resume"
+    return END
 
 
 def route_after_confirm_replan(state: AgentState) -> str:
@@ -3283,6 +3407,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow = StateGraph(AgentState)
     workflow.add_node("visitor_welcome", visitor_welcome_node)
     workflow.add_node("visitor_onboarding", visitor_onboarding_node)
+    workflow.add_node("visitor_onboarding_resume", visitor_onboarding_resume_node)
     workflow.add_node("semantic_normalization", semantic_normalization_node)
     workflow.add_node("llm_think", llm_think_node)
     workflow.add_node("rag_tool", rag_tool_node)
@@ -3343,7 +3468,11 @@ def build_agent_graph(with_checkpointer: bool = True):
     )
     workflow.add_conditional_edges(
         "visitor_onboarding", route_after_visitor_onboarding,
-        {"profile_collection": "profile_collection", END: "atomic_read_plan_shadow"},
+        {
+            "direct_route": "direct_route",
+            "profile_collection": "profile_collection",
+            END: "atomic_read_plan_shadow",
+        },
     )
     workflow.add_conditional_edges(
         "profile_collection", route_after_profile_collection,
@@ -3374,7 +3503,11 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_edge("clarification", "atomic_read_plan_shadow")
     workflow.add_conditional_edges("llm_think", route_after_llm, {"rag_tool": "rag_tool", END: "atomic_read_plan_shadow"})
     workflow.add_edge("rag_tool", "llm_think")
-    workflow.add_edge("atomic_read_plan_shadow", END)
+    workflow.add_conditional_edges(
+        "atomic_read_plan_shadow", route_after_atomic_read_plan_shadow,
+        {"visitor_onboarding_resume": "visitor_onboarding_resume", END: END},
+    )
+    workflow.add_edge("visitor_onboarding_resume", END)
     return workflow.compile(checkpointer=MemorySaver()) if with_checkpointer else workflow.compile()
 
 
