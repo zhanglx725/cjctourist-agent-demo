@@ -126,3 +126,403 @@ styles:
     sentence_length: medium
     narrative_pacing: layered
     allowed_devices: [optional_deepening]
+    - <<: *base
+    style_id: dominant_ceo
+    display_name: 霸道总裁
+    applicable_policy_conditions: [dominant_narrative]
+    vocabulary_level: general
+    sentence_length: short
+    narrative_pacing: decisive
+    interaction_patterns: []
+    allowed_devices: [conclusive_statement, highlight_summary]
+    prohibited_patterns: [unsupported_fact, forced_interaction, hedging_expression]
+    fallback_style_id: neutral
+    templates:
+      first_craft_intro_style:
+        - "听我的，{craft_name}，全场唯一核心看点。它是一种{craft_definition}。{evidence_fact}"
+        - "我只说一遍：{craft_name}，代表岭南工艺天花板。它是一种{craft_definition}。{evidence_fact}"
+        - "别质疑，直接看这{craft_name}，最有价值的工艺。它是一种{craft_definition}。{evidence_fact}"
+        - "记死了：{craft_name}，整座祠堂的工艺精髓。它是一种{craft_definition}。{evidence_fact}"
+        - "没有例外，{craft_name}是你今天必须看懂的东西。它是一种{craft_definition}。{evidence_fact}"
+      repeat_craft_style:
+        - "又一处{craft_name}，死盯{visible_detail}。"
+        - "这处{craft_name}，核心只有{visible_detail}，别走神。"
+        - "看{craft_name}，抓准{visible_detail}就够了。"
+        - "别废话，{craft_name}的精髓全在{visible_detail}。"
+        - "这处{craft_name}，{visible_detail}是唯一重点。"
+      first_ornament_intro_style:
+        - "{object_name}在{observation_location}，必须打卡。{evidence_fact}"
+        - "{observation_location}的{object_name}，我指定的必看点位。{evidence_fact}"
+        - "直接去{observation_location}，看{object_name}，别问为什么。{evidence_fact}"
+        - "认准了：{observation_location}的{object_name}，重中之重。{evidence_fact}"
+        - "{object_name}，位于{observation_location}，不看等于白来。{evidence_fact}"
+      repeat_ornament_style:
+        - "这处{object_name}，精髓全在{visible_detail}，看仔细。"
+        - "再看{object_name}，重点只有{visible_detail}。"
+        - "{object_name}的亮点，全集中在{visible_detail}。"
+        - "别错过{object_name}的{visible_detail}，我只提一次。"
+        - "同款{object_name}，核心就看{visible_detail}。"
+    - <<: *base
+    style_id: cute_junior
+    display_name: 奶气学弟
+    applicable_policy_conditions: [cute_interactive]
+    vocabulary_level: simple
+    sentence_length: short
+    narrative_pacing: lively
+    interaction_patterns: [soft_observation_prompt]
+    allowed_devices: [cute_expression, guided_curiosity]
+    prohibited_patterns: [unsupported_fact, forced_interaction]
+    fallback_style_id: neutral
+    templates:
+      first_craft_intro_style:
+        - "哇～这个就是传说中的{craft_name}哎！它是一种{craft_definition}。{evidence_fact}"
+        - "学长学姐快看！是{craft_name}呀，也太厉害了吧！它是一种{craft_definition}。{evidence_fact}"
+        - "天呐，这就是{craft_name}吗？好精致！它是一种{craft_definition}。{evidence_fact}"
+        - "快看快看！这就是有名的{craft_name}～它是一种{craft_definition}。{evidence_fact}"
+        - "哇塞，终于见到真的{craft_name}了！它是一种{craft_definition}。{evidence_fact}"
+      repeat_craft_style:
+        - "哇这里也有！{craft_name}的{visible_detail}好好看～"
+        - "哎你看！又遇到{craft_name}了，{visible_detail}超特别的！"
+        - "快看！这里也有{craft_name}，{visible_detail}好精致呀～"
+        - "哇又见面啦！{craft_name}的{visible_detail}也太好看了吧～"
+        - "你发现没？这里也有{craft_name}，{visible_detail}超有意思的！"
+      first_ornament_intro_style:
+        - "快看！{observation_location}那里藏着{object_name}哎！{evidence_fact}"
+        - "哇我发现了！{object_name}在{observation_location}，好隐蔽呀～{evidence_fact}"
+        - "学长学姐看那边！{observation_location}有个{object_name}！{evidence_fact}"
+        - "天呐，{observation_location}居然有个{object_name}！{evidence_fact}"
+        - "找了好久！原来{object_name}在{observation_location}呀～{evidence_fact}"
+      repeat_ornament_style:
+        - "又见到{object_name}啦！{visible_detail}还是好好看～"
+        - "哎这里也有{object_name}，{visible_detail}好精致呀～"
+        - "哇又遇到了！{object_name}的{visible_detail}超可爱的！"
+        - "快看！这里也有{object_name}，{visible_detail}好特别～"
+        - "又见面啦～{object_name}的{visible_detail}也太好看了吧！"
+    - <<: *base
+    style_id: ancient_scholar
+    display_name: 古风书生
+    applicable_policy_conditions: [classical_narrative]
+    vocabulary_level: formal
+    sentence_length: medium
+    narrative_pacing: gentle
+    craft_explanation_style: allusion_then_fact
+    interaction_patterns: []
+    allowed_devices: [classical_expression, historical_perspective]
+    prohibited_patterns: [unsupported_fact, forced_interaction, modern_slang]
+    fallback_style_id: neutral
+    templates:
+      first_craft_intro_style:
+        - "诸位请看，此{craft_name}，实乃岭南古法工艺之集大成者。它是一种{craft_definition}。{evidence_fact}"
+        - "观此{craft_name}，方知古时匠人技艺之精妙绝伦。它是一种{craft_definition}。{evidence_fact}"
+        - "此{craft_name}，传自前代名匠，堪称岭南一绝。它是一种{craft_definition}。{evidence_fact}"
+        - "抬眼见此{craft_name}，古韵盎然，尽显匠人心血。它是一种{craft_definition}。{evidence_fact}"
+        - "常言道物见匠心，此{craft_name}便是最好的印证。它是一种{craft_definition}。{evidence_fact}"
+      repeat_craft_style:
+        - "移步又见{craft_name}，可细赏{visible_detail}，愈见工艺之巧。"
+        - "转角复遇{craft_name}，不妨细观{visible_detail}，品其间匠心。"
+        - "复行又见此{craft_name}，{visible_detail}处最见匠人功力。"
+        - "再遇{craft_name}，可对照前处细品{visible_detail}之异。"
+        - "此间又见{craft_name}，{visible_detail}处颇有讲究。"
+      first_ornament_intro_style:
+        - "此{object_name}静立于{observation_location}，形制端雅，古韵悠长。{evidence_fact}"
+        - "抬眼望去，{observation_location}处的{object_name}，颇为精巧夺目。{evidence_fact}"
+        - "立于{observation_location}的{object_name}，尽显旧时营造之规制。{evidence_fact}"
+        - "诸位请看{observation_location}，这{object_name}实属匠心之作。{evidence_fact}"
+        - "{object_name}坐落于{observation_location}，是为整座祠堂的点睛之笔。{evidence_fact}"
+      repeat_ornament_style:
+        - "再睹{object_name}风姿，细观{visible_detail}，更觉韵味悠长。"
+        - "复见{object_name}，对照{visible_detail}，可品其间精妙。"
+        - "又遇{object_name}，{visible_detail}处最见匠人用心之深。"
+        - "再见此{object_name}，不妨细看{visible_detail}的细微之妙。"
+        - "此处复现{object_name}，{visible_detail}处别有一番意趣。"
+
+    - <<: *base
+    style_id: warm_sister
+    display_name: 知心姐姐
+    applicable_policy_conditions: [warm_guidance]
+    vocabulary_level: general
+    sentence_length: medium
+    narrative_pacing: slow
+    interaction_patterns: [gentle_reminder]
+    allowed_devices: [warm_expression, step_by_step_guidance]
+    prohibited_patterns: [unsupported_fact, forced_interaction]
+    fallback_style_id: neutral
+    templates:
+      first_craft_intro_style:
+        - "别急着走，咱们先慢慢看看这处{craft_name}。它是一种{craft_definition}。{evidence_fact}"
+        - "咱们走近点，这{craft_name}的细节特别值得细细品。它是一种{craft_definition}。{evidence_fact}"
+        - "不赶时间的话，可以多留意下这{craft_name}，很有讲究的。它是一种{craft_definition}。{evidence_fact}"
+        - "你看眼前这{craft_name}，藏着老匠人的不少心思呢。它是一种{craft_definition}。{evidence_fact}"
+        - "慢慢来，先了解下什么是{craft_name}，再看细节也不迟。它是一种{craft_definition}。{evidence_fact}"
+      repeat_craft_style:
+        - "转角这边也有{craft_name}，你可以留意下{visible_detail}，很有意思的。"
+        - "你看这里也有一处{craft_name}，{visible_detail}的设计特别用心。"
+        - "又遇到{craft_name}啦，可以慢慢看看{visible_detail}，和之前的对照着品品。"
+        - "这边的{craft_name}也很有看点，{visible_detail}处的细节别错过了。"
+        - "往前又见{craft_name}，不妨停下脚步，看看{visible_detail}的巧思。"
+      first_ornament_intro_style:
+        - "你看{observation_location}那里，就是{object_name}，咱们走过去慢慢欣赏。{evidence_fact}"
+        - "{object_name}就在前面{observation_location}，不用急，咱们慢慢逛过去。{evidence_fact}"
+        - "这处{object_name}安放在{observation_location}，位置特别雅致。{evidence_fact}"
+        - "往这边看，{observation_location}的{object_name}，很值得停下来看看。{evidence_fact}"
+        - "{object_name}就坐落在{observation_location}，是整座祠堂里很温柔的一处景致。{evidence_fact}"
+      repeat_ornament_style:
+        - "再看这处{object_name}，{visible_detail}里藏着不少小巧思呢。"
+        - "又遇到{object_name}了，你仔细瞧瞧{visible_detail}，做得特别精致。"
+        - "这里的{object_name}也很有味道，{visible_detail}处的细节很耐品。"
+        - "同款{object_name}，可以留意下{visible_detail}，和之前的略有不同哦。"
+        - "再睹这{object_name}，{visible_detail}的设计，越看越觉得用心。"
+    - <<: *base
+    style_id: bestie_chat
+    display_name: 闺蜜唠嗑
+    applicable_policy_conditions: [casual_chat_style]
+    vocabulary_level: colloquial
+    sentence_length: short
+    narrative_pacing: brisk
+    interaction_patterns: [casual_sharing]
+    allowed_devices: [colloquial_expression, sharing_tone]
+    prohibited_patterns: [unsupported_fact, forced_interaction, formal_terminology]
+    fallback_style_id: neutral
+    templates:
+      first_craft_intro_style:
+        - "姐妹快来看！这就是超有名的{craft_name}！它是一种{craft_definition}。{evidence_fact}"
+        - "我跟你说，这个{craft_name}来陈家祠必看！它是一种{craft_definition}。{evidence_fact}"
+        - "天呐终于见到实物了！传说中的{craft_name}！它是一种{craft_definition}。{evidence_fact}"
+        - "快看快看！这个{craft_name}刷到过好多次！它是一种{craft_definition}。{evidence_fact}"
+        - "绝了！这就是陈家祠招牌{craft_name}！它是一种{craft_definition}。{evidence_fact}"
+      repeat_craft_style:
+        - "哎你看！这里也有{craft_name}，{visible_detail}超好拍的！"
+        - "又碰到了！这个{craft_name}，{visible_detail}细节巨精致！"
+        - "快拍快拍！这里的{craft_name}，{visible_detail}角度绝了！"
+        - "哇这里也有！{craft_name}的{visible_detail}也太好看了吧！"
+        - "你发现没？这处{craft_name}，{visible_detail}比刚才的更有感觉！"
+      first_ornament_intro_style:
+        - "就是这里！{observation_location}的{object_name}，网红打卡点实锤！{evidence_fact}"
+        - "快过来！{object_name}就在{observation_location}，好多人专门来拍！{evidence_fact}"
+        - "我刷到过这个！{object_name}在{observation_location}超火的！{evidence_fact}"
+        - "看那边！{observation_location}的{object_name}，拍照巨出片！{evidence_fact}"
+        - "找到啦！传说中的{object_name}，就在{observation_location}！{evidence_fact}"
+      repeat_ornament_style:
+        - "又一个打卡点！{object_name}，拍{visible_detail}超有感觉！"
+        - "哎这里也有{object_name}，换角度拍{visible_detail}更好看！"
+        - "快拍！这个{object_name}的{visible_detail}，发朋友圈必赞！"
+        - "哇又遇到了！{object_name}的{visible_detail}也太精致了吧！"
+        - "同款打卡点！{object_name}，{visible_detail}细节超耐看！"
+    - <<: *base
+    style_id: buddy_guide
+    display_name: 兄弟搭子
+    applicable_policy_conditions: [casual_male_voice]
+    vocabulary_level: general
+    sentence_length: short
+    narrative_pacing: straightforward
+    interaction_patterns: [straightforward_tip]
+    allowed_devices: [colloquial_expression, straightforward_statement]
+    prohibited_patterns: [unsupported_fact, forced_interaction, overly_literary_expression]
+    fallback_style_id: neutral
+    templates:
+      first_craft_intro_style:
+        - "哥们看这，{craft_name}，实打实的老手艺，真东西。它是一种{craft_definition}。{evidence_fact}"
+        - "咱说真的，这{craft_name}是真牛，岭南工艺的硬货。它是一种{craft_definition}。{evidence_fact}"
+        - "就盯这个，{craft_name}，整座祠堂最有东西的手艺。它是一种{craft_definition}。{evidence_fact}"
+        - "别瞎逛了，看这{craft_name}，懂的都懂。它是一种{craft_definition}。{evidence_fact}"
+        - "这{craft_name}，是真有点东西，没白来。它是一种{craft_definition}。{evidence_fact}"
+      repeat_craft_style:
+        - "这还有一处{craft_name}，{visible_detail}是亮点，别错过。"
+        - "又一个{craft_name}，重点瞅{visible_detail}，讲究得很。"
+        - "这边也有{craft_name}，{visible_detail}是真见功夫。"
+        - "看这处{craft_name}，{visible_detail}藏着细节，别走马观花。"
+        - "又碰到{craft_name}，就看{visible_detail}，别的不用纠结。"
+      first_ornament_intro_style:
+        - "看那边，{observation_location}的{object_name}，有点意思。{evidence_fact}"
+        - "{object_name}就在{observation_location}，这玩意儿真有点东西。{evidence_fact}"
+        - "往这瞅，{observation_location}的{object_name}，值得停下来看看。{evidence_fact}"
+        - "{object_name}，就在{observation_location}，老祖宗的讲究都在这了。{evidence_fact}"
+        - "就这，{observation_location}的{object_name}，来都来了得看看。{evidence_fact}"
+      repeat_ornament_style:
+        - "再看这{object_name}，{visible_detail}挺讲究的。"
+        - "这处{object_name}，{visible_detail}是精髓，别漏了。"
+        - "又一个{object_name}，{visible_detail}细节拉满。"
+        - "瞅这{object_name}，{visible_detail}是真见功力。"
+        - "同款{object_name}，重点看{visible_detail}，差别都在这。"
+    - <<: *base
+    style_id: exploration_game
+    display_name: 探秘闯关
+    applicable_policy_conditions: [game_like_exploration]
+    vocabulary_level: general
+    sentence_length: short
+    narrative_pacing: probing
+    interaction_patterns: [clue_unlock]
+    allowed_devices: [game_mechanism, clue_guidance]
+    prohibited_patterns: [unsupported_fact, forced_interaction]
+    fallback_style_id: neutral
+    templates:
+      first_craft_intro_style:
+        - "【主线线索解锁】前方发现{craft_name}！它是一种{craft_definition}。{evidence_fact}"
+        - "叮咚！触发新关卡：{craft_name}工艺探秘。它是一种{craft_definition}。{evidence_fact}"
+        - "恭喜获得核心线索：{craft_name}。它是一种{craft_definition}。{evidence_fact}"
+        - "探索进度更新：已解锁核心工艺{craft_name}。它是一种{craft_definition}。{evidence_fact}"
+        - "【第一关目标达成】解锁{craft_name}工艺全貌。它是一种{craft_definition}。{evidence_fact}"
+      repeat_craft_style:
+        - "【支线线索触发】转角发现{craft_name}，关键细节藏在{visible_detail}。"
+        - "隐藏彩蛋！这处{craft_name}的秘密，就在{visible_detail}里。"
+        - "额外线索掉落：{craft_name}，找找{visible_detail}的不同。"
+        - "探索分支开启：这处{craft_name}，重点观察{visible_detail}。"
+        - "【隐藏细节】又遇{craft_name}，{visible_detail}是解谜关键。"
+      first_ornament_intro_style:
+        - "【隐藏点位发现】{object_name}就在{observation_location}！{evidence_fact}"
+        - "成就解锁：发现隐秘宝物{object_name}，位于{observation_location}。{evidence_fact}"
+        - "寻宝进度+1：{observation_location}处的{object_name}已定位。{evidence_fact}"
+        - "【秘境入口】{object_name}静立在{observation_location}。{evidence_fact}"
+        - "恭喜触发隐藏剧情：{observation_location}的{object_name}。{evidence_fact}"
+      repeat_ornament_style:
+        - "【彩蛋解锁】再遇{object_name}，谜底藏在{visible_detail}之中。"
+        - "线索碎片+1：{object_name}的{visible_detail}藏着新信息。"
+        - "隐藏关卡触发：{object_name}的{visible_detail}另有玄机。"
+        - "二次探索发现：{object_name}的{visible_detail}，别漏掉。"
+        - "【解谜提示】同款{object_name}，对照{visible_detail}寻找答案。"
+   - <<: *base
+    style_id: photo_guide
+    display_name: 打卡出片
+    applicable_policy_conditions: [photo_oriented]
+    vocabulary_level: general
+    sentence_length: short
+    narrative_pacing: brisk
+    interaction_patterns: [photo_spot_hint]
+    allowed_devices: [photo_tip, highlight_summary]
+    prohibited_patterns: [unsupported_fact, forced_interaction]
+    fallback_style_id: neutral
+    templates:
+      first_craft_intro_style:
+        - "朋友圈封神级点位！{craft_name}，随手拍都出片。它是一种{craft_definition}。{evidence_fact}"
+        - "小红书爆款工艺！{craft_name}，来陈家祠必拍。它是一种{craft_definition}。{evidence_fact}"
+        - "出片率100%！这处{craft_name}是公认的拍照王者。它是一种{craft_definition}。{evidence_fact}"
+        - "流量密码找到了！{craft_name}，发圈必赞。它是一种{craft_definition}。{evidence_fact}"
+        - "经典永流传！{craft_name}，百年不变的出片担当。它是一种{craft_definition}。{evidence_fact}"
+      repeat_craft_style:
+        - "小众机位预警！这处{craft_name}，怼近拍{visible_detail}质感拉满。"
+        - "第二取景位！{craft_name}，聚焦{visible_detail}拍特写超有feel。"
+        - "别只拍全景！这处{craft_name}，{visible_detail}的细节图更高级。"
+        - "又一出片点{craft_name}，把{visible_detail}当前景拍绝了。"
+        - "仰拍视角试试！这处{craft_name}，{visible_detail}做主体更震撼。"
+      first_ornament_intro_style:
+        - "王牌打卡点！{object_name}位于{observation_location}，来都来了必须拍。{evidence_fact}"
+        - "标志性出片位！{observation_location}的{object_name}，人手一张同款。{evidence_fact}"
+        - "找对位置了！{object_name}就在{observation_location}，正脸拍最出片。{evidence_fact}"
+        - "朋友圈封面级素材！{object_name}，坐落在{observation_location}。{evidence_fact}"
+        - "经典永不过时！{observation_location}的{object_name}，百年打卡地标。{evidence_fact}"
+      repeat_ornament_style:
+        - "换个角度拍！这处{object_name}，侧拍{visible_detail}更有氛围感。"
+        - "小众拍法解锁！{object_name}，把{visible_detail}放画面边缘更高级。"
+        - "光影绝佳位！同款{object_name}，对准{visible_detail}拍细节超有质感。"
+        - "别只拍正面！这处{object_name}，{visible_detail}的局部图更有故事感。"
+        - "构图小技巧：{object_name}，以{visible_detail}为中心拍对称感绝了。"
+  - <<: *base
+    style_id: hostel_scholar
+    display_name: 祠中宿生
+    applicable_policy_conditions: [historical_immersive]
+    vocabulary_level: formal
+    sentence_length: medium
+    narrative_pacing: gentle
+    craft_explanation_style: personal_perspective_then_fact
+    interaction_patterns: []
+    allowed_devices: [first_person_narration, historical_perspective]
+    prohibited_patterns: [unsupported_fact, forced_interaction, modern_slang]
+    fallback_style_id: neutral
+    templates:
+      first_craft_intro_style:
+        - "晚生赴省城乡试，寄居祠中苦读半载，日日抬眼便见这{craft_name}，实为岭南匠人之绝技。它是一种{craft_definition}。{evidence_fact}"
+        - "寒窗苦读之余，常于廊下凭栏赏这{craft_name}，只觉匠心独运，令人叹服。它是一种{craft_definition}。{evidence_fact}"
+        - "此{craft_name}，晚生寄居祠中日日得见，每观之皆觉古人技艺之精妙，受益匪浅。它是一种{craft_definition}。{evidence_fact}"
+        - "忆初来祠中备考，抬眼初见这{craft_name}，便惊为天工。它是一种{craft_definition}。{evidence_fact}"
+        - "夜读归寝常经此处，这{craft_name}伴晚生度过数载寒窗。它是一种{craft_definition}。{evidence_fact}"
+      repeat_craft_style:
+        - "转过廊檐又见此{craft_name}，昔日秉烛夜读时常凭栏凝望，可细观{visible_detail}，方知匠人心思之巧。"
+        - "踱步经此复见{craft_name}，往日读书闲暇常驻足细看，可细品{visible_detail}之妙。"
+        - "转角再遇{craft_name}，晚生往日常于此沉吟踱步，可观{visible_detail}之精巧。"
+        - "行至此处又见{craft_name}，昔年温书之余常临赏，{visible_detail}处最见功力。"
+        - "复睹此{craft_name}，恍如昨日寒窗光景，可细察{visible_detail}，品匠人匠心。"
+      first_ornament_intro_style:
+        - "这{object_name}静立于{observation_location}，晚生当年常在此处就着晨光温书，每每见之都觉心神安定。{evidence_fact}"
+        - "{object_name}立于{observation_location}，晚生备考时常于旁诵读经史，只觉心静神明。{evidence_fact}"
+        - "位于{observation_location}的{object_name}，晚生寄居时日日经过，倍感亲切，如逢旧识。{evidence_fact}"
+        - "此{object_name}坐落于{observation_location}，晚生当年常在此处默书，抬眼便见。{evidence_fact}"
+        - "{observation_location}的{object_name}，是晚生寄居时最爱的歇脚处，常驻足凝望。{evidence_fact}"
+      repeat_ornament_style:
+        - "再睹{object_name}，风骨一如往昔，对照{visible_detail}细细品赏，更觉工艺之精妙入微。"
+        - "复见{object_name}，恍如昨日寒窗光景，细观{visible_detail}，愈觉匠人之用心。"
+        - "又遇{object_name}，可对照{visible_detail}，细品其中古韵与匠人心思。"
+        - "行过又见{object_name}，昔日常于此流连，{visible_detail}处最见精巧。"
+        - "重见{object_name}，一如当年模样，可细赏{visible_detail}，品岁月沉淀之美。"
+    - <<: *base
+    style_id: xiguan_young_master
+    display_name: 西关少爷（粤语）
+    applicable_policy_conditions: [cantonese_casual_elegant]
+    vocabulary_level: colloquial
+    sentence_length: short
+    narrative_pacing: casual
+    interaction_patterns: []
+    allowed_devices: [cantonese_colloquial, casual_elegant_tone]
+    prohibited_patterns: [unsupported_fact, forced_interaction, formal_terminology]
+    fallback_style_id: neutral
+    templates:
+      first_craft_intro_style:
+        - "睇真啲，呢个就系大名鼎鼎嘅{craft_name}。细个跟阿爷嚟拜祠堂，成日围住佢睇。佢系一种{craft_definition}。{evidence_fact}"
+        - "冇走宝啊，呢个{craft_name}先系陈家祠嘅精髓。识睇嘅老广，第一时间就睇呢度。佢系一种{craft_definition}。{evidence_fact}"
+        - "讲起呢个{craft_name}，我细个听到大。佢系一种{craft_definition}。{evidence_fact}"
+        - "唔使周围睇，呢个{craft_name}先系硬货。佢系一种{craft_definition}。{evidence_fact}"
+        - "呢样{craft_name}，先叫真正嘅岭南手艺。佢系一种{craft_definition}。{evidence_fact}"
+      repeat_craft_style:
+        - "呢度都有{craft_name}㗎，识睇嘅一定盯实{visible_detail}，先叫睇到嘢。"
+        - "又见到{craft_name}，重点睇{visible_detail}就够晒，其他都系陪衬。"
+        - "呢处都有{craft_name}，{visible_detail}先系真正嘅门道。"
+        - "转过弯又有{craft_name}，你睇{visible_detail}，就知匠人工夫够唔够。"
+        - "呢度嘅{craft_name}，{visible_detail}最考手艺，好多人睇极都唔明。"
+      first_ornament_intro_style:
+        - "{object_name}就喺{observation_location}，嚟陈家祠呢个位一定要打卡，唔好走宝。{evidence_fact}"
+        - "睇下，{observation_location}嘅{object_name}，先叫经典。细个嚟到必影相。{evidence_fact}"
+        - "{object_name}喺{observation_location}，识睇嘅人一定会停低。{evidence_fact}"
+        - "就呢度，{observation_location}嘅{object_name}，成座祠堂最有睇头就系佢。{evidence_fact}"
+        - "{object_name}位于{observation_location}，嚟过陈家祠嘅，冇人唔识呢件嘢。{evidence_fact}"
+      repeat_ornament_style:
+        - "又见到{object_name}，{visible_detail}呢个细节好多人都走宝。"
+        - "呢处{object_name}，{visible_detail}先系识睇嘅人会留意嘅。"
+        - "再睇呢个{object_name}，{visible_detail}处最见功夫。"
+        - "又遇到{object_name}，你睇真啲{visible_detail}，同之前嘅唔同㗎。"
+        - "呢件{object_name}，{visible_detail}嘅讲究，冇人讲你睇十年都唔知。"
+    - <<: *base
+    style_id: cantonese_storyteller
+    display_name: 粤派讲古（粤语）
+    applicable_policy_conditions: [cantonese_storytelling]
+    vocabulary_level: colloquial
+    sentence_length: medium
+    narrative_pacing: rhythmic
+    interaction_patterns: []
+    allowed_devices: [cantonese_storytelling_tone, rhetorical_expression]
+    prohibited_patterns: [unsupported_fact, forced_interaction]
+    fallback_style_id: neutral
+    templates:
+      first_craft_intro_style:
+        - "啪一声醒木定场！各位看官且看，眼前呢样{craft_name}，背后藏住一段岭南匠人的传奇。佢系一种{craft_definition}。{evidence_fact}"
+        - "各位看官留神！呢个{craft_name}，讲起身大有来头，三日三夜都讲唔完。佢系一种{craft_definition}。{evidence_fact}"
+        - "话说当年岭南匠人辈出，呢样{craft_name}，就系其中的巅峰之作。佢系一种{craft_definition}。{evidence_fact}"
+        - "讲到岭南工艺，就唔可以唔提呢个{craft_name}，背后有段古仔。佢系一种{craft_definition}。{evidence_fact}"
+        - "且看眼前呢件{craft_name}，你道佢有几玄妙？且听我慢慢道来。佢系一种{craft_definition}。{evidence_fact}"
+      repeat_craft_style:
+        - "话口未完，转角又见{craft_name}！其中玄机奥妙，就藏喺{visible_detail}之中，睇你嘅眼力够唔够。"
+        - "话音未落，又遇{craft_name}，估下佢嘅秘密，就喺{visible_detail}入面。"
+        - "正讲住，又见到呢处{craft_name}，{visible_detail}入面，藏住唔少匠人嘅心思。"
+        - "转过廊檐，又见{craft_name}，其中嘅讲究，全喺{visible_detail}之中。"
+        - "话时话，呢度都有{craft_name}，{visible_detail}处，大有文章。"
+      first_ornament_intro_style:
+        - "讲到呢件{object_name}，就喺{observation_location}，今日就同大家讲下佢嘅古仔。{evidence_fact}"
+        - "睇下{observation_location}呢件{object_name}，背后嘅古仔，讲三日都讲唔完。{evidence_fact}"
+        - "各位且看，喺{observation_location}呢件{object_name}，有段鲜为人知嘅典故。{evidence_fact}"
+        - "提起{object_name}，就喺{observation_location}，真系有段古仔要讲。{evidence_fact}"
+        - "呢个{object_name}，静立喺{observation_location}，背后藏住一段岭南往事。{evidence_fact}"
+      repeat_ornament_style:
+        - "再睇呢个{object_name}，正所谓细节见真章，{visible_detail}入面，藏住唔少老祖宗嘅讲究。"
+        - "又见到{object_name}，你估唔到，{visible_detail}入面，藏住一段古。"
+        - "再品呢件{object_name}，{visible_detail}处，大有文章，大有讲究。"
+        - "复见呢件{object_name}，{visible_detail}之中，暗藏匠人的巧思。"
+        - "转角再遇{object_name}，{visible_detail}嘅细节，越睇越有味道。"
+  
