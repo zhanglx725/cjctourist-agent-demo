@@ -6,8 +6,9 @@
 #
 # 必须同步修改：
 # 1. narration_style_policy.py
-#    - 将新 style_id 加入完整风格集合校验；
-#    - 在 compile_narration_style() 中定义它由哪些 GuidancePolicy 条件选中；
+#    - 基础安全风格仍必须完整；新增风格会由 schema、唯一 ID 和 fallback 引用校验；
+#    - 如 style_id 与 GuidancePolicy.narrative_mode 同名，可直接确定性选中；
+#      需要特殊优先级时，再在 compile_narration_style() 中增加显式条件；
 #    - 未命中或非法输入仍必须确定性回退 neutral。
 # 2. profile_dialogue.py（如果允许游客在定制模式主动选择该风格）
 #    - 在 STYLE_ALIASES 中加入稳定画像值及窄范围别名；
@@ -34,6 +35,8 @@
 # - templates 必须完整包含以下四个键：
 #   first_craft_intro_style、repeat_craft_style、
 #   first_ornament_intro_style、repeat_ornament_style。
+# - 每个模板键可以填写一个字符串，也可以填写非空字符串列表；列表会根据风格、
+#   模板位置和事实槽位确定性选句，同一讲解输入不会随机漂移。
 # - 模板只允许使用以下占位符：craft_name、craft_definition、object_name、
 #   observation_location、visible_detail、evidence_fact。
 # - 模板中不得写具体陈家祠事实、来源编号、source_ids、文件路径或 URL。
@@ -126,7 +129,7 @@ styles:
     sentence_length: medium
     narrative_pacing: layered
     allowed_devices: [optional_deepening]
-    - <<: *base
+  - <<: *base
     style_id: dominant_ceo
     display_name: 霸道总裁
     applicable_policy_conditions: [dominant_narrative]
@@ -162,7 +165,7 @@ styles:
         - "{object_name}的亮点，全集中在{visible_detail}。"
         - "别错过{object_name}的{visible_detail}，我只提一次。"
         - "同款{object_name}，核心就看{visible_detail}。"
-    - <<: *base
+  - <<: *base
     style_id: cute_junior
     display_name: 奶气学弟
     applicable_policy_conditions: [cute_interactive]
@@ -198,7 +201,7 @@ styles:
         - "哇又遇到了！{object_name}的{visible_detail}超可爱的！"
         - "快看！这里也有{object_name}，{visible_detail}好特别～"
         - "又见面啦～{object_name}的{visible_detail}也太好看了吧！"
-    - <<: *base
+  - <<: *base
     style_id: ancient_scholar
     display_name: 古风书生
     applicable_policy_conditions: [classical_narrative]
@@ -236,7 +239,7 @@ styles:
         - "再见此{object_name}，不妨细看{visible_detail}的细微之妙。"
         - "此处复现{object_name}，{visible_detail}处别有一番意趣。"
 
-    - <<: *base
+  - <<: *base
     style_id: warm_sister
     display_name: 知心姐姐
     applicable_policy_conditions: [warm_guidance]
@@ -272,7 +275,7 @@ styles:
         - "这里的{object_name}也很有味道，{visible_detail}处的细节很耐品。"
         - "同款{object_name}，可以留意下{visible_detail}，和之前的略有不同哦。"
         - "再睹这{object_name}，{visible_detail}的设计，越看越觉得用心。"
-    - <<: *base
+  - <<: *base
     style_id: bestie_chat
     display_name: 闺蜜唠嗑
     applicable_policy_conditions: [casual_chat_style]
@@ -286,10 +289,10 @@ styles:
     templates:
       first_craft_intro_style:
         - "姐妹快来看！这就是超有名的{craft_name}！它是一种{craft_definition}。{evidence_fact}"
-        - "我跟你说，这个{craft_name}来陈家祠必看！它是一种{craft_definition}。{evidence_fact}"
+        - "我跟你说，这个{craft_name}来到这里很值得看！它是一种{craft_definition}。{evidence_fact}"
         - "天呐终于见到实物了！传说中的{craft_name}！它是一种{craft_definition}。{evidence_fact}"
         - "快看快看！这个{craft_name}刷到过好多次！它是一种{craft_definition}。{evidence_fact}"
-        - "绝了！这就是陈家祠招牌{craft_name}！它是一种{craft_definition}。{evidence_fact}"
+        - "绝了！这就是这里很有代表性的{craft_name}！它是一种{craft_definition}。{evidence_fact}"
       repeat_craft_style:
         - "哎你看！这里也有{craft_name}，{visible_detail}超好拍的！"
         - "又碰到了！这个{craft_name}，{visible_detail}细节巨精致！"
@@ -308,7 +311,7 @@ styles:
         - "快拍！这个{object_name}的{visible_detail}，发朋友圈必赞！"
         - "哇又遇到了！{object_name}的{visible_detail}也太精致了吧！"
         - "同款打卡点！{object_name}，{visible_detail}细节超耐看！"
-    - <<: *base
+  - <<: *base
     style_id: buddy_guide
     display_name: 兄弟搭子
     applicable_policy_conditions: [casual_male_voice]
@@ -344,7 +347,7 @@ styles:
         - "又一个{object_name}，{visible_detail}细节拉满。"
         - "瞅这{object_name}，{visible_detail}是真见功力。"
         - "同款{object_name}，重点看{visible_detail}，差别都在这。"
-    - <<: *base
+  - <<: *base
     style_id: exploration_game
     display_name: 探秘闯关
     applicable_policy_conditions: [game_like_exploration]
@@ -380,7 +383,7 @@ styles:
         - "隐藏关卡触发：{object_name}的{visible_detail}另有玄机。"
         - "二次探索发现：{object_name}的{visible_detail}，别漏掉。"
         - "【解谜提示】同款{object_name}，对照{visible_detail}寻找答案。"
-   - <<: *base
+  - <<: *base
     style_id: photo_guide
     display_name: 打卡出片
     applicable_policy_conditions: [photo_oriented]
@@ -394,7 +397,7 @@ styles:
     templates:
       first_craft_intro_style:
         - "朋友圈封神级点位！{craft_name}，随手拍都出片。它是一种{craft_definition}。{evidence_fact}"
-        - "小红书爆款工艺！{craft_name}，来陈家祠必拍。它是一种{craft_definition}。{evidence_fact}"
+        - "很适合记录的工艺！{craft_name}，来到这里可以留意。它是一种{craft_definition}。{evidence_fact}"
         - "出片率100%！这处{craft_name}是公认的拍照王者。它是一种{craft_definition}。{evidence_fact}"
         - "流量密码找到了！{craft_name}，发圈必赞。它是一种{craft_definition}。{evidence_fact}"
         - "经典永流传！{craft_name}，百年不变的出片担当。它是一种{craft_definition}。{evidence_fact}"
@@ -453,7 +456,7 @@ styles:
         - "又遇{object_name}，可对照{visible_detail}，细品其中古韵与匠人心思。"
         - "行过又见{object_name}，昔日常于此流连，{visible_detail}处最见精巧。"
         - "重见{object_name}，一如当年模样，可细赏{visible_detail}，品岁月沉淀之美。"
-    - <<: *base
+  - <<: *base
     style_id: xiguan_young_master
     display_name: 西关少爷（粤语）
     applicable_policy_conditions: [cantonese_casual_elegant]
@@ -467,7 +470,7 @@ styles:
     templates:
       first_craft_intro_style:
         - "睇真啲，呢个就系大名鼎鼎嘅{craft_name}。细个跟阿爷嚟拜祠堂，成日围住佢睇。佢系一种{craft_definition}。{evidence_fact}"
-        - "冇走宝啊，呢个{craft_name}先系陈家祠嘅精髓。识睇嘅老广，第一时间就睇呢度。佢系一种{craft_definition}。{evidence_fact}"
+        - "冇走宝啊，呢个{craft_name}好值得细睇。识睇嘅老广，第一时间就睇呢度。佢系一种{craft_definition}。{evidence_fact}"
         - "讲起呢个{craft_name}，我细个听到大。佢系一种{craft_definition}。{evidence_fact}"
         - "唔使周围睇，呢个{craft_name}先系硬货。佢系一种{craft_definition}。{evidence_fact}"
         - "呢样{craft_name}，先叫真正嘅岭南手艺。佢系一种{craft_definition}。{evidence_fact}"
@@ -478,18 +481,18 @@ styles:
         - "转过弯又有{craft_name}，你睇{visible_detail}，就知匠人工夫够唔够。"
         - "呢度嘅{craft_name}，{visible_detail}最考手艺，好多人睇极都唔明。"
       first_ornament_intro_style:
-        - "{object_name}就喺{observation_location}，嚟陈家祠呢个位一定要打卡，唔好走宝。{evidence_fact}"
+        - "{object_name}就喺{observation_location}，嚟到呢个位可以停低细睇，唔好走宝。{evidence_fact}"
         - "睇下，{observation_location}嘅{object_name}，先叫经典。细个嚟到必影相。{evidence_fact}"
         - "{object_name}喺{observation_location}，识睇嘅人一定会停低。{evidence_fact}"
         - "就呢度，{observation_location}嘅{object_name}，成座祠堂最有睇头就系佢。{evidence_fact}"
-        - "{object_name}位于{observation_location}，嚟过陈家祠嘅，冇人唔识呢件嘢。{evidence_fact}"
+        - "{object_name}位于{observation_location}，行到呢度可以停低睇清楚。{evidence_fact}"
       repeat_ornament_style:
         - "又见到{object_name}，{visible_detail}呢个细节好多人都走宝。"
         - "呢处{object_name}，{visible_detail}先系识睇嘅人会留意嘅。"
         - "再睇呢个{object_name}，{visible_detail}处最见功夫。"
         - "又遇到{object_name}，你睇真啲{visible_detail}，同之前嘅唔同㗎。"
         - "呢件{object_name}，{visible_detail}嘅讲究，冇人讲你睇十年都唔知。"
-    - <<: *base
+  - <<: *base
     style_id: cantonese_storyteller
     display_name: 粤派讲古（粤语）
     applicable_policy_conditions: [cantonese_storytelling]
@@ -525,4 +528,3 @@ styles:
         - "再品呢件{object_name}，{visible_detail}处，大有文章，大有讲究。"
         - "复见呢件{object_name}，{visible_detail}之中，暗藏匠人的巧思。"
         - "转角再遇{object_name}，{visible_detail}嘅细节，越睇越有味道。"
-  

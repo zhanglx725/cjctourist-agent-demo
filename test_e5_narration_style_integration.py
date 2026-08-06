@@ -93,6 +93,14 @@ class NarrationStyleIntegrationTests(unittest.TestCase):
         self.assertEqual(self.program.to_dict(), before_program)
         self.assertEqual(self.bundle.to_dict(), before_bundle)
 
+    def test_named_multi_template_style_renders_deterministically(self):
+        first = self._render(explanation_style="ancient_scholar")
+        second = self._render(explanation_style="ancient_scholar")
+        self.assertEqual(first.style_id, "ancient_scholar")
+        self.assertFalse(first.style_fallback_used)
+        self.assertEqual(first.visitor_message, second.visitor_message)
+        self._assert_fact_equivalent(self._render(), first)
+
 
 if __name__ == "__main__":
     unittest.main()

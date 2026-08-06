@@ -52,6 +52,23 @@ STYLE_ALIASES = {
     "interactive": ("互动", "问答"),
     "expert": ("专家", "专业"),
     "standard": ("标准", "自然", "普通"),
+    "neutral": ("中性清晰", "中性"),
+    "child": ("儿童友好", "儿童"),
+    "family": ("亲子共游", "亲子"),
+    "student_research": ("研学观察", "研学"),
+    "listen_only": ("静听模式", "静听"),
+    "mixed_group": ("混合群体", "混合团体"),
+    "dominant_ceo": ("霸道总裁", "总裁"),
+    "cute_junior": ("奶气学弟", "学弟"),
+    "ancient_scholar": ("古风书生", "书生"),
+    "warm_sister": ("知心姐姐", "姐姐"),
+    "bestie_chat": ("闺蜜唠嗑", "闺蜜"),
+    "buddy_guide": ("兄弟搭子", "搭子"),
+    "exploration_game": ("探秘闯关", "闯关"),
+    "photo_guide": ("打卡出片", "打卡"),
+    "hostel_scholar": ("祠中宿生", "宿生"),
+    "xiguan_young_master": ("西关少爷",),
+    "cantonese_storyteller": ("粤派讲古", "粤语讲古"),
 }
 EXPLICIT_STYLE_PHRASES = {
     "story": ("故事风格", "故事讲解风格", "叙事风格", "故事方式", "叙事方式"),
@@ -59,8 +76,30 @@ EXPLICIT_STYLE_PHRASES = {
     "interactive": ("互动风格", "互动讲解风格", "互动问答风格", "问答风格", "互动方式"),
     "expert": ("专家风格", "专家讲解风格", "专家方式", "专业风格", "专业讲解风格", "专业方式"),
     "standard": ("标准风格", "标准讲解风格", "自然风格", "普通风格"),
+    "neutral": ("中性清晰风格", "中性讲解风格"),
+    "child": ("儿童友好风格", "儿童友好讲解风格"),
+    "family": ("亲子共游风格", "亲子讲解风格"),
+    "student_research": ("研学观察风格", "研学讲解风格"),
+    "listen_only": ("静听模式", "静听讲解风格"),
+    "mixed_group": ("混合群体风格", "混合团体讲解风格"),
+    "dominant_ceo": ("霸道总裁风格", "霸道总裁讲解风格"),
+    "cute_junior": ("奶气学弟风格", "奶气学弟讲解风格"),
+    "ancient_scholar": ("古风书生风格", "古风书生讲解风格"),
+    "warm_sister": ("知心姐姐风格", "知心姐姐讲解风格"),
+    "bestie_chat": ("闺蜜唠嗑风格", "闺蜜讲解风格"),
+    "buddy_guide": ("兄弟搭子风格", "搭子讲解风格"),
+    "exploration_game": ("探秘闯关风格", "闯关讲解风格"),
+    "photo_guide": ("打卡出片风格", "打卡讲解风格"),
+    "hostel_scholar": ("祠中宿生风格", "祠中宿生讲解风格"),
+    "xiguan_young_master": ("西关少爷风格", "西关少爷讲解风格"),
+    "cantonese_storyteller": ("粤派讲古风格", "粤派讲古讲解风格", "粤语讲古风格"),
 }
-UNSUPPORTED_STYLE_PHRASES = ("儿童友好讲解风格", "抽象讲解风格")
+UNSUPPORTED_STYLE_PHRASES = ("抽象讲解风格",)
+STYLE_CHOICE_HELP = (
+    "标准、故事、技术、互动、专家，或中性清晰、儿童友好、亲子共游、研学观察、"
+    "静听模式、混合群体、霸道总裁、奶气学弟、古风书生、知心姐姐、闺蜜唠嗑、"
+    "兄弟搭子、探秘闯关、打卡出片、祠中宿生、西关少爷、粤派讲古"
+)
 
 
 class ProfileDialogueError(ValueError):
@@ -179,7 +218,7 @@ def _prompt(field: str) -> str:
         "available_minutes": "您有多少分钟可用于游览？例如“30分钟”。",
         "interests": "您更想看什么？例如“灰塑和木雕”；如果没有特别偏好，可以说“都可以”。",
         "detail_level": "您希望怎样讲解？可说“简单讲讲”“标准讲解”或“想深入学习”。",
-        "explanation_style": "您喜欢哪种讲解风格？可输入“标准、故事、技术、互动或专家”，也可以说“跳过”。",
+        "explanation_style": f"您喜欢哪种讲解风格？可输入“{STYLE_CHOICE_HELP}”，也可以说“跳过”。",
         "language": "您需要哪种讲解语言？例如中文、英语、韩语，也可以输入其他语言或说“跳过”。",
     }[field]
 
@@ -219,9 +258,9 @@ def _style_request_issue(text: str) -> str | None:
         phrase for phrase in UNSUPPORTED_STYLE_PHRASES if phrase in text
     }
     if len(supported) + len(unsupported) > 1:
-        return "讲解风格包含多个不同选择，请只选择标准、故事、技术、互动或专家中的一种。"
+        return f"讲解风格包含多个不同选择，请只选择“{STYLE_CHOICE_HELP}”中的一种。"
     if unsupported:
-        return "暂不支持该讲解风格，请选择标准、故事、技术、互动或专家中的一种。"
+        return f"暂不支持该讲解风格，请选择“{STYLE_CHOICE_HELP}”中的一种。"
     return None
 
 

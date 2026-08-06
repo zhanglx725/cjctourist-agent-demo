@@ -12,6 +12,9 @@ STYLE_SCHEMA_VERSION = "narration_style_v1"
 REQUIRED = frozenset(("schema_version", "style_id", "display_name", "applicable_policy_conditions", "vocabulary_level", "sentence_length", "narrative_pacing", "craft_explanation_style", "ornament_explanation_style", "interaction_patterns", "observation_prompt_patterns", "allowed_devices", "prohibited_patterns", "fallback_style_id", "templates"))
 TEMPLATE_KEYS = frozenset(("first_craft_intro_style", "repeat_craft_style", "first_ornament_intro_style", "repeat_ornament_style"))
 PLACEHOLDERS = frozenset(("craft_name", "craft_definition", "object_name", "observation_location", "visible_detail", "evidence_fact"))
+REQUIRED_BASE_STYLES = frozenset(
+    {"neutral", "child", "family", "student_research", "professional", "listen_only", "mixed_group"}
+)
 _TOKEN = re.compile(r"\{([a-z_]+)\}")
 
 @dataclass(frozen=True)
@@ -28,7 +31,7 @@ class NarrationStylePolicy:
     allowed_devices: tuple[str, ...]
     prohibited_patterns: tuple[str, ...]
     fallback_style_id: str
-    templates: dict[str, str]
+    templates: dict[str, str | tuple[str, ...]]
 
 def _validate(raw: dict[str, Any]) -> None:
     missing = REQUIRED - raw.keys()
@@ -37,12 +40,18 @@ def _validate(raw: dict[str, Any]) -> None:
     templates = raw["templates"]
     if not isinstance(templates, dict) or set(templates) != TEMPLATE_KEYS:
         raise ValueError("invalid narration style templates")
+    normalized_templates: list[str] = []
     for value in templates.values():
-        if not isinstance(value, str) or re.search(r"\bS\d+\b|source_ids|陈家祠", value):
-            raise ValueError("template contains forbidden facts or source identifiers")
-        if not set(_TOKEN.findall(value)).issubset(PLACEHOLDERS):
-            raise ValueError("template contains invalid placeholder")
-    if raw["style_id"] == "listen_only" and any("?" in x or "？" in x for x in templates.values()):
+        candidates = [value] if isinstance(value, str) else value
+        if not isinstance(candidates, list) or not candidates or not all(isinstance(item, str) and item.strip() for item in candidates):
+            raise ValueError("narration style templates must be a string or a non-empty string list")
+        for candidate in candidates:
+            if re.search(r"\bS\d+\b|source_ids|陈家祠", candidate):
+                raise ValueError("template contains forbidden facts or source identifiers")
+            if not set(_TOKEN.findall(candidate)).issubset(PLACEHOLDERS):
+                raise ValueError("template contains invalid placeholder")
+            normalized_templates.append(candidate)
+    if raw["style_id"] == "listen_only" and any("?" in x or "？" in x for x in normalized_templates):
         raise ValueError("listen_only templates cannot ask questions")
 
 def _load_all() -> dict[str, NarrationStylePolicy]:
@@ -55,9 +64,21 @@ def _load_all() -> dict[str, NarrationStylePolicy]:
             _validate(raw)
             style_id = raw["style_id"]
             if style_id in result: raise ValueError("duplicate style id")
-            result[style_id] = NarrationStylePolicy(**{k: (tuple(v) if isinstance(v, list) else v) for k, v in raw.items() if k != "schema_version" and k != "applicable_policy_conditions"})
-        if set(result) != {"neutral", "child", "family", "student_research", "professional", "listen_only", "mixed_group"}:
+            normalized = {
+                k: (tuple(v) if isinstance(v, list) else v)
+                for k, v in raw.items()
+                if k != "schema_version" and k != "applicable_policy_conditions"
+            }
+            normalized["templates"] = {
+                key: tuple(value) if isinstance(value, list) else value
+                for key, value in raw["templates"].items()
+            }
+            result[style_id] = NarrationStylePolicy(**normalized)
+        if not REQUIRED_BASE_STYLES.issubset(result):
             raise ValueError("incomplete style set")
+        for style in result.values():
+            if style.fallback_style_id not in result:
+                raise ValueError(f"unknown fallback style: {style.fallback_style_id}")
         return result
     except (OSError, yaml.YAMLError, KeyError, TypeError) as exc:
         raise ValueError("narration style library unavailable") from exc
@@ -71,6 +92,7 @@ def compile_narration_style(policy: GuidancePolicy) -> NarrationStylePolicy:
     elif policy.audience_mode == "study": key = "student_research"
     elif policy.audience_mode == "mixed_group": key = "mixed_group"
     elif policy.knowledge_level == "professional" or policy.narrative_mode in {"technical", "expert"}: key = "professional"
+    elif policy.narrative_mode in styles: key = policy.narrative_mode
     else: key = "neutral"
     return styles.get(key, styles["neutral"])
 

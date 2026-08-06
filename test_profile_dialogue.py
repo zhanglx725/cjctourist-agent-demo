@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from profile_dialogue import collect_profile_input
+from profile_dialogue import collect_profile_input, extract_profile_patch
 
 
 class ProfileDialogueTests(unittest.TestCase):
@@ -96,6 +96,28 @@ class ProfileDialogueTests(unittest.TestCase):
         self.assertEqual(saved["interaction_mode"], "normal")
         for field in ("visitor_type", "language", "photo_preference", "accessibility_need"):
             self.assertNotIn(field, saved)
+
+    def test_new_approved_style_names_are_parsed_without_polluting_interests(self):
+        cases = {
+            "我想要霸道总裁讲解风格": "dominant_ceo",
+            "选择古风书生风格": "ancient_scholar",
+            "用探秘闯关风格讲解": "exploration_game",
+            "我喜欢打卡出片风格": "photo_guide",
+            "请用粤派讲古风格": "cantonese_storyteller",
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                patch, fields, issue = extract_profile_patch(text)
+                self.assertIsNone(issue)
+                self.assertEqual(patch.get("explanation_style"), expected)
+                self.assertIn("explanation_style", fields)
+                self.assertNotIn("interests", patch)
+
+    def test_new_style_conflict_requires_clarification(self):
+        patch, fields, issue = extract_profile_patch("选择古风书生风格和打卡出片风格")
+        self.assertEqual(patch, {})
+        self.assertEqual(fields, set())
+        self.assertIn("多个不同选择", issue or "")
 
 
 if __name__ == "__main__":
