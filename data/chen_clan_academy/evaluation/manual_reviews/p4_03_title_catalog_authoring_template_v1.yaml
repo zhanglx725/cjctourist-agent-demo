@@ -1,5 +1,6 @@
-# P4-03 人工称号库填写模板
+# P4-03 人工称号库填写模板（合并版）
 #
+<<<<<<< Updated upstream
 # 填写规则：
 # 1. 不要修改 category_id；它必须与 post_visit_award.py 中的稳定 ID 对应。
 # 2. 每个 candidate_id 在整个文件中必须唯一，建议使用小写英文和下划线。
@@ -10,9 +11,25 @@
 # 7. 暂无翻译时将对应字段保留为空字符串，不要使用机器生成内容冒充人工审核译文。
 # 8. candidates 的文件顺序就是未来同类别“换一个称号”的冻结轮换顺序；已上线
 #    后调整顺序必须提升 catalog_version，不得依赖随机抽取或 API 自由生成。
+=======
+# 合并说明：
+# 1. 本文件将 classic（正经文雅）与 playful（互动玩味）两份草稿合并到同一份文件。
+# 2. 每个 category 内部排序：1 个 approved default → classic drafts → playful drafts。
+# 3. classic 与 playful 中只有 1 处 candidate_id 冲突（route_finisher_no_skip），
+#    playful 的同名条目已重命名为 route_finisher_no_skip_team 加以区分。
+# 4. 其它规则与单版本一致：
+#    - 不要修改 category_id；它必须与 post_visit_award.py 中的稳定 ID 对应。
+#    - 每个 candidate_id 在整个文件中必须唯一。
+#    - title_zh 建议为 4～8 个汉字，不得暗示官方认证、能力评级或身份认定。
+#    - reason_template 与 blessing_template 只能引用 allowed_placeholders 中的变量。
+#    - 新条目先保持 review_status: draft；人工审核通过后改为 approved。
+#    - enabled 仅能在 review_status: approved 后设为 true。
+#    - 暂无翻译时将对应字段保留为空字符串，不要使用机器生成内容冒充人工审核译文。
+# 5. 总候选 48 个：6 approved + 42 draft（classic 23 + playful 19）。
+>>>>>>> Stashed changes
 
 schema_version: post_visit_title_catalog_authoring_v1
-catalog_version: "0.1.0-draft"
+catalog_version: "0.4.0-merged-draft"
 locale_default: zh-CN
 
 global_policy:
@@ -53,13 +70,92 @@ categories:
         reviewed_by: existing_policy_v1
         reviewed_at: "2026-08-05"
         enabled: true
-      - candidate_id: fill_unique_id_here
-        title_zh: 待填写
+      # ----- classic drafts -----
+      - candidate_id: curious_explorer_inquisitive
+        title_zh: 追问问真人
         title_en: ""
         title_ko: ""
-        reason_template_zh: ""
-        blessing_template_zh: ""
-        cultural_note: ""
+        reason_template_zh: 本次游览中提出了 {question_count} 次认真追问。
+        blessing_template_zh: 愿这些愿意多问一句的勇气，陪你看见更多藏在檐角与花窗里的细节。
+        cultural_note: 追问问真只描述主动提问的行为，不评价游客知识水平。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: curious_explorer_detail_seeker
+        title_zh: 步步寻微者
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 本次游览中提出了 {question_count} 次问题，常从小处入手。
+        blessing_template_zh: 愿你愿意在细节处停留的习惯，继续打开更多岭南工艺的层次。
+        cultural_note: 寻微指关注细微处，只描述提问行为，不涉及能力评价。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: curious_explorer_under_eaves
+        title_zh: 檐下问艺人
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 本次游览中提出了 {question_count} 次与建筑或工艺相关的问题。
+        blessing_template_zh: 愿这些问出来的细节，慢慢帮你拼出陈家祠的完整模样。
+        cultural_note: 檐下点出陈家祠的建筑场景，不涉及专业水平评价。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: curious_explorer_brick_tile
+        title_zh: 砖瓦问声人
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 本次游览中提出了 {question_count} 次问题，关注点常落在砖雕与瓦脊之上。
+        blessing_template_zh: 愿你的好奇心继续把那些不太显眼的砖瓦故事慢慢点亮。
+        cultural_note: 砖瓦指陈家祠常见装饰载体，仅作为提问兴趣的描述。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      # ----- playful drafts -----
+      - candidate_id: curious_explorer_stump_guides
+        title_zh: 问倒讲解员
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 本次游览中提出了 {question_count} 次认真追问。
+        blessing_template_zh: 下次再来记得带上更刁钻的小问题，看我们还能不能接住。
+        cultural_note: 用夸张的"问倒"营造互动氛围，只描述提问行为，不评价知识水平。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: curious_explorer_why_kid
+        title_zh: 十万个为什么
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 本次游览中提出了 {question_count} 次问题。
+        blessing_template_zh: 愿你这份爱问为什么的劲头，一直陪着你认识世界。
+        cultural_note: 借用网络流行语，意指爱问问题，不涉及能力评价。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: curious_explorer_brick_fairy
+        title_zh: 砖缝里的好奇精
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 本次游览中提出了 {question_count} 次问题，关注点常落在最不起眼的小地方。
+        blessing_template_zh: 愿你这份对细微处的好奇，继续带你发现藏在砖缝里的故事。
+        cultural_note: 借好奇精的俏皮说法，只描述提问行为，无能力评价含义。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: curious_explorer_question_belly
+        title_zh: 满肚子小问号
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 本次游览中提出了 {question_count} 次问题。
+        blessing_template_zh: 愿你这个小问号收集者，以后看到老建筑都忍不住多问两句。
+        cultural_note: 小问号是可爱化口语表述，不涉及能力评价。
         review_status: draft
         reviewed_by: ""
         reviewed_at: ""
@@ -75,18 +171,86 @@ categories:
         title_ko: ""
         reason_template_zh: 实际讲解覆盖了你关注的内容：{matched_interests}。
         blessing_template_zh: 愿今天遇见的工艺细节，成为你继续认识岭南文化的一扇窗。
-        cultural_note: “知艺”表示关注和欣赏，不代表专业资质。
+        cultural_note: 知艺表示关注和欣赏，不代表专业水平。
         review_status: approved
         reviewed_by: existing_policy_v1
         reviewed_at: "2026-08-05"
         enabled: true
-      - candidate_id: fill_unique_id_here_2
-        title_zh: 待填写
+      # ----- classic drafts -----
+      - candidate_id: interest_connoisseur_appreciator
+        title_zh: 岭南赏艺客
         title_en: ""
         title_ko: ""
-        reason_template_zh: ""
-        blessing_template_zh: ""
-        cultural_note: ""
+        reason_template_zh: 实际讲解覆盖了你关注的内容：{matched_interests}。
+        blessing_template_zh: 愿今天欣赏到的工艺，继续作为你认识岭南的一扇小窗。
+        cultural_note: 赏艺强调欣赏行为，不涉及专业能力评价。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: interest_connoisseur_carved_beam
+        title_zh: 雕梁识趣人
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 实际讲解覆盖了你关注的内容：{matched_interests}。
+        blessing_template_zh: 愿你在雕梁画栋之间发现的趣味，日后还能继续被想起。
+        cultural_note: 雕梁指陈家祠木雕构件，只描述兴趣点不涉及专业评价。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: interest_connoisseur_plaster
+        title_zh: 灰塑共鸣者
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 实际讲解覆盖了你关注的内容：{matched_interests}。
+        blessing_template_zh: 愿这份对灰塑的共鸣，陪你继续留意屋脊与墙楣上少有人驻足的颜色。
+        cultural_note: 灰塑是陈家祠代表工艺之一，仅作为兴趣点描述。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: interest_connoisseur_brick_tile
+        title_zh: 砖瓦知音客
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 实际讲解覆盖了你关注的内容：{matched_interests}。
+        blessing_template_zh: 愿这份对砖瓦工艺的共鸣，陪你继续在别处也留意这些不张扬的细节。
+        cultural_note: 知音指兴趣上的共鸣，不代表专业水平。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      # ----- playful drafts -----
+      - candidate_id: interest_connoisseur_class_rep
+        title_zh: 雕花课代表
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 实际讲解覆盖了你关注的内容：{matched_interests}。
+        blessing_template_zh: 课代表请就位——下次来我们再给你讲讲雕花背后的八卦。
+        cultural_note: 用学生时代课代表的称呼，营造亲近互动感，不涉及能力评价。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: interest_connoisseur_plaster_fan
+        title_zh: 灰塑同好客
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 实际讲解覆盖了你关注的内容：{matched_interests}。
+        blessing_template_zh: 欢迎加入灰塑同好会，愿你以后在别处看见灰塑都忍不住多看两眼。
+        cultural_note: 同好表示兴趣上的共鸣，不代表专业水平。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: interest_connoisseur_lingnan_club
+        title_zh: 岭南工艺同好会
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 实际讲解覆盖了你关注的内容：{matched_interests}。
+        blessing_template_zh: 入会通过，欢迎常回来串门，看看新展新讲解。
+        cultural_note: 同好会是兴趣社团的口语化称谓，非官方组织。
         review_status: draft
         reviewed_by: ""
         reviewed_at: ""
@@ -102,18 +266,86 @@ categories:
         title_ko: ""
         reason_template_zh: 本次成功讲解覆盖了多类工艺与题材：{introduced_crafts}、{introduced_topics}。
         blessing_template_zh: 愿不同工艺与题材留下的印象，在离开后仍能慢慢展开。
-        cultural_note: “百艺”是趣味概括，不表示准确数量为一百。
+        cultural_note: 百艺是趣味概括，不表示准确数量为一百。
         review_status: approved
         reviewed_by: existing_policy_v1
         reviewed_at: "2026-08-05"
         enabled: true
-      - candidate_id: fill_unique_id_here_3
-        title_zh: 待填写
+      # ----- classic drafts -----
+      - candidate_id: many_arts_wanderer_craft_hopper
+        title_zh: 工艺串门人
         title_en: ""
         title_ko: ""
-        reason_template_zh: ""
-        blessing_template_zh: ""
-        cultural_note: ""
+        reason_template_zh: 本次成功讲解覆盖了多类工艺与题材：{introduced_crafts}、{introduced_topics}。
+        blessing_template_zh: 愿在不同工艺之间串门的好奇，让你下次回来还能认得每一处老朋友。
+        cultural_note: 串门是口语化趣味说法，不涉及数量或专业能力评价。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: many_arts_wanderer_collector
+        title_zh: 岭南工艺集览人
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 本次成功讲解覆盖了多类工艺与题材：{introduced_crafts}、{introduced_topics}。
+        blessing_template_zh: 愿这些一次性遇见的多种工艺，慢慢沉淀为你关于岭南的一份私人清单。
+        cultural_note: 集览指多类工艺的欣赏，不代表专业鉴赏。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: many_arts_wanderer_trail
+        title_zh: 雕塑彩绘行路人
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 本次成功讲解覆盖了多类工艺与题材：{introduced_crafts}、{introduced_topics}。
+        blessing_template_zh: 愿木雕、砖雕、石雕、灰塑、彩绘留下的印象，在你离开后还能慢慢拼起来。
+        cultural_note: 列举陈家祠常见工艺大类，仅作为描述用语。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: many_arts_wanderer_visitor
+        title_zh: 多艺漫游客
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 本次成功讲解覆盖了多类工艺与题材：{introduced_crafts}、{introduced_topics}。
+        blessing_template_zh: 愿这些在不同工艺之间漫游的印象，成为你日后讲述陈家祠时的几个画面。
+        cultural_note: 多艺为趣味概括，不代表具体数量。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      # ----- playful drafts -----
+      - candidate_id: many_arts_wanderer_stamp_collector
+        title_zh: 集章式观光客
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 本次成功讲解覆盖了多类工艺与题材：{introduced_crafts}、{introduced_topics}。
+        blessing_template_zh: 今天的章都集齐啦，下次再来要不要挑战一下别的路线？
+        cultural_note: 借用集章打卡的现代说法，只描述覆盖了多类工艺。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: many_arts_wanderer_checkin_king
+        title_zh: 工艺打卡王
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 本次成功讲解覆盖了多类工艺与题材：{introduced_crafts}、{introduced_topics}。
+        blessing_template_zh: 你的陈家祠工艺地图，今天又多了好几个新坐标。
+        cultural_note: 打卡王是现代互动式称呼，只描述覆盖了多类工艺。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: many_arts_wanderer_lingnan_blossom
+        title_zh: 一日看尽岭南花
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 本次成功讲解覆盖了多类工艺与题材：{introduced_crafts}、{introduced_topics}。
+        blessing_template_zh: 愿你今天看到的岭南繁花，回去之后还能慢慢回味。
+        cultural_note: 化用一日看尽长安花句式作趣味概括，不暗示数量。
         review_status: draft
         reviewed_by: ""
         reviewed_at: ""
@@ -134,13 +366,81 @@ categories:
         reviewed_by: existing_policy_v1
         reviewed_at: "2026-08-05"
         enabled: true
-      - candidate_id: fill_unique_id_here_4
-        title_zh: 待填写
+      # ----- classic drafts -----
+      - candidate_id: story_tracer_collector
+        title_zh: 故事收藏客
         title_en: ""
         title_ko: ""
-        reason_template_zh: ""
-        blessing_template_zh: ""
-        cultural_note: ""
+        reason_template_zh: 选择了故事风格，并听到了这些题材：{introduced_topics}。
+        blessing_template_zh: 愿今天听到的故事，继续成为你日后给朋友讲起陈家祠时的小素材。
+        cultural_note: 收藏为趣味说法，只描述对故事的兴趣。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: story_tracer_under_eaves
+        title_zh: 檐下听史人
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 选择了故事风格，并听到了这些题材：{introduced_topics}。
+        blessing_template_zh: 愿这些在檐下听来的故事，慢慢拼出你对这片土地更立体的印象。
+        cultural_note: 檐下指陈家祠建筑空间，听史指听故事，均不含能力评价。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: story_tracer_beam_listener
+        title_zh: 雕梁听古人
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 选择了故事风格，并听到了这些题材：{introduced_topics}。
+        blessing_template_zh: 愿雕梁上听到的那些古人古事，在你下一次走进展馆时仍能被认出来。
+        cultural_note: 古人指题材里出现的历史人物，仅为描述用语。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: story_tracer_brick_carving
+        title_zh: 砖雕故事客
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 选择了故事风格，并听到了这些题材：{introduced_topics}。
+        blessing_template_zh: 愿这些从砖雕里走出来的故事，成为你以后再看老建筑时多看两眼的理由。
+        cultural_note: 描述对砖雕故事的兴趣，不涉及专业水平评价。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      # ----- playful drafts -----
+      - candidate_id: story_tracer_cantonese_collector
+        title_zh: 古仔收藏家
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 选择了故事风格，并听到了这些题材：{introduced_topics}。
+        blessing_template_zh: 欢迎你这位古仔收藏家，下次来我们再给你讲几个新古仔。
+        cultural_note: 古仔是粤语中故事的口语说法，贴近岭南地域文化。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: story_tracer_beam_club
+        title_zh: 雕梁故事会会员
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 选择了故事风格，并听到了这些题材：{introduced_topics}。
+        blessing_template_zh: 会员请就坐，今天的雕梁故事就讲到这里，下回再续。
+        cultural_note: 故事会是民间曲艺形式，借用作趣味社团称谓。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: story_tracer_roof_listener
+        title_zh: 屋顶听书人
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 选择了故事风格，并听到了这些题材：{introduced_topics}。
+        blessing_template_zh: 愿这些在屋顶听来的故事，陪你以后也能慢慢讲给朋友听。
+        cultural_note: 屋顶取陈家祠屋顶建筑与灰塑场景，听书为传统说书术语。
         review_status: draft
         reviewed_by: ""
         reviewed_at: ""
@@ -161,13 +461,81 @@ categories:
         reviewed_by: existing_policy_v1
         reviewed_at: "2026-08-05"
         enabled: true
-      - candidate_id: fill_unique_id_here_5
-        title_zh: 待填写
+      # ----- classic drafts -----
+      - candidate_id: route_finisher_complete_walker
+        title_zh: 全程行旅人
         title_en: ""
         title_ko: ""
-        reason_template_zh: ""
-        blessing_template_zh: ""
-        cultural_note: ""
+        reason_template_zh: 按本轮记录完成了全部路线，共确认参观 {visited_stop_count} 个讲解点。
+        blessing_template_zh: 愿这一程完整的走完，为陈家祠在你心里留下一张完整的地图。
+        cultural_note: 全程只描述本次路线完成情况，不作能力评价。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: route_finisher_full_chen
+        title_zh: 陈家祠全程客
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 按本轮记录完成了全部路线，共确认参观 {visited_stop_count} 个讲解点。
+        blessing_template_zh: 愿这次完整的行程，成为你下次来时一处可以随意跳回的小据点。
+        cultural_note: 强调本次完整行程，不暗示对陈家祠的熟悉度。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: route_finisher_no_skip
+        title_zh: 一程不落客
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 按本轮记录完成了全部路线，共确认参观 {visited_stop_count} 个讲解点。
+        blessing_template_zh: 愿一程不落的踏实，让你以后再看别的老建筑时也能保持这份耐心。
+        cultural_note: 一程不落仅描述路线完成情况，不涉及能力评价。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: route_finisher_ancestral_hall
+        title_zh: 祠堂行旅纪念者
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 按本轮记录完成了全部路线，共确认参观 {visited_stop_count} 个讲解点。
+        blessing_template_zh: 愿这次完整走完的一程，日后能成为你谈起陈家祠时清晰可指的一段路。
+        cultural_note: 行旅纪念仅指本次完整行程的纪念性记录。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      # ----- playful drafts -----
+      - candidate_id: route_finisher_checkin_champion
+        title_zh: 走完全程的打卡王
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 按本轮记录完成了全部路线，共确认参观 {visited_stop_count} 个讲解点。
+        blessing_template_zh: 恭喜你这位打卡王，你的坚持值得这枚小小纪念章。
+        cultural_note: 打卡王借用现代互动说法，只描述完成全部路线的事实。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: route_finisher_full_attendance
+        title_zh: 满勤观光客
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 按本轮记录完成了全部路线，共确认参观 {visited_stop_count} 个讲解点。
+        blessing_template_zh: 满勤！这份专注的劲头，以后去看别的展也一样能成。
+        cultural_note: 满勤借用上班打卡的积极说法，不涉及能力评价。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: route_finisher_no_skip_team
+        title_zh: 一程不落队
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 按本轮记录完成了全部路线，共确认参观 {visited_stop_count} 个讲解点。
+        blessing_template_zh: 队尾不掉、队头不抢，你这一程走得稳，值得给自己鼓个掌。
+        cultural_note: 不落队是队伍行进中的口语表达，只描述全程完成。id 末尾 _team 用以与 classic 版的一程不落客区分。
         review_status: draft
         reviewed_by: ""
         reviewed_at: ""
@@ -188,13 +556,70 @@ categories:
         reviewed_by: existing_policy_v1
         reviewed_at: "2026-08-05"
         enabled: true
-      - candidate_id: fill_unique_id_here_6
-        title_zh: 待填写
+      # ----- classic drafts -----
+      - candidate_id: mindful_visitor_chen_visitor
+        title_zh: 陈家祠访客
         title_en: ""
         title_ko: ""
-        reason_template_zh: ""
-        blessing_template_zh: ""
-        cultural_note: ""
+        reason_template_zh: 依据本轮可审计的实际参观记录授予中性纪念称号。
+        blessing_template_zh: 愿今天的到访，为你留下一份不重不轻的岭南印象。
+        cultural_note: 最基础的中性访客称谓，适合所有未命中其他规则的场景。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: mindful_visitor_lingnan_pause
+        title_zh: 岭南驻足客
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 依据本轮可审计的实际参观记录授予中性纪念称号。
+        blessing_template_zh: 愿这份短暂的驻足，日后能在你心里慢慢铺开。
+        cultural_note: 驻足强调驻留时间短也可，适用于所有基础场景。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: mindful_visitor_quiet_observer
+        title_zh: 静观岭南人
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 依据本轮可审计的实际参观记录授予中性纪念称号。
+        blessing_template_zh: 愿今天安静旁观的一点印象，在以后某天突然被你想起来。
+        cultural_note: 静观指偏安静的参观方式，中性回退称谓。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      # ----- playful drafts -----
+      - candidate_id: mindful_visitor_slow_pace
+        title_zh: 慢逛派观光客
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 依据本轮可审计的实际参观记录授予中性纪念称号。
+        blessing_template_zh: 慢逛派的快乐，只有慢下来的人才懂。下次来记得再慢一点。
+        cultural_note: 慢逛派是网络化派系说法，适用于所有参观节奏温和的游客。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: mindful_visitor_regular
+        title_zh: 陈家祠常客
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 依据本轮可审计的实际参观记录授予中性纪念称号。
+        blessing_template_zh: 老朋友，下次再来的时候，记得跟我们打个招呼。
+        cultural_note: 常客是日常亲切称呼，中性回退。
+        review_status: draft
+        reviewed_by: ""
+        reviewed_at: ""
+        enabled: false
+      - candidate_id: mindful_visitor_leisurely
+        title_zh: 闲游岭南人
+        title_en: ""
+        title_ko: ""
+        reason_template_zh: 依据本轮可审计的实际参观记录授予中性纪念称号。
+        blessing_template_zh: 闲游才是正经事，愿你今天的小小驻足，日后能一直记得。
+        cultural_note: 闲游是中性偏积极的描述，无能力评价含义。
         review_status: draft
         reviewed_by: ""
         reviewed_at: ""
