@@ -97,7 +97,7 @@ def _not_requested(reason: str = "no_role_request") -> RoleModeShadowResolution:
         candidate_style_ids=(),
         confidence=0.0,
         source="none",
-        applicability={"surfaces": ["stop_guidance_shadow"]},
+        applicability={"surfaces": ["route_planning_shadow", "route_opening_shadow", "stop_guidance_shadow"]},
         presentation_strategy={},
         reason_codes=(reason,),
     )
@@ -110,7 +110,10 @@ def _clarification(reason: str, candidates: tuple[str, ...] = ()) -> RoleModeSha
         candidate_style_ids=candidates,
         confidence=0.0,
         source="conflict",
-        applicability={"surfaces": ["stop_guidance_shadow"], "requires_user_choice": True},
+        applicability={
+            "surfaces": ["route_planning_shadow", "route_opening_shadow", "stop_guidance_shadow"],
+            "requires_user_choice": True,
+        },
         presentation_strategy={},
         reason_codes=(reason,),
     )
@@ -124,7 +127,7 @@ def _selected(style_id: str, *, source: str, confidence: float) -> RoleModeShado
         confidence=confidence,
         source=source,
         applicability={
-            "surfaces": ["stop_guidance_shadow"],
+            "surfaces": ["route_planning_shadow", "route_opening_shadow", "stop_guidance_shadow"],
             "facts": "approved_plan_only",
             "state_mutation": False,
         },

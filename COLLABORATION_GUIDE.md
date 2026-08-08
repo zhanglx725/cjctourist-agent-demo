@@ -1,5 +1,14 @@
 # CURRENT ROLE SHADOW HANDOFF (2026-08-09)
 
+## Route/opening role-text Shadow boundary
+
+`route_planning` and `route_opening` may append only a separate Shadow audit
+record. The candidate contains a reviewed role lead-in plus the full legacy
+public message; validation rejects any schema, route/fact/safety, budget,
+internal-field or role-boundary drift. Do not connect this candidate to
+visitor output or operational state. Verified tests: role-text 22/22, P0 18/18;
+full regression remains 1053/1058 with the known five baseline failures.
+
 ```text
 role_schema: fixed
 role_shadow: implemented_and_automated_verified

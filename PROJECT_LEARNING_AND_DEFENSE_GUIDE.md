@@ -1,5 +1,16 @@
 # CURRENT ROLE SHADOW LEARNING NOTE (2026-08-09)
 
+## Route/opening role-text Shadow: why preserve the complete legacy message
+
+Route descriptions contain coupled facts: the selected route, time budget,
+stop order, first stop and site-safety caveats. The Shadow candidate therefore
+uses the complete deterministic legacy public message as its immutable body
+and can add only a reviewed role-specific lead-in. The validator checks exact
+body preservation, public-output safety, role rules and the existing budget.
+This gives a measurable role-expression candidate without granting it route,
+fact, state or final-message authority. Automated evidence is 22/22 role-text
+tests and 18/18 P0 tests; Active takeover remains disabled.
+
 The three-role Shadow layer is a bounded presentation experiment, not a new
 agent authority. Deterministic code selects only reviewed role IDs from an
 explicit request or validated profile. The model receives the approved

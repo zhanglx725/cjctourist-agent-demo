@@ -1,5 +1,26 @@
 # CURRENT ROLE SHADOW STATUS (2026-08-09)
 
+## Route planning and opening role-text Shadow
+
+`route_planning` and `route_opening` now produce a separate non-authoritative
+role-text candidate audit when `role_narration` and
+`presentation_content_plan` are both in Shadow mode. The candidate preserves
+the complete deterministic legacy message verbatim and may add only a
+reviewed role lead-in. Validation fails closed on schema, route/fact/safety,
+budget, public-output, or role-boundary violations; it never changes the
+visitor message or operational state.
+
+```text
+route_planning_role_text_shadow: implemented_and_verified
+route_opening_role_text_shadow: implemented_and_verified
+navigation_role_text_shadow: not_started
+tour_closing_role_text_shadow: not_started
+active_takeover: disabled
+role_text_targeted_tests: 22/22 passed
+p0_role_text_tests: 18/18 passed
+full_regression: 1053/1058 (five known baseline failures only)
+```
+
 ```text
 role_schema: fixed
 role_shadow: implemented_and_automated_verified

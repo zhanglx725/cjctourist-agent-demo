@@ -1,5 +1,22 @@
 # CURRENT PHASE: ROLE MODE SHADOW (2026-08-09)
 
+## Route planning and opening role-text Shadow
+
+The completed deterministic `route_planning` and `route_opening` messages are
+now audited as non-authoritative role-text candidates. Every accepted
+candidate preserves the old message in full, so route facts, timing, order and
+safety text cannot drift. Candidates never replace visitor output and write no
+TourState, VisitorProfile, route, proposal or StopProgram data.
+
+```text
+route_planning_role_text_shadow: implemented_and_verified
+route_opening_role_text_shadow: implemented_and_verified
+role_text_targeted_tests: 22/22 passed
+p0_role_text_tests: 18/18 passed
+full_regression: 1053/1058 (five preexisting failures)
+active_takeover: disabled
+```
+
 ```text
 role_schema: fixed
 role_shadow: implemented_and_automated_verified

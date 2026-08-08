@@ -127,6 +127,10 @@ from role_narration_generation import (
 )
 from role_mode_shadow import ROLE_MODE_IDS, resolve_role_mode
 from presentation_content_plan import build_presentation_content_plan
+from route_role_narration_shadow import (
+    build_route_role_text_candidate,
+    validate_route_role_text_candidate,
+)
 from narration_validation import validate_role_narration
 from state_transition_adapter import dry_run_transition
 from policy_gate import evaluate_policy
@@ -282,6 +286,10 @@ class AgentState(TypedDict, total=False):
     role_narration_evaluations: list[dict[str, Any]]
     presentation_content_plan: dict[str, Any] | None
     presentation_content_plan_evaluations: list[dict[str, Any]]
+    # Route planning/opening role text is Shadow-only. It is kept separately
+    # from point narration because its deterministic fact boundary is the
+    # completed legacy route/opening message, not a StopProgram.
+    route_role_narration_evaluations: list[dict[str, Any]]
     # Active-only two-phase Coverage input. It is never passed to the model or
     # rendered to visitors and is cleared by commit or fallback in this turn.
     pending_role_narration_commit: dict[str, Any] | None
@@ -1399,11 +1407,17 @@ def tour_opening_node(state: AgentState, config: RunnableConfig = None) -> dict[
         and not audit.get("idempotent")
     ):
         opening_state = {**state, **updates}
+        plan_updates = _presentation_content_plan_shadow_update(
+            opening_state,
+            config,
+            scene_kind="route_opening",
+        )
+        updates.update(plan_updates)
         updates.update(
-            _presentation_content_plan_shadow_update(
+            _route_role_narration_shadow_update(
                 opening_state,
                 config,
-                scene_kind="route_opening",
+                presentation_plan=plan_updates.get("presentation_content_plan"),
             )
         )
     return updates
@@ -3279,12 +3293,64 @@ def _presentation_content_plan_shadow_update(
     }
 
 
+def _route_role_narration_shadow_update(
+    state: AgentState,
+    config: RunnableConfig | None,
+    *,
+    presentation_plan: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Audit one non-authoritative route/opening role-text candidate.
+
+    This intentionally has no model invocation, tool call, or operational
+    state write.  The candidate can only add a reviewed role lead-in before
+    the complete deterministic legacy response, which makes all route facts,
+    timings, ordering, and safety language mechanically comparable.
+    """
+    rollout = rollout_from_environment()
+    if not rollout.observes(ROLE_NARRATION):
+        return {}
+    latest = state.get("messages", [])[-1] if state.get("messages") else None
+    legacy_text = str(latest.content or "") if isinstance(latest, AIMessage) else ""
+    plan = presentation_plan or state.get("presentation_content_plan")
+    scene_kind = str(plan.get("scene_kind") or "unknown") if isinstance(plan, dict) else "unknown"
+    role_mode = str(plan.get("role_mode") or "standard") if isinstance(plan, dict) else "standard"
+    candidate = (
+        build_route_role_text_candidate(
+            scene_kind=scene_kind, role_mode=role_mode, legacy_text=legacy_text,
+        )
+        if scene_kind in {"route_planning", "route_opening"} and legacy_text
+        else None
+    )
+    validation = validate_route_role_text_candidate(
+        candidate, plan=plan, legacy_text=legacy_text,
+    )
+    record = {
+        "thread_id": _rollout_thread_id(config),
+        "capability": ROLE_NARRATION,
+        "mode": "shadow",
+        "active_takeover": False,
+        **validation,
+    }
+    return {
+        "route_role_narration_evaluations": [
+            *state.get("route_role_narration_evaluations", []), record
+        ][-20:],
+    }
+
+
 def atomic_read_plan_shadow_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """Append a P2-01 audit candidate after the legacy response, never execute it."""
     rollout = rollout_from_environment()
     updates: dict[str, Any] = {}
     if rollout.observes(PRESENTATION_CONTENT_PLAN):
         updates.update(_presentation_content_plan_shadow_update(state, config))
+        plan = updates.get("presentation_content_plan")
+        if isinstance(plan, dict) and plan.get("scene_kind") == "route_planning":
+            updates.update(
+                _route_role_narration_shadow_update(
+                    state, config, presentation_plan=plan,
+                )
+            )
     if not rollout.observes(ATOMIC_READ_PLAN):
         return updates
     result = observe_atomic_read_intents(_latest_human_text(state), phase=RuntimePhase.PRE_TOUR)
