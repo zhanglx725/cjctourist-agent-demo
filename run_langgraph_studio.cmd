@@ -12,5 +12,12 @@ call .venv\Scripts\activate.bat
 
 echo Starting LangGraph local server...
 echo When the server reports ready, open:
-echo https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024
-langgraph dev
+echo https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2034
+
+rem Open the current LangSmith Studio after the local server has had time to start.
+start "LangGraph server" cmd /k "langgraph dev --port 2034"
+timeout /t 5 /nobreak >nul
+start "LangSmith Studio" "https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2034"
+
+echo LangGraph is running on http://127.0.0.1:2034
+echo Close the server window to stop it.
