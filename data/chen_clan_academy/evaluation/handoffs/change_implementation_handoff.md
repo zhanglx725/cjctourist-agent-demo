@@ -236,7 +236,7 @@ CJC_ROLE_NARRATION_TEST_FAILURE=timeout
 ```text
 invalid_candidate_schema: fixed
 automated_validation: partial_due_to_preexisting_failures
-role_shadow: not started
+role_shadow: implemented_and_automated_verified
 active: disabled
 ```
 

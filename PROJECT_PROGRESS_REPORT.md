@@ -1,3 +1,33 @@
+# CURRENT PHASE: ROLE MODE SHADOW (2026-08-09)
+
+```text
+role_schema: fixed
+role_shadow: implemented_and_automated_verified
+active: disabled
+automated_validation: partial_due_to_preexisting_failures
+role_shadow_targeted_tests: 22/22 passed
+full_regression: 1038/1043
+p0_matrix: passed
+```
+
+Implemented `role_mode_shadow.py` and its Graph bridge. It reads only explicit
+role requests or existing validated profile values, supports the three reviewed
+roles (`ancient_scholar`, `child`, `listen_only`), records confidence,
+applicability and presentation strategy, and fails closed for unknown or
+conflicting roles. Role selection only changes the non-authoritative Shadow
+plan; old visitor output and operational state remain authoritative.
+
+The five baseline failures were reproduced identically on the parent and role
+Schema commits and remain preexisting. They are not being fixed here:
+
+```text
+test_same_thread_retains_profile_but_new_thread_isolated
+test_english_minute_route_input_starts_same_thirty_minute_route
+test_title_basis_combines_heard_topics_questions_and_explicit_profile
+test_two_hour_woodcarving_deep_request_uses_route_planner
+test_two_hour_woodcarving_request_replans_from_active_tour
+```
+
 # 陈家祠金牌导游 Agent：现阶段技术进度与业务逻辑说明
 
 ## 角色候选 Schema Phase 1 复核（2026-08-09）
@@ -14,7 +44,7 @@
 ```text
 invalid_candidate_schema: fixed
 automated_validation: partial_due_to_preexisting_failures
-role_shadow: not started
+role_shadow: implemented_and_automated_verified
 active: disabled
 ```
 

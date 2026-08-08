@@ -6,7 +6,7 @@ import os
 import json
 import re
 import time
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -124,6 +124,7 @@ from role_narration_generation import (
     generate_role_narration,
     role_narration_candidate_from_dict,
 )
+from role_mode_shadow import ROLE_MODE_IDS, resolve_role_mode
 from narration_validation import validate_role_narration
 from state_transition_adapter import dry_run_transition
 from policy_gate import evaluate_policy
@@ -269,6 +270,10 @@ class AgentState(TypedDict, total=False):
     # message and never submits Coverage or state writes.
     narration_composition_evaluations: list[dict[str, Any]]
     narration_content_plan: dict[str, Any] | None
+    # P3 role-mode selection audit.  This is an explicit/profile signal only;
+    # it never becomes VisitorProfile and never controls the legacy output.
+    role_mode_shadow: dict[str, Any] | None
+    role_mode_shadow_evaluations: list[dict[str, Any]]
     role_narration_candidate: dict[str, Any] | None
     narration_validation: dict[str, Any] | None
     active_role_narration_audit: dict[str, Any] | None
@@ -400,6 +405,21 @@ def _latest_human_text(state: AgentState) -> str:
         content = message.content
         return content if isinstance(content, str) else str(content)
     return ""
+
+
+def _role_mode_shadow_update(state: AgentState, user_text: str) -> dict[str, Any]:
+    """Record one bounded role selection without changing the old chain."""
+    resolution = resolve_role_mode(
+        user_text,
+        state.get("visitor_profile"),
+        state.get("role_mode_shadow"),
+    ).to_dict()
+    return {
+        "role_mode_shadow": resolution,
+        "role_mode_shadow_evaluations": [
+            *state.get("role_mode_shadow_evaluations", []), resolution,
+        ][-20:],
+    }
 
 
 def _is_onboarding_read_only_question(text: str) -> bool:
@@ -647,6 +667,7 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
     """Propose a safe control or fact normalization without executing it."""
     started = time.perf_counter()
     raw_text = _latest_user_text(state)
+    role_shadow = _role_mode_shadow_update(state, raw_text)
     deterministic_knowledge_plan = identify_controlled_knowledge_plan(raw_text)
     pre_semantic = resolve_pre_semantic_action(state, raw_text)
     if pre_semantic.consumed:
@@ -658,6 +679,7 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
             envelope, state, deterministic_route_target=pre_semantic.route_target,
         )
         return {
+            **role_shadow,
             "semantic_candidate": None,
             "semantic_arrival_audit": None,
             "semantic_control_text": None,
@@ -700,6 +722,7 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
         )
         arbitration = arbitrate_intents(envelope, state)
         return {
+            **role_shadow,
             "semantic_candidate": None,
             "semantic_arrival_audit": None,
             "semantic_control_text": None,
@@ -723,6 +746,7 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
         envelope = build_intent_envelope(raw_text, (), model_called=False)
         arbitration = arbitrate_intents(envelope, state)
         return {
+            **role_shadow,
             "semantic_candidate": None,
             "semantic_arrival_audit": None,
             "semantic_control_text": None,
@@ -796,6 +820,7 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
     envelope = build_intent_envelope(raw_text, intent_value_list, model_called=True)
     arbitration = arbitrate_intents(envelope, state)
     return {
+        **role_shadow,
         "semantic_candidate": candidate.to_dict() if candidate.actionable else None,
         "semantic_arrival_audit": _arrival_candidate_audit(candidate),
         "semantic_control_text": canonical,
@@ -2665,6 +2690,21 @@ def role_narration_generation_node(state: AgentState) -> dict[str, Any]:
     """Generate one non-authoritative candidate only in explicit Shadow mode."""
     started = time.perf_counter()
     plan = narration_content_plan_from_dict(state.get("narration_content_plan"))
+    role_mode = state.get("role_mode_shadow") or {}
+    selected_role = role_mode.get("selected_style_id")
+    if (
+        plan is not None
+        and role_mode.get("status") == "selected"
+        and selected_role in ROLE_MODE_IDS
+    ):
+        # This is an audit-only copy of the plan.  The legacy AI message and
+        # all operational state remain owned by the preceding deterministic
+        # node; only the non-authoritative candidate sees the selected role.
+        plan = replace(
+            plan,
+            style_id=selected_role,
+            interaction_allowed=selected_role != "listen_only",
+        )
     rollout = rollout_from_environment()
     if plan is None or plan.status != "ready":
         candidate = {
@@ -2673,6 +2713,14 @@ def role_narration_generation_node(state: AgentState) -> dict[str, Any]:
             "style_id": plan.style_id if plan else "neutral", "public_text": "",
             "used_fact_ids": [], "omitted_fact_ids": [], "self_check": {},
             "model_called": False, "latency_ms": 0,
+        }
+    elif role_mode.get("status") == "clarification":
+        candidate = {
+            "schema_version": "role_narration_candidate_v1",
+            "generation_status": "rejected", "reason_code": "role_mode_clarification",
+            "style_id": plan.style_id, "public_text": "", "used_fact_ids": [],
+            "omitted_fact_ids": [], "self_check": {}, "model_called": False,
+            "latency_ms": 0,
         }
     elif not (rollout.observes(ROLE_NARRATION) or rollout.enabled(ROLE_NARRATION)):
         candidate = {
@@ -2688,12 +2736,15 @@ def role_narration_generation_node(state: AgentState) -> dict[str, Any]:
             plan, brief, _invoke_role_narration_model,
         ).to_dict()
     return {
+        "narration_content_plan": plan.to_dict() if plan is not None else state.get("narration_content_plan"),
         "role_narration_candidate": candidate,
         "performance_metrics": _append_metric(
             state, "role_narration_generation", time.perf_counter() - started,
             status=candidate["generation_status"],
             model_called=candidate["model_called"],
             reason_code=candidate.get("reason_code"),
+            role_mode_status=role_mode.get("status"),
+            role_mode_style_id=selected_role,
         ),
     }
 
@@ -2716,6 +2767,10 @@ def narration_validation_node(state: AgentState, config: RunnableConfig = None) 
         ).to_dict()
     rollout = rollout_from_environment()
     active_mode = rollout.enabled(ROLE_NARRATION)
+    latest = state.get("messages", [])[-1] if state.get("messages") else None
+    legacy_text = str(latest.content or "") if isinstance(latest, AIMessage) else ""
+    candidate_text = candidate.public_text if candidate else ""
+    role_mode = state.get("role_mode_shadow") or {}
     record = {
         "thread_id": _rollout_thread_id(config),
         "capability": ROLE_NARRATION,
@@ -2723,6 +2778,11 @@ def narration_validation_node(state: AgentState, config: RunnableConfig = None) 
         "active_takeover": False,
         "model_called": bool(candidate and candidate.model_called),
         "style_id": plan.style_id if plan else None,
+        "role_mode_status": role_mode.get("status", "not_requested"),
+        "role_mode_source": role_mode.get("source", "none"),
+        "role_mode_confidence": role_mode.get("confidence", 0.0),
+        "applicability": role_mode.get("applicability", {}),
+        "presentation_strategy": role_mode.get("presentation_strategy", {}),
         "style_schema_version": "narration_style_v2",
         "candidate_fact_ids": [fact.fact_id for fact in plan.facts] if plan else [],
         "used_fact_ids": list(candidate.used_fact_ids) if candidate else [],
@@ -2731,6 +2791,13 @@ def narration_validation_node(state: AgentState, config: RunnableConfig = None) 
         "fallback_used": active_mode and validation["validation_status"] != "accepted",
         "legacy_message_preserved": True,
         "same_public_message": True,
+        "legacy_candidate_diff": {
+            "legacy_public_message_available": bool(legacy_text.strip()),
+            "candidate_public_text_available": bool(candidate_text.strip()),
+            "public_text_would_differ": bool(
+                candidate_text.strip() and candidate_text.strip() != legacy_text.strip()
+            ),
+        },
         "latency_ms": candidate.latency_ms if candidate else 0,
     }
     return {

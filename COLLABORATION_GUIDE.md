@@ -1,3 +1,22 @@
+# CURRENT ROLE SHADOW HANDOFF (2026-08-09)
+
+```text
+role_schema: fixed
+role_shadow: implemented_and_automated_verified
+active: disabled
+role_shadow_targeted_tests: 22/22 passed
+p0_matrix: passed
+```
+
+The role Shadow phase now has one deterministic selector for the three
+reviewed modes. It may record role selection and generate a candidate for
+evaluation, but it must not publish the candidate or write TourState,
+VisitorProfile, route, proposal, StopProgram, Coverage, RAG, or tool state.
+Unknown and multi-role requests must remain clarification records.
+
+The five known baseline failures are preexisting and remain a separate issue
+list; do not change their assertions while finishing role Shadow.
+
 # 陈家祠金牌导游 Agent：多人协作公共说明
 
 ## 角色候选 Schema Phase 1 共享边界（2026-08-09）

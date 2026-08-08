@@ -1,3 +1,34 @@
+# CURRENT ROLE SHADOW STATUS (2026-08-09)
+
+```text
+role_schema: fixed
+role_shadow: implemented_and_automated_verified
+active: disabled
+automated_validation: partial_due_to_preexisting_failures
+role_shadow_targeted_tests: 22/22 passed
+full_regression: 1038/1043
+p0_matrix: passed
+```
+
+The current implementation adds a deterministic, read-only role-mode shadow
+selector for `ancient_scholar`, `child`, and `listen_only`. Explicit requests
+and already-validated profile signals create an audit record; conflicts and
+unknown roles fail closed. The selected role only changes the non-authoritative
+Shadow content plan used by role narration generation. The legacy visitor
+message, TourState, VisitorProfile, route, proposal, StopProgram, Coverage,
+RAG evidence, and tools remain outside this phase.
+
+The five known baseline failures remain a separate preexisting issue list and
+must not be changed in this phase:
+
+```text
+test_same_thread_retains_profile_but_new_thread_isolated
+test_english_minute_route_input_starts_same_thirty_minute_route
+test_title_basis_combines_heard_topics_questions_and_explicit_profile
+test_two_hour_woodcarving_deep_request_uses_route_planner
+test_two_hour_woodcarving_request_replans_from_active_tour
+```
+
 # 陈家祠导游 Agent：语义路由与全流程角色化讲解改造方案
 
 ## 0. 文档目的
@@ -693,7 +724,7 @@ professional
 ~~~text
 invalid_candidate_schema: fixed
 automated_validation: partial_due_to_preexisting_failures
-role_shadow: not started
+role_shadow: implemented_and_automated_verified
 active: disabled
 ~~~
 

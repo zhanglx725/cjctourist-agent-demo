@@ -1,3 +1,23 @@
+# CURRENT ROLE SHADOW LEARNING NOTE (2026-08-09)
+
+The three-role Shadow layer is a bounded presentation experiment, not a new
+agent authority. Deterministic code selects only reviewed role IDs from an
+explicit request or validated profile. The model receives the approved
+content plan and reviewed StyleBrief; it cannot choose facts, routes, state,
+tools, or the final visitor message. A rejected or ambiguous role preserves
+the legacy explanation.
+
+```text
+role_schema: fixed
+role_shadow: implemented_and_automated_verified
+active: disabled
+role_shadow_targeted_tests: 22/22 passed
+p0_matrix: passed
+```
+
+Keep the five parent/current identical baseline failures separate from this
+phase and do not describe them as role regressions.
+
 # 陈家祠金牌导游 Agent：项目学习与答辩说明
 
 ## 角色候选 Schema Phase 1：为什么必须区分模型 wire object 和 Graph envelope（2026-08-09）
@@ -11,7 +31,7 @@
 ```text
 invalid_candidate_schema: fixed
 automated_validation: partial_due_to_preexisting_failures
-role_shadow: not started
+role_shadow: implemented_and_automated_verified
 active: disabled
 ```
 
