@@ -595,6 +595,17 @@ def classify_tour_intent(
             completion_reason,
             "我不会据此确认完成本点。请在确认已完成当前正式点位后，再明确说“完成本点”。",
         )
+    # Tentative completion language is neither a factual question nor an
+    # executable completion confirmation. Keep it out of free LLM/RAG and ask
+    # for the existing explicit confirmation phrase instead.
+    if (
+        any(marker in text for marker in ("好像", "似乎", "大概", "可能"))
+        and any(marker in text for marker in ("差不多", "看完", "结束", "逛完", "完成"))
+    ):
+        return clarification(
+            "tentative_completion_requires_confirmation",
+            "我不会据此确认完成本点。如果您已经完成当前点位，请明确说“完成本点”。",
+        )
     # A bare “完成” has no route, replan, or end-tour meaning by itself.  It
     # is allowed only in the exact already-arrived current-stop context, and
     # still goes through the existing adapter for the actual state change.

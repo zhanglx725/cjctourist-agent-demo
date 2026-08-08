@@ -7,6 +7,7 @@ from unittest.mock import patch
 from langchain_core.messages import AIMessage
 
 from agent_graph import (
+    _invoke_role_narration_model,
     deterministic_narration_fallback_node,
     narration_commit_node,
     route_after_narration_validation,
@@ -87,6 +88,15 @@ class RoleNarrationGraphTests(unittest.TestCase):
             "CJC_READ_ONLY_ROLLOUT_CAPABILITIES": "role_narration",
         }, clear=False):
             self.assertEqual(route_after_narration_validation(self.state()), "atomic_read_plan_shadow")
+
+    def test_role_failure_injection_is_isolated_from_global_model_key(self):
+        with patch.dict(os.environ, {"CJC_ROLE_NARRATION_TEST_FAILURE": "invalid_json"}, clear=False):
+            self.assertEqual(
+                _invoke_role_narration_model("ignored"), "{injected-invalid-json"
+            )
+        with patch.dict(os.environ, {"CJC_ROLE_NARRATION_TEST_FAILURE": "timeout"}, clear=False):
+            with self.assertRaises(TimeoutError):
+                _invoke_role_narration_model("ignored")
 
 
 if __name__ == "__main__":

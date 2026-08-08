@@ -190,3 +190,33 @@ C:\Users\muziw\AppData\Local\Programs\Python\Python312\python.exe
 ```
 
 现有 `.venv` 可继续使用。
+
+## 10. LangSmith 复测修复与角色故障注入
+
+针对角色候选持续出现 `invalid_candidate_schema`，角色讲解调用现改为：
+
+- 使用独立的 `ROLE_NARRATION_MAX_TOKENS`，默认 `1800`，避免完整 JSON 被全局短输出预算截断；
+- 请求 JSON object 输出；
+- Prompt 内提供与当前 `style_id`、`fact_id` 一致的合法 Schema 示例；
+- 首次输出仅在 Schema 不合法时允许一次受控修复，修复仍不可访问工具、RAG 或会话状态；
+- 修复仍失败时保持 fail-closed，并走既有确定性讲解回退。
+
+可选配置：
+
+```env
+ROLE_NARRATION_MODEL=deepseek-chat
+ROLE_NARRATION_MAX_TOKENS=1800
+```
+
+角色专用故障注入仅用于独立测试环境，不要修改全局 `DEEPSEEK_API_KEY`：
+
+```env
+CJC_ROLE_NARRATION_TEST_FAILURE=timeout
+# 或 invalid_json / invalid_schema
+```
+
+未设置或留空即正常调用角色模型。该开关只影响角色讲解生成，不影响语义识别、普通问答或其他模型节点。
+
+低置信度完成表达（例如“这个地方好像差不多了吧”）现在确定性进入 `clarification`，不再进入自由 `llm_think/RAG`。确定性路线请求也会写入可审计的 `semantic_intent_envelope.candidates`，但不会因此新增模型调用或直接写 TourState。
+
+本轮扩展回归 116 项全部通过。全量回归共 1031 项，其中 1026 项通过；其余 5 项与上一轮已确认的基线失败完全一致，不是本轮修改引入。

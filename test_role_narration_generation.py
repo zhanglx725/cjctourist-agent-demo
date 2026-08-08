@@ -67,6 +67,17 @@ class RoleNarrationGenerationTests(unittest.TestCase):
         self.assertEqual(value.generation_status, "rejected")
         self.assertTrue(value.model_called)
 
+    def test_invalid_first_schema_gets_one_bounded_repair(self):
+        plan = self.plan()
+        brief = compile_style_brief(plan.style_id)
+        outputs = iter([
+            '{"unexpected":true}',
+            self.response(plan.style_id, "诸位且看，屋脊可见灰塑。"),
+        ])
+        value = generate_role_narration(plan, brief, lambda _: next(outputs))
+        self.assertEqual(value.generation_status, "generated")
+        self.assertEqual(value.used_fact_ids, ("craft:灰塑",))
+
 
 if __name__ == "__main__":
     unittest.main()

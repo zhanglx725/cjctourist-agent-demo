@@ -53,6 +53,19 @@ def role_narration_prompt(plan: NarrationContentPlan, brief: StyleBrief) -> str:
         "style_brief": brief.to_dict(),
         "content_plan": plan.to_dict(),
     }
+    first_fact = plan.facts[0] if plan.facts else None
+    shape_example = {
+        "schema_version": CANDIDATE_SCHEMA_VERSION,
+        "style_id": plan.style_id,
+        "public_text": first_fact.statement if first_fact else "",
+        "used_fact_ids": [first_fact.fact_id] if first_fact else [],
+        "omitted_fact_ids": [fact.fact_id for fact in plan.facts[1:]],
+        "self_check": {
+            "added_new_facts": False,
+            "role_consistent": True,
+            "within_budget": True,
+        },
+    }
     return """你是受控的导游表达实现器，不是事实检索器，也不是路线控制器。
 只能使用输入 content_plan.facts 中的事实。每条 statement 必须逐字原样出现在 public_text 中；
 你可以调整事实顺序，并添加简短的角色化称呼、开场、连接和收束，但不得新增人物、年代、
@@ -62,7 +75,11 @@ def role_narration_prompt(plan: NarrationContentPlan, brief: StyleBrief) -> str:
 输出严格的一行 JSON，且只能包含：schema_version、style_id、public_text、used_fact_ids、
 omitted_fact_ids、self_check。schema_version 必须为 role_narration_candidate_v1。
 self_check 只能包含 added_new_facts、role_consistent、within_budget 三个布尔值。
-不要输出 Markdown 代码块。输入如下：\n""" + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+不要输出 Markdown 代码块。合法输出形状示例：\n""" + json.dumps(
+        shape_example, ensure_ascii=False, separators=(",", ":")
+    ) + "\n输入如下：\n" + json.dumps(
+        payload, ensure_ascii=False, separators=(",", ":")
+    )
 
 
 def _decode(value: str) -> Mapping[str, Any] | None:
@@ -127,13 +144,39 @@ def generate_role_narration(
     if plan.status != "ready" or brief.style_id != plan.style_id:
         return _failed(plan.style_id, "plan_or_style_not_ready")
     started = time.perf_counter()
+    prompt = role_narration_prompt(plan, brief)
     try:
-        raw = invoke_model(role_narration_prompt(plan, brief))
+        raw = invoke_model(prompt)
     except Exception as exc:
         latency = int((time.perf_counter() - started) * 1000)
         return _failed(plan.style_id, f"model_unavailable:{type(exc).__name__}", latency, model_called=True)
     latency = int((time.perf_counter() - started) * 1000)
-    return validate_candidate_shape(_decode(raw), expected_style_id=plan.style_id, latency_ms=latency)
+    candidate = validate_candidate_shape(
+        _decode(raw), expected_style_id=plan.style_id, latency_ms=latency,
+    )
+    if candidate.generation_status == "generated":
+        return candidate
+    # One bounded schema-only repair is allowed. The same facts and StyleBrief
+    # remain authoritative; the repair call receives no state, tools or RAG.
+    repair_prompt = (
+        prompt
+        + "\n上一输出未通过 JSON Schema。请重新输出且只输出规定的 JSON 对象。"
+        + "不得解释错误，不得增加字段。上一输出："
+        + str(raw)[:2000]
+    )
+    try:
+        repaired_raw = invoke_model(repair_prompt)
+    except Exception as exc:
+        total_latency = int((time.perf_counter() - started) * 1000)
+        return _failed(
+            plan.style_id, f"schema_repair_unavailable:{type(exc).__name__}",
+            total_latency, model_called=True,
+        )
+    total_latency = int((time.perf_counter() - started) * 1000)
+    return validate_candidate_shape(
+        _decode(repaired_raw), expected_style_id=plan.style_id,
+        latency_ms=total_latency,
+    )
 
 
 def role_narration_candidate_from_dict(value: Mapping[str, Any] | None) -> RoleNarrationCandidate | None:

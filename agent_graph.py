@@ -485,7 +485,23 @@ def _invoke_grounded_knowledge_model(prompt: str) -> str:
 
 def _invoke_role_narration_model(prompt: str) -> str:
     """Realize reviewed claims only; no tools, retrieval, or state is exposed."""
-    response = build_model(with_tools=False).invoke([
+    injected_failure = os.getenv("CJC_ROLE_NARRATION_TEST_FAILURE", "").strip().lower()
+    if injected_failure == "timeout":
+        raise TimeoutError("injected role narration timeout")
+    if injected_failure == "invalid_json":
+        return "{injected-invalid-json"
+    if injected_failure == "invalid_schema":
+        return json.dumps({"unexpected": True})
+    if not os.getenv("DEEPSEEK_API_KEY"):
+        raise RuntimeError("DEEPSEEK_API_KEY is not set.")
+    model_name = os.getenv(
+        "ROLE_NARRATION_MODEL", os.getenv("DEEPSEEK_MODEL", DEFAULT_DEEPSEEK_MODEL)
+    )
+    max_tokens = int(os.getenv("ROLE_NARRATION_MAX_TOKENS", "1800"))
+    model = ChatDeepSeek(
+        model=model_name, temperature=0, max_tokens=max_tokens,
+    ).bind(response_format={"type": "json_object"})
+    response = model.invoke([
         {
             "role": "system",
             "content": (
@@ -551,6 +567,61 @@ def _finalize_arrival_audit(
     }
 
 
+def _deterministic_intent_values(
+    state: AgentState,
+    raw_text: str,
+) -> tuple[dict[str, Any], ...]:
+    """Describe an already-reviewed deterministic decision for audit only."""
+    decision = classify_tour_intent(
+        raw_text, state.get("tour_state"), state.get("tour_interaction_state")
+    )
+    intent: str | None = None
+    arguments: dict[str, object] = {}
+    if decision.route_kind == "route_request":
+        intent = "request_route"
+        parsed = parse_duration_minutes(raw_text)
+        if parsed.ok:
+            arguments["available_minutes"] = parsed.minutes
+        if any(term in raw_text for term in ("少走路", "少步行", "步行最少")):
+            arguments["minimize_walking"] = True
+    elif decision.route_kind == "replan_request":
+        intent = "request_replan"
+        parsed = parse_duration_minutes(raw_text)
+        if parsed.ok:
+            arguments["remaining_minutes"] = parsed.minutes
+    elif decision.route_kind == "tour_event":
+        intent = {
+            "arrive_at_stop": "arrive_at_stop",
+            "confirm_stop_complete": "confirm_stop_complete",
+            "skip_stop": "skip_stop",
+            "next_stop": "request_next_stop",
+            "request_stop_detail": "request_stop_detail",
+            "finish_tour": "finish_tour",
+        }.get(decision.event_type)
+        if intent == "arrive_at_stop":
+            arguments["location_text"] = raw_text
+    elif classify_duration_control_text(raw_text) is not None:
+        parsed = parse_duration_minutes(raw_text)
+        if parsed.ok:
+            if (state.get("tour_state") or {}).get("route_status") == "touring":
+                intent = "request_replan"
+                arguments["remaining_minutes"] = parsed.minutes
+            else:
+                intent = "provide_profile_preference"
+                arguments = {"field": "available_minutes", "value": parsed.minutes}
+    if intent is None:
+        return ()
+    return ({
+        "intent": intent,
+        "confidence": 1.0,
+        "target": None,
+        "arguments": arguments,
+        "source": "deterministic",
+        "requires_confirmation": False,
+        "evidence_span": raw_text,
+    },)
+
+
 def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
     """Propose a safe control or fact normalization without executing it."""
     started = time.perf_counter()
@@ -558,7 +629,10 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
     deterministic_knowledge_plan = identify_controlled_knowledge_plan(raw_text)
     pre_semantic = resolve_pre_semantic_action(state, raw_text)
     if pre_semantic.consumed:
-        envelope = build_intent_envelope(raw_text, (), model_called=False)
+        envelope = build_intent_envelope(
+            raw_text, _deterministic_intent_values(state, raw_text),
+            model_called=False,
+        )
         arbitration = arbitrate_intents(
             envelope, state, deterministic_route_target=pre_semantic.route_target,
         )

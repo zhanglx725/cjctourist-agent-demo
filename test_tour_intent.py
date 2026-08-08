@@ -134,6 +134,13 @@ class TourIntentTests(unittest.TestCase):
         decision = self.classify("确认完成本点吗？")
         self.assertNotEqual(decision.event_type, "confirm_stop_complete")
 
+    def test_tentative_completion_does_not_fall_into_open_llm(self):
+        decision = self.classify("这个地方好像差不多了吧。")
+        self.assertEqual(decision.route_kind, "clarification")
+        self.assertEqual(
+            decision.reason_code, "tentative_completion_requires_confirmation"
+        )
+
     def test_stop_completion_synonyms_map_to_existing_confirm_event(self):
         for text in (
             "完成本点", "确认完成本点", "本点完成", "完成这个点", "这个点完成了",

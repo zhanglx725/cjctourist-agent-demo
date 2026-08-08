@@ -511,6 +511,17 @@ class SemanticNormalizationTests(unittest.TestCase):
         self.assertFalse(result["performance_metrics"][-1]["model_called"])
         self.assertEqual(result["knowledge_query_plan"]["domain"], "ticketing")
 
+    def test_deterministic_route_request_has_auditable_envelope_candidate(self):
+        state = self._state("中文，经典模式，我有30分钟，请规划少走路路线")
+        with patch("agent_graph.recognize_semantic_candidate") as recognizer:
+            result = semantic_normalization_node(state)
+        recognizer.assert_not_called()
+        envelope = result["semantic_intent_envelope"]
+        self.assertFalse(envelope["model_called"])
+        self.assertEqual(envelope["candidates"][0]["intent"], "request_route")
+        self.assertEqual(envelope["candidates"][0]["arguments"]["available_minutes"], 30)
+        self.assertTrue(envelope["candidates"][0]["arguments"]["minimize_walking"])
+
 
 if __name__ == "__main__":
     unittest.main()
