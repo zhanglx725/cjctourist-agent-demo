@@ -1325,7 +1325,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
     return updates
 
 
-def tour_opening_node(state: AgentState) -> dict[str, Any]:
+def tour_opening_node(state: AgentState, config: RunnableConfig = None) -> dict[str, Any]:
     """Apply explicit control or the mandatory first-arrival opening."""
     started = time.perf_counter()
     event = state.get("last_tour_event") or {}
@@ -1373,7 +1373,7 @@ def tour_opening_node(state: AgentState) -> dict[str, Any]:
     }
     evaluations = list(state.get("tour_opening_evaluations") or [])
     evaluations.append(audit)
-    return {
+    updates: dict[str, Any] = {
         "messages": [AIMessage(content=result["message"])],
         "tour_opening_program": result["program"],
         "tour_opening_evaluations": evaluations[-20:],
@@ -1388,6 +1388,25 @@ def tour_opening_node(state: AgentState) -> dict[str, Any]:
             status=result["program"]["status"], action=action,
         ),
     }
+    # The automatic first-arrival path continues directly into stop guidance.
+    # Record its completed legacy opening here, before that later node replaces
+    # the latest public message with point guidance. This is audit-only and is
+    # deliberately unavailable in Active mode.
+    rollout = rollout_from_environment()
+    if (
+        rollout.observes(PRESENTATION_CONTENT_PLAN)
+        and result["program"].get("status") == "played"
+        and not audit.get("idempotent")
+    ):
+        opening_state = {**state, **updates}
+        updates.update(
+            _presentation_content_plan_shadow_update(
+                opening_state,
+                config,
+                scene_kind="route_opening",
+            )
+        )
+    return updates
 
 
 def visit_summary_node(state: AgentState) -> dict[str, Any]:
@@ -3196,20 +3215,38 @@ def _presentation_sources_and_evidence(state: AgentState, scene_kind: str) -> tu
     )
 
 
-def _presentation_content_plan_shadow_update(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
-    """Create one non-authoritative plan audit after the old response."""
-    scene_kind = _presentation_scene_kind(state)
+def _presentation_content_plan_shadow_update(
+    state: AgentState,
+    config: RunnableConfig | None,
+    *,
+    scene_kind: str | None = None,
+) -> dict[str, Any]:
+    """Create one non-authoritative plan audit after the old response.
+
+    ``tour_opening`` is the one legacy surface that may immediately continue
+    into ``stop_guidance``. Its node supplies an explicit scene kind so the
+    completed opening remains independently observable before that hand-off.
+    """
+    resolved_scene_kind = scene_kind or _presentation_scene_kind(state)
     role_record = state.get("role_mode_shadow") or {}
     selected_role = role_record.get("selected_style_id")
     role_mode = selected_role if selected_role in {"ancient_scholar", "child", "listen_only"} else "standard"
     profile = state.get("visitor_profile") or {}
     detail_level = profile.get("detail_level", "standard")
-    sources, evidence_available = _presentation_sources_and_evidence(state, scene_kind) if scene_kind else ((), False)
+    sources, evidence_available = (
+        _presentation_sources_and_evidence(state, resolved_scene_kind)
+        if resolved_scene_kind
+        else ((), False)
+    )
     plan = build_presentation_content_plan(
-        scene_kind=scene_kind or "unknown",
+        scene_kind=resolved_scene_kind or "unknown",
         role_mode=role_mode,
         detail_level=detail_level if detail_level in {"short", "standard", "deep"} else "standard",
-        budget_seconds=_presentation_budget_seconds(state, scene_kind) if scene_kind else 0,
+        budget_seconds=(
+            _presentation_budget_seconds(state, resolved_scene_kind)
+            if resolved_scene_kind
+            else 0
+        ),
         source_of_facts=sources,
         evidence_available=evidence_available,
     )

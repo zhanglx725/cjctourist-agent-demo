@@ -5,13 +5,16 @@ role_schema: fixed
 role_shadow: implemented_and_automated_verified
 presentation_content_plan: implemented
 presentation_content_plan_shadow: automated_verified
+route_opening_shadow: implemented_and_automated_verified
+route_opening_shadow_manual: pending_operator
 role_active: disabled
 active_takeover: disabled
 automated_validation: partial_due_to_preexisting_failures
 role_shadow_targeted_tests: 22/22 passed
-presentation_content_plan_targeted_tests: 7/7 passed
-full_regression: 1045/1050
-p0_matrix: passed
+presentation_content_plan_targeted_tests: 9/9 passed
+route_opening_integration_tests: 19/19 passed
+full_regression: 1047/1052
+p0_matrix: 10/10 passed
 ```
 
 Implemented `role_mode_shadow.py` and its Graph bridge. It reads only explicit
@@ -33,14 +36,31 @@ IDs, raw RAG chunks, final visitor text, or state patches.
 Verification:
 
 ```text
-presentation_content_plan_targeted_tests: 7/7 passed
-role_shadow_and_p0: 10/10 passed
-full_regression: 1045/1050
+presentation_content_plan_targeted_tests: 9/9 passed
+route_opening_integration_tests: 19/19 passed
+p0_matrix: 10/10 passed
+full_regression: 1047/1052
 preexisting_failures: 5
 ```
 
 The five failures are unchanged parent/current baseline failures. Their
 assertions were not modified. Role Active and Active takeover remain disabled.
+
+### Route-opening Shadow repair (2026-08-09)
+
+The first-arrival flow is `tour_event → tour_opening → stop_guidance`. The
+previous generic post-response Shadow boundary only saw the final point-guidance
+message, so it recorded `stop_guidance` and missed `route_opening`. The repair
+records one explicit, non-authoritative `route_opening` plan immediately after
+the legacy opening message is built and before the legacy flow enters
+`stop_guidance`. The existing terminal Shadow boundary then independently
+records `stop_guidance`.
+
+The repair does not change the opening text, route, TourState, VisitorProfile,
+proposal, StopProgram, Coverage, RAG, or Active configuration. A repeated
+idempotent “开始导游” action does not append a second opening plan. Automated
+route-opening integration tests are `19/19`; P0 is `10/10`. Operator Studio
+retest remains pending, and no Trace URL/revision has been supplied.
 
 The five baseline failures were reproduced identically on the parent and role
 Schema commits and remain preexisting. They are not being fixed here:

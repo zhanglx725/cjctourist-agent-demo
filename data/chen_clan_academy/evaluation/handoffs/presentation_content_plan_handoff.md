@@ -2,16 +2,19 @@
 
 Date: 2026-08-09
 Branch: `experiment/agent-orchestration-v2`
-Base: `ac5ceb3 feat: add role mode shadow evaluation`
+Base: `08676b1 chore: make studio port configurable`
 
 ## Current state
 
 ```text
 presentation_content_plan: implemented
 presentation_content_plan_shadow: automated_verified
-presentation_content_plan_targeted_tests: 7/7 passed
-role_shadow_and_p0: 10/10 passed
-full_regression: 1045/1050
+route_opening_shadow: implemented_and_automated_verified
+route_opening_shadow_manual: pending_operator
+presentation_content_plan_targeted_tests: 9/9 passed
+route_opening_integration_tests: 19/19 passed
+p0_matrix: 10/10 passed
+full_regression: 1047/1052
 preexisting_failures: 5
 automated_validation: partial_due_to_preexisting_failures
 role_active: disabled
@@ -30,6 +33,10 @@ active_takeover: disabled
   writes, and unavailable evidence.
 - Added the `presentation_content_plan` Shadow capability at the existing
   post-legacy-response Shadow boundary.
+- Repaired the automatic first-arrival path: `tour_opening_node` now appends
+  exactly one independent `route_opening` Shadow plan after the unchanged
+  legacy opening output and before legacy flow continues to `stop_guidance`.
+  An idempotent repeated “开始导游” action does not append another opening plan.
 
 ## Safety boundary
 
@@ -67,20 +74,23 @@ closed rather than inventing a budget.
 ```cmd
 set CJC_READ_ONLY_ROLLOUT_MODE=shadow
 set CJC_READ_ONLY_ROLLOUT_CAPABILITIES=presentation_content_plan
-py -3 -m unittest -v test_presentation_content_plan.py
+py -3 -m unittest -v test_presentation_content_plan.py test_tour_opening_program.py test_agent_stop_guidance.py
 py -3 -m unittest -v test_role_mode_shadow.py test_p0_safety_output_gate_matrix.py
 py -3 -m unittest -v
 git diff --check
 ```
 
-The full regression still contains the same five parent/current baseline
-failures. Their assertions were not modified. No manual LangSmith Trace URL
-or revision was supplied for this phase; if unavailable, record
-`metadata_unavailable` rather than inventing Trace metadata.
+The route-opening targeted group passed `19/19`; P0 passed `10/10`. Full
+regression is `1047/1052`, with the same five parent/current baseline failures
+and no new failure from this repair. Their assertions were not modified. No
+manual LangSmith Trace URL or revision was supplied for this repair; if
+unavailable, record `metadata_unavailable` rather than inventing Trace metadata.
 
 ## Next step
 
-Perform three lightweight Shadow manual checks for route planning, child stop
-guidance, and listen-only guidance. Confirm the correct scene and role appear
-in the audit, the old visitor text is unchanged, and operational state is
-unchanged. Keep `read_only_active` and all active takeover capabilities off.
+Restart Studio in Shadow mode and use a fresh Thread. After planning a route,
+arrive at the first stop (for example, `我到前院中部了`). Confirm ordered,
+separate records for `route_planning`, `route_opening`, and `stop_guidance`.
+The opening record must be `accepted`, non-authoritative, preserve the legacy
+message, and have `state_writes=[]`. Keep `read_only_active` and all Active
+takeover capabilities off.

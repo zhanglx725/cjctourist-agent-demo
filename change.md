@@ -5,13 +5,16 @@ role_schema: fixed
 role_shadow: implemented_and_automated_verified
 presentation_content_plan: implemented
 presentation_content_plan_shadow: automated_verified
+route_opening_shadow: implemented_and_automated_verified
+route_opening_shadow_manual: pending_operator
 role_active: disabled
 active_takeover: disabled
 automated_validation: partial_due_to_preexisting_failures
 role_shadow_targeted_tests: 22/22 passed
-presentation_content_plan_targeted_tests: 7/7 passed
-full_regression: 1045/1050
-p0_matrix: passed
+presentation_content_plan_targeted_tests: 9/9 passed
+route_opening_integration_tests: 19/19 passed
+full_regression: 1047/1052
+p0_matrix: 10/10 passed
 ```
 
 The current implementation adds a deterministic, read-only role-mode shadow
@@ -739,10 +742,12 @@ automated_validation: partial_due_to_preexisting_failures
 role_shadow: implemented_and_automated_verified
 presentation_content_plan: implemented
 presentation_content_plan_shadow: automated_verified
+route_opening_shadow: implemented_and_automated_verified
+route_opening_shadow_manual: pending_operator
 role_active: disabled
 active_takeover: disabled
-full_regression: 1045/1050
-p0_matrix: passed
+full_regression: 1047/1052
+p0_matrix: 10/10 passed
 ~~~
 
 在自动化定向测试、完整回归和 P0 安全/游客输出测试完成前，不得把本阶段写成已通过，也不得开启 `read_only_active`。
