@@ -69,6 +69,10 @@ class PostVisitAwardTests(unittest.TestCase):
         self.assertIn("称号", public_message)
         self.assertIn(award_update["post_visit_award"]["blessing"], public_message)
         self.assertNotIn("祝福：", public_message)
+        self.assertIn("是否需要我为您推荐一些周边的美食", public_message)
+        self.assertEqual(
+            award_update["post_visit_nearby_offer"]["status"], "awaiting_choice"
+        )
         for field in ("tour_state", "visitor_profile", "narration_coverage"):
             self.assertNotIn(field, award_update)
 

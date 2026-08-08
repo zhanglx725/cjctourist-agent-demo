@@ -14,6 +14,7 @@ from typing import Any
 from craft_knowledge import parse_craft_explanation_request, parse_craft_location_request
 from term_card_runtime import is_explicit_term_question
 from photo_spot_runtime import is_explicit_photo_request, is_unsafe_photo_request
+from nearby_poi_runtime import is_explicit_nearby_request, is_nearby_offer_input
 from qa_context import is_qa_follow_up_detail_request, is_qa_subject_follow_up_request
 from research_card_retrieval import is_explicit_research_question
 from comparison_retrieval import is_explicit_comparison_question
@@ -40,7 +41,7 @@ class PreSemanticAction:
         return asdict(self)
 
 
-def _pending_action_reason(state: dict[str, Any]) -> PreSemanticAction | None:
+def _pending_action_reason(state: dict[str, Any], user_text: str) -> PreSemanticAction | None:
     """Recognize only already-created pending actions; never create one."""
     interaction = state.get("tour_interaction_state") or {}
     pending_kind = interaction.get("pending_action_kind")
@@ -62,6 +63,16 @@ def _pending_action_reason(state: dict[str, Any]) -> PreSemanticAction | None:
             route_target="tour_qa",
             model_required=False,
         )
+    if (
+        isinstance(state.get("post_visit_nearby_offer"), dict)
+        and is_nearby_offer_input(user_text, offer_pending=True)
+    ):
+        return PreSemanticAction(
+            True,
+            reason="pending_post_visit_nearby_offer",
+            route_target="tour_qa",
+            model_required=False,
+        )
     return None
 
 
@@ -74,7 +85,7 @@ def resolve_pre_semantic_action(
     profile, knowledge, or presentation code.  This function intentionally
     does not return executable arguments.
     """
-    pending = _pending_action_reason(state)
+    pending = _pending_action_reason(state, user_text)
     if pending is not None:
         return pending
 
@@ -112,7 +123,17 @@ def resolve_pre_semantic_action(
             model_required=False,
         )
 
-    if is_unsafe_photo_request(user_text) or is_visit_safety_question(user_text):
+    if is_unsafe_photo_request(user_text):
+        return PreSemanticAction(
+            True, reason="safety_rule", route_target="tour_qa", model_required=False
+        )
+
+    if is_explicit_nearby_request(user_text):
+        return PreSemanticAction(
+            True, reason="nearby_recommendation", route_target="tour_qa", model_required=False
+        )
+
+    if is_visit_safety_question(user_text):
         return PreSemanticAction(
             True, reason="safety_rule", route_target="tour_qa", model_required=False
         )
@@ -121,6 +142,7 @@ def resolve_pre_semantic_action(
         parse_craft_explanation_request(user_text) is not None
         or parse_craft_location_request(user_text) is not None
         or is_explicit_photo_request(user_text)
+        or is_explicit_nearby_request(user_text)
         or is_explicit_comparison_question(user_text)
         or is_explicit_research_question(user_text)
         or is_explicit_term_question(user_text)

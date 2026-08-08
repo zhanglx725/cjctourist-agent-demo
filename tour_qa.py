@@ -28,6 +28,7 @@ from term_card_runtime import (
     runtime_term_instance_enhancement,
 )
 from photo_spot_runtime import answer_photo_request, is_explicit_photo_request
+from nearby_poi_runtime import answer_nearby_request, is_nearby_offer_input
 from visit_safety_rules import answer_visit_safety_question
 from qa_context import create_qa_context, is_qa_follow_up_detail_request, validate_qa_context
 from tour_intent import resolve_reviewed_node
@@ -1376,6 +1377,7 @@ def answer_tour_question(
     normalized_fact_kind: str | None = None,
     normalized_knowledge_plan: ControlledKnowledgePlan | None = None,
     pending_ornament_clarification: dict[str, Any] | None = None,
+    post_visit_nearby_offer: dict[str, Any] | None = None,
     grounded_knowledge_renderer: (
         Callable[[ControlledKnowledgePlan, list[dict[str, Any]]], str] | None
     ) = None,
@@ -1404,8 +1406,24 @@ def answer_tour_question(
             "presentation": presentation,
             "retrieval_query": None,
         }
+    offer_context = isinstance(post_visit_nearby_offer, dict)
+    if offer_context and is_nearby_offer_input(user_query, offer_pending=True):
+        result = answer_nearby_request(user_query, offer_pending=True)
+        presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
+        if presentation:
+            message = result["message"] + "\n\n本次周边推荐未改变陈家祠馆内路线或游览进度。"
+            presentation = {
+                **presentation,
+                "message": message,
+                "code": result["mode"],
+                "ok": result["mode"] == "nearby_recommendation",
+            }
+            result = {**result, "message": message, "presentation": presentation}
+        else:
+            result = {**result, "presentation": None}
+        return {**result, "evidence": [], "retrieval_query": None, "point_context": None}
     safety_answer = answer_visit_safety_question(user_query)
-    if safety_answer is not None:
+    if safety_answer is not None and not is_nearby_offer_input(user_query, offer_pending=False):
         presentation = (
             present_tour_state(tour_state, interaction_state)
             if tour_state and interaction_state
@@ -1643,6 +1661,21 @@ def answer_tour_question(
                 "retrieval_query": None,
                 "point_context": current_stop_context(tour_state),
             }
+    if is_nearby_offer_input(user_query, offer_pending=False):
+        result = answer_nearby_request(user_query, offer_pending=offer_context)
+        presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
+        if presentation:
+            message = result["message"] + "\n\n本次周边推荐未改变陈家祠馆内路线或游览进度。"
+            presentation = {
+                **presentation,
+                "message": message,
+                "code": result["mode"],
+                "ok": result["mode"] == "nearby_recommendation",
+            }
+            result = {**result, "message": message, "presentation": presentation}
+        else:
+            result = {**result, "presentation": None}
+        return {**result, "evidence": [], "retrieval_query": None, "point_context": None}
     if normalized_knowledge_plan is not None:
         try:
             payload = parse_rag_payload(rag_search(user_query))

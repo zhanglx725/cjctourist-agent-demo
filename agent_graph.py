@@ -72,6 +72,12 @@ from term_card_runtime import is_explicit_term_question
 from research_card_retrieval import is_explicit_research_question
 from comparison_retrieval import is_explicit_comparison_question
 from photo_spot_runtime import is_explicit_photo_request, is_unsafe_photo_request
+from proactive_photo_guidance import maybe_trigger_photo_guidance
+from nearby_poi_runtime import (
+    POST_VISIT_NEARBY_PROMPT,
+    is_explicit_nearby_request,
+    is_nearby_offer_input,
+)
 from visit_safety_rules import is_visit_safety_question
 from semantic_normalization import (
     canonical_control_text,
@@ -259,6 +265,12 @@ class AgentState(TypedDict, total=False):
     tour_question_log: list[dict[str, Any]]
     post_visit_award: dict[str, Any] | None
     post_visit_award_evaluations: list[dict[str, Any]]
+    # Optional post-visit service prompt only. It cannot alter the indoor tour,
+    # profile, route, or Coverage.
+    post_visit_nearby_offer: dict[str, Any] | None
+    # Route-aware optional pose cards. This is presentation/session state only;
+    # it never participates in TourState, profile, route, or Coverage writes.
+    proactive_photo_guidance: dict[str, Any] | None
     # Thread-level bootstrap only. It never participates in route/profile facts.
     visitor_welcome_program: dict[str, Any]
 
@@ -369,6 +381,8 @@ def _is_onboarding_read_only_question(text: str) -> bool:
     """Keep factual questions available without consuming onboarding state."""
     value = str(text or "").strip()
     return bool(
+        is_explicit_nearby_request(value)
+        or
         "？" in value
         or "?" in value
         or any(term in value for term in (
@@ -1012,6 +1026,8 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         "visit_summary": None,
         "tour_question_log": [],
         "post_visit_award": None,
+        "post_visit_nearby_offer": None,
+        "proactive_photo_guidance": None,
         "active_guidance_evidence_bundle": None,
         "active_narration_render_audit": None,
         "qa_context": clear_qa_context(state.get("qa_context")),
@@ -1214,6 +1230,14 @@ def post_visit_title_blessing_node(state: AgentState) -> dict[str, Any]:
         f"{prefix}你的本次游览称号是“{award['title']}”。{award['reason']}\n\n"
         f"{award['disclaimer']}\n\n{award['blessing']}"
     )
+    existing_offer = state.get("post_visit_nearby_offer")
+    new_offer = not isinstance(existing_offer, dict)
+    offer = existing_offer if isinstance(existing_offer, dict) else {
+        "status": "awaiting_choice",
+        "offered_after_candidate_id": award["candidate_id"],
+    }
+    if new_offer:
+        message += f"\n\n{POST_VISIT_NEARBY_PROMPT}"
     evaluations = list(state.get("post_visit_award_evaluations") or [])
     evaluations.append({
         "policy_version": award["policy_version"],
@@ -1223,7 +1247,7 @@ def post_visit_title_blessing_node(state: AgentState) -> dict[str, Any]:
         "catalog_version": award["catalog_version"],
         "variant_cursor": award["variant_cursor"],
         "rotation_status": rotation_status,
-        "state_writes": ["post_visit_award"],
+        "state_writes": ["post_visit_award", "post_visit_nearby_offer"],
         "tour_state_preserved": True,
         "visitor_profile_preserved": True,
         "narration_coverage_preserved": True,
@@ -1231,6 +1255,7 @@ def post_visit_title_blessing_node(state: AgentState) -> dict[str, Any]:
     return {
         "messages": [AIMessage(content=message)],
         "post_visit_award": award,
+        "post_visit_nearby_offer": offer,
         "post_visit_award_evaluations": evaluations[-20:],
         "performance_metrics": _append_metric(
             state, "post_visit_title_blessing", time.perf_counter() - started,
@@ -1843,7 +1868,7 @@ def _replan_composite_shadow_update(
     }
 
 
-def prepare_replan_node(state: AgentState, config: RunnableConfig | None = None) -> dict[str, Any]:
+def prepare_replan_node(state: AgentState, config: RunnableConfig = None) -> dict[str, Any]:
     """Record/reuse a reviewed origin, then request explicit live time."""
     started = time.perf_counter()
     decision = classify_tour_intent(
@@ -1904,7 +1929,7 @@ def prepare_replan_node(state: AgentState, config: RunnableConfig | None = None)
     return updates
 
 
-def prepare_replan_candidate_node(state: AgentState, config: RunnableConfig | None = None) -> dict[str, Any]:
+def prepare_replan_candidate_node(state: AgentState, config: RunnableConfig = None) -> dict[str, Any]:
     """Use a newly supplied explicit time only to prepare a route preview."""
     started = time.perf_counter()
     confirmation = state.get("pending_replan_time_confirmation")
@@ -1975,7 +2000,7 @@ def prepare_replan_candidate_node(state: AgentState, config: RunnableConfig | No
     return updates
 
 
-def prepare_duration_replan_node(state: AgentState, config: RunnableConfig | None = None) -> dict[str, Any]:
+def prepare_duration_replan_node(state: AgentState, config: RunnableConfig = None) -> dict[str, Any]:
     """Preview an active-route duration change without applying it."""
     started = time.perf_counter()
     tour = state.get("tour_state")
@@ -2029,7 +2054,7 @@ def prepare_duration_replan_node(state: AgentState, config: RunnableConfig | Non
     return updates
 
 
-def confirm_replan_node(state: AgentState, config: RunnableConfig | None = None) -> dict[str, Any]:
+def confirm_replan_node(state: AgentState, config: RunnableConfig = None) -> dict[str, Any]:
     """Apply a fresh preview atomically via the A1 event adapter."""
     started = time.perf_counter()
     proposal = state.get("pending_replan_proposal")
@@ -2060,7 +2085,7 @@ def confirm_replan_node(state: AgentState, config: RunnableConfig | None = None)
     return updates
 
 
-def confirm_replan_and_next_node(state: AgentState, config: RunnableConfig | None = None) -> dict[str, Any]:
+def confirm_replan_and_next_node(state: AgentState, config: RunnableConfig = None) -> dict[str, Any]:
     """Apply a fresh proposal only when its next navigation is valid.
 
     This is the sole C4 composite: an explicit "use new route and go to the
@@ -2135,7 +2160,7 @@ def confirm_replan_and_next_node(state: AgentState, config: RunnableConfig | Non
     return updates
 
 
-def cancel_replan_node(state: AgentState, config: RunnableConfig | None = None) -> dict[str, Any]:
+def cancel_replan_node(state: AgentState, config: RunnableConfig = None) -> dict[str, Any]:
     """Discard a pending time/proposal action without changing formal route."""
     tour, interaction = state.get("tour_state"), state.get("tour_interaction_state")
     if interaction:
@@ -2157,7 +2182,7 @@ def cancel_replan_node(state: AgentState, config: RunnableConfig | None = None) 
     return updates
 
 
-def show_replan_node(state: AgentState, config: RunnableConfig | None = None) -> dict[str, Any]:
+def show_replan_node(state: AgentState, config: RunnableConfig = None) -> dict[str, Any]:
     """Repeat the active replan preview without recalculating or mutating it."""
     proposal = state.get("pending_replan_proposal")
     if not proposal:
@@ -2264,6 +2289,17 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
             coverage_after = coverage_before
             commit_audit = {"status": "atomic_commit_rejected", "submitted_subject_ids": [], "committed_subject_ids": []}
     public_message = public_visitor_message_or_fallback(result["message"])
+    photo_guidance = maybe_trigger_photo_guidance(
+        tour_state=state.get("tour_state"),
+        existing_plan=state.get("proactive_photo_guidance"),
+        last_tour_event=last_event,
+        visitor_profile=state.get("visitor_profile"),
+        detailed=last_event.get("event") == "request_stop_detail",
+    )
+    if photo_guidance["triggered"]:
+        public_message = public_visitor_message_or_fallback(
+            f"{public_message}\n\n{photo_guidance['message']}"
+        )
     updates: dict[str, Any] = {
         "messages": [AIMessage(content=public_message, additional_kwargs={"stop_guidance": True})],
         "retrieved_evidence": result["evidence"],
@@ -2273,6 +2309,7 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
             else result.get("presentation")
         ),
         "narration_coverage": coverage_after.to_dict(),
+        "proactive_photo_guidance": photo_guidance["plan"],
         "performance_metrics": _append_metric(
             state,
             "stop_guidance",
@@ -2280,6 +2317,8 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
             status=result["status"],
             evidence_count=len(result["evidence"]),
             selected_item_count=len((result.get("stop_program") or {}).get("selected_items", [])),
+            proactive_photo_triggered=photo_guidance["triggered"],
+            proactive_photo_spot_id=photo_guidance.get("photo_spot_id"),
             fallback_reason=(result.get("narration") or {}).get("e5_fallback_reason")
             or (result.get("narration") or {}).get("fallback_reason"),
         ),
@@ -2297,8 +2336,12 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
     rollout = rollout_from_environment()
     if rollout.observes(NARRATION_COMPOSITION):
         try:
+            # The optional pose card is now part of the authoritative public
+            # message. Let Shadow compare against that exact boundary without
+            # granting the observer any state-writing authority.
+            shadow_legacy_result = {**result, "message": public_message}
             record = observe_narration_composition(
-                thread_id=_rollout_thread_id(config), legacy_result=result,
+                thread_id=_rollout_thread_id(config), legacy_result=shadow_legacy_result,
                 interaction_state=state.get("tour_interaction_state"),
                 visitor_profile=state.get("visitor_profile"),
             )
@@ -2806,6 +2849,7 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
         normalized_knowledge_plan=knowledge_plan,
         grounded_knowledge_renderer=grounded_renderer,
         pending_ornament_clarification=state.get("pending_ornament_clarification"),
+        post_visit_nearby_offer=state.get("post_visit_nearby_offer"),
     )
     public_message = public_visitor_message_or_fallback(result["message"])
     updates: dict[str, Any] = {
@@ -2845,6 +2889,11 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
     # return TourState or interaction/session control here.
     if result["presentation"] is not None:
         updates["tour_presentation"] = {**result["presentation"], "message": public_message}
+    if isinstance(state.get("post_visit_nearby_offer"), dict) and result.get("offer_status"):
+        updates["post_visit_nearby_offer"] = {
+            **state["post_visit_nearby_offer"],
+            "status": result["offer_status"],
+        }
     question_log = _next_tour_question_log(state, "tour_qa")
     if question_log is not None:
         updates["tour_question_log"] = question_log
@@ -3083,6 +3132,10 @@ def route_initial_request(state: AgentState) -> str:
     # cannot make an unsafe-photo request lose its deterministic refusal.
     if is_unsafe_photo_request(raw_text):
         return "tour_qa"
+    # Explicit off-site/nearby purpose wins over the indoor food matcher.
+    # "附近喝奶茶" asks for a POI; "展厅能喝奶茶吗" remains a safety query.
+    if is_explicit_nearby_request(raw_text):
+        return "tour_qa"
     if is_visit_safety_question(raw_text):
         return "tour_qa"
     # Identity-card loss reporting/replacement is civil administration, not a
@@ -3096,6 +3149,11 @@ def route_initial_request(state: AgentState) -> str:
     ):
         return "visitor_onboarding"
     completed_tour = (state.get("tour_state") or {}).get("route_status") == "completed"
+    if (
+        isinstance(state.get("post_visit_nearby_offer"), dict)
+        and is_nearby_offer_input(raw_text, offer_pending=True)
+    ):
+        return "tour_qa"
     repeated_finish = any(
         term in raw_text for term in (
             "结束导览", "结束游览", "结束路线", "路线结束", "游览结束",
@@ -3301,7 +3359,7 @@ def route_initial_request(state: AgentState) -> str:
     # D6 photo handling retains priority over route keywords.  A mixed request
     # such as “把这个打卡点加入路线” must receive the existing no-partial-
     # mutation clarification rather than silently starting a new profile.
-    if is_explicit_photo_request(raw_text):
+    if is_explicit_photo_request(raw_text) or is_explicit_nearby_request(raw_text):
         return "tour_qa"
     strong_route_action = any(
         term in raw_text
@@ -3391,7 +3449,7 @@ def route_initial_request(state: AgentState) -> str:
     if decision.route_kind == "rag_question" or should_direct_rag(text):
         # An explicit audited point inventory is structured data even before a
         # route starts. Other no-route facts retain the established RAG path.
-        if is_point_inventory_request(raw_text, state.get("tour_state")) or is_explicit_photo_request(raw_text) or is_explicit_comparison_question(raw_text) or is_explicit_research_question(raw_text) or is_explicit_term_question(raw_text):
+        if is_point_inventory_request(raw_text, state.get("tour_state")) or is_explicit_photo_request(raw_text) or is_explicit_nearby_request(raw_text) or is_explicit_comparison_question(raw_text) or is_explicit_research_question(raw_text) or is_explicit_term_question(raw_text):
             return "tour_qa"
         return "tour_qa" if state.get("tour_state") and state.get("tour_interaction_state") else "direct_rag"
     # An obvious but unrecognized route-control shape must not fall through to

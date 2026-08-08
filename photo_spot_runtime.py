@@ -15,7 +15,11 @@ from photo_spot_validation import EDITORIAL_ON_SITE_DISCLAIMER, query_available_
 from visit_safety_rules import answer_visit_safety_question, is_visit_safety_question
 
 
-PHOTO_CUES = ("拍照", "拍一张", "拍", "怎么拍", "打卡", "机位", "构图", "合影", "自拍", "拍哪里", "值得拍", "拍摄建议")
+PHOTO_CUES = (
+    "拍照", "拍一张", "拍", "怎么拍", "打卡", "机位", "构图", "合影", "自拍",
+    "拍哪里", "值得拍", "拍摄建议", "拍照姿势", "摆什么姿势", "什么姿势",
+    "怎么摆", "怎么站", "摆动作", "手怎么放",
+)
 ROUTE_CHANGE_CUES = ("加入路线", "加入行程", "加入游览", "改路线", "调整路线")
 DEICTIC_CUES = ("这里", "此处", "眼前", "当前点", "当前站", "本点")
 FAMILY_CUES = ("一家人", "亲子", "全家", "家庭")
@@ -157,9 +161,19 @@ def _render_candidate(selection: dict[str, Any]) -> dict[str, Any]:
         instruction = pose.get("instruction_zh")
         if instruction:
             lines.append(f"如现场允许，可采用较自然的方式：{instruction}")
+    disclosed_field_review = False
     for limitation in selection.get("limitations", []):
+        limitation = str(limitation or "").strip()
+        # Editorial lifecycle values are internal audit metadata, not useful
+        # visitor prose.  Keep the actual on-site uncertainty while hiding the
+        # YAML status token and review workflow wording.
+        if "draft_manual_review" in limitation or limitation.startswith("原卡为"):
+            disclosed_field_review = True
+            continue
         if limitation and limitation not in lines:
-            lines.append(str(limitation))
+            lines.append(limitation)
+    if disclosed_field_review:
+        lines.append("具体站位、可见性和现场拍摄条件仍请以现场管理要求为准。")
     return {"message": "\n".join(lines), "node_id": spot.get("node_id"), "photo_spot": spot}
 
 

@@ -122,6 +122,26 @@ class PhotoSpotRuntimeTests(unittest.TestCase):
         self.assertFalse(is_explicit_photo_request("灰塑是什么？"))
         self.assertTrue(has_photo_route_conflict("把这个打卡点加入路线"))
 
+    def test_pose_wording_uses_the_existing_photo_intent(self) -> None:
+        for request in (
+            "这里拍照摆什么姿势？",
+            "一个人打卡应该怎么站？",
+            "和门厅合影手怎么放？",
+        ):
+            self.assertTrue(is_explicit_photo_request(request), request)
+
+    def test_real_pose_response_hides_internal_review_status(self) -> None:
+        result = answer_photo_request(
+            "在前院中部拍照摆什么姿势？",
+            point_context={"node_id": "stop_front_courtyard_center", "name": "前院中部"},
+            tour_state={"route_status": "touring", "current_stop_id": "stop_front_courtyard_center"},
+            visitor_profile={},
+        )
+        self.assertEqual(result["mode"], "photo_recommendation")
+        self.assertIn("如现场允许，可采用较自然的方式", result["message"])
+        self.assertNotIn("draft_manual_review", result["message"])
+        self.assertNotIn("原卡为", result["message"])
+
     def test_unsafe_photo_request_requires_action_and_protected_feature(self) -> None:
         for request in (
             "我想踩在栏杆上拍照，怎么拍？",
