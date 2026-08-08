@@ -13,7 +13,7 @@ role_shadow: implemented_and_automated_verified
 presentation_content_plan: implemented
 presentation_content_plan_shadow: automated_verified
 route_opening_shadow: implemented_and_automated_verified
-route_opening_shadow_manual: pending_operator
+route_opening_shadow_manual: passed_by_operator
 role_active: disabled
 active_takeover: disabled
 role_shadow_targeted_tests: 22/22 passed
@@ -36,8 +36,10 @@ phase and do not describe them as role regressions.
 流程内先输出 `tour_opening`，再继续 `stop_guidance`。若 Shadow 只在末端读取
 最后一条游客正文，就会误把该轮仅归档为点位讲解。现在开场节点在输出旧正文
 后立即写入一条非权威 `route_opening` 计划，随后点位讲解仍独立记录；这不改变
-路线、事实、状态或游客正文。自动化已验证 `19/19`，P0 `10/10`；本轮 Studio
-复测尚待操作员完成，因此不可宣称已完成 Trace 级人工验收。
+路线、事实、状态或游客正文。自动化已验证 `19/19`，P0 `10/10`；Studio
+操作员已观察到独立 `route_opening` 的 accepted Shadow 记录，且不接管、不写
+状态、旧正文保留。完整 Trace URL/revision 未保存，故仍为
+`langsmith_trace_status: metadata_unavailable`，不得伪造 Trace 级元数据。
 
 # 陈家祠金牌导游 Agent：项目学习与答辩说明
 

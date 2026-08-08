@@ -6,7 +6,7 @@ role_shadow: implemented_and_automated_verified
 presentation_content_plan: implemented
 presentation_content_plan_shadow: automated_verified
 route_opening_shadow: implemented_and_automated_verified
-route_opening_shadow_manual: pending_operator
+route_opening_shadow_manual: passed_by_operator
 role_active: disabled
 active_takeover: disabled
 automated_validation: partial_due_to_preexisting_failures
@@ -59,8 +59,11 @@ records `stop_guidance`.
 The repair does not change the opening text, route, TourState, VisitorProfile,
 proposal, StopProgram, Coverage, RAG, or Active configuration. A repeated
 idempotent “开始导游” action does not append a second opening plan. Automated
-route-opening integration tests are `19/19`; P0 is `10/10`. Operator Studio
-retest remains pending, and no Trace URL/revision has been supplied.
+route-opening integration tests are `19/19`; P0 is `10/10`. Studio operator
+retest passed: the audit showed an independent `route_opening` record with
+`validation_status=accepted`, `active_takeover=false`,
+`legacy_message_preserved=true`, `plan_is_non_authoritative=true`, and
+`state_writes=[]`. No Trace URL/revision was supplied.
 
 The five baseline failures were reproduced identically on the parent and role
 Schema commits and remain preexisting. They are not being fixed here:

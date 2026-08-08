@@ -6,7 +6,7 @@ role_shadow: implemented_and_automated_verified
 presentation_content_plan: implemented
 presentation_content_plan_shadow: automated_verified
 route_opening_shadow: implemented_and_automated_verified
-route_opening_shadow_manual: pending_operator
+route_opening_shadow_manual: passed_by_operator
 role_active: disabled
 active_takeover: disabled
 automated_validation: partial_due_to_preexisting_failures
@@ -743,7 +743,7 @@ role_shadow: implemented_and_automated_verified
 presentation_content_plan: implemented
 presentation_content_plan_shadow: automated_verified
 route_opening_shadow: implemented_and_automated_verified
-route_opening_shadow_manual: pending_operator
+route_opening_shadow_manual: passed_by_operator
 role_active: disabled
 active_takeover: disabled
 full_regression: 1047/1052

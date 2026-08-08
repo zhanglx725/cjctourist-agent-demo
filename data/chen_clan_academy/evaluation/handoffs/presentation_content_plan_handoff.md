@@ -10,7 +10,7 @@ Base: `08676b1 chore: make studio port configurable`
 presentation_content_plan: implemented
 presentation_content_plan_shadow: automated_verified
 route_opening_shadow: implemented_and_automated_verified
-route_opening_shadow_manual: pending_operator
+route_opening_shadow_manual: passed_by_operator
 presentation_content_plan_targeted_tests: 9/9 passed
 route_opening_integration_tests: 19/19 passed
 p0_matrix: 10/10 passed
@@ -88,9 +88,10 @@ unavailable, record `metadata_unavailable` rather than inventing Trace metadata.
 
 ## Next step
 
-Restart Studio in Shadow mode and use a fresh Thread. After planning a route,
-arrive at the first stop (for example, `我到前院中部了`). Confirm ordered,
-separate records for `route_planning`, `route_opening`, and `stop_guidance`.
-The opening record must be `accepted`, non-authoritative, preserve the legacy
-message, and have `state_writes=[]`. Keep `read_only_active` and all Active
-takeover capabilities off.
+Studio operator retest passed in a fresh Thread: the opening audit showed
+`scene_kind=route_opening`, `validation_status=accepted`, `mode=shadow`,
+`active_takeover=false`, `legacy_message_preserved=true`,
+`plan_is_non_authoritative=true`, and `state_writes=[]`. The next manual check
+may verify the complete sequence together with `route_planning` and
+`stop_guidance`. Keep `read_only_active` and all Active takeover capabilities
+off. Trace URL/revision remain `metadata_unavailable`.

@@ -6,7 +6,7 @@ role_shadow: implemented_and_automated_verified
 presentation_content_plan: implemented
 presentation_content_plan_shadow: automated_verified
 route_opening_shadow: implemented_and_automated_verified
-route_opening_shadow_manual: pending_operator
+route_opening_shadow_manual: passed_by_operator
 role_active: disabled
 active_takeover: disabled
 role_shadow_targeted_tests: 22/22 passed
@@ -37,9 +37,9 @@ list; do not change their assertions while finishing role Shadow.
 不得等待末端 `atomic_read_plan_shadow`，否则会被随后点位讲解覆盖。该记录
 只在 `presentation_content_plan` 的 Shadow capability 开启时产生；不得写入
 TourState、VisitorProfile、路线、proposal、StopProgram、Coverage 或游客正文。
-重复的幂等“开始导游”不应追加第二条开场计划。当前自动化已验证，Studio
-复测仍由操作员完成；未保存 Trace URL/revision 时必须写
-`metadata_unavailable`。
+重复的幂等“开始导游”不应追加第二条开场计划。当前自动化与 Studio 操作员
+复测均已通过；开场记录为 `accepted`、`active_takeover=false`、旧正文保留且
+`state_writes=[]`。未保存 Trace URL/revision 时必须写 `metadata_unavailable`。
 
 # 陈家祠金牌导游 Agent：多人协作公共说明
 
