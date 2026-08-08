@@ -253,6 +253,23 @@ class VisitorWelcomeTests(unittest.TestCase):
         self.assertIsNone(result["profile_collection"]["next_missing_field"])
         self.assertEqual(route_after_visitor_onboarding(result), "direct_route")
 
+    def test_language_then_classic_mode_and_duration_remain_consistent(self):
+        language = visitor_onboarding_node({
+            "messages": [HumanMessage(content="中文")],
+            "visitor_welcome_program": {
+                "schema_version": "visitor_welcome_v1", "status": "awaiting_language",
+            },
+            "performance_metrics": [],
+        })
+        self.assertEqual(language["visitor_welcome_program"]["status"], "awaiting_mode")
+        completed = visitor_onboarding_node({
+            **language, "messages": [HumanMessage(content="选择经典模式，我有20分钟")],
+        })
+        self.assertEqual(completed["visitor_welcome_program"]["status"], "completed")
+        self.assertEqual(completed["profile_collection"]["status"], "ready")
+        self.assertEqual(completed["visitor_profile"]["available_minutes"], 20)
+        self.assertEqual(route_after_visitor_onboarding(completed), "direct_route")
+
     def test_first_fact_question_preserves_onboarding_and_routes_to_qa(self):
         first = visitor_welcome_node({
             "messages": [HumanMessage(content="陈家祠是哪年建立的")],

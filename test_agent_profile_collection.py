@@ -134,6 +134,15 @@ class AgentProfileCollectionTests(unittest.TestCase):
         general_question = _state("陈家祠什么时候建成？", second)
         self.assertEqual(route_initial_request(general_question), "direct_rag")
 
+    def test_active_time_question_accepts_a_bare_number(self):
+        first = profile_collection_node(_state("帮我规划路线"))
+        self.assertEqual(first["profile_collection"]["next_missing_field"], "available_minutes")
+        answer = _state("45", first)
+        self.assertEqual(route_initial_request(answer), "profile_collection")
+        consumed = profile_collection_node(answer)
+        self.assertEqual(consumed["visitor_profile"]["available_minutes"], 45)
+        self.assertNotEqual(consumed["profile_collection"]["next_missing_field"], "available_minutes")
+
     def test_arrival_event_keeps_a1_priority_over_active_collection(self):
         initial = profile_collection_node(_state("帮我规划路线"))
         event_state = _state("我到月台了", initial)

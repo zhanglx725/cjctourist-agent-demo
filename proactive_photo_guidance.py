@@ -107,6 +107,7 @@ def maybe_trigger_photo_guidance(
         or event.get("event") != "arrive_at_stop"
         or not event.get("ok", False)
         or profile.get("interaction_mode") == "listen_only"
+        or profile.get("explanation_style") == "listen_only"
         or not node_id
         or node_id not in plan.get("planned_stop_ids", [])
         or node_id in plan.get("triggered_stop_ids", [])

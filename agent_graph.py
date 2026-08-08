@@ -3287,7 +3287,15 @@ def route_initial_request(state: AgentState) -> str:
         return "profile_collection"
     if (
         (state.get("profile_collection") or {}).get("status") == "collecting"
-        and parse_duration_minutes(raw_text).ok
+        and (
+            parse_duration_minutes(raw_text).ok
+            or (
+                (state.get("profile_collection") or {}).get("next_missing_field")
+                == "available_minutes"
+                and re.fullmatch(r"\s*\d{1,3}\s*[。.!！?？]?\s*", raw_text)
+                is not None
+            )
+        )
     ):
         return "profile_collection"
     # An explicit product-mode choice plus one valid duration is a complete

@@ -1726,9 +1726,11 @@ def answer_tour_question(
             if presentation:
                 presentation = {**presentation, "message": message, "code": "photo_point_clarification", "ok": False}
             return {"message": message, "mode": "photo_point_clarification", "evidence": [], "point_context": None, "presentation": presentation, "retrieval_query": None}
-        # A whole-site request can still prioritize the real current position,
-        # but this is only a ranking hint and never a state update.
-        context = context or current_stop_context(tour_state)
+        # ``resolve_point_context`` already enforces the priority contract:
+        # explicit reviewed point > deictic current point > no point. A true
+        # whole-site request must keep ``None`` so the photo runtime may return
+        # several route/global candidates instead of silently pinning it to the
+        # current stop.
         result = answer_photo_request(
             user_query,
             point_context=context,
@@ -1737,9 +1739,13 @@ def answer_tour_question(
         )
         presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
         if presentation:
-            message = result["message"] + "\n\n本次拍摄建议未改变路线或游览进度。"
-            presentation = {**presentation, "message": message, "code": result["mode"], "ok": result["mode"] == "photo_recommendation"}
-            result = {**result, "message": message, "presentation": presentation}
+            presentation = {
+                **presentation,
+                "message": result["message"],
+                "code": result["mode"],
+                "ok": result["mode"] == "photo_recommendation",
+            }
+            result = {**result, "presentation": presentation}
         else:
             result = {**result, "presentation": None}
         return {**result, "evidence": [], "retrieval_query": None}

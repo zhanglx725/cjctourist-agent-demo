@@ -8,6 +8,7 @@ the preference values themselves live in one C1 VisitorProfile instance.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Any
 
 from duration_parser import parse_duration_minutes
@@ -56,7 +57,10 @@ STYLE_ALIASES = {
     "child": ("儿童友好", "儿童"),
     "family": ("亲子共游", "亲子"),
     "student_research": ("研学观察", "研学"),
-    "listen_only": ("静听模式", "静听"),
+    "listen_only": (
+        "静听模式", "静听", "安静听讲", "只想安静听讲",
+        "不需要互动", "不要互动",
+    ),
     "mixed_group": ("混合群体", "混合团体"),
     "dominant_ceo": ("霸道总裁", "总裁"),
     "cute_junior": ("奶气学弟", "学弟"),
@@ -81,7 +85,10 @@ EXPLICIT_STYLE_PHRASES = {
     "family": ("亲子共游风格", "亲子讲解风格"),
     "student_research": ("研学观察风格", "研学讲解风格"),
     "professional": ("专业讲解风格", "专业讲解"),
-    "listen_only": ("静听模式", "静听讲解风格"),
+    "listen_only": (
+        "静听模式", "静听讲解风格", "安静听讲",
+        "只想安静听讲", "不需要互动", "不要互动",
+    ),
     "mixed_group": ("混合群体风格", "混合团体讲解风格"),
     "dominant_ceo": ("霸道总裁风格", "霸道总裁讲解风格"),
     "cute_junior": ("奶气学弟风格", "奶气学弟讲解风格"),
@@ -343,6 +350,14 @@ def _extract_patch(
     if duration.ok:
         patch["available_minutes"] = duration.minutes
         fields.add("available_minutes")
+    elif duration.reason_code == "no_duration" and current_field == "available_minutes":
+        # A bare integer is accepted only while the deterministic collector is
+        # explicitly asking for minutes. Outside this slot it remains ordinary
+        # text and can never silently alter a route duration.
+        bare_minutes = re.fullmatch(r"\s*(\d{1,3})\s*[。.!！?？]?\s*", text)
+        if bare_minutes:
+            patch["available_minutes"] = int(bare_minutes.group(1))
+            fields.add("available_minutes")
     interest_text = _without_explicit_style_phrases(text)
     interests = sorted(
         (term for term in INTEREST_TERMS if term in interest_text),
@@ -359,6 +374,7 @@ def _extract_patch(
     )
     if style:
         patch["explanation_style"] = style
+        patch["interaction_mode"] = "listen_only" if style == "listen_only" else "normal"
         fields.add("explanation_style")
     language = _language_candidate(text, allow_free_text=current_field == "language")
     if language:

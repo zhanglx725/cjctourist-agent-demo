@@ -53,6 +53,22 @@ class ProfileDialogueTests(unittest.TestCase):
         self.assertEqual(fourth.status, "ready")
         self.assertEqual(fourth.collection.profile.detail_level, "deep")
 
+    def test_bare_number_is_minutes_only_in_the_active_time_slot(self):
+        first = collect_profile_input(None, "帮我规划路线", start_collection=True)
+        second = collect_profile_input(first.collection.to_dict(), "45")
+        self.assertEqual(second.collection.profile.available_minutes, 45)
+        self.assertIn("available_minutes", second.collection.resolved_fields)
+        self.assertNotEqual(second.collection.next_missing_field, "available_minutes")
+        self.assertIsNone(collect_profile_input(None, "45", start_collection=False))
+
+    def test_natural_listen_only_expression_sets_style_and_interaction_mode(self):
+        result = collect_profile_input(
+            None, "我只想安静听讲，不需要互动", start_collection=True,
+            required_fields=("explanation_style",),
+        )
+        self.assertEqual(result.collection.profile.explanation_style, "listen_only")
+        self.assertEqual(result.collection.profile.interaction_mode, "listen_only")
+
     def test_minimize_walking_persists_without_becoming_a_required_question(self):
         first = collect_profile_input(
             None, "帮我规划一条少走路的路线", start_collection=True

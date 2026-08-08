@@ -226,6 +226,41 @@ def answer_photo_request(
     requested_themes = _theme_hints(user_query)
     group_hints = _audience_group_hints(user_query, visitor_profile)
     current_node_id = point_context.get("node_id") if point_context else None
+    if current_node_id:
+        # A current or explicitly resolved point is authoritative. Never
+        # answer "这里怎么拍" with candidates from other route stops.
+        try:
+            current_selection = query_selector(
+                node_id=current_node_id,
+                audience_mode=(visitor_profile or {}).get("audience_mode"),
+                themes=tuple(requested_themes),
+            )
+            if not current_selection.get("available"):
+                current_selection = query_selector(
+                    node_id=current_node_id,
+                    audience_mode=(visitor_profile or {}).get("audience_mode"),
+                    themes=(),
+                )
+        except Exception:
+            current_selection = {"available": False}
+        if current_selection.get("available"):
+            rendered_current = _render_candidate(current_selection)
+            return {
+                "message": "可以参考这一处已审核的拍摄建议：\n\n" + rendered_current["message"],
+                "mode": "photo_recommendation",
+                "photo_spots": [rendered_current],
+                "point_context": point_context,
+            }
+        return {
+            "message": (
+                "当前点位暂无可用的已审核拍摄建议。我可以先提供一般安全原则："
+                "请在允许拍摄且不影响通行的位置取景，不触摸、倚靠或攀坐文物与建筑构件，"
+                "并遵守现场标识和工作人员要求。"
+            ),
+            "mode": "photo_no_current_candidate",
+            "photo_spots": [],
+            "point_context": point_context,
+        }
     parent_ids = _parent_node_ids()
     remaining = list((tour_state or {}).get("remaining_stop_ids") or [])
     remaining_rank = {node_id: index for index, node_id in enumerate(remaining)}

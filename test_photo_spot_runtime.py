@@ -265,14 +265,18 @@ class PhotoSpotRuntimeTests(unittest.TestCase):
     def test_current_point_without_candidate_is_disclosed_before_route_fallback(self) -> None:
         candidates = _candidates()
         candidates["photo_current"] = {**candidates["photo_current"], "available": False}
+        def current_unavailable_selector(*, node_id, **kwargs):
+            if node_id == CURRENT:
+                return {"available": False, "reason": "no_editorial_photo_candidate"}
+            return _selector(node_id=node_id, **kwargs)
         result = answer_photo_request(
             "这里怎么拍？", point_context={"node_id": CURRENT, "name": "月台"},
             tour_state={"remaining_stop_ids": [NEXT]}, visitor_profile={},
-            candidate_validator=lambda: candidates, query_selector=_selector,
+            candidate_validator=lambda: candidates, query_selector=current_unavailable_selector,
         )
-        self.assertEqual(result["mode"], "photo_recommendation")
-        self.assertEqual(result["photo_spots"][0]["node_id"], NEXT)
-        self.assertIn("当前点位暂没有", result["message"])
+        self.assertEqual(result["mode"], "photo_no_current_candidate")
+        self.assertEqual(result["photo_spots"], [])
+        self.assertIn("当前点位暂无", result["message"])
 
     def test_route_change_is_not_partially_executed(self) -> None:
         result = answer_photo_request("把这个打卡点加入路线", point_context={"node_id": CURRENT}, tour_state=None, visitor_profile=None, candidate_validator=_candidates, query_selector=_selector)

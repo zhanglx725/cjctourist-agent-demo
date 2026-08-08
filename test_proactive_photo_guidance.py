@@ -52,7 +52,11 @@ class ProactivePhotoGuidanceTests(unittest.TestCase):
         self.assertFalse(repeat["triggered"])
 
     def test_detail_and_listen_only_do_not_trigger(self):
-        for detailed, profile in ((True, {}), (False, {"interaction_mode": "listen_only"})):
+        for detailed, profile in (
+            (True, {}),
+            (False, {"interaction_mode": "listen_only"}),
+            (False, {"explanation_style": "listen_only", "interaction_mode": "normal"}),
+        ):
             result = maybe_trigger_photo_guidance(
                 tour_state=tour(), existing_plan=None,
                 last_tour_event={"event": "arrive_at_stop", "ok": True},
