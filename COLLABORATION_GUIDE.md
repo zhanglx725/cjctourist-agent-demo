@@ -1,5 +1,16 @@
 # CURRENT ROLE SHADOW HANDOFF (2026-08-09)
 
+## Baseline cleanup boundary
+
+The baseline cleanup is a separate completed change. It updates deterministic
+profile parsing and test observability only: no role Shadow implementation,
+presentation-content-plan code, Active flag, route-state contract, RAG data,
+or Studio launcher is part of it. `visitor_localization` remains in the full
+Graph trace; tests must assert semantic-node presence and order rather than a
+terminal metric slice. Visitor interests retain input order.
+
+Verification: baseline targeted `57/57`, full regression `1061/1061`.
+
 ## Route/opening role-text Shadow boundary
 
 `route_planning` and `route_opening` may append only a separate Shadow audit

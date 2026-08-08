@@ -1,5 +1,26 @@
 # CURRENT ROLE SHADOW STATUS (2026-08-09)
 
+## Baseline regression cleanup (2026-08-09)
+
+The independent baseline cleanup is complete. Explicit C8 profile controls
+such as child-friendly guidance now bypass incomplete route onboarding without
+writing TourState. Route-profile collection keeps the raw user utterance for
+preference extraction while semantic normalization remains the routing-only
+control boundary. Deterministic English parsing now supports `one hour`,
+`deep explanation`, and `detailed tour`; it does not infer ambiguous amounts.
+
+The VisitorProfile contract continues to preserve visitor-mentioned interest
+order. Trace tests now verify that `semantic_normalization` appears before the
+route step without pretending it must be among the final three metrics after
+the retained `visitor_localization` node.
+
+```text
+baseline_cleanup_targeted_tests: 57/57 passed
+full_regression: 1061/1061 passed
+role_shadow: unchanged
+active_takeover: disabled
+```
+
 ## Route planning and opening role-text Shadow
 
 `route_planning` and `route_opening` now produce a separate non-authoritative

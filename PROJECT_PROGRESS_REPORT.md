@@ -1,5 +1,21 @@
 # CURRENT PHASE: ROLE MODE SHADOW (2026-08-09)
 
+## Baseline regression cleanup completed (2026-08-09)
+
+The five previously recorded baseline failures are resolved in an independent
+non-role change. The cleanup preserves the raw message for deterministic C2
+preference parsing, permits explicit C8 controls before optional onboarding,
+adds bounded English duration/detail parsing, and aligns tests with the
+frozen interest-order and complete-Trace contracts.
+
+```text
+baseline_cleanup_targeted_tests: 57/57 passed
+full_regression: 1061/1061 passed
+remaining_preexisting_failures: 0
+role_shadow: unchanged
+active_takeover: disabled
+```
+
 ## Route planning and opening role-text Shadow
 
 The completed deterministic `route_planning` and `route_opening` messages are

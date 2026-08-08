@@ -53,6 +53,13 @@ class ProfileDialogueTests(unittest.TestCase):
         self.assertEqual(fourth.status, "ready")
         self.assertEqual(fourth.collection.profile.detail_level, "deep")
 
+    def test_explicit_english_deep_phrases_are_collected_deterministically(self):
+        for text in ("30 minutes, deep explanation", "one hour, detailed tour"):
+            with self.subTest(text=text):
+                result = collect_profile_input(None, text, start_collection=True)
+                assert result is not None
+                self.assertEqual(result.collection.profile.detail_level, "deep")
+
     def test_bare_number_is_minutes_only_in_the_active_time_slot(self):
         first = collect_profile_input(None, "帮我规划路线", start_collection=True)
         second = collect_profile_input(first.collection.to_dict(), "45")

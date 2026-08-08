@@ -139,7 +139,7 @@ class VisitSummaryEngineTests(unittest.TestCase):
         ).to_dict()
         basis = summary["title_basis"]
         self.assertEqual(basis["question_count"], 1)
-        self.assertEqual(basis["explicit_interest_ids"], ["木雕", "灰塑"])
+        self.assertEqual(basis["explicit_interest_ids"], ["灰塑", "木雕"])
         self.assertEqual(basis["matched_interest_ids"], ["灰塑"])
         self.assertEqual(basis["explanation_style"], "story")
         self.assertIn("独角狮", basis["introduced_topic_names"])

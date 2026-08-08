@@ -1549,6 +1549,7 @@ def post_visit_title_blessing_node(state: AgentState) -> dict[str, Any]:
 
 def profile_collection_node(state: AgentState) -> dict[str, Any]:
     """Collect explicit C2 preferences without starting or changing a tour."""
+    raw_text = _latest_user_text(state)
     query = _effective_control_text(state)
     decision = classify_tour_intent(
         query, state.get("tour_state"), state.get("tour_interaction_state")
@@ -1573,7 +1574,7 @@ def profile_collection_node(state: AgentState) -> dict[str, Any]:
     )
     journey_mode = journey_mode_from_interaction(session_control)
     result = collect_profile_input(
-        state.get("profile_collection"), query, start_collection=start_collection,
+        state.get("profile_collection"), raw_text, start_collection=start_collection,
         base_profile=state.get("visitor_profile"),
         required_fields=(
             CLASSIC_PROFILE_FIELDS if journey_mode == "classic" else CUSTOM_PROFILE_FIELDS
@@ -1713,7 +1714,9 @@ def visitor_onboarding_node(state: AgentState) -> dict[str, Any]:
         status = "awaiting_language"
         program["status"] = status
 
-    patch, fields, conflict = extract_profile_patch(text)
+    patch, fields, conflict = extract_profile_patch(
+        text, allow_bare_detail=has_route_duration_context(text)
+    )
     language = patch.get("language")
     if language is None and status == "awaiting_language":
         language = parse_explanation_language(text)
@@ -3902,10 +3905,13 @@ def route_initial_request(state: AgentState) -> str:
     if is_identity_document_civil_service_request(raw_text):
         return "tour_qa"
     onboarding_status = (state.get("visitor_welcome_program") or {}).get("status")
+    onboarding_profile_control = parse_extended_profile_control(raw_text)
     if (
         onboarding_status in {"awaiting_ready", "awaiting_language", "awaiting_mode"}
         and not _is_onboarding_read_only_question(raw_text)
     ):
+        if onboarding_profile_control.kind != "none":
+            return "extended_profile_control"
         return "visitor_onboarding"
     completed_tour = (state.get("tour_state") or {}).get("route_status") == "completed"
     if (

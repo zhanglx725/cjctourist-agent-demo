@@ -1,5 +1,16 @@
 # CURRENT ROLE SHADOW LEARNING NOTE (2026-08-09)
 
+## Baseline cleanup lesson: routing normalization is not profile extraction
+
+Semantic normalization may safely reduce an utterance to a bounded routing
+control, but it must not erase explicit visitor preferences before C2 parses
+them. The cleanup keeps the normalized text for Graph routing and the raw
+utterance for deterministic profile extraction. It also treats profile
+controls as independent of optional onboarding and validates complete trace
+order instead of relying on a fragile last-three-metrics assertion.
+
+Verified by baseline targeted `57/57` and full regression `1061/1061`.
+
 ## Route/opening role-text Shadow: why preserve the complete legacy message
 
 Route descriptions contain coupled facts: the selected route, time budget,

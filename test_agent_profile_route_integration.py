@@ -60,6 +60,16 @@ class AgentProfileRouteIntegrationTests(unittest.TestCase):
         self.assertEqual(result["tour_state"]["interests"], ["木雕"])
         self.assertEqual(result["tour_state"]["detail_level"], "deep")
 
+    def test_english_duration_and_deep_phrase_match_the_chinese_route_contract(self):
+        graph = build_agent_graph(with_checkpointer=False)
+        result = graph.invoke(_state(
+            "\u9009\u62e9\u7ecf\u5178\u6a21\u5f0f\uff0c\u4e2d\u6587\uff0cone hour route\uff0c\u6728\u96d5\uff0cdetailed tour"
+        ))
+        self.assertEqual(result["selected_route_id"], "crafts_60")
+        self.assertEqual(result["visitor_profile"]["available_minutes"], 60)
+        self.assertEqual(result["visitor_profile"]["interests"], ["\u6728\u96d5"])
+        self.assertEqual(result["tour_state"]["detail_level"], "deep")
+
     def test_minimize_walking_constraint_reaches_audited_route_selection(self):
         graph = build_agent_graph(with_checkpointer=False)
         result = graph.invoke(_state(

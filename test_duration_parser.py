@@ -53,6 +53,15 @@ class DurationParserTests(unittest.TestCase):
         self.assertFalse(has_route_duration_context("30min 后闭馆"))
         self.assertFalse(has_remaining_duration_context("30min 后闭馆"))
 
+    def test_explicit_english_hour_is_normalized_without_guessing(self):
+        for text, expected in (("one hour", 60), ("2 hours", 120)):
+            with self.subTest(text=text):
+                result = parse_duration_minutes(text)
+                self.assertTrue(result.ok)
+                self.assertEqual(result.minutes, expected)
+        self.assertEqual(parse_duration_minutes("an hour").reason_code, "no_duration")
+        self.assertTrue(has_route_duration_context("one hour tour"))
+
     def test_english_minute_unit_does_not_match_longer_word(self):
         result = parse_duration_minutes("30minimum")
         self.assertEqual(result.reason_code, "no_duration")

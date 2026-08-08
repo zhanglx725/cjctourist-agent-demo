@@ -322,7 +322,10 @@ def _detail_candidates(text: str, *, allow_bare_detail: bool = False) -> set[str
         # cannot turn “再讲详细一点” at a physical stop into a persistent C4
         # profile update.
         deep_terms.append("详细")
-    if any(term in text for term in deep_terms):
+    lowered = text.casefold()
+    if any(term in text for term in deep_terms) or any(
+        phrase in lowered for phrase in ("deep explanation", "detailed tour")
+    ):
         candidates.add("deep")
     if any(term in text for term in ("标准讲", "正常讲", "适中")):
         candidates.add("standard")
@@ -387,14 +390,16 @@ def _extract_patch(
     return patch, fields, None
 
 
-def extract_profile_patch(user_text: str) -> tuple[dict[str, Any], set[str], str | None]:
+def extract_profile_patch(
+    user_text: str, *, allow_bare_detail: bool = False
+) -> tuple[dict[str, Any], set[str], str | None]:
     """Expose C2's deterministic synonym parser for controlled C4 updates.
 
     This deliberately returns only a candidate patch.  Callers must still use
     C1's immutable ``update_visitor_profile`` for validation and must decide
     whether the surrounding dialogue is actually an update request.
     """
-    return _extract_patch(user_text)
+    return _extract_patch(user_text, allow_bare_detail=allow_bare_detail)
 
 
 def _neutral_value(field: str) -> Any:
