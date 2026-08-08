@@ -74,6 +74,38 @@ class NearbyPoiRuntimeTests(unittest.TestCase):
         self.assertEqual(tour, before_tour)
         self.assertEqual(profile, before_profile)
 
+    def test_reviewed_summary_and_reason_are_rendered(self) -> None:
+        with patch("nearby_poi_runtime.load_approved_nearby_pois", return_value=_cards()):
+            result = answer_nearby_request("附近有什么奶茶？")
+        self.assertIn("特色：一处经过审核的休息候选。", result["message"])
+        self.assertIn("推荐理由：可作为参观后的短暂停留参考。", result["message"])
+
+    def test_repeated_subtype_excludes_previous_candidates(self) -> None:
+        cards = (*_cards(), {
+            **_cards()[1], "poi_id": "poi_cafe_2",
+            "name_zh": "第二家审核奶茶候选", "distance_rank": 5,
+        })
+        with patch("nearby_poi_runtime.load_approved_nearby_pois", return_value=cards):
+            first = answer_nearby_request("附近有什么奶茶？")
+            second = answer_nearby_request(
+                "还有什么奶茶？", offer_pending=True,
+                excluded_poi_ids=first["selected_poi_ids"],
+            )
+            exhausted = answer_nearby_request(
+                "还有什么奶茶？", offer_pending=True,
+                excluded_poi_ids=[*first["selected_poi_ids"], *second["selected_poi_ids"]],
+            )
+        self.assertNotEqual(first["selected_poi_ids"], second["selected_poi_ids"])
+        self.assertEqual(exhausted["mode"], "nearby_candidates_exhausted")
+
+    def test_natural_route_mutation_wording_is_clarified(self) -> None:
+        text = "把附近的奶茶店加入我的游览路线。"
+        self.assertTrue(has_nearby_route_conflict(text))
+        with patch("nearby_poi_runtime.load_approved_nearby_pois", return_value=_cards()):
+            result = answer_nearby_request(text)
+        self.assertEqual(result["mode"], "nearby_route_clarification")
+        self.assertEqual(result["nearby_pois"], [])
+
     def test_pending_offer_accept_decline_and_subtype_are_deterministic(self) -> None:
         self.assertEqual(classify_nearby_offer_response("需要"), "accept")
         self.assertEqual(classify_nearby_offer_response("不用了"), "decline")

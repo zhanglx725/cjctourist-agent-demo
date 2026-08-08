@@ -1235,6 +1235,7 @@ def post_visit_title_blessing_node(state: AgentState) -> dict[str, Any]:
     offer = existing_offer if isinstance(existing_offer, dict) else {
         "status": "awaiting_choice",
         "offered_after_candidate_id": award["candidate_id"],
+        "recommended_poi_ids": [],
     }
     if new_offer:
         message += f"\n\n{POST_VISIT_NEARBY_PROMPT}"
@@ -1475,12 +1476,18 @@ def visitor_onboarding_node(state: AgentState) -> dict[str, Any]:
         required_fields = (
             CLASSIC_PROFILE_FIELDS if selected == "classic" else CUSTOM_PROFILE_FIELDS
         )
+        collection_status = (
+            "ready"
+            if all(field in resolved for field in required_fields)
+            else "collecting"
+        )
         updates["journey_mode_selection"] = {
             "status": "selected", "selected_mode": selected,
         }
         updates["profile_collection"] = ProfileCollection(
             profile=profile,
             resolved_fields=tuple(resolved),
+            status=collection_status,
             required_fields=required_fields,
         ).to_dict()
         updates["tour_interaction_state"] = update_session_control(
@@ -2890,9 +2897,17 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
     if result["presentation"] is not None:
         updates["tour_presentation"] = {**result["presentation"], "message": public_message}
     if isinstance(state.get("post_visit_nearby_offer"), dict) and result.get("offer_status"):
+        previously_recommended = list(
+            state["post_visit_nearby_offer"].get("recommended_poi_ids", [])
+        )
+        newly_recommended = [
+            poi_id for poi_id in result.get("selected_poi_ids", [])
+            if poi_id not in previously_recommended
+        ]
         updates["post_visit_nearby_offer"] = {
             **state["post_visit_nearby_offer"],
             "status": result["offer_status"],
+            "recommended_poi_ids": [*previously_recommended, *newly_recommended],
         }
     question_log = _next_tour_question_log(state, "tour_qa")
     if question_log is not None:
@@ -3185,7 +3200,19 @@ def route_initial_request(state: AgentState) -> str:
     # even when the visitor has not supplied a duration yet.  Without this
     # gate wording such as “进入定制模式” can fall through to llm_think, which
     # may invent an unreviewed preference menu instead of starting C2.
-    if not state.get("tour_state") and explicit_journey_mode_choice(raw_text) is not None:
+    explicit_mode_at_entry = explicit_journey_mode_choice(raw_text)
+    entry_patch, _entry_fields, entry_profile_issue = extract_profile_patch(raw_text)
+    entry_has_route_action = any(
+        term in raw_text
+        for term in ("路线", "规划", "怎么逛", "参观顺序", "带我逛")
+    )
+    if (
+        not state.get("tour_state")
+        and explicit_mode_at_entry is not None
+        and not entry_patch
+        and entry_profile_issue is None
+        and not entry_has_route_action
+    ):
         return "journey_mode_selection"
 
     # First confirmation stage: no inferred default budget is available, so a

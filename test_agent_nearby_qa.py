@@ -50,7 +50,7 @@ class AgentNearbyQaTests(unittest.TestCase):
         self.assertNotIn("tour_interaction_state", update)
         self.assertNotIn("visitor_profile", update)
         self.assertEqual(initial, before)
-        self.assertIn("未改变陈家祠馆内路线", update["messages"][0].content)
+        self.assertNotIn("未改变陈家祠馆内路线", update["messages"][0].content)
 
     def test_indoor_milk_tea_question_remains_a_safety_question(self) -> None:
         request = _state("展厅里面能喝奶茶吗？")
@@ -62,6 +62,13 @@ class AgentNearbyQaTests(unittest.TestCase):
     def test_onboarding_nearby_request_answers_then_resumes(self) -> None:
         request = _state("附近哪里可以买手信", {"visitor_welcome_program": {"status": "awaiting_language"}})
         self.assertEqual(route_initial_request(request), "tour_qa")
+
+    def test_route_mutation_request_gets_boundary_clarification(self) -> None:
+        request = _state("把附近的奶茶店加入我的游览路线。")
+        self.assertEqual(route_initial_request(request), "tour_qa")
+        update = tour_qa_node(request)
+        self.assertIn("不会把周边地点加入陈家祠游览路线", update["messages"][0].content)
+        self.assertNotIn("tour_state", update)
 
 
 if __name__ == "__main__":

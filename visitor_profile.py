@@ -58,10 +58,11 @@ class VisitorProfileError(ValueError):
 
 
 def normalize_interests(interests: Iterable[str] | str | None) -> tuple[str, ...]:
-    """Trim, de-duplicate and stably order explicit interest labels.
+    """Trim and de-duplicate explicit interests in visitor mention order.
 
     C1 treats labels as stated preferences, not inferred user traits.  Stable
-    ordering makes serializations and later deterministic planners repeatable.
+    first-occurrence ordering preserves what the visitor said while remaining
+    deterministic for serialization and later planners.
     """
     if interests is None:
         return ()
@@ -80,7 +81,7 @@ def normalize_interests(interests: Iterable[str] | str | None) -> tuple[str, ...
         if not item:
             continue
         normalized.setdefault(item.casefold(), item)
-    return tuple(normalized[key] for key in sorted(normalized))
+    return tuple(normalized.values())
 
 
 def _normalize_minutes(value: Any) -> int:

@@ -11,7 +11,7 @@ Dear visitors, welcome to the Chen Clan Academy. I'm Xiao Ci, your personal tour
 
 You may input your preferred language to kick off your journey exploring the Chen Clan Academy. We provide two tour modes: Classic Mode and Custom Mode. Pick Classic Mode if you want to start your tour immediately. Choose Custom Mode for a one-of-a-kind sightseeing experience. Within Custom Mode, you are able to select your favoured craft themes and narration style. Enjoy your visit! Which language would you prefer?"""
 
-LANGUAGE_PROMPT = """请问您选择什么语言呢？例如中文、英语或韩语，也可以输入其他语言。
+LANGUAGE_PROMPT = """请问您选择什么讲解语言呢？例如中文、英语或韩语，也可以输入其他语言。
 
 Which language would you prefer? For example, Chinese, English, or Korean. You may also enter another language."""
 

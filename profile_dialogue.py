@@ -344,9 +344,10 @@ def _extract_patch(
         patch["available_minutes"] = duration.minutes
         fields.add("available_minutes")
     interest_text = _without_explicit_style_phrases(text)
-    interests = [
-        term for term in INTEREST_TERMS if term in interest_text
-    ] if current_field in {None, "available_minutes", "interests"} else []
+    interests = sorted(
+        (term for term in INTEREST_TERMS if term in interest_text),
+        key=lambda term: (interest_text.find(term), INTEREST_TERMS.index(term)),
+    ) if current_field in {None, "available_minutes", "interests"} else []
     if interests:
         patch["interests"] = interests
         fields.add("interests")

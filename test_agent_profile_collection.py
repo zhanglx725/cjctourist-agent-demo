@@ -106,7 +106,7 @@ class AgentProfileCollectionTests(unittest.TestCase):
         update = profile_collection_node(state)
         self.assertEqual(update["profile_collection"]["status"], "ready")
         self.assertEqual(update["visitor_profile"]["available_minutes"], 30)
-        self.assertEqual(update["visitor_profile"]["interests"], ["木雕", "灰塑"])
+        self.assertEqual(update["visitor_profile"]["interests"], ["灰塑", "木雕"])
         self.assertEqual(update["visitor_profile"]["detail_level"], "short")
         self.assertNotIn("tour_state", update)
 

@@ -8,6 +8,11 @@ from profile_dialogue import STYLE_SELECTION_PROMPT, collect_profile_input, extr
 
 
 class ProfileDialogueTests(unittest.TestCase):
+    def test_interests_preserve_the_visitors_mention_order(self) -> None:
+        result = collect_profile_input(
+            None, "我喜欢灰塑和木雕", start_collection=True,
+        )
+        self.assertEqual(result.collection.profile.interests, ("灰塑", "木雕"))
     def test_style_prompt_lists_all_eighteen_reviewed_yaml_styles(self):
         expected = (
             "中性清晰", "儿童友好", "亲子共游", "研学观察", "专业讲解", "静听模式", "混合群体",
@@ -28,7 +33,7 @@ class ProfileDialogueTests(unittest.TestCase):
         assert result is not None
         self.assertEqual(result.status, "ready")
         self.assertEqual(result.collection.profile.available_minutes, 30)
-        self.assertEqual(result.collection.profile.interests, ("木雕", "灰塑"))
+        self.assertEqual(result.collection.profile.interests, ("灰塑", "木雕"))
         self.assertEqual(result.collection.profile.detail_level, "short")
 
     def test_missing_fields_are_prompted_in_frozen_order(self):

@@ -44,7 +44,7 @@ class VisitorProfileTests(unittest.TestCase):
             interests=[" 灰塑 ", "木雕", "灰塑", "WOOD"],
             detail_level=" DEEP ",
         )
-        self.assertEqual(profile.interests, ("WOOD", "木雕", "灰塑"))
+        self.assertEqual(profile.interests, ("灰塑", "木雕", "WOOD"))
         self.assertEqual(profile.detail_level, "deep")
         self.assertNotIn("visitor_type", profile.to_dict())
         self.assertNotIn("language", profile.to_dict())

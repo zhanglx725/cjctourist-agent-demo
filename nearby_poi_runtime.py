@@ -131,9 +131,11 @@ def is_nearby_offer_input(user_query: str, *, offer_pending: bool) -> bool:
 
 
 def has_nearby_route_conflict(user_query: str) -> bool:
-    return is_explicit_nearby_request(user_query) and any(
-        cue in str(user_query or "") for cue in ROUTE_CHANGE_CUES
+    text = str(user_query or "")
+    route_mutation = any(cue in text for cue in ROUTE_CHANGE_CUES) or bool(
+        re.search(r"(?:加入|加到|放进|安排进|添加到).{0,8}(?:路线|行程)", text)
     )
+    return is_explicit_nearby_request(text) and route_mutation
 
 
 def _requested_categories(text: str) -> set[str]:
@@ -226,11 +228,6 @@ def load_approved_nearby_pois(path: Path = CATALOG_FILE) -> tuple[dict[str, Any]
         reason = _repair_legacy_text(raw.get("why_recommend_zh"))
         if any(term in summary or term in reason for term in PROHIBITED_PUBLIC_CLAIMS):
             continue
-        # Descriptive prose requires the separately reviewed evidence page.
-        # A map page is sufficient only for stable identity and address.
-        has_content_evidence = str(raw.get("evidence_url") or "").strip().startswith(
-            ("https://", "http://")
-        )
         walk_minutes = raw.get("walk_minutes_from_chen_clan_academy")
         approved.append({
             "poi_id": poi_id,
@@ -239,8 +236,10 @@ def load_approved_nearby_pois(path: Path = CATALOG_FILE) -> tuple[dict[str, Any]
             "category": category,
             "tags": tags,
             "subtypes": _card_subtypes(name, category, raw_tags),
-            "one_line_summary_zh": summary if has_content_evidence else "",
-            "why_recommend_zh": reason if has_content_evidence else "",
+            # These two fields are authored and approved in the manual-review
+            # catalog. Runtime still rejects prohibited superlatives above.
+            "one_line_summary_zh": summary,
+            "why_recommend_zh": reason,
             # This field is a ranking hint only and is never rendered as a
             # promised walking time.
             "distance_rank": walk_minutes if isinstance(walk_minutes, int) else 999,
@@ -273,14 +272,18 @@ def _diversified_selection(cards: list[dict[str, Any]], limit: int = 3) -> list[
 
 def _render_card(card: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     label = CATEGORY_LABELS.get(card["category"], "周边场所")
-    # Commercial descriptions and menus can change even when identity and
-    # location remain valid.  Keep the authored prose internal and render only
-    # a stable, category-derived rationale that the runtime can defend.
     lines = [
         f"{card['name_zh']}（{label}）",
         f"地址：{card['address_zh']}",
-        CATEGORY_RATIONALES.get(card["category"], "可作为馆外周边参考。"),
     ]
+    summary = str(card.get("one_line_summary_zh") or "").strip()
+    reason = str(card.get("why_recommend_zh") or "").strip()
+    if summary:
+        lines.append(f"特色：{summary}")
+    if reason:
+        lines.append(f"推荐理由：{reason}")
+    else:
+        lines.append(CATEGORY_RATIONALES.get(card["category"], "可作为馆外周边参考。"))
     public_record = {
         "name_zh": card["name_zh"],
         "category": card["category"],
@@ -289,7 +292,12 @@ def _render_card(card: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     return "\n".join(lines), public_record
 
 
-def answer_nearby_request(user_query: str, *, offer_pending: bool = False) -> dict[str, Any]:
+def answer_nearby_request(
+    user_query: str,
+    *,
+    offer_pending: bool = False,
+    excluded_poi_ids: tuple[str, ...] | list[str] = (),
+) -> dict[str, Any]:
     """Render up to three deterministic, reviewed outdoor recommendations."""
     response = classify_nearby_offer_response(user_query) if offer_pending else None
     if response == "decline":
@@ -297,6 +305,7 @@ def answer_nearby_request(user_query: str, *, offer_pending: bool = False) -> di
             "message": "好的，本次不再推荐周边美食。祝您接下来的行程愉快！",
             "mode": "nearby_offer_declined",
             "nearby_pois": [],
+            "selected_poi_ids": [],
             "offer_status": "declined",
         }
     if has_nearby_route_conflict(user_query):
@@ -307,6 +316,7 @@ def answer_nearby_request(user_query: str, *, offer_pending: bool = False) -> di
             ),
             "mode": "nearby_route_clarification",
             "nearby_pois": [],
+            "selected_poi_ids": [],
             "offer_status": "awaiting_choice" if offer_pending else None,
         }
     cards = load_approved_nearby_pois()
@@ -315,6 +325,7 @@ def answer_nearby_request(user_query: str, *, offer_pending: bool = False) -> di
             "message": "当前没有可用的已审核周边推荐。" + PUBLIC_UNCERTAINTY,
             "mode": "nearby_unavailable",
             "nearby_pois": [],
+            "selected_poi_ids": [],
         }
     categories = _requested_categories(user_query)
     tags = _requested_tags(user_query)
@@ -327,7 +338,17 @@ def answer_nearby_request(user_query: str, *, offer_pending: bool = False) -> di
     elif categories:
         matched = [card for card in ranked if card["category"] in categories]
         ranked = matched or ranked
-    selected = _diversified_selection(ranked) if response == "accept" else ranked[:3]
+    excluded = set(excluded_poi_ids)
+    remaining = [card for card in ranked if card["poi_id"] not in excluded]
+    if not remaining:
+        return {
+            "message": "这一类别中已审核且当前可用的候选已经全部为您展示完毕。您也可以换一种美食或饮品类型。",
+            "mode": "nearby_candidates_exhausted",
+            "nearby_pois": [],
+            "selected_poi_ids": [],
+            "offer_status": "completed",
+        }
+    selected = _diversified_selection(remaining) if response == "accept" else remaining[:3]
     rendered = [_render_card(card) for card in selected]
     return {
         "message": (
@@ -337,5 +358,6 @@ def answer_nearby_request(user_query: str, *, offer_pending: bool = False) -> di
         ),
         "mode": "nearby_recommendation",
         "nearby_pois": [record for _, record in rendered],
+        "selected_poi_ids": [card["poi_id"] for card in selected],
         "offer_status": "completed",
     }

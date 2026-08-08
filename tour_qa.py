@@ -1408,17 +1408,20 @@ def answer_tour_question(
         }
     offer_context = isinstance(post_visit_nearby_offer, dict)
     if offer_context and is_nearby_offer_input(user_query, offer_pending=True):
-        result = answer_nearby_request(user_query, offer_pending=True)
+        result = answer_nearby_request(
+            user_query,
+            offer_pending=True,
+            excluded_poi_ids=post_visit_nearby_offer.get("recommended_poi_ids", []),
+        )
         presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
         if presentation:
-            message = result["message"] + "\n\n本次周边推荐未改变陈家祠馆内路线或游览进度。"
             presentation = {
                 **presentation,
-                "message": message,
+                "message": result["message"],
                 "code": result["mode"],
                 "ok": result["mode"] == "nearby_recommendation",
             }
-            result = {**result, "message": message, "presentation": presentation}
+            result = {**result, "presentation": presentation}
         else:
             result = {**result, "presentation": None}
         return {**result, "evidence": [], "retrieval_query": None, "point_context": None}
@@ -1665,14 +1668,13 @@ def answer_tour_question(
         result = answer_nearby_request(user_query, offer_pending=offer_context)
         presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
         if presentation:
-            message = result["message"] + "\n\n本次周边推荐未改变陈家祠馆内路线或游览进度。"
             presentation = {
                 **presentation,
-                "message": message,
+                "message": result["message"],
                 "code": result["mode"],
                 "ok": result["mode"] == "nearby_recommendation",
             }
-            result = {**result, "message": message, "presentation": presentation}
+            result = {**result, "presentation": presentation}
         else:
             result = {**result, "presentation": None}
         return {**result, "evidence": [], "retrieval_query": None, "point_context": None}
