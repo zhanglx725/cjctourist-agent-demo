@@ -3,7 +3,10 @@
 ```text
 role_schema: fixed
 role_shadow: implemented_and_automated_verified
-active: disabled
+presentation_content_plan: implemented
+presentation_content_plan_shadow: automated_verified
+role_active: disabled
+active_takeover: disabled
 role_shadow_targeted_tests: 22/22 passed
 p0_matrix: passed
 ```
@@ -16,6 +19,12 @@ Unknown and multi-role requests must remain clarification records.
 
 The five known baseline failures are preexisting and remain a separate issue
 list; do not change their assertions while finishing role Shadow.
+
+统一 `presentation_content_plan` 当前只作为 Shadow 审计结构，覆盖
+`route_planning`、`route_opening`、`stop_guidance`、`navigation` 和
+`tour_closing`。它只能描述内容结构、角色表达策略、审核证据要求、
+安全要求和场景预算；不得保存内部 ID、RAG 原文、游客最终答案或状态
+补丁。旧链仍是唯一游客正文来源，Active 与 takeover 均关闭。
 
 # 陈家祠金牌导游 Agent：多人协作公共说明
 

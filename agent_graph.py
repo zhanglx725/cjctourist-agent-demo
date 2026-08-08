@@ -106,6 +106,7 @@ from controlled_rollout import (
     STATE_TRANSITION,
     NARRATION_COMPOSITION,
     ROLE_NARRATION,
+    PRESENTATION_CONTENT_PLAN,
     RolloutMode,
     evaluation_record,
     rollout_from_environment,
@@ -125,6 +126,7 @@ from role_narration_generation import (
     role_narration_candidate_from_dict,
 )
 from role_mode_shadow import ROLE_MODE_IDS, resolve_role_mode
+from presentation_content_plan import build_presentation_content_plan
 from narration_validation import validate_role_narration
 from state_transition_adapter import dry_run_transition
 from policy_gate import evaluate_policy
@@ -278,6 +280,8 @@ class AgentState(TypedDict, total=False):
     narration_validation: dict[str, Any] | None
     active_role_narration_audit: dict[str, Any] | None
     role_narration_evaluations: list[dict[str, Any]]
+    presentation_content_plan: dict[str, Any] | None
+    presentation_content_plan_evaluations: list[dict[str, Any]]
     # Active-only two-phase Coverage input. It is never passed to the model or
     # rendered to visitors and is cleared by commit or fallback in this turn.
     pending_role_narration_commit: dict[str, Any] | None
@@ -3123,14 +3127,133 @@ def controlled_knowledge_rollout_node(
     }
 
 
+def _presentation_scene_kind(state: AgentState) -> str | None:
+    """Infer a presentation surface from deterministic legacy markers only."""
+    latest = state.get("messages", [])[-1] if state.get("messages") else None
+    metadata = latest.additional_kwargs if isinstance(latest, AIMessage) else {}
+    if state.get("visit_summary") and (state.get("tour_state") or {}).get("route_status") == "completed":
+        return "tour_closing"
+    if metadata.get("direct_route_plan"):
+        return "route_planning"
+    if metadata.get("stop_guidance") or state.get("active_narration_render_audit"):
+        return "stop_guidance"
+    opening = state.get("last_tour_opening_action") or {}
+    if opening.get("status") == "completed" and not opening.get("continue_to_stop_guidance"):
+        return "route_opening"
+    event = state.get("last_tour_event") or {}
+    if event.get("ok") and event.get("event") in {
+        "next_stop", "explanation_finished", "confirm_stop_complete", "skip_stop",
+    }:
+        return "navigation"
+    return None
+
+
+def _presentation_budget_seconds(state: AgentState, scene_kind: str) -> int:
+    """Read a scene-appropriate budget without changing any legacy budget."""
+    route = state.get("active_route_plan") or {}
+    stop = state.get("active_stop_program") or {}
+    render = state.get("active_narration_render_audit") or {}
+    if scene_kind == "stop_guidance":
+        return int(stop.get("budget_seconds") or render.get("budget_seconds") or 0)
+    if scene_kind in {"route_planning", "route_opening"}:
+        return int(route.get("estimated_total_seconds") or 0)
+    if scene_kind == "navigation":
+        # Navigation has no old content-budget field.  The existing route's
+        # explanation allocation is the only approved presentation budget.
+        return int(route.get("estimated_explanation_seconds") or 0)
+    if scene_kind == "tour_closing":
+        # Closing has no route mutation or route-planning budget.  Reuse the
+        # approved route explanation allocation when available.
+        return int(route.get("estimated_explanation_seconds") or 0)
+    return 0
+
+
+def _presentation_sources_and_evidence(state: AgentState, scene_kind: str) -> tuple[tuple[str, ...], bool]:
+    route = state.get("active_route_plan") or {}
+    if scene_kind == "route_planning":
+        return (
+            ("visitor_profile", "guidance_policy", "route_selection", "route_stop_catalog"),
+            bool(route and state.get("visitor_profile")),
+        )
+    if scene_kind == "route_opening":
+        return (
+            ("route_selection", "route_stop_catalog", "tour_opening_evidence"),
+            bool(route and state.get("tour_opening_program")),
+        )
+    if scene_kind == "stop_guidance":
+        return (
+            ("stop_program", "approved_guidance_evidence", "guidance_policy"),
+            bool(state.get("active_stop_program") and state.get("active_guidance_evidence_by_item") is not None),
+        )
+    if scene_kind == "navigation":
+        return (
+            ("tour_state", "approved_spatial_graph", "route_stop_catalog"),
+            bool(state.get("tour_state") and route),
+        )
+    return (
+        ("visit_summary", "narration_coverage", "tour_state"),
+        bool(state.get("visit_summary") and state.get("narration_coverage") is not None),
+    )
+
+
+def _presentation_content_plan_shadow_update(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+    """Create one non-authoritative plan audit after the old response."""
+    scene_kind = _presentation_scene_kind(state)
+    role_record = state.get("role_mode_shadow") or {}
+    selected_role = role_record.get("selected_style_id")
+    role_mode = selected_role if selected_role in {"ancient_scholar", "child", "listen_only"} else "standard"
+    profile = state.get("visitor_profile") or {}
+    detail_level = profile.get("detail_level", "standard")
+    sources, evidence_available = _presentation_sources_and_evidence(state, scene_kind) if scene_kind else ((), False)
+    plan = build_presentation_content_plan(
+        scene_kind=scene_kind or "unknown",
+        role_mode=role_mode,
+        detail_level=detail_level if detail_level in {"short", "standard", "deep"} else "standard",
+        budget_seconds=_presentation_budget_seconds(state, scene_kind) if scene_kind else 0,
+        source_of_facts=sources,
+        evidence_available=evidence_available,
+    )
+    latest = state.get("messages", [])[-1] if state.get("messages") else None
+    record = {
+        "thread_id": _rollout_thread_id(config),
+        "capability": PRESENTATION_CONTENT_PLAN,
+        "mode": "shadow",
+        "scene_kind": plan.scene_kind,
+        "role_mode": plan.role_mode,
+        "validation_status": plan.status,
+        "reason_codes": list(plan.reason_codes),
+        "plan": plan.to_dict(),
+        "legacy_message_present": isinstance(latest, AIMessage),
+        "legacy_message_preserved": True,
+        "active_takeover": False,
+        "state_writes": [],
+        "plan_is_non_authoritative": True,
+        "difference": {
+            "legacy_output_unchanged": True,
+            "plan_describes_sections_only": True,
+            "facts_and_route_remain_deterministic": True,
+        },
+    }
+    return {
+        "presentation_content_plan": plan.to_dict(),
+        "presentation_content_plan_evaluations": [
+            *state.get("presentation_content_plan_evaluations", []), record
+        ][-20:],
+    }
+
+
 def atomic_read_plan_shadow_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """Append a P2-01 audit candidate after the legacy response, never execute it."""
     rollout = rollout_from_environment()
+    updates: dict[str, Any] = {}
+    if rollout.observes(PRESENTATION_CONTENT_PLAN):
+        updates.update(_presentation_content_plan_shadow_update(state, config))
     if not rollout.observes(ATOMIC_READ_PLAN):
-        return {}
+        return updates
     result = observe_atomic_read_intents(_latest_human_text(state), phase=RuntimePhase.PRE_TOUR)
     record = {"thread_id": _rollout_thread_id(config), **result.audit_dict()}
-    return {"atomic_read_plan_evaluations": [*state.get("atomic_read_plan_evaluations", []), record][-20:]}
+    updates["atomic_read_plan_evaluations"] = [*state.get("atomic_read_plan_evaluations", []), record][-20:]
+    return updates
 
 
 def route_proposal_shadow_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:

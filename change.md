@@ -3,10 +3,14 @@
 ```text
 role_schema: fixed
 role_shadow: implemented_and_automated_verified
-active: disabled
+presentation_content_plan: implemented
+presentation_content_plan_shadow: automated_verified
+role_active: disabled
+active_takeover: disabled
 automated_validation: partial_due_to_preexisting_failures
 role_shadow_targeted_tests: 22/22 passed
-full_regression: 1038/1043
+presentation_content_plan_targeted_tests: 7/7 passed
+full_regression: 1045/1050
 p0_matrix: passed
 ```
 
@@ -28,6 +32,14 @@ test_title_basis_combines_heard_topics_questions_and_explicit_profile
 test_two_hour_woodcarving_deep_request_uses_route_planner
 test_two_hour_woodcarving_request_replans_from_active_tour
 ```
+
+The unified `presentation_content_plan` is now a strict Shadow audit object
+for `route_planning`, `route_opening`, `stop_guidance`, `navigation`, and
+`tour_closing`. It records content sections, role strategy, evidence and
+safety requirements, and a scene-specific budget. It does not replace the
+legacy visitor message or write operational state. Missing evidence, invalid
+enums, unknown fields, internal fields, and invalid budgets fail closed to
+`legacy_chain`.
 
 # 陈家祠导游 Agent：语义路由与全流程角色化讲解改造方案
 
@@ -725,7 +737,12 @@ professional
 invalid_candidate_schema: fixed
 automated_validation: partial_due_to_preexisting_failures
 role_shadow: implemented_and_automated_verified
-active: disabled
+presentation_content_plan: implemented
+presentation_content_plan_shadow: automated_verified
+role_active: disabled
+active_takeover: disabled
+full_regression: 1045/1050
+p0_matrix: passed
 ~~~
 
 在自动化定向测试、完整回归和 P0 安全/游客输出测试完成前，不得把本阶段写成已通过，也不得开启 `read_only_active`。

@@ -90,6 +90,7 @@ No new role Shadow failure was introduced.
 
 ## Next phase
 
-After the automated and manual Shadow evidence is recorded, design separate
-typed presentation plans for route planning, tour opening, navigation and
-closing. Do not enable `read_only_active` as part of this handoff.
+The next phase has added the separate typed `presentation_content_plan`
+Shadow contract. See
+`data/chen_clan_academy/evaluation/handoffs/presentation_content_plan_handoff.md`.
+Do not enable `read_only_active` as part of either handoff.

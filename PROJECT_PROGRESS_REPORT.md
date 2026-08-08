@@ -3,10 +3,14 @@
 ```text
 role_schema: fixed
 role_shadow: implemented_and_automated_verified
-active: disabled
+presentation_content_plan: implemented
+presentation_content_plan_shadow: automated_verified
+role_active: disabled
+active_takeover: disabled
 automated_validation: partial_due_to_preexisting_failures
 role_shadow_targeted_tests: 22/22 passed
-full_regression: 1038/1043
+presentation_content_plan_targeted_tests: 7/7 passed
+full_regression: 1045/1050
 p0_matrix: passed
 ```
 
@@ -16,6 +20,27 @@ roles (`ancient_scholar`, `child`, `listen_only`), records confidence,
 applicability and presentation strategy, and fails closed for unknown or
 conflicting roles. Role selection only changes the non-authoritative Shadow
 plan; old visitor output and operational state remain authoritative.
+
+## Current phase: unified presentation content plan Shadow (2026-08-09)
+
+Implemented `presentation_content_plan.py` and the dedicated
+`presentation_content_plan` rollout capability. The plan supports
+`route_planning`, `route_opening`, `stop_guidance`, `navigation`, and
+`tour_closing`. It records content sections, role strategy, evidence and
+safety requirements, and a scene-specific budget. It contains no internal
+IDs, raw RAG chunks, final visitor text, or state patches.
+
+Verification:
+
+```text
+presentation_content_plan_targeted_tests: 7/7 passed
+role_shadow_and_p0: 10/10 passed
+full_regression: 1045/1050
+preexisting_failures: 5
+```
+
+The five failures are unchanged parent/current baseline failures. Their
+assertions were not modified. Role Active and Active takeover remain disabled.
 
 The five baseline failures were reproduced identically on the parent and role
 Schema commits and remain preexisting. They are not being fixed here:

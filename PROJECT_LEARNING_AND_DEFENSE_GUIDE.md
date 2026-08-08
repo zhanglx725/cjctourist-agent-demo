@@ -10,13 +10,24 @@ the legacy explanation.
 ```text
 role_schema: fixed
 role_shadow: implemented_and_automated_verified
-active: disabled
+presentation_content_plan: implemented
+presentation_content_plan_shadow: automated_verified
+role_active: disabled
+active_takeover: disabled
 role_shadow_targeted_tests: 22/22 passed
+presentation_content_plan_targeted_tests: 7/7 passed
+full_regression: 1045/1050
 p0_matrix: passed
 ```
 
 Keep the five parent/current identical baseline failures separate from this
 phase and do not describe them as role regressions.
+
+统一内容计划的答辩边界：它是“讲什么结构”的只读计划，不是新的事实
+源、路线源或状态源。五类场景分别从已审核的路线、开场程序、StopProgram、
+空间导航和 VisitSummary 读取摘要；来源或预算缺失就回退旧链。古风书生
+只能改变组织与语气，儿童模式只能改变句式和观察难度，静听模式移除主动
+任务；三者都不能增加事实、对象、来源或安全权限。
 
 # 陈家祠金牌导游 Agent：项目学习与答辩说明
 
