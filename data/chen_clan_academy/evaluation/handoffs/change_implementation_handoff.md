@@ -220,3 +220,24 @@ CJC_ROLE_NARRATION_TEST_FAILURE=timeout
 低置信度完成表达（例如“这个地方好像差不多了吧”）现在确定性进入 `clarification`，不再进入自由 `llm_think/RAG`。确定性路线请求也会写入可审计的 `semantic_intent_envelope.candidates`，但不会因此新增模型调用或直接写 TourState。
 
 本轮扩展回归 116 项全部通过。全量回归共 1031 项，其中 1026 项通过；其余 5 项与上一轮已确认的基线失败完全一致，不是本轮修改引入。
+
+## 11. Phase 1 Schema 复核结果（2026-08-09）
+
+本轮只处理 `invalid_candidate_schema`，没有开启角色 Shadow 接管、Active、路线规划角色化、开场角色化或引路角色化。
+
+- 真实触发位置：`role_narration_generation.validate_candidate_shape()` 的顶层字段集合校验；Studio 展示的是失败后的内部审计 envelope，不是模型原始 JSON。
+- 模型 wire object 保持六字段严格 Schema；`role_narration_candidate_from_dict()` 现在对 Graph 内部十字段 envelope 也严格校验，拒绝未知字段、非法状态/类型、负耗时和 rejected 状态游客正文。
+- `agent_graph._invoke_role_narration_model()` 现在只接受字符串或明确的文本内容块；不再把内容块列表转换成伪 JSON 字符串。
+- 已补充合法候选、缺字段、多余字段、错误类型、未知角色、未知版本、内部 ID/来源/状态/最终文案字段和 envelope 未知字段测试。
+- 旧确定性导游正文仍是唯一游客输出；没有修改 TourState、VisitorProfile、正式路线、Proposal、RAG、知识卡、StopProgram 或 Coverage 提交边界。
+
+当前状态必须如实记录：
+
+```text
+invalid_candidate_schema: fixed
+automated_validation: partial_due_to_preexisting_failures
+role_shadow: not started
+active: disabled
+```
+
+角色定向测试已完成 `15/15 OK`；父提交 `28c6d6b` 与当前提交 `ca4b64c` 的完整回归结果完全一致，均为 `1031 passed, 4 failures, 1 error`。失败项集中在 `test_session_memory`、画像—路线集成、VisitSummary interest 顺序和两项旧路线路径断言，确认属于既有基线问题；未修改这些旧测试断言。`test_agent_graph.py` 不存在，不计入回归结果。P0 安全/游客输出矩阵已完成 `62/62 OK`，因此本阶段满足提交条件。

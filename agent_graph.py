@@ -511,7 +511,28 @@ def _invoke_role_narration_model(prompt: str) -> str:
         },
         {"role": "user", "content": prompt},
     ])
-    return response.content if isinstance(response.content, str) else str(response.content)
+    content = response.content
+    if isinstance(content, str):
+        return content
+    # Some LangChain/OpenAI-compatible runtimes return text as content blocks.
+    # Preserve only explicit text blocks; stringifying the list produces a
+    # Python representation with single quotes, which is not JSON and causes
+    # a false invalid_candidate_schema rejection.  Non-text blocks fail closed.
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif (
+                isinstance(block, dict)
+                and block.get("type") == "text"
+                and isinstance(block.get("text"), str)
+            ):
+                parts.append(block["text"])
+            else:
+                raise TypeError("role narration model returned non-text content")
+        return "".join(parts)
+    raise TypeError("role narration model returned unsupported content")
 
 
 def _arrival_candidate_audit(candidate: Any) -> dict[str, Any] | None:

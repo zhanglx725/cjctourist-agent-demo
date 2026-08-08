@@ -10,6 +10,11 @@ set "PYTHONUTF8=1"
 set "PYTHONIOENCODING=utf-8"
 call .venv\Scripts\activate.bat
 
+rem Force the role-narration Shadow configuration into the child server.
+rem This prevents an old process/environment value from disabling the test.
+set "CJC_READ_ONLY_ROLLOUT_MODE=shadow"
+set "CJC_READ_ONLY_ROLLOUT_CAPABILITIES=role_narration"
+
 echo Starting LangGraph local server...
 echo When the server reports ready, open:
 echo https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2034

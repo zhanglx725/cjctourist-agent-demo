@@ -6,7 +6,11 @@ import unittest
 from narration_content_plan import NarrationContentPlan, NarrationFact
 from narration_style_policy import compile_style_brief
 from narration_validation import validate_role_narration
-from role_narration_generation import generate_role_narration
+from role_narration_generation import (
+    generate_role_narration,
+    role_narration_candidate_from_dict,
+    validate_candidate_shape,
+)
 
 
 class RoleNarrationGenerationTests(unittest.TestCase):
@@ -77,6 +81,59 @@ class RoleNarrationGenerationTests(unittest.TestCase):
         value = generate_role_narration(plan, brief, lambda _: next(outputs))
         self.assertEqual(value.generation_status, "generated")
         self.assertEqual(value.used_fact_ids, ("craft:灰塑",))
+
+    def test_wire_schema_rejects_missing_extra_wrong_type_enum_and_version(self):
+        plan = self.plan()
+        valid = json.loads(self.response(plan.style_id, "屋脊可见灰塑。"))
+        cases = []
+        missing = dict(valid)
+        missing.pop("self_check")
+        cases.append(missing)
+        extra = dict(valid)
+        extra["node_id"] = "front_courtyard"
+        cases.append(extra)
+        wrong_type = dict(valid)
+        wrong_type["used_fact_ids"] = "craft:灰塑"
+        cases.append(wrong_type)
+        unknown_enum = dict(valid)
+        unknown_enum["style_id"] = "made_up_role"
+        cases.append(unknown_enum)
+        unknown_version = dict(valid)
+        unknown_version["schema_version"] = "role_narration_candidate_v99"
+        cases.append(unknown_version)
+        for value in cases:
+            result = validate_candidate_shape(
+                value, expected_style_id=plan.style_id, latency_ms=1,
+            )
+            self.assertEqual(result.generation_status, "rejected")
+            self.assertIn(result.reason_code, {"invalid_candidate_schema", "invalid_candidate_fields"})
+
+    def test_internal_envelope_is_strict_and_does_not_accept_unknown_fields(self):
+        plan = self.plan()
+        candidate = generate_role_narration(
+            plan, compile_style_brief(plan.style_id),
+            lambda _: self.response(plan.style_id, "屋脊可见灰塑。"),
+        ).to_dict()
+        self.assertIsNotNone(role_narration_candidate_from_dict(candidate))
+        candidate["state_patch"] = {"tour_state": {"current_stop_id": "front"}}
+        self.assertIsNone(role_narration_candidate_from_dict(candidate))
+
+    def test_model_candidate_cannot_contain_internal_or_final_answer_fields(self):
+        plan = self.plan()
+        for field, value in (
+            ("source_ids", ["S01"]),
+            ("node_id", "front_courtyard"),
+            ("tour_state", {"current_stop_id": "front"}),
+            ("visitor_profile", {"language": "zh"}),
+            ("final_visitor_answer", "请确认完成本点。"),
+        ):
+            value_to_check = json.loads(self.response(plan.style_id, "屋脊可见灰塑。"))
+            value_to_check[field] = value
+            result = validate_candidate_shape(
+                value_to_check, expected_style_id=plan.style_id, latency_ms=1,
+            )
+            self.assertEqual(result.generation_status, "rejected")
+            self.assertEqual(result.reason_code, "invalid_candidate_schema")
 
 
 if __name__ == "__main__":

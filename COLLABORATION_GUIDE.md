@@ -1,5 +1,14 @@
 # 陈家祠金牌导游 Agent：多人协作公共说明
 
+## 角色候选 Schema Phase 1 共享边界（2026-08-09）
+
+- `role_narration_generation.py` 的模型 wire object 只允许 `role_narration_candidate_v1` 六个字段；未知字段、缺字段、错误类型、未知角色和未知版本必须失败关闭。
+- Graph 中的十字段候选 envelope 也必须严格反序列化，不能通过宽松 parser 绕过模型 Schema；`generation_status=rejected` 时不得携带游客正文。
+- 角色模型只能重排审核事实并改变表达策略。`node_id`、路线 ID、对象 ID、来源 ID、TourState、VisitorProfile、Proposal、RAG 原文和最终游客答案不属于角色候选输出。
+- LangChain 内容块只允许明确的文本块进入 JSON 解码；禁止用 `str(list)` 将内容块转换为伪 JSON。
+- 角色候选失败时沿用旧确定性讲解；Shadow 不接管消息，Active 继续 disabled。任何协作者不得借修复 Schema 顺带接入路线、状态、画像、RAG 或新的 presentation plan。
+- 角色 Schema 定向测试 `15/15 OK`；父提交 `28c6d6b` 与当前提交 `ca4b64c` 的完整回归均为 `1031/1036`，4 failure + 1 error 已确认是既有会话/画像—路线/摘要断言基线问题，未修改这些旧断言。`test_agent_graph.py` 不存在，不计入回归。P0 安全/游客输出矩阵 `62/62 OK`；Phase 1 状态为 `partial_due_to_preexisting_failures`。
+
 ## P3-01 协作边界（2026-08-03）
 
 `tour_mode` 仍只能表示 `chat` / `button_guided` / `continuous`。产品模式必须使用同一 `tour_interaction_state` 中的 `journey_mode`（`classic` / `custom`）；禁止写入 VisitorProfile、TourState 或创建第二会话状态。默认 classic 必须透明，custom 必须由游客明确选择。custom 只收集时长和兴趣，并仅在讲解时派生为详细策略；不得把此派生值保存为画像、路线或进度事实。任何只读问答只能更新受控恢复标记，不得修改游览事实、路线、StopProgram 或 Coverage。CardDispatcher 与主动卡片内容属于 P3-03，协作者不得提前接入。

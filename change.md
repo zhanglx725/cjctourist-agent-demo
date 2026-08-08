@@ -1,96 +1,152 @@
-# 陈家祠导游 Agent 语义路由与角色化讲解改造方案
+# 陈家祠导游 Agent：语义路由与全流程角色化讲解改造方案
 
-## 1. 改造目标
+## 0. 文档目的
 
-本次改造要在保留现有 LangGraph 确定性导游流程的基础上，实现两项核心能力：
+本方案用于指导当前项目从“确定性 Workflow + 局部角色讲解 Shadow”升级为：
 
-1. Agent 能够理解游客的自然表达，提出结构化意图候选，并由 Workflow 根据当前游览状态、安全规则和业务契约决定进入哪个节点。
-2. Agent 能够读取游客选择的讲解风格，根据风格库中的角色身份、表达规则、游客画像、当前点位和已审核事实，生成稳定、自然且符合角色身份的讲解。
+~~~text
+自然语言理解
+→ 受控意图裁决
+→ 确定性路线与状态执行
+→ 统一角色化表达
+→ 事实、路线、安全、预算验证
+→ Active 接管或确定性回退
+~~~
 
-最终目标链路：
+最终目标不是让 LLM 自由控制导游流程，而是让同一个角色贯穿：
 
-```text
-游客输入
-→ 确定性高优先级规则
-→ 语义意图候选
-→ Workflow 状态与权限校验
-→ 正式业务节点
-→ 审核事实与讲解内容计划
-→ 角色化讲解生成
-→ 事实/风格/安全/预算校验
-→ 游客语言本地化
-→ 输出
-```
+~~~text
+路线规划说明
+→ 路线开场白
+→ 点位讲解
+→ 点位之间的引路说明
+→ 游客追问
+→ 游览结束总结、称号和祝福
+~~~
 
-本次改造不把路线、点位推进、游客画像或 Coverage 的最终写权限交给 LLM。Agent 负责理解和表达，Workflow 负责授权和执行。
+核心原则：
 
-## 2. 当前基础与主要缺口
+~~~text
+Agent 决定怎么理解、怎么组织和怎么表达
+Workflow 决定能不能执行、写入什么状态
+Validator 决定最终输出是否安全
+~~~
 
-### 2.1 已有能力
+## 1. 当前真实状态与未完成问题
 
-- 使用 LangGraph `StateGraph` 管理导游流程和 Thread 状态。
-- 已有欢迎、语言选择、模式选择、画像收集、路线生成、到站、点位讲解、问答、重规划、总结、称号和祝福节点。
-- `route_initial_request()` 已实现确定性优先级和 LLM 最后兜底。
-- `semantic_normalization` 已能通过受控模型把部分自然表达规范化为控制意图或知识问题。
-- `styles_v1.yaml` 已包含 18 种讲解风格及模板、安全规则和回退配置。
-- `stop_guidance` 已基于审核内容生成讲解，并具有 Coverage、预算和 Shadow 审计。
-- 已有游客语言本地化链路。
+### 1.1 已经具备的能力
 
-### 2.2 当前缺口
+- LangGraph StateGraph 管理 Thread、TourState 和游客画像；
+- semantic_normalization、semantic_intent_envelope 和 intent_arbitration 已接入；
+- 路线规划、到达、完成、跳过、重规划和问答由确定性节点控制；
+- route_planner.py 和 guide_program_planner.py 已能生成审核路线与点位内容计划；
+- style_roles_v2.yaml 已提供角色库；
+- StyleBrief 已能向角色模型提供最小审核角色卡；
+- narration_content_plan、role_narration_generation、narration_validation 已接入点位讲解链路；
+- Shadow、Active、fallback 和 Coverage 提交边界已经具备；
+- styles_v1.yaml 仍可作为确定性安全回退。
 
-- 语义识别主要输出单个候选，无法充分表达多意图、歧义和置信度差距。
-- 路由规则较多，但缺少统一的“Agent 提议、Workflow 裁决”契约。
-- 目前风格渲染以 YAML 模板填充为主，只改变局部语气，不是完整角色生成。
-- 风格库缺少明确的角色身份、与游客的关系、整段讲解组织策略和人工审核示例。
-- 缺少独立的角色讲解生成节点与正式验证节点。
-- 缺少“生成失败后回退现有确定性模板”的统一机制。
-- 部分角色模板含绝对评价或强迫性表达，可能越过事实和游客体验边界。
+### 1.2 当前已发现的问题
 
-## 3. 总体架构原则
+1. 既有实现已加入 JSON object、独立 token 预算和一次受控修复，但现场仍出现 invalid_candidate_schema；因此本阶段还要冻结模型线与 Graph 内部 envelope 的双层 Schema，并完成真实回归验证。
+2. 当前角色链路主要覆盖 stop_guidance，不能覆盖路线规划、路线开场和引路正文。
+3. direct_route_node 仍直接拼接路线规划正文。
+4. tour_opening_node 仍直接输出确定性开场正文。
+5. next_stop_navigation 和重规划提示尚未统一经过角色表达和路线事实校验。
+6. 角色风格可能只出现在点位讲解中，无法保证同一 Thread 全流程角色一致。
+7. 低置信度表达、路线边界和游客端内部字段仍需继续进行 LangSmith 验收。
 
-### 3.1 权限边界
+### 1.3 当前阶段结论
 
-Agent 可以：
+当前不能宣称“全流程角色化已经完成”。准确状态是：
 
-- 理解自然语言并提出一个或多个意图候选；
-- 判断话语指代的可能上下文；
-- 根据游客画像选择讲解内容的表达顺序；
-- 根据已选择角色改变语气、节奏、互动方式和修辞；
-- 在审核事实范围内压缩、扩展或重新组织讲解；
-- 提出路线调整或服务建议。
+~~~text
+语义候选与裁决：已实现，继续验收
+角色库 V2：已实现
+点位角色 Shadow：已实现；候选 Schema 修复已补强，等待自动化环境恢复和 LangSmith 复测
+路线规划角色化：未完成
+路线开场角色化：未完成
+引路输出角色化：未完成
+全流程角色一致性：未完成
+~~~
 
-Agent 不可以：
+## 2. 权限和事实边界
 
-- 直接修改正式路线；
-- 自动标记游客到达、完成或跳过点位；
-- 自动结束游览；
-- 在没有游客明确表达时写入画像偏好；
-- 直接写入 `TourState`、正式 Coverage 或结束状态；
-- 编造人物、年代、典故、排名、象征意义或现场对象；
-- 输出文件路径、URL、source ID、节点 ID、原始 chunk 或工具名称；
-- 使用风格库之外的角色；
-- 绕过人工审核材料生成事实。
+### 2.1 Agent 可以做什么
 
-### 3.2 推荐占比
+- 理解自然语言并提出受控意图候选；
+- 识别语言、时长、兴趣、风格和讲解模式；
+- 在审核事实范围内重组内容顺序；
+- 根据角色改变称呼、句式、节奏、修辞和互动方式；
+- 根据已生成的审核路线表达路线概览和引路说明；
+- 对低置信度、冲突和混合请求提出澄清。
 
-- 节点选择：Workflow/规则约 70%，Agent 语义候选约 30%。
-- 游客可见讲解：审核事实与内容计划约 40%，角色 Agent 表达约 60%。
-- 正式状态写入：Workflow 至少 95%，Agent 只提出建议，不直接提交。
+### 2.2 Agent 不可以做什么
 
-## 4. 第一阶段：建立统一语义候选契约
+- 直接修改正式路线、TourState、VisitorProfile 或 Coverage；
+- 自行生成新的点位、方向、距离、步行时间或空间关系；
+- 添加未经审核的年代、人物、故事、寓意、排名或绝对评价；
+- 读取并展示 source ID、文件路径、URL、RAG chunk、工具名或内部节点名；
+- 以角色口吻强迫游客触摸、拍摄、移动或完成任务；
+- 因风格表达而改变安全规定、路线边界或用户选择。
 
-### 4.1 新增数据结构
+## 3. 目标总体架构
 
-建议新增 `semantic_intent_contract.py`，定义：
+~~~text
+用户输入
+  ↓
+pre_semantic_arbitration
+  ↓
+semantic_normalization
+  ↓
+intent_arbitration
+  ↓
+Workflow 确定性节点
+  ├─ profile / route / tour_event / replan / QA
+  └─ 生成 canonical facts
+          ↓
+  presentation_content_plan
+          ↓
+  role_narration_generation
+          ↓
+  narration_validation
+      ├─ accepted → presentation_commit
+      └─ rejected → deterministic_fallback
+          ↓
+  visitor_localization
+          ↓
+  游客正文
+~~~
 
-```python
+角色化表达必须覆盖五种 presentation_type：
+
+~~~text
+route_plan
+tour_opening
+stop_guidance
+navigation
+tour_closing
+~~~
+
+点位讲解继续使用现有内容计划；路线规划、开场、引路和结束语使用同一个角色生成/验证框架，但使用不同的类型化事实计划。
+
+## 4. 第一阶段：修复并冻结语义契约
+
+### 4.1 目标
+
+让自然语言只产生业务意图候选，不直接产生 Graph 节点命令。
+
+### 4.2 统一数据结构
+
+~~~python
 class IntentCandidate(TypedDict):
     intent: str
     confidence: float
     target: str | None
     arguments: dict[str, object]
-    source: str
+    evidence_span: str
     requires_confirmation: bool
+    side_effect_level: Literal["read_only", "state_change"]
 
 
 class SemanticIntentEnvelope(TypedDict):
@@ -99,229 +155,197 @@ class SemanticIntentEnvelope(TypedDict):
     ambiguity_reason: str | None
     raw_text_preserved: bool
     model_called: bool
-```
+~~~
 
-`intent` 只能使用白名单，例如：
+### 4.3 裁决规则
 
-- `select_language`
-- `select_journey_mode`
-- `provide_profile_preference`
-- `request_route`
-- `arrive_at_stop`
-- `confirm_stop_complete`
-- `skip_stop`
-- `request_next_stop`
-- `request_stop_detail`
-- `finish_tour`
-- `request_replan`
-- `confirm_replan`
-- `cancel_replan`
-- `ask_venue_question`
-- `ask_follow_up_detail`
-- `update_profile`
-- `request_summary`
-- `request_title_blessing`
-- `unknown`
+- 普通只读意图最低置信度为 0.80；
+- 状态修改意图最低置信度为 0.90，且参数必须完整；
+- 到达、完成、跳过、结束和重规划必须通过确定性状态校验；
+- 多个互相冲突的状态意图必须进入 clarification；
+- 低置信度表达不能进入 llm_think/RAG 执行状态操作；
+- 最多保留三个候选，但每轮最多执行一个正式状态动作；
+- 候选只能表达业务意图，不能返回 Graph 节点名作为执行指令。
 
-### 4.2 修改语义识别输出
+### 4.4 验收
 
-修改 `semantic_normalization.py`：
+至少覆盖：
 
-1. 保留现有确定性候选和安全校验。
-2. 模型输出从单候选扩展为最多 3 个候选。
-3. 每个候选必须包含置信度、目标、参数和是否需要确认。
-4. 严禁模型返回节点名称作为最终执行指令；模型只能返回业务意图。
-5. 不允许模型回答游客问题，只允许分类。
-6. JSON 解析或字段校验失败时返回空候选，不进入危险动作。
-7. 对到达、完成、跳过、结束、确认重规划等状态写入意图执行更严格阈值。
+- “这里已经看完了吗？”不能完成点位；
+- “这个地方好像差不多了吧？”必须澄清；
+- “完成本点，但也跳过本点”必须澄清；
+- “我只有30分钟，想少走路”进入画像和路线流程；
+- “把附近奶茶店加入馆内路线”必须说明边界，不得修改路线。
 
-建议阈值：
+### 4.5 当前 Schema 修复边界
 
-```text
-普通只读意图：
-  confidence >= 0.80 可提交 Workflow 裁决
+本阶段只处理角色候选的序列化、解码和校验边界，不扩展角色能力范围：
 
-状态修改意图：
-  confidence >= 0.90 且参数完整，才可提交 Workflow 裁决
+- 模型线只接受 `role_narration_candidate_v1` 的六个字段；缺字段、多余字段、错误类型、未知角色和未知版本均失败关闭；
+- Graph 内部保存的候选 envelope 使用独立的严格字段集合，不能因为内部反序列化而重新接受未知字段；
+- LangChain 返回文本内容块时只拼接明确的 text block，不能将 Python list 表示直接当作 JSON；非文本内容继续失败关闭；
+- 候选仍只能重组审核事实和改变表达策略，不能生成节点、路线、来源、状态补丁、画像字段或最终游客答案；
+- 修复失败仍保留 `invalid_candidate_schema` / `invalid_candidate_fields` 等拒绝分支，Shadow 继续不接管旧正文；
+- 任何 `TourState`、`VisitorProfile`、路线、Proposal、StopProgram 和 Coverage 写入均不属于本阶段。
 
-0.60 <= confidence < 执行阈值：
-  结合当前状态和确定性解析器再次仲裁
+## 5. 第二阶段：角色库和角色一致性
 
-confidence < 0.60：
-  clarification
-```
+### 5.1 角色卡要求
 
-### 4.3 新增 Workflow 裁决器
+每个角色必须包含：
 
-建议新增 `intent_arbitration.py`，职责是：
-
-- 接收确定性解析结果、语义候选和当前 State；
-- 按业务优先级选择一个正式能力；
-- 检查该意图在当前状态是否允许；
-- 检查参数是否完整、点位是否审核、待确认动作是否仍然有效；
-- 识别多意图冲突；
-- 输出固定 `route_target`，不执行状态写入。
-
-建议结果结构：
-
-```python
-class ArbitrationResult(TypedDict):
-    status: Literal["accepted", "clarification", "rejected"]
-    route_target: str
-    intent: str | None
-    confidence: float | None
-    arguments: dict[str, object]
-    reason_code: str
-    state_write_allowed: bool
-```
-
-### 4.4 保留高优先级确定性规则
-
-以下能力继续优先于语义模型：
-
-1. 安全问题和不安全拍摄请求；
-2. 未完成的语言强制选择；
-3. 已结束会话的幂等处理；
-4. 活跃路线的明确结束；
-5. 待确认重规划；
-6. 明确到达、完成、跳过和下一站；
-7. 明确模式选择和有效时长；
-8. 当前画像收集字段的回答；
-9. 审核知识专用解析器；
-10. 最后才允许通用 LLM/RAG。
-
-### 4.5 多意图处理规则
-
-- 两个只读意图可以按顺序回答，但本轮最多产生一个正式状态写入。
-- 一个只读问题加一个明确画像答案，可以先记录合法画像字段，再回答问题，或先回答问题后恢复缺失问题；行为必须固定并测试。
-- 两个互相冲突的状态写入意图必须澄清。
-- “完成本点并去下一站”可作为唯一审核过的组合操作。
-- “确认新路线并去下一站”继续使用现有原子组合节点。
-- 未审核的组合意图不能由 Agent 自由拆分执行。
-
-## 5. 第二阶段：把风格库升级为角色库
-
-### 5.1 扩展 YAML Schema
-
-在每个风格条目中增加：
-
-```yaml
+~~~yaml
+style_id: ancient_scholar
 persona:
-  identity: "角色身份说明"
-  relationship_to_visitor: "与游客的交流关系"
-  emotional_tone: ["温和", "从容"]
-  speaking_perspective: "第一人称导游视角"
-  identity_boundaries:
-    - "不得冒充历史人物"
-    - "不得声称具有官方认证"
-
+  identity: "角色身份"
+  relationship_to_visitor: "与游客的关系"
+  emotional_tone: ["从容", "雅致"]
+  speaking_perspective: "第一人称同行讲解"
+  identity_boundaries: []
 generation_policy:
-  opening_strategy: "如何进入主题"
-  fact_order: ["空间位置", "工艺事实", "观察细节"]
+  opening_strategy: "开场方式"
+  fact_order: ["路线目的", "空间位置", "审核事实", "观察提示"]
   interaction_frequency: "low"
-  rhetorical_devices: ["适量四字表达", "温和设问"]
-  avoid: ["虚构典故", "绝对排名", "强迫游客互动"]
-  closing_strategy: "如何自然结束"
+  rhetorical_devices: ["适量比喻", "对照", "节奏变化"]
+  avoid: ["虚构典故", "绝对评价", "强迫互动"]
+  closing_strategy: "收束方式"
+few_shot_examples: []
+~~~
 
-few_shot_examples:
-  - input_facts:
-      - "前院中部屋脊可见灰塑"
-    preferred_output: "人工审核示例"
-```
+### 5.2 角色表达原则
 
-### 5.2 Schema 兼容策略
+角色感通过称呼、句子长度、叙事视角、事实组织顺序、情绪节奏以及开场、转场和收束方式产生。
 
-- 风格库 schema 建议升级为 `narration_style_library_v2`。
-- 单条风格 schema 建议升级为 `narration_style_v2`。
-- V1 条目在过渡期可以由加载器补齐中性角色默认值。
-- 所有 18 种风格完成角色字段人工审核后再切换 V2 为 Active。
-- 未完成审核的风格必须回退 `neutral`，不能静默进入自由生成。
+角色不得通过编造历史或绝对评价产生吸引力。
 
-### 5.3 角色安全检查
+### 5.3 首批 Active 角色
 
-逐条检查现有角色模板，删除或改写：
+先只启用经过充分测试的：
 
-- “全场唯一”；
-- “岭南工艺天花板”；
-- “最有价值”；
-- “不看等于白来”；
-- “别问为什么”；
-- 其他没有证据支持的绝对评价、贬低或强迫性表达。
+~~~text
+neutral
+child
+professional
+ancient_scholar
+dominant_ceo
+~~~
 
-角色感应通过节奏、称呼、句式和叙事方式实现，不能依赖虚假事实或冒犯性表达。
+其他角色保持 Shadow 或 neutral fallback，不能因为角色库存在就自动 Active。
 
-## 6. 第三阶段：增加角色讲解生成链路
+## 6. 第三阶段：统一角色表达计划
 
-### 6.1 保留现有 `stop_guidance`
+### 6.1 通用计划结构
 
-`stop_guidance` 继续负责：
+建议新增或扩展 presentation_content_plan.py：
 
-- 验证当前点位；
-- 读取审核讲解卡；
-- 读取游客画像和选择风格；
-- 读取 Coverage，排除不应重复的内容；
-- 计算讲解时间和内容预算；
-- 形成候选事实集合；
-- 不直接让 LLM 修改任何正式状态。
+~~~python
+class PresentationContentPlan(TypedDict):
+    schema_version: str
+    presentation_type: Literal[
+        "route_plan", "tour_opening", "stop_guidance",
+        "navigation", "tour_closing"
+    ]
+    style_id: str
+    language: str
+    budget_seconds: int
+    facts: list[dict[str, Any]]
+    must_include: list[str]
+    already_covered: list[str]
+    must_not_claim: list[str]
+    interaction_allowed: bool
+    canonical_constraints: dict[str, Any]
+~~~
 
-### 6.2 新增 `narration_content_plan` 节点
+### 6.2 路线规划计划
 
-建议新增文件 `narration_content_plan.py`，输出：
+事实由 RoutePlan 产生，至少包含：
 
-```json
+- 路线名称；
+- 可用时间；
+- 点位顺序；
+- 预计讲解时间；
+- 预计步行时间；
+- 少走路约束；
+- 时间估算和现场变化提示。
+
+角色只能改变路线说明方式，不得改变 stop_ids、路径、时间或约束。
+
+### 6.3 路线开场计划
+
+由 tour_opening_program 产生事实，角色化表达：
+
+- 欢迎语；
+- 本次路线概览；
+- 路线时长；
+- 第一站提示；
+- 选择权和跳过规则。
+
+tour_opening_program 继续由 Workflow 写入，角色节点不得修改它。
+
+### 6.4 点位讲解计划
+
+继续使用现有 narration_content_plan，必须包含：
+
+- 审核事实 ID；
+- 审核事实原文；
+- 当前点位；
+- 已讲 Coverage；
+- 内容预算；
+- 是否允许互动；
+- 禁止新增的事实类型。
+
+### 6.5 引路计划
+
+由审核路线和空间图生成：
+
+~~~json
 {
-  "schema_version": "narration_content_plan_v1",
-  "stop_id": "front_courtyard_center",
-  "style_id": "ancient_scholar",
-  "language": "zh",
-  "budget_seconds": 180,
-  "facts": [
-    {
-      "fact_id": "fact_gray_sculpture_01",
-      "statement": "前院中部屋脊可见灰塑装饰"
-    }
-  ],
-  "must_include": ["空间位置", "观察细节"],
-  "already_covered": ["灰塑基本定义"],
-  "must_not_claim": ["具体作者", "未经审核年代"],
-  "interaction_allowed": true
+  "presentation_type": "navigation",
+  "from_stop_id": "front_courtyard",
+  "to_stop_id": "platform",
+  "approved_direction": "沿审核通道前行",
+  "estimated_walk_seconds": 45,
+  "walk_time_basis": ["approved_graph", "map_estimate"],
+  "must_not_claim": ["未经审核的左转右转", "精确现场拥堵", "不存在的通道"]
 }
-```
+~~~
 
-内容计划必须是确定性的，只能引用审核事实 ID，不允许包含 LLM 推测事实。
+角色可以说“跟随我”“不妨先往前走”，但不能新增方向事实。
 
-### 6.3 新增 `role_narration_generation` 节点
+### 6.6 结束语计划
 
-模型输入仅包含：
+由 visit_summary、Coverage 和 post_visit_award 产生，角色化表达：
 
-- 经过裁剪的角色卡；
-- 讲解内容计划；
-- 审核事实正文；
-- 游客明确画像；
-- 已讲内容摘要；
-- 目标语言或先生成中文的要求；
-- 字数/时间预算；
-- 禁止项。
+- 完成情况；
+- 已讲工艺和主题；
+- 称号与祝福；
+- 下一步服务询问。
 
-不得传入：
+不得新增游客没有完成的点位或事实。
 
-- 完整 AgentState；
-- 文件路径；
-- URL；
-- source IDs；
-- 原始 chunk；
-- 节点名称；
-- 内部工具调用信息；
-- 未经游客确认的推测画像。
+## 7. 第四阶段：角色生成与验证
 
-建议模型输出结构：
+### 7.1 角色模型输入
 
-```json
+角色模型只能收到：
+
+- 当前角色 StyleBrief；
+- 一个 PresentationContentPlan；
+- 已审核事实正文；
+- 语言和预算；
+- 明确的禁止项。
+
+不得传入完整 AgentState、原始 RAG chunk、source ID、URL、文件路径、工具名、Graph 节点名或未审核空间推断。
+
+### 7.2 统一候选结构
+
+~~~json
 {
   "schema_version": "role_narration_candidate_v1",
+  "presentation_type": "stop_guidance",
   "style_id": "ancient_scholar",
-  "public_text": "……",
-  "used_fact_ids": ["fact_gray_sculpture_01"],
+  "public_text": "角色化游客正文",
+  "used_fact_ids": ["fact_001"],
   "omitted_fact_ids": [],
   "self_check": {
     "added_new_facts": false,
@@ -329,357 +353,348 @@ few_shot_examples:
     "within_budget": true
   }
 }
-```
+~~~
 
-模型的 `self_check` 只能作为审计信息，不能代替程序验证。
+模型必须输出严格 JSON object。Schema 错误时允许一次受控修复；修复失败必须回退。
 
-### 6.4 新增 `narration_validation` 节点
+### 7.3 验证内容
 
-至少验证：
+至少检查：
 
-1. `style_id` 与游客已选择风格一致；
-2. `used_fact_ids` 全部来自内容计划；
-3. 输出未包含未审核的人名、年代、来源或对象；
-4. 没有内部字段泄漏；
-5. 没有违反角色 `prohibited_patterns`；
-6. 没有强迫游客回答、触摸文物或执行危险动作；
-7. 没有绝对排名和官方认证暗示；
-8. 字数和估算讲解时长不超预算；
-9. 与 Coverage 的重复程度在允许范围内；
-10. 角色风格特征达到最低要求，但不能为了风格牺牲事实准确性。
+1. style_id 与游客画像一致；
+2. 所有 used_fact_ids 来自当前计划；
+3. 必须事实原文或安全等价表达存在；
+4. 没有新增人物、年代、故事、寓意、排名或认证；
+5. 没有内部字段泄漏；
+6. 没有违反角色禁止项；
+7. listen_only 不包含问题、任务、拍照或动作要求；
+8. 路线输出保留点位顺序、方向、距离和时间；
+9. 不超过内容预算；
+10. 游客输出边界通过；
+11. 生成节点和验证节点的 state_writes 为空。
 
-验证结果：
+## 8. 第五阶段：Graph 接入顺序
 
-```json
-{
-  "validation_status": "accepted",
-  "reason_codes": [],
-  "state_writes": [],
-  "same_fact_boundary": true,
-  "role_consistent": true,
-  "within_budget": true
-}
-```
+### 8.1 当前点位链路
 
-### 6.5 回退策略
-
-出现以下任一情况时回退现有确定性模板：
-
-- 模型超时或 API 失败；
-- JSON 无法解析；
-- 风格不存在或未审核；
-- 新增了审核事实之外的内容；
-- 超过内容预算；
-- 含内部字段或危险表达；
-- 角色一致性不足；
-- 验证器自身异常。
-
-回退后：
-
-- 游客仍能获得正常讲解；
-- `style_fallback_used = true`；
-- 写入明确 `style_warning_codes`；
-- 不重复推进 TourState；
-- Coverage 只按最终公开讲解中通过验证的事实提交一次。
-
-## 7. 第四阶段：调整 Graph 节点和边
-
-目标点位讲解链路：
-
-```text
-tour_event
-→ tour_opening（仅首次需要）
-→ stop_guidance
+~~~text
+stop_guidance
 → narration_content_plan
 → role_narration_generation
 → narration_validation
-├─ accepted → narration_commit
-└─ rejected → deterministic_narration_fallback
-→ atomic_read_plan_shadow
-→ visitor_localization
-```
+→ accepted: narration_commit
+→ rejected: deterministic_narration_fallback
+~~~
 
-建议新增节点：
+### 8.2 路线规划链路
 
-- `narration_content_plan`
-- `role_narration_generation`
-- `narration_validation`
-- `narration_commit`
-- `deterministic_narration_fallback`
+~~~text
+direct_route
+→ route_presentation_content_plan
+→ role_narration_generation
+→ route_presentation_validation
+→ route_presentation_commit / fallback
+~~~
 
-`narration_commit` 是唯一允许提交最终讲解 Coverage 的节点。生成节点和验证节点的 `state_writes` 必须为空。
+路线状态必须在确定性 direct_route 中完成；角色只处理公开说明。
 
-重复讲解和“换一种风格再讲”应复用同一链路，但必须满足：
+### 8.3 路线开场链路
 
-- 不推进 `current_stop_id`；
+~~~text
+tour_opening
+→ opening_presentation_content_plan
+→ role_narration_generation
+→ presentation_validation
+→ opening_commit / fallback
+~~~
+
+开场程序的 status、play_count 和审计仍由 tour_opening_node 控制。
+
+### 8.4 引路链路
+
+~~~text
+next_stop_navigation / replan presentation
+→ navigation_content_plan
+→ role_narration_generation
+→ navigation_validation
+→ navigation_commit / fallback
+~~~
+
+引路验证必须比普通角色验证更严格：方向、起点、终点和时间不能改变。
+
+### 8.5 结束链路
+
+~~~text
+visit_summary
+→ closing_content_plan
+→ role_narration_generation
+→ closing_validation
+→ closing_commit / fallback
+~~~
+
+## 9. 角色连续性
+
+同一个 Thread 中，所有角色化输出必须使用同一个有效风格：
+
+~~~text
+route_plan.style_id == tour_opening.style_id
+tour_opening.style_id == stop_guidance.style_id
+stop_guidance.style_id == navigation.style_id
+navigation.style_id == tour_closing.style_id
+~~~
+
+游客明确更换风格时：
+
+- 只影响后续表达；
+- 不重写已完成 Coverage；
 - 不重复完成点位；
-- Coverage 按事实 ID 幂等；
-- 只更新最新讲解审计；
-- 风格修改只有游客明确提出时才写入画像。
+- 不修改路线；
+- 不改变已审核事实。
 
-## 8. 第五阶段：Prompt 设计
+## 10. Rollout 配置
 
-### 8.1 语义模型 Prompt
+### 10.1 默认关闭
 
-Prompt 只做分类：
+~~~env
+CJC_READ_ONLY_ROLLOUT_MODE=off
+~~~
 
-- 明确禁止回答游客；
-- 明确列出意图白名单；
-- 明确当前只读状态摘要；
-- 要求保留否定、疑问、条件和多意图；
-- 不允许把模糊表达升级为状态写入；
-- 只能输出 JSON。
+### 10.2 Shadow
 
-### 8.2 角色讲解 Prompt
+~~~env
+CJC_READ_ONLY_ROLLOUT_MODE=shadow
+CJC_READ_ONLY_ROLLOUT_CAPABILITIES=role_narration
+~~~
 
-系统 Prompt 建议包括：
+Shadow 要求：
 
-1. 角色身份和身份边界；
-2. 允许使用的审核事实；
-3. 内容计划和时间预算；
-4. 游客明确偏好；
-5. 已覆盖内容；
-6. 允许修辞；
-7. 禁止模式；
-8. 输出 JSON Schema；
-9. 明确“不知道的内容不得补充”；
-10. 明确“角色化只能改变表达，不能改变事实”。
+- 生成角色候选但不接管游客正文；
+- active_takeover == false；
+- legacy_message_preserved == true；
+- 生成、验证节点不写正式状态；
+- 记录不同 presentation_type 的候选稳定性。
 
-不要直接把整份 YAML 拼进 Prompt。加载器应只选择当前角色并生成最小角色卡。
+### 10.3 Active
 
-## 9. 第六阶段：状态和审计字段
+~~~env
+CJC_READ_ONLY_ROLLOUT_MODE=read_only_active
+CJC_READ_ONLY_ROLLOUT_CAPABILITIES=role_narration
+~~~
 
-建议在 `AgentState` 增加：
+只有满足以下条件后才可 Active：
 
-```python
-semantic_intent_envelope: dict[str, Any] | None
-intent_arbitration: dict[str, Any] | None
-narration_content_plan: dict[str, Any] | None
-role_narration_candidate: dict[str, Any] | None
-narration_validation: dict[str, Any] | None
-active_role_narration_audit: dict[str, Any] | None
-role_narration_evaluations: list[dict[str, Any]]
-```
+- 正常角色候选不再出现 invalid_candidate_schema；
+- 五类输出均通过事实和角色验证；
+- 失败时能稳定 fallback；
+- Coverage 只提交一次；
+- 路线、TourState 和 VisitorProfile 不被角色节点修改；
+- 同一 Thread 的角色连续性通过。
 
-审计至少记录：
+### 10.4 角色专用故障注入
 
-- `capability`
-- `mode`
-- `model_called`
-- `style_id`
-- `style_schema_version`
-- `candidate_fact_ids`
-- `used_fact_ids`
-- `omitted_fact_ids`
-- `validation_status`
-- `reason_codes`
-- `fallback_used`
-- `state_writes`
-- `public_message_safe`
-- `within_budget`
-- `latency_ms`
+不得修改全局 DEEPSEEK_API_KEY 测试失败。应增加仅作用于角色生成的测试开关：
 
-不得在游客正文中输出这些字段。
+~~~env
+CJC_ROLE_NARRATION_TEST_FAILURE=off
+~~~
 
-## 10. 第七阶段：测试计划
+支持：
 
-### 10.1 语义路由单元测试
+~~~env
+CJC_ROLE_NARRATION_TEST_FAILURE=invalid_json
+CJC_ROLE_NARRATION_TEST_FAILURE=invalid_schema
+CJC_ROLE_NARRATION_TEST_FAILURE=unapproved_fact
+CJC_ROLE_NARRATION_TEST_FAILURE=internal_field_leak
+CJC_ROLE_NARRATION_TEST_FAILURE=budget_exceeded
+~~~
 
-覆盖：
+该开关不得影响语义识别、路线规划、普通问答或其他模型调用。
 
-- 自然表达、简写、错别字、中英文表达；
-- 多意图和否定；
-- 到达、完成、跳过、结束、重规划；
-- 普通知识问题与路线控制的冲突；
-- 画像回答与知识问题混合；
-- 低置信度进入澄清；
-- 模型输出非法 JSON 时安全关闭；
-- 状态修改意图不能只凭低置信度执行；
-- 确定性安全规则始终高于模型候选。
+## 11. 测试与验收矩阵
 
-示例：
+### 11.1 语义路由
 
-```text
-“这里看完了，带我去下一个”
-→ confirm_stop_complete_and_next 或受控拆分
+- 普通自然表达、错别字、中英文混合；
+- 多意图和冲突状态；
+- 低置信度表达；
+- 路线请求与知识问答冲突；
+- 周边商户与馆内路线边界；
+- 疑问句不得执行完成事件。
 
-“这里看完了吗？”
-→ 问答/澄清，不得完成点位
+### 11.2 角色表达
 
-“这个不太感兴趣”
-→ 记录反馈或询问，不得自动跳过
+每个首批角色至少验证：
 
-“只剩20分钟，帮我挑重点”
-→ prepare_duration_replan
-```
+- 路线规划说明；
+- 路线开场；
+- 一个点位讲解；
+- 一条引路说明；
+- 一个游客追问；
+- 结束语和祝福。
 
-### 10.2 风格库测试
+### 11.3 失败回退
 
-每个角色必须验证：
+- 非法 JSON；
+- 非法 Schema；
+- 伪造新事实；
+- 内部字段泄漏；
+- 预算超限；
+- 风格不一致；
+- listen_only 违反互动边界。
 
-- Schema 完整；
-- `style_id` 唯一；
-- fallback 存在；
-- 角色身份边界存在；
-- 禁止项完整；
-- few-shot 示例不包含未审核事实；
-- 别名能解析到唯一风格；
-- 多风格冲突进入澄清；
-- 风格词不会污染 interests；
-- 未知风格透明回退。
+### 11.4 LangSmith 必备字段
 
-### 10.3 角色讲解测试
+~~~text
+semantic_intent_envelope
+intent_arbitration
+presentation_content_plan
+role_narration_candidate
+narration_validation
+active_role_narration_audit
+role_narration_evaluations
+active_role_narration_audit.coverage_commit
+tour_state
+visitor_profile
+narration_coverage
+~~~
 
-至少对 18 种风格分别验证：
+## 12. 下一步执行顺序
 
-- 同一事实的角色差异明显；
-- 不新增审核事实；
-- 不改变点位和路线；
-- 不超预算；
-- 不泄漏内部字段；
-- 重复生成仍保持角色；
-- API 失败可回退；
-- Coverage 幂等；
-- 游客更换风格后下一次讲解生效；
-- 更换风格不重讲已完成内容，除非游客明确要求。
+### 第一步：修复角色候选 Schema
 
-### 10.4 集成测试
+负责人：角色生成链路维护者。
 
-关键完整流程：
+检查和修改：
 
-```text
-欢迎
-→ 选择语言
-→ 定制模式
-→ 兴趣
-→ 角色风格
-→ 建立路线
-→ 到达首站
-→ 总体介绍
-→ 角色化点位讲解
-→ 普通问答
-→ 继续原流程
-→ 重规划
-→ 提前或正常结束
-→ 总结和称号
-```
+- role_narration_prompt；
+- ROLE_NARRATION_MAX_TOKENS；
+- JSON object 输出约束；
+- validate_candidate_shape；
+- 非法 JSON 和多余字段处理；
+- 一次受控修复和 fail-closed fallback。
 
-### 10.5 LangSmith 人工验收字段
+当前实现：已补强模型内容块解码与 Graph envelope 严格反序列化；自动化验证因本机 `.venv` 指向不存在的 Python 解释器而待执行。
 
-每个案例记录：
+完成标准：古风书生、儿童友好、静听模式的 Shadow 候选均能生成并通过验证；非法 JSON、缺字段、未知字段、错误类型、未知枚举、未知版本和内部字段均失败关闭。
 
-- Thread ID；
-- Trace URL；
-- tested commit；
-- 输入消息；
-- 节点路径；
-- `semantic_intent_envelope`；
-- `intent_arbitration`；
-- `visitor_profile.explanation_style`；
-- `narration_content_plan`；
-- `active_role_narration_audit`；
-- `role_narration_evaluations`；
-- Coverage 前后差异；
-- TourState 前后差异；
-- 游客可见正文；
-- 是否泄漏内部字段；
-- 是否出现未审核事实；
-- 是否符合角色；
-- 是否触发 fallback。
+### 第二步：完成点位角色 Shadow
 
-## 11. 第八阶段：渐进上线
+只测试：
 
-### 阶段 A：Shadow
+~~~text
+ancient_scholar
+child
+listen_only
+professional
+~~~
 
-- 角色 Agent 生成候选，但游客继续看到现有模板讲解。
-- 记录 `same_fact_boundary`、风格一致性、预算和安全结果。
-- 不允许任何状态写入。
+完成标准：
 
-退出标准：
+- generation_status == generated；
+- validation_status == accepted；
+- Shadow 不接管正文；
+- 事实、角色、预算和互动边界通过。
 
-- 事实边界通过率达到既定门槛；
-- 无内部字段泄漏；
-- 18 种角色均完成人工抽检；
-- API 失败不影响现有导游流程。
+### 第三步：增加统一 presentation plan
 
-### 阶段 B：小流量 Active
+新增：
 
-- 先启用 `neutral`、`child`、`professional`、`ancient_scholar` 等少量审核充分的角色。
-- 通过环境变量或 rollout 配置控制比例。
-- 验证失败自动使用模板回退。
+~~~text
+presentation_content_plan.py
+~~~
 
-### 阶段 C：全部审核角色 Active
+先支持：
 
-- 所有角色完成内容、安全和多语言测试后逐步启用。
-- 继续保留确定性模板作为永久 fallback。
-- 监控各角色 fallback 率、游客追问率、重复请求率和提前退出率。
+~~~text
+route_plan
+tour_opening
+navigation
+tour_closing
+~~~
 
-## 12. 实施顺序与交付物
+点位继续复用现有 narration_content_plan。
 
-### P1：语义候选契约
+### 第四步：接入路线规划和开场
 
-交付：
+修改范围：
 
-- `semantic_intent_contract.py`
-- `intent_arbitration.py`
-- 更新 `semantic_normalization.py`
-- 更新 `route_initial_request()`
-- 单元测试和 LangSmith 案例
+- direct_route_node；
+- tour_opening_node；
+- 路线公开正文生成位置。
 
-### P2：角色库 V2
+目标：路线事实仍由 Workflow 生成，公开表达由角色层生成。
 
-交付：
+### 第五步：接入引路和重规划说明
 
-- `styles_v2.yaml` 或完成原文件版本升级
-- 角色 Schema 加载器
-- 18 种角色人工审核内容
-- 风格别名和画像映射
-- 风格库验证测试
+修改范围：
 
-### P3：角色讲解 Shadow
+- next_stop_navigation；
+- prepare_replan 公开提示；
+- show_replan；
+- show_replan_time；
+- 相关路线表达验证器。
 
-交付：
+### 第六步：加入全流程角色一致性验证
 
-- `narration_content_plan.py`
-- `role_narration_generation.py`
-- `narration_validation.py`
-- Graph 新节点和审计字段
-- Shadow LangSmith 验收报告
+至少验证：
 
-### P4：Active 与回退
+~~~text
+route_plan → tour_opening → stop_guidance → navigation → closing
+~~~
 
-交付：
+所有输出的 style_id 必须一致，除非游客明确切换风格。
 
-- `narration_commit` 与确定性 fallback
-- rollout 配置
-- Coverage 幂等测试
-- 角色讲解正式游客输出
-- 运行监控与回滚说明
+### 第七步：Active 小范围接管
+
+只先启用：
+
+~~~text
+ancient_scholar
+child
+professional
+~~~
+
+先覆盖一条路线和两个点位，确认成功后再扩大角色和路线范围。
 
 ## 13. 完成标准
 
-以下条件全部满足后，才能认为改造完成：
+只有以下条件全部满足，才能认为全流程角色化完成：
 
-1. 游客自然表达能够稳定进入正确业务能力，明显状态操作不进入自由 LLM/RAG。
-2. 多意图、否定和疑问不会被错误执行为状态修改。
-3. 游客选择的 18 种风格能够在实际点位讲解中生效。
-4. 角色在整段讲解中保持一致，而非只替换一两句模板。
-5. 角色化讲解不增加审核事实之外的内容。
-6. 生成失败时游客仍能收到确定性模板讲解。
-7. 角色生成、验证和 fallback 不推进路线、不污染画像。
-8. Coverage 只对最终通过验证的事实幂等提交一次。
-9. 多语言翻译不改变事实、角色意图和内部状态。
-10. 游客正文不泄漏内部字段。
-11. 正常结束、提前结束、重复结束和重复讲解均保持幂等。
-12. 全量自动测试和规定的 LangSmith 人工验收通过。
+1. 语义候选和 Workflow 裁决稳定；
+2. 正常角色候选不再持续出现 invalid_candidate_schema；
+3. 路线规划、开场、点位、引路和结束语全部有对应角色化链路；
+4. 同一 Thread 中角色保持一致；
+5. 角色输出不增加未经审核事实；
+6. 路线方向、点位、时间和空间关系不被改写；
+7. listen_only 不产生互动要求；
+8. 角色生成失败时游客仍得到确定性安全正文；
+9. Coverage 每个事实只提交一次；
+10. TourState、路线和 VisitorProfile 不被生成或验证节点污染；
+11. 游客正文不泄漏内部字段；
+12. Shadow、Active 和 fallback 均有 LangSmith 证据；
+13. 至少一个角色完成完整路线的人工验收。
 
-## 14. 核心决策总结
+## 14. 核心决策
 
-本次改造不把现有 Workflow 替换成自由 Agent，而是在两个最有价值的位置增加 Agent 能力：
+本项目继续采用混合 Agent 架构：
 
-```text
-理解阶段：Agent 提出意图，Workflow 决定能否执行。
-讲解阶段：Workflow 提供审核事实，Agent 按角色组织表达。
-```
+~~~text
+语义理解：Agent 提议，Workflow 裁决
+路线和状态：Workflow 计算和提交
+内容组织：审核事实计划决定
+角色表达：Agent 生成候选
+公开输出：Validator 验证后提交
+失败处理：确定性 fallback
+~~~
 
-路线、状态、事实和安全仍由 Workflow 控制；自然语言理解、个性化表达和角色体验交给 Agent。这样既能提高“像真人导游”的体验，又不会牺牲现有系统已经建立的可审计性、幂等性和安全边界。
+本次改造不是把导游变成自由聊天机器人，而是让它在事实、路线和安全不变的前提下，具备稳定、连续、有趣的角色化导游体验。
+## 15. 当前交付状态
+
+~~~text
+invalid_candidate_schema: fixed
+automated_validation: partial_due_to_preexisting_failures
+role_shadow: not started
+active: disabled
+~~~
+
+在自动化定向测试、完整回归和 P0 安全/游客输出测试完成前，不得把本阶段写成已通过，也不得开启 `read_only_active`。

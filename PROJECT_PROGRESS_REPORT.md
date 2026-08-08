@@ -1,5 +1,23 @@
 # 陈家祠金牌导游 Agent：现阶段技术进度与业务逻辑说明
 
+## 角色候选 Schema Phase 1 复核（2026-08-09）
+
+- 只读审计确认 `invalid_candidate_schema` 的实际触发点是 `role_narration_generation.validate_candidate_shape()` 对模型 wire object 的严格顶层字段集合校验；LangSmith 展示的 `role_narration_candidate` 是失败后的审计 envelope，不是模型原始 JSON，因此不能仅凭截图判断具体多余字段。
+- 既有实现已经具备 JSON object、`ROLE_NARRATION_MAX_TOKENS` 和一次受控 Schema repair；本轮补强 `role_narration_candidate_from_dict()` 的内部 envelope 严格反序列化，拒绝未知字段、非法状态/类型、负延迟和 rejected 状态携带游客正文。
+- 补强角色模型返回内容块的处理：只拼接显式 text block，避免将 Python list 表示序列化成单引号字符串后造成二次 `invalid_candidate_schema`；非文本内容仍失败关闭。
+- 新增覆盖合法候选、缺字段、多余字段、错误类型、未知角色、未知版本、内部 ID/来源/状态/最终文案字段，以及内部 envelope 未知字段的测试。
+- 本轮没有修改路线、TourState、VisitorProfile、RAG、知识卡、StopProgram 或游客旧输出；Shadow 仍不接管角色候选，Active 继续禁用。
+- 项目负责人已补跑本阶段定向测试 `15/15 OK`。父提交 `28c6d6b` 与当前提交 `ca4b64c` 的 5 个失败结果完全一致：完整回归均为 `1031/1036`，即 4 failures + 1 error；因此确认 5 项为既有基线问题，本次角色 Schema 修改未引入这些失败，且未修改旧测试断言。`test_agent_graph.py` 不存在，不计入回归结果。P0 安全/游客输出矩阵 `62/62 OK`。
+
+状态：
+
+```text
+invalid_candidate_schema: fixed
+automated_validation: partial_due_to_preexisting_failures
+role_shadow: not started
+active: disabled
+```
+
 ## P3-05 讲解组合 Graph Shadow（2026-08-04）
 
 - 新增 `narration_composition` 灰度能力，并在 `stop_guidance_node` 接入纯 Shadow 审计。旧 E5 讲解正文仍是唯一游客输出和 Coverage 提交依据；P3-03/04 只复用同一次旧结果，不二次检索、规划、选对象或提交 Coverage。

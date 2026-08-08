@@ -18,6 +18,18 @@ from narration_style_policy import StyleBrief
 
 
 CANDIDATE_SCHEMA_VERSION = "role_narration_candidate_v1"
+_MODEL_CANDIDATE_FIELDS = frozenset({
+    "schema_version", "style_id", "public_text", "used_fact_ids",
+    "omitted_fact_ids", "self_check",
+})
+_CANDIDATE_ENVELOPE_FIELDS = frozenset({
+    "schema_version", "generation_status", "reason_code", "style_id",
+    "public_text", "used_fact_ids", "omitted_fact_ids", "self_check",
+    "model_called", "latency_ms",
+})
+_SELF_CHECK_FIELDS = frozenset({
+    "added_new_facts", "role_consistent", "within_budget",
+})
 
 
 @dataclass(frozen=True)
@@ -83,7 +95,9 @@ self_check 只能包含 added_new_facts、role_consistent、within_budget 三个
 
 
 def _decode(value: str) -> Mapping[str, Any] | None:
-    text = str(value).strip()
+    if not isinstance(value, str):
+        return None
+    text = value.lstrip("\ufeff").strip()
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.IGNORECASE)
     try:
@@ -107,11 +121,7 @@ def validate_candidate_shape(
     expected_style_id: str,
     latency_ms: int,
 ) -> RoleNarrationCandidate:
-    expected = {
-        "schema_version", "style_id", "public_text", "used_fact_ids",
-        "omitted_fact_ids", "self_check",
-    }
-    if not isinstance(value, Mapping) or set(value) != expected:
+    if not isinstance(value, Mapping) or frozenset(value) != _MODEL_CANDIDATE_FIELDS:
         return _failed(expected_style_id, "invalid_candidate_schema", latency_ms, model_called=True)
     checks = value.get("self_check")
     if (
@@ -123,7 +133,7 @@ def validate_candidate_shape(
         or not isinstance(value.get("omitted_fact_ids"), list)
         or not all(isinstance(item, str) for item in value.get("omitted_fact_ids", []))
         or not isinstance(checks, dict)
-        or set(checks) != {"added_new_facts", "role_consistent", "within_budget"}
+        or frozenset(checks) != _SELF_CHECK_FIELDS
         or not all(isinstance(item, bool) for item in checks.values())
     ):
         return _failed(expected_style_id, "invalid_candidate_fields", latency_ms, model_called=True)
@@ -180,7 +190,38 @@ def generate_role_narration(
 
 
 def role_narration_candidate_from_dict(value: Mapping[str, Any] | None) -> RoleNarrationCandidate | None:
-    if not isinstance(value, Mapping) or value.get("schema_version") != CANDIDATE_SCHEMA_VERSION:
+    """Parse only the internal candidate envelope emitted by this module.
+
+    The model wire object has six fields.  Graph state stores that object in a
+    ten-field audit envelope.  Keeping this parser strict prevents a second,
+    permissive schema from accepting unknown fields after generation has
+    already failed closed.
+    """
+    if (
+        not isinstance(value, Mapping)
+        or frozenset(value) != _CANDIDATE_ENVELOPE_FIELDS
+        or value.get("schema_version") != CANDIDATE_SCHEMA_VERSION
+        or value.get("generation_status") not in {"generated", "rejected"}
+        or not isinstance(value.get("style_id"), str)
+        or not isinstance(value.get("public_text"), str)
+        or not isinstance(value.get("used_fact_ids"), list)
+        or not all(isinstance(item, str) for item in value.get("used_fact_ids", []))
+        or not isinstance(value.get("omitted_fact_ids"), list)
+        or not all(isinstance(item, str) for item in value.get("omitted_fact_ids", []))
+        or not isinstance(value.get("self_check"), dict)
+        or not all(isinstance(item, bool) for item in value.get("self_check", {}).values())
+        or not isinstance(value.get("model_called"), bool)
+        or type(value.get("latency_ms")) is not int
+        or value.get("latency_ms") < 0
+        or (
+            value.get("reason_code") is not None
+            and not isinstance(value.get("reason_code"), str)
+        )
+    ):
+        return None
+    if value.get("generation_status") == "generated" and frozenset(value["self_check"]) != _SELF_CHECK_FIELDS:
+        return None
+    if value.get("generation_status") == "rejected" and value["public_text"]:
         return None
     try:
         return RoleNarrationCandidate(

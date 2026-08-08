@@ -9,6 +9,7 @@ from langchain_core.messages import AIMessage
 from agent_graph import (
     _invoke_role_narration_model,
     deterministic_narration_fallback_node,
+    narration_validation_node,
     narration_commit_node,
     route_after_narration_validation,
 )
@@ -97,6 +98,31 @@ class RoleNarrationGraphTests(unittest.TestCase):
         with patch.dict(os.environ, {"CJC_ROLE_NARRATION_TEST_FAILURE": "timeout"}, clear=False):
             with self.assertRaises(TimeoutError):
                 _invoke_role_narration_model("ignored")
+
+    def test_role_model_text_content_blocks_are_decoded_without_stringifying(self):
+        with patch.dict(os.environ, {
+            "DEEPSEEK_API_KEY": "test-key",
+            "CJC_ROLE_NARRATION_TEST_FAILURE": "",
+        }, clear=False), patch("agent_graph.ChatDeepSeek") as model_cls:
+            model_cls.return_value.bind.return_value.invoke.return_value.content = [
+                {"type": "text", "text": '{"schema_version":"role_narration_candidate_v1"}'},
+            ]
+            self.assertEqual(
+                _invoke_role_narration_model("ignored"),
+                '{"schema_version":"role_narration_candidate_v1"}',
+            )
+
+    def test_invalid_internal_envelope_writes_no_tour_state_or_profile(self):
+        state = self.state()
+        state["role_narration_candidate"]["state_patch"] = {
+            "tour_state": {"current_stop_id": "forged"},
+            "visitor_profile": {"language": "en"},
+        }
+        result = narration_validation_node(state)
+        self.assertEqual(result["narration_validation"]["validation_status"], "rejected")
+        self.assertNotIn("tour_state", result)
+        self.assertNotIn("visitor_profile", result)
+        self.assertNotIn("active_route_plan", result)
 
 
 if __name__ == "__main__":
