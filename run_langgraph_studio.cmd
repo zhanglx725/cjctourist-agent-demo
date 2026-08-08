@@ -18,10 +18,18 @@ rem This prevents an old process/environment value from disabling the test.
 set "CJC_READ_ONLY_ROLLOUT_MODE=shadow"
 set "CJC_READ_ONLY_ROLLOUT_CAPABILITIES=role_narration,presentation_content_plan"
 
-rem Use a fresh local port so stale 2034 processes cannot shadow this Graph.
+rem Studio's browser tab does not stop the local LangGraph/Python server.
+rem Reclaim this dedicated local port so each launch uses the latest Graph.
 for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":%STUDIO_PORT%" ^| findstr "LISTENING"') do (
-    echo Port %STUDIO_PORT% is already occupied by PID %%P.
-    echo Close the process using %STUDIO_PORT%, then run this file again.
+    echo Stopping previous server on port %STUDIO_PORT% ^(PID %%P^)...
+    taskkill /PID %%P /T /F >nul 2>&1
+)
+timeout /t 1 /nobreak >nul
+
+rem Fail clearly only if Windows could not release the port after cleanup.
+for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":%STUDIO_PORT%" ^| findstr "LISTENING"') do (
+    echo Port %STUDIO_PORT% is still occupied by PID %%P.
+    echo It could not be stopped automatically; close that process and retry.
     pause
     exit /b 1
 )
