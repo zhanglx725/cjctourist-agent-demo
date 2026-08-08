@@ -86,6 +86,8 @@ from semantic_normalization import (
     is_safe_arrival_candidate,
     recognize_semantic_candidate,
 )
+from semantic_intent_contract import build_intent_envelope
+from intent_arbitration import arbitrate_intents
 from pre_semantic_arbitration import resolve_pre_semantic_action
 from controlled_knowledge_query import (
     ControlledKnowledgePlan,
@@ -103,6 +105,7 @@ from controlled_rollout import (
     REPLAN_PROPOSAL,
     STATE_TRANSITION,
     NARRATION_COMPOSITION,
+    ROLE_NARRATION,
     RolloutMode,
     evaluation_record,
     rollout_from_environment,
@@ -112,6 +115,16 @@ from route_proposal import wrap_route_selection_for_shadow
 from replan_proposal import wrap_existing_replan_proposal_for_shadow
 from replan_composite_shadow import audit_replan_composite_operation
 from narration_composition_shadow import observe_narration_composition
+from narration_content_plan import (
+    build_narration_content_plan,
+    narration_content_plan_from_dict,
+)
+from narration_style_policy import compile_style_brief
+from role_narration_generation import (
+    generate_role_narration,
+    role_narration_candidate_from_dict,
+)
+from narration_validation import validate_role_narration
 from state_transition_adapter import dry_run_transition
 from policy_gate import evaluate_policy
 from reviewed_read_tools import answer_reviewed_controlled_knowledge
@@ -218,6 +231,10 @@ class AgentState(TypedDict, total=False):
     # VisitorProfile: it is reset on every user message and can only map into
     # existing deterministic control parsers.
     semantic_candidate: dict[str, Any] | None
+    # P1 semantic proposal/audit only. Neither field is an execution command;
+    # Workflow remains the sole owner of route selection and state writes.
+    semantic_intent_envelope: dict[str, Any] | None
+    intent_arbitration: dict[str, Any] | None
     # C1 audit only.  It records how a raw, schema-validated arrival proposal
     # was resolved by reviewed-node code; it is not a location fact source.
     semantic_arrival_audit: dict[str, Any] | None
@@ -251,6 +268,14 @@ class AgentState(TypedDict, total=False):
     # P3-05 audit only. Candidate narration is never the authoritative visitor
     # message and never submits Coverage or state writes.
     narration_composition_evaluations: list[dict[str, Any]]
+    narration_content_plan: dict[str, Any] | None
+    role_narration_candidate: dict[str, Any] | None
+    narration_validation: dict[str, Any] | None
+    active_role_narration_audit: dict[str, Any] | None
+    role_narration_evaluations: list[dict[str, Any]]
+    # Active-only two-phase Coverage input. It is never passed to the model or
+    # rendered to visitors and is cleared by commit or fallback in this turn.
+    pending_role_narration_commit: dict[str, Any] | None
     # P4-01 session program only. It does not participate in route, profile,
     # TourState, StopProgram, or NarrationCoverage calculations.
     tour_opening_program: dict[str, Any]
@@ -458,6 +483,21 @@ def _invoke_grounded_knowledge_model(prompt: str) -> str:
     return response.content if isinstance(response.content, str) else str(response.content)
 
 
+def _invoke_role_narration_model(prompt: str) -> str:
+    """Realize reviewed claims only; no tools, retrieval, or state is exposed."""
+    response = build_model(with_tools=False).invoke([
+        {
+            "role": "system",
+            "content": (
+                "你只实现审核事实的角色化表达。事实原文必须保留，不得检索、补写事实、"
+                "输出内部字段或提出任何状态修改。"
+            ),
+        },
+        {"role": "user", "content": prompt},
+    ])
+    return response.content if isinstance(response.content, str) else str(response.content)
+
+
 def _arrival_candidate_audit(candidate: Any) -> dict[str, Any] | None:
     """Describe reviewed-node resolution for one validated arrival candidate.
 
@@ -518,12 +558,18 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
     deterministic_knowledge_plan = identify_controlled_knowledge_plan(raw_text)
     pre_semantic = resolve_pre_semantic_action(state, raw_text)
     if pre_semantic.consumed:
+        envelope = build_intent_envelope(raw_text, (), model_called=False)
+        arbitration = arbitrate_intents(
+            envelope, state, deterministic_route_target=pre_semantic.route_target,
+        )
         return {
             "semantic_candidate": None,
             "semantic_arrival_audit": None,
             "semantic_control_text": None,
             "semantic_fact_kind": None,
             "knowledge_query_plan": None,
+            "semantic_intent_envelope": envelope.to_dict(),
+            "intent_arbitration": arbitration.to_dict(),
             "performance_metrics": _append_metric(
                 state,
                 "semantic_normalization",
@@ -541,12 +587,31 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
     if (
         deterministic_knowledge_plan is not None
     ):
+        envelope = build_intent_envelope(
+            raw_text,
+            ({
+                "intent": "ask_venue_question",
+                "confidence": 1.0,
+                "target": None,
+                "arguments": {
+                    "subject_text": deterministic_knowledge_plan.subject_text,
+                    "detail_level": deterministic_knowledge_plan.detail_level,
+                },
+                "source": "deterministic",
+                "requires_confirmation": False,
+                "evidence_span": raw_text,
+            },),
+            model_called=False,
+        )
+        arbitration = arbitrate_intents(envelope, state)
         return {
             "semantic_candidate": None,
             "semantic_arrival_audit": None,
             "semantic_control_text": None,
             "semantic_fact_kind": None,
             "knowledge_query_plan": deterministic_knowledge_plan.to_dict(),
+            "semantic_intent_envelope": envelope.to_dict(),
+            "intent_arbitration": arbitration.to_dict(),
             "performance_metrics": _append_metric(
                 state,
                 "semantic_normalization",
@@ -560,12 +625,16 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
             ),
         }
     if not raw_text:
+        envelope = build_intent_envelope(raw_text, (), model_called=False)
+        arbitration = arbitrate_intents(envelope, state)
         return {
             "semantic_candidate": None,
             "semantic_arrival_audit": None,
             "semantic_control_text": None,
             "semantic_fact_kind": None,
             "knowledge_query_plan": None,
+            "semantic_intent_envelope": envelope.to_dict(),
+            "intent_arbitration": arbitration.to_dict(),
             "performance_metrics": _append_metric(
                 state, "semantic_normalization", time.perf_counter() - started,
                 status="not_needed", reason="empty_input", model_called=False,
@@ -577,6 +646,60 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
     canonical = canonical_control_text(candidate)
     fact_kind = canonical_fact_kind(candidate)
     knowledge_plan = canonical_knowledge_plan(candidate)
+    intent_by_candidate_type = {
+        "arrival": "arrive_at_stop",
+        "request_next_stop": "request_next_stop",
+        "available_duration": "provide_profile_preference",
+        "remaining_duration": "request_replan",
+        "route_request": "request_route",
+        "route_request_minimize_walking": "request_route",
+        "knowledge_query": "ask_venue_question",
+    }
+    semantic_candidates = (candidate, *candidate.alternatives)
+    intent_value_list: list[dict[str, Any]] = []
+    for semantic_candidate in semantic_candidates:
+        intent = intent_by_candidate_type.get(semantic_candidate.candidate_type)
+        if not semantic_candidate.actionable or intent is None:
+            continue
+        arguments: dict[str, object] = {}
+        if semantic_candidate.candidate_type == "arrival":
+            if not is_safe_arrival_candidate(raw_text, semantic_candidate):
+                continue
+            arguments["location_text"] = semantic_candidate.location_text
+        elif semantic_candidate.candidate_type == "available_duration":
+            parsed = parse_duration_minutes(semantic_candidate.time_text or "")
+            arguments = {"field": "available_minutes", "value": parsed.minutes}
+        elif semantic_candidate.candidate_type == "remaining_duration":
+            parsed = parse_duration_minutes(semantic_candidate.time_text or "")
+            arguments = {"remaining_minutes": parsed.minutes}
+        elif semantic_candidate.candidate_type == "route_request_minimize_walking":
+            arguments = {"minimize_walking": True}
+        elif semantic_candidate.candidate_type == "knowledge_query":
+            arguments = {
+                "subject_text": semantic_candidate.evidence_span,
+                "detail_level": semantic_candidate.detail_level,
+            }
+        intent_value_list.append({
+            "intent": intent,
+            "confidence": semantic_candidate.confidence,
+            "target": None,
+            "arguments": arguments,
+            "source": "legacy_adapter",
+            "requires_confirmation": False,
+            "evidence_span": semantic_candidate.evidence_span,
+        })
+    if candidate.actionable and fact_kind and not intent_value_list:
+        intent_value_list.append({
+            "intent": "ask_venue_question",
+            "confidence": candidate.confidence,
+            "target": None,
+            "arguments": {"subject_text": candidate.evidence_span, "detail_level": "brief"},
+            "source": "legacy_adapter",
+            "requires_confirmation": False,
+            "evidence_span": candidate.evidence_span,
+        })
+    envelope = build_intent_envelope(raw_text, intent_value_list, model_called=True)
+    arbitration = arbitrate_intents(envelope, state)
     return {
         "semantic_candidate": candidate.to_dict() if candidate.actionable else None,
         "semantic_arrival_audit": _arrival_candidate_audit(candidate),
@@ -585,6 +708,8 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
         "knowledge_query_plan": (
             knowledge_plan.to_dict() if knowledge_plan is not None else None
         ),
+        "semantic_intent_envelope": envelope.to_dict(),
+        "intent_arbitration": arbitration.to_dict(),
         "performance_metrics": _append_metric(
             state, "semantic_normalization", time.perf_counter() - started,
             status=(
@@ -2236,6 +2361,76 @@ def show_replan_time_node(state: AgentState) -> dict[str, Any]:
     }
 
 
+def _commit_stop_guidance_coverage(
+    state: AgentState,
+    result: dict[str, Any],
+    *,
+    public_message: str,
+    introduced_by: str,
+) -> tuple[Any, dict[str, Any]]:
+    """Atomically commit eligible subjects for one final public narration."""
+    coverage_before = load_narration_coverage(state.get("narration_coverage"))
+    coverage_after = coverage_before
+    commit_audit: dict[str, Any] = {
+        "status": "not_attempted", "submitted_subject_ids": [],
+        "committed_subject_ids": [],
+    }
+    if result.get("status") != "guided_e5":
+        return coverage_after, commit_audit
+    render_audit = result.get("narration_render_audit") or {}
+    current_node = (state.get("tour_state") or {}).get("current_stop_id")
+    rendered = {
+        ("craft", subject_id) for subject_id in render_audit.get("rendered_craft_ids", [])
+    }.union({
+        ("ornament", subject_id) for subject_id in render_audit.get("rendered_ornament_ids", [])
+    })
+    used_source_ids = set(render_audit.get("used_source_ids", []))
+    turn_id = f"{introduced_by}:{current_node}:{len(state.get('messages', [])) + 1}"
+    try:
+        records: list[IntroductionRecord] = []
+        for candidate in result.get("coverage_candidates", []):
+            if not isinstance(candidate, dict):
+                continue
+            key = (candidate.get("subject_kind"), candidate.get("subject_id"))
+            expected_evidence_kind = {
+                "craft": "craft_overview", "ornament": "ornament_detail",
+            }.get(key[0])
+            actual_sources = tuple(
+                source for source in candidate.get("source_ids", [])
+                if source in used_source_ids
+            )
+            if (
+                key not in rendered
+                or candidate.get("evidence_kind") != expected_evidence_kind
+                or not actual_sources
+                or not public_message.strip()
+                or candidate.get("node_id") != current_node
+                or current_node != render_audit.get("node_id")
+            ):
+                continue
+            records.append(IntroductionRecord(
+                subject_kind=key[0], subject_id=key[1], source_ids=actual_sources,
+                introduced_by=introduced_by, node_id=current_node, turn_id=turn_id,
+            ))
+        coverage_after = commit_introductions(coverage_before, records)
+        commit_audit = {
+            "status": "committed" if records else "no_eligible_candidates",
+            "submitted_subject_ids": [record.subject_id for record in records],
+            "committed_subject_ids": (
+                list(coverage_after.introduced_craft_ids)
+                + list(coverage_after.introduced_ornament_ids)
+            ),
+            "turn_id": turn_id,
+        }
+    except (NarrationCoverageError, TypeError, ValueError):
+        coverage_after = coverage_before
+        commit_audit = {
+            "status": "atomic_commit_rejected", "submitted_subject_ids": [],
+            "committed_subject_ids": [],
+        }
+    return coverage_after, commit_audit
+
+
 def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict[str, Any]:
     """Generate sourced current-stop guidance without advancing TourState."""
     started = time.perf_counter()
@@ -2249,52 +2444,6 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
         visitor_profile=state.get("visitor_profile"),
         narration_coverage=state.get("narration_coverage"),
     )
-    coverage_before = load_narration_coverage(state.get("narration_coverage"))
-    coverage_after = coverage_before
-    commit_audit: dict[str, Any] = {"status": "not_attempted", "submitted_subject_ids": [], "committed_subject_ids": []}
-    if result.get("status") == "guided_e5":
-        render_audit = result.get("narration_render_audit") or {}
-        current_node = (state.get("tour_state") or {}).get("current_stop_id")
-        rendered = {
-            ("craft", subject_id) for subject_id in render_audit.get("rendered_craft_ids", [])
-        }.union({("ornament", subject_id) for subject_id in render_audit.get("rendered_ornament_ids", [])})
-        used_source_ids = set(render_audit.get("used_source_ids", []))
-        turn_id = f"stop_guidance:{current_node}:{len(state.get('messages', [])) + 1}"
-        try:
-            records: list[IntroductionRecord] = []
-            for candidate in result.get("coverage_candidates", []):
-                if not isinstance(candidate, dict):
-                    continue
-                key = (candidate.get("subject_kind"), candidate.get("subject_id"))
-                expected_evidence_kind = {
-                    "craft": "craft_overview",
-                    "ornament": "ornament_detail",
-                }.get(key[0])
-                actual_sources = tuple(source for source in candidate.get("source_ids", []) if source in used_source_ids)
-                if (
-                    key not in rendered
-                    or candidate.get("evidence_kind") != expected_evidence_kind
-                    or not actual_sources
-                    or not result.get("message", "").strip()
-                    or candidate.get("node_id") != current_node
-                    or current_node != render_audit.get("node_id")
-                ):
-                    continue
-                records.append(IntroductionRecord(
-                    subject_kind=key[0], subject_id=key[1], source_ids=actual_sources,
-                    introduced_by="stop_guidance", node_id=current_node, turn_id=turn_id,
-                ))
-            coverage_after = commit_introductions(coverage_before, records)
-            commit_audit = {
-                "status": "committed" if records else "no_eligible_candidates",
-                "submitted_subject_ids": [record.subject_id for record in records],
-                "committed_subject_ids": list(coverage_after.introduced_craft_ids) + list(coverage_after.introduced_ornament_ids),
-                "turn_id": turn_id,
-            }
-        except (NarrationCoverageError, TypeError, ValueError):
-            # Atomic failure: retain the exact original coverage snapshot.
-            coverage_after = coverage_before
-            commit_audit = {"status": "atomic_commit_rejected", "submitted_subject_ids": [], "committed_subject_ids": []}
     public_message = public_visitor_message_or_fallback(result["message"])
     photo_guidance = maybe_trigger_photo_guidance(
         tour_state=state.get("tour_state"),
@@ -2307,6 +2456,19 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
         public_message = public_visitor_message_or_fallback(
             f"{public_message}\n\n{photo_guidance['message']}"
         )
+    rollout = rollout_from_environment()
+    role_active = rollout.enabled(ROLE_NARRATION)
+    if role_active and result.get("status") == "guided_e5":
+        coverage_after = load_narration_coverage(state.get("narration_coverage"))
+        commit_audit = {
+            "status": "deferred_to_role_narration", "submitted_subject_ids": [],
+            "committed_subject_ids": [],
+        }
+    else:
+        coverage_after, commit_audit = _commit_stop_guidance_coverage(
+            state, result, public_message=public_message,
+            introduced_by="stop_guidance",
+        )
     updates: dict[str, Any] = {
         "messages": [AIMessage(content=public_message, additional_kwargs={"stop_guidance": True})],
         "retrieved_evidence": result["evidence"],
@@ -2317,6 +2479,16 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
         ),
         "narration_coverage": coverage_after.to_dict(),
         "proactive_photo_guidance": photo_guidance["plan"],
+        "pending_role_narration_commit": (
+            {
+                "status": result.get("status"),
+                "legacy_public_message": public_message,
+                "coverage_candidates": result.get("coverage_candidates", []),
+                "narration_render_audit": result.get("narration_render_audit"),
+            }
+            if role_active and result.get("status") == "guided_e5"
+            else None
+        ),
         "performance_metrics": _append_metric(
             state,
             "stop_guidance",
@@ -2340,7 +2512,6 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
             **result["narration_render_audit"],
             "coverage_commit": commit_audit,
         }
-    rollout = rollout_from_environment()
     if rollout.observes(NARRATION_COMPOSITION):
         try:
             # The optional pose card is now part of the authoritative public
@@ -2369,6 +2540,191 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
     # Deliberately do not return tour_state or tour_interaction_state.  The
     # A1 adapter remains the only mutation entry point.
     return updates
+
+
+def narration_content_plan_node(state: AgentState) -> dict[str, Any]:
+    """Build a source-free claim plan from the authoritative legacy guidance."""
+    started = time.perf_counter()
+    latest = state.get("messages", [])[-1] if state.get("messages") else None
+    public_message = str(latest.content) if isinstance(latest, AIMessage) else ""
+    plan = build_narration_content_plan(
+        public_message=public_message,
+        stop_program=state.get("active_stop_program"),
+        render_audit=state.get("active_narration_render_audit"),
+        visitor_profile=state.get("visitor_profile"),
+        narration_coverage=state.get("narration_coverage"),
+    )
+    return {
+        "narration_content_plan": plan.to_dict(),
+        "role_narration_candidate": None,
+        "narration_validation": None,
+        "performance_metrics": _append_metric(
+            state, "narration_content_plan", time.perf_counter() - started,
+            status=plan.status, fact_count=len(plan.facts),
+            reason_codes=list(plan.reason_codes), model_called=False,
+        ),
+    }
+
+
+def role_narration_generation_node(state: AgentState) -> dict[str, Any]:
+    """Generate one non-authoritative candidate only in explicit Shadow mode."""
+    started = time.perf_counter()
+    plan = narration_content_plan_from_dict(state.get("narration_content_plan"))
+    rollout = rollout_from_environment()
+    if plan is None or plan.status != "ready":
+        candidate = {
+            "schema_version": "role_narration_candidate_v1",
+            "generation_status": "rejected", "reason_code": "content_plan_not_ready",
+            "style_id": plan.style_id if plan else "neutral", "public_text": "",
+            "used_fact_ids": [], "omitted_fact_ids": [], "self_check": {},
+            "model_called": False, "latency_ms": 0,
+        }
+    elif not (rollout.observes(ROLE_NARRATION) or rollout.enabled(ROLE_NARRATION)):
+        candidate = {
+            "schema_version": "role_narration_candidate_v1",
+            "generation_status": "rejected", "reason_code": "role_narration_rollout_off",
+            "style_id": plan.style_id, "public_text": "", "used_fact_ids": [],
+            "omitted_fact_ids": [], "self_check": {}, "model_called": False,
+            "latency_ms": 0,
+        }
+    else:
+        brief = compile_style_brief(plan.style_id)
+        candidate = generate_role_narration(
+            plan, brief, _invoke_role_narration_model,
+        ).to_dict()
+    return {
+        "role_narration_candidate": candidate,
+        "performance_metrics": _append_metric(
+            state, "role_narration_generation", time.perf_counter() - started,
+            status=candidate["generation_status"],
+            model_called=candidate["model_called"],
+            reason_code=candidate.get("reason_code"),
+        ),
+    }
+
+
+def narration_validation_node(state: AgentState, config: RunnableConfig = None) -> dict[str, Any]:
+    """Validate Shadow output and append bounded audit; never replace messages."""
+    started = time.perf_counter()
+    plan = narration_content_plan_from_dict(state.get("narration_content_plan"))
+    candidate = role_narration_candidate_from_dict(state.get("role_narration_candidate"))
+    if plan is None or candidate is None:
+        validation = {
+            "validation_status": "rejected", "reason_codes": ["shadow_input_unavailable"],
+            "state_writes": [], "same_fact_boundary": False,
+            "role_consistent": False, "within_budget": False,
+            "public_message_safe": False,
+        }
+    else:
+        validation = validate_role_narration(
+            candidate, plan, compile_style_brief(plan.style_id),
+        ).to_dict()
+    rollout = rollout_from_environment()
+    active_mode = rollout.enabled(ROLE_NARRATION)
+    record = {
+        "thread_id": _rollout_thread_id(config),
+        "capability": ROLE_NARRATION,
+        "mode": "active" if active_mode else "shadow",
+        "active_takeover": False,
+        "model_called": bool(candidate and candidate.model_called),
+        "style_id": plan.style_id if plan else None,
+        "style_schema_version": "narration_style_v2",
+        "candidate_fact_ids": [fact.fact_id for fact in plan.facts] if plan else [],
+        "used_fact_ids": list(candidate.used_fact_ids) if candidate else [],
+        "omitted_fact_ids": list(candidate.omitted_fact_ids) if candidate else [],
+        **validation,
+        "fallback_used": active_mode and validation["validation_status"] != "accepted",
+        "legacy_message_preserved": True,
+        "same_public_message": True,
+        "latency_ms": candidate.latency_ms if candidate else 0,
+    }
+    return {
+        "narration_validation": validation,
+        "active_role_narration_audit": record,
+        "role_narration_evaluations": [
+            *state.get("role_narration_evaluations", []), record,
+        ][-20:],
+        "performance_metrics": _append_metric(
+            state, "narration_validation", time.perf_counter() - started,
+            status=validation["validation_status"],
+            reason_codes=validation["reason_codes"], model_called=False,
+        ),
+    }
+
+
+def _legacy_operational_suffix(legacy_text: str) -> str:
+    starts = [
+        index for marker in ("【观察提示】", "【下一步】")
+        if (index := legacy_text.find(marker)) >= 0
+    ]
+    return legacy_text[min(starts):].strip() if starts else ""
+
+
+def narration_commit_node(state: AgentState) -> dict[str, Any]:
+    """Publish one accepted role candidate and uniquely submit its Coverage."""
+    pending = state.get("pending_role_narration_commit") or {}
+    candidate = role_narration_candidate_from_dict(state.get("role_narration_candidate"))
+    validation = state.get("narration_validation") or {}
+    latest = state.get("messages", [])[-1] if state.get("messages") else None
+    if (
+        candidate is None
+        or validation.get("validation_status") != "accepted"
+        or not isinstance(latest, AIMessage)
+        or not pending
+    ):
+        return deterministic_narration_fallback_node(state)
+    suffix = _legacy_operational_suffix(str(pending.get("legacy_public_message") or ""))
+    final_text = candidate.public_text
+    if suffix:
+        final_text = f"{final_text}\n\n{suffix}"
+    final_text = public_visitor_message_or_fallback(final_text)
+    coverage_after, commit_audit = _commit_stop_guidance_coverage(
+        state, dict(pending), public_message=final_text,
+        introduced_by="narration_commit",
+    )
+    audit = {
+        **(state.get("active_role_narration_audit") or {}),
+        "active_takeover": True, "fallback_used": False,
+        "legacy_message_preserved": False, "same_public_message": False,
+        "coverage_commit": commit_audit,
+    }
+    presentation = state.get("tour_presentation")
+    return {
+        "messages": [AIMessage(
+            id=latest.id, content=final_text,
+            additional_kwargs={"stop_guidance": True, "role_narration": True},
+        )],
+        "tour_presentation": (
+            {**presentation, "message": final_text}
+            if isinstance(presentation, dict) else presentation
+        ),
+        "narration_coverage": coverage_after.to_dict(),
+        "active_role_narration_audit": audit,
+        "pending_role_narration_commit": None,
+    }
+
+
+def deterministic_narration_fallback_node(state: AgentState) -> dict[str, Any]:
+    """Keep the authoritative legacy message and submit its Coverage once."""
+    pending = state.get("pending_role_narration_commit") or {}
+    legacy_text = public_visitor_message_or_fallback(
+        str(pending.get("legacy_public_message") or "")
+    )
+    coverage_after, commit_audit = _commit_stop_guidance_coverage(
+        state, dict(pending), public_message=legacy_text,
+        introduced_by="deterministic_narration_fallback",
+    )
+    audit = {
+        **(state.get("active_role_narration_audit") or {}),
+        "active_takeover": False, "fallback_used": True,
+        "legacy_message_preserved": True, "same_public_message": True,
+        "coverage_commit": commit_audit,
+    }
+    return {
+        "narration_coverage": coverage_after.to_dict(),
+        "active_role_narration_audit": audit,
+        "pending_role_narration_commit": None,
+    }
 
 
 def clarification_node(state: AgentState) -> dict[str, Any]:
@@ -3535,6 +3891,19 @@ def route_after_tour_opening(state: AgentState) -> str:
     return "stop_guidance" if action.get("continue_to_stop_guidance") else END
 
 
+def route_after_narration_validation(state: AgentState) -> str:
+    """Activate only under explicit rollout; Shadow always preserves legacy."""
+    rollout = rollout_from_environment()
+    if not rollout.enabled(ROLE_NARRATION) or not state.get("pending_role_narration_commit"):
+        return "atomic_read_plan_shadow"
+    validation = state.get("narration_validation") or {}
+    return (
+        "narration_commit"
+        if validation.get("validation_status") == "accepted"
+        else "deterministic_narration_fallback"
+    )
+
+
 def route_after_visit_summary(state: AgentState) -> str:
     return "post_visit_title_blessing" if state.get("visit_summary") else END
 
@@ -3623,6 +3992,11 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("show_replan", show_replan_node)
     workflow.add_node("show_replan_time", show_replan_time_node)
     workflow.add_node("stop_guidance", stop_guidance_node)
+    workflow.add_node("narration_content_plan", narration_content_plan_node)
+    workflow.add_node("role_narration_generation", role_narration_generation_node)
+    workflow.add_node("narration_validation", narration_validation_node)
+    workflow.add_node("narration_commit", narration_commit_node)
+    workflow.add_node("deterministic_narration_fallback", deterministic_narration_fallback_node)
     workflow.add_node("clarification", clarification_node)
     workflow.add_edge(START, "visitor_welcome")
     workflow.add_conditional_edges(
@@ -3685,7 +4059,19 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_edge("show_replan", "replan_proposal_shadow")
     workflow.add_edge("show_replan_time", "replan_proposal_shadow")
     workflow.add_edge("replan_proposal_shadow", "atomic_read_plan_shadow")
-    workflow.add_edge("stop_guidance", "atomic_read_plan_shadow")
+    workflow.add_edge("stop_guidance", "narration_content_plan")
+    workflow.add_edge("narration_content_plan", "role_narration_generation")
+    workflow.add_edge("role_narration_generation", "narration_validation")
+    workflow.add_conditional_edges(
+        "narration_validation", route_after_narration_validation,
+        {
+            "narration_commit": "narration_commit",
+            "deterministic_narration_fallback": "deterministic_narration_fallback",
+            "atomic_read_plan_shadow": "atomic_read_plan_shadow",
+        },
+    )
+    workflow.add_edge("narration_commit", "atomic_read_plan_shadow")
+    workflow.add_edge("deterministic_narration_fallback", "atomic_read_plan_shadow")
     workflow.add_edge("clarification", "atomic_read_plan_shadow")
     workflow.add_conditional_edges("llm_think", route_after_llm, {"rag_tool": "rag_tool", END: "atomic_read_plan_shadow"})
     workflow.add_edge("rag_tool", "llm_think")

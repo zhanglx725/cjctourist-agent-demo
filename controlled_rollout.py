@@ -16,6 +16,7 @@ ROUTE_PROPOSAL = "route_proposal"
 REPLAN_PROPOSAL = "replan_proposal"
 STATE_TRANSITION = "state_transition"
 NARRATION_COMPOSITION = "narration_composition"
+ROLE_NARRATION = "role_narration"
 
 
 @dataclass(frozen=True)

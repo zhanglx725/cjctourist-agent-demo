@@ -142,9 +142,9 @@ styles:
     fallback_style_id: neutral
     templates:
       first_craft_intro_style:
-        - "听我的，{craft_name}，全场唯一核心看点。它是一种{craft_definition}。{evidence_fact}"
-        - "我只说一遍：{craft_name}，代表岭南工艺天花板。它是一种{craft_definition}。{evidence_fact}"
-        - "别质疑，直接看这{craft_name}，最有价值的工艺。它是一种{craft_definition}。{evidence_fact}"
+        - "先把目光交给{craft_name}，这是当前讲解的重点。它是一种{craft_definition}。{evidence_fact}"
+        - "这一站先看{craft_name}。它是一种{craft_definition}。{evidence_fact}"
+        - "直接看{craft_name}，先抓住它的工艺特征。它是一种{craft_definition}。{evidence_fact}"
         - "记死了：{craft_name}，整座祠堂的工艺精髓。它是一种{craft_definition}。{evidence_fact}"
         - "没有例外，{craft_name}是你今天必须看懂的东西。它是一种{craft_definition}。{evidence_fact}"
       repeat_craft_style:
@@ -156,9 +156,9 @@ styles:
       first_ornament_intro_style:
         - "{object_name}在{observation_location}，必须打卡。{evidence_fact}"
         - "{observation_location}的{object_name}，我指定的必看点位。{evidence_fact}"
-        - "直接去{observation_location}，看{object_name}，别问为什么。{evidence_fact}"
+        - "直接看向{observation_location}的{object_name}，重点就在眼前。{evidence_fact}"
         - "认准了：{observation_location}的{object_name}，重中之重。{evidence_fact}"
-        - "{object_name}，位于{observation_location}，不看等于白来。{evidence_fact}"
+        - "{object_name}位于{observation_location}，值得在这里留意。{evidence_fact}"
       repeat_ornament_style:
         - "这处{object_name}，精髓全在{visible_detail}，看仔细。"
         - "再看{object_name}，重点只有{visible_detail}。"

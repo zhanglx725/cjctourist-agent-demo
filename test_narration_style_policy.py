@@ -1,5 +1,5 @@
 import unittest
-from narration_style_policy import _load_all, _validate, compile_narration_style, load_narration_style
+from narration_style_policy import _load_all, _validate, compile_narration_style, compile_style_brief, load_narration_style
 from guidance_policy import build_guidance_policy
 from visitor_profile import create_visitor_profile
 
@@ -45,5 +45,18 @@ class NarrationStylePolicyTests(unittest.TestCase):
     def test_professional_does_not_carry_source_ids(self):
         s = compile_narration_style(self.policy(knowledge_level="professional"))
         self.assertFalse(hasattr(s, "source_ids"))
+    def test_all_styles_have_approved_v2_role_briefs(self):
+        for style_id in EXPECTED_STYLE_IDS:
+            with self.subTest(style_id=style_id):
+                brief = compile_style_brief(style_id)
+                self.assertEqual(brief.style_id, style_id)
+                self.assertEqual(brief.schema_version, "narration_style_v2")
+                self.assertTrue(brief.persona["identity_boundaries"])
+                self.assertTrue(brief.generation_policy["avoid"])
+                self.assertTrue(brief.few_shot_examples)
+    def test_role_brief_never_contains_template_or_source_fields(self):
+        value = compile_style_brief("ancient_scholar").to_dict()
+        self.assertNotIn("templates", value)
+        self.assertNotIn("source_ids", str(value))
 
 if __name__ == "__main__": unittest.main()

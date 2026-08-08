@@ -16,7 +16,14 @@ from typing import Any, Iterable
 
 SCHEMA_VERSION = "v1"
 VALID_SUBJECT_KINDS = frozenset({"craft", "ornament"})
-VALID_INTRODUCED_BY = frozenset({"stop_guidance", "tour_qa"})
+VALID_INTRODUCED_BY = frozenset(
+    {
+        "stop_guidance",
+        "tour_qa",
+        "narration_commit",
+        "deterministic_narration_fallback",
+    }
+)
 GUIDE_CARDS_FILE = Path("data/chen_clan_academy/routes/node_guide_cards_v1.json")
 
 
