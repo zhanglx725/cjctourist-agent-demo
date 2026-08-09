@@ -776,20 +776,42 @@ professional
 ~~~
 
 本次改造不是把导游变成自由聊天机器人，而是让它在事实、路线和安全不变的前提下，具备稳定、连续、有趣的角色化导游体验。
-## 15. 当前交付状态
+
+## 15. 角色讲解预算质量门关闭（2026-08-10）
+
+```text
+role_narration_budget_quality_gate: passed
+listen_only_manual: passed_by_operator
+role_mode_and_continuity: 16/16 passed
+role_targeted_validation: 73/73 passed
+p0_matrix: 3/3 passed
+full_regression: 1095/1095 passed
+active_takeover: disabled
+```
+
+- `budget_exceeded` 故障注入仅作用于非权威角色讲解计划副本；真实超预算候选在调用模型前失败关闭，旧链正文继续展示，且不写 TourState、VisitorProfile、路线或 Coverage。
+- 静听模式真实点位确认 `interaction_allowed=false`，且 E5 与角色计划的 `allocated_content_seconds` 均为 210 秒；验证通过、事实边界一致、无状态写入。
+- 角色只读解析补齐“古风一点”“适合孩子/小朋友”等已冻结自然表达，并按审核目录顺序输出冲突候选；冲突继续澄清，已选角色可在不写画像的情况下跨轮继承。
+- 18 种风格最终 Shadow 人工归档尚未开始，不得据本节开启 Active。
+
+## 16. 当前交付状态
 
 ~~~text
 invalid_candidate_schema: fixed
-automated_validation: partial_due_to_preexisting_failures
+automated_validation: passed
 role_shadow: implemented_and_automated_verified
 presentation_content_plan: implemented
 presentation_content_plan_shadow: automated_verified
 route_opening_shadow: implemented_and_automated_verified
 route_opening_shadow_manual: passed_by_operator
+role_narration_budget_quality_gate: passed
+role_mode_and_continuity: 16/16 passed
+role_targeted_validation: 73/73 passed
 role_active: disabled
 active_takeover: disabled
-full_regression: 1047/1052
-p0_matrix: 10/10 passed
+full_regression: 1095/1095 passed
+p0_matrix: 3/3 passed
+18_style_shadow_baseline: pending
 ~~~
 
-在自动化定向测试、完整回归和 P0 安全/游客输出测试完成前，不得把本阶段写成已通过，也不得开启 `read_only_active`。
+当前自动化与预算质量门已经通过；18 风格最终人工归档完成前仍不得开启 `read_only_active`。

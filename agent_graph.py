@@ -2931,6 +2931,25 @@ def role_narration_generation_node(state: AgentState) -> dict[str, Any]:
             "omitted_fact_ids": [], "self_check": {}, "model_called": False,
             "latency_ms": 0,
         }
+    elif os.getenv("CJC_ROLE_NARRATION_TEST_FAILURE", "").strip().lower() == "budget_exceeded":
+        # Test-only, role-layer-local fault injection.  Keep the authoritative
+        # E5 render audit untouched and make only this non-authoritative plan
+        # copy infeasible, so validation exercises the real budget fail-closed
+        # path without calling a model or mutating operational state.
+        plan = replace(
+            plan,
+            allocated_content_seconds=max(
+                plan.allocated_content_seconds,
+                plan.budget_seconds + 1,
+            ),
+        )
+        candidate = {
+            "schema_version": "role_narration_candidate_v1",
+            "generation_status": "rejected", "reason_code": "budget_exceeded",
+            "style_id": plan.style_id, "public_text": "", "used_fact_ids": [],
+            "omitted_fact_ids": [], "self_check": {}, "model_called": False,
+            "latency_ms": 0,
+        }
     else:
         brief = compile_style_brief(plan.style_id)
         candidate = generate_role_narration(
@@ -2989,7 +3008,10 @@ def narration_validation_node(state: AgentState, config: RunnableConfig = None) 
         "used_fact_ids": list(candidate.used_fact_ids) if candidate else [],
         "omitted_fact_ids": list(candidate.omitted_fact_ids) if candidate else [],
         **validation,
-        "fallback_used": active_mode and validation["validation_status"] != "accepted",
+        # In Shadow, the deterministic legacy message is already the public
+        # response.  A rejected candidate therefore means the legacy fallback
+        # was used even though no Active takeover was attempted.
+        "fallback_used": validation["validation_status"] != "accepted",
         "legacy_message_preserved": True,
         "same_public_message": True,
         "legacy_candidate_diff": {

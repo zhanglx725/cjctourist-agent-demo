@@ -65,3 +65,24 @@ active takeover in Shadow = 0
 `role_narration_evaluations` 最后一条记录。完成采样后，将审计数组交给
 `evaluate_role_narration_shadow` 生成统一质量报告，再决定是否允许单风格、
 单点位有限 Active。
+
+## 预算质量门关闭记录（2026-08-10）
+
+```text
+budget_exceeded_injection: passed
+listen_only_manual: passed_by_operator
+listen_only_allocated_content_seconds: 210
+e5_allocated_content_seconds: 210
+role_mode_and_continuity: 16/16 passed
+role_targeted_validation: 73/73 passed
+p0_matrix: 3/3 passed
+full_regression: 1095/1095 passed
+active_takeover: disabled
+trace_metadata: unavailable
+```
+
+真实静听点位同时满足 `interaction_allowed=false`、事实边界一致、游客正文安全、预算内、旧正文保留和零状态写入。`budget_exceeded` 自动化注入只改变角色计划副本，模型不被调用，候选拒绝并回退旧链，Coverage 不重复提交。
+
+本轮同时恢复角色自然表达识别、冲突候选稳定顺序和跨轮只读继承。上述结论关闭全局预算质量门，但不等于 18 风格最终 Shadow 基线已归档，更不授权 Active。
+
+下一轮人工采样按最新验收方案执行：18 种风格各 1 个真实点位，`student_research`、`listen_only`、`professional`、`cantonese_storyteller`、`xiguan_young_master`、`exploration_game`、`photo_guide` 各补 1 个不同点位，总计约 25 个样本。

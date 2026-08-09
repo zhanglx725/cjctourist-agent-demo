@@ -16,18 +16,32 @@ from profile_dialogue import EXPLICIT_STYLE_PHRASES, STYLE_ALIASES
 
 
 ROLE_MODE_SCHEMA_VERSION = "role_mode_shadow_v1"
-ROLE_MODE_IDS = frozenset(approved_style_ids())
+_ROLE_MODE_ORDER = approved_style_ids()
+ROLE_MODE_IDS = frozenset(_ROLE_MODE_ORDER)
 ROLE_MODE_SURFACES = (
     "route_planning_shadow", "route_opening_shadow", "stop_guidance_shadow",
     "navigation_shadow", "tour_closing_shadow",
 )
 
+_NATURAL_ROLE_PHRASES = {
+    # These phrases are reviewed intent surfaces, not inferred demographics.
+    # They preserve the same bounded role IDs as explicit catalog selections.
+    "ancient_scholar": ("古风一点", "古风讲解"),
+    "child": (
+        "适合孩子理解", "适合孩子", "适合小朋友理解", "适合小朋友",
+        "给小朋友讲",
+    ),
+}
+
 _EXPLICIT_ROLE_PHRASES = {
     style_id: tuple(dict.fromkeys((
         *STYLE_ALIASES.get(style_id, ()),
         *EXPLICIT_STYLE_PHRASES.get(style_id, ()),
+        *_NATURAL_ROLE_PHRASES.get(style_id, ()),
     )))
-    for style_id in ROLE_MODE_IDS
+    # Preserve the reviewed catalog order so a conflict has deterministic
+    # candidate ordering across processes and Python hash seeds.
+    for style_id in _ROLE_MODE_ORDER
 }
 
 # These are intentionally not treated as aliases for a supported role.  A

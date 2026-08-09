@@ -9,11 +9,13 @@ from langchain_core.messages import AIMessage
 from agent_graph import (
     _invoke_role_narration_model,
     deterministic_narration_fallback_node,
+    role_narration_generation_node,
     narration_validation_node,
     narration_commit_node,
     route_after_narration_validation,
 )
 from narration_coverage import empty_narration_coverage
+from narration_content_plan import NarrationContentPlan, NarrationFact
 
 
 class RoleNarrationGraphTests(unittest.TestCase):
@@ -98,6 +100,61 @@ class RoleNarrationGraphTests(unittest.TestCase):
         with patch.dict(os.environ, {"CJC_ROLE_NARRATION_TEST_FAILURE": "timeout"}, clear=False):
             with self.assertRaises(TimeoutError):
                 _invoke_role_narration_model("ignored")
+
+    def test_budget_exceeded_injection_fails_closed_in_role_layer_only(self):
+        state = self.state()
+        state["visitor_profile"] = {"language": "zh"}
+        state["active_route_plan"] = {"route_id": "unchanged"}
+        state["role_mode_shadow"] = {
+            "status": "selected", "selected_style_id": "listen_only",
+            "source": "visitor_profile", "confidence": 1.0,
+        }
+        state["narration_content_plan"] = NarrationContentPlan(
+            stop_id="front", style_id="listen_only", language="zh",
+            budget_seconds=60,
+            allocated_content_seconds=50,
+            facts=(NarrationFact(
+                "craft:灰塑", "craft_background", "屋脊可见灰塑。",
+            ),),
+            must_include=("space_or_object_identity",),
+            already_covered=(), must_not_claim=(), interaction_allowed=False,
+        ).to_dict()
+        coverage_before = dict(state["narration_coverage"])
+        with patch.dict(os.environ, {
+            "CJC_READ_ONLY_ROLLOUT_MODE": "shadow",
+            "CJC_READ_ONLY_ROLLOUT_CAPABILITIES": "role_narration",
+            "CJC_ROLE_NARRATION_TEST_FAILURE": "budget_exceeded",
+        }, clear=False):
+            generated = role_narration_generation_node(state)
+            validated = narration_validation_node({**state, **generated})
+
+        self.assertGreater(
+            generated["narration_content_plan"]["allocated_content_seconds"],
+            generated["narration_content_plan"]["budget_seconds"],
+        )
+        self.assertEqual(
+            generated["role_narration_candidate"]["reason_code"],
+            "budget_exceeded",
+        )
+        self.assertFalse(generated["role_narration_candidate"]["model_called"])
+        audit = validated["active_role_narration_audit"]
+        self.assertEqual(audit["validation_status"], "rejected")
+        self.assertIn("budget_exceeded", audit["reason_codes"])
+        self.assertFalse(audit["within_budget"])
+        self.assertFalse(audit["public_message_safe"])
+        self.assertFalse(audit["active_takeover"])
+        self.assertTrue(audit["fallback_used"])
+        self.assertTrue(audit["legacy_message_preserved"])
+        self.assertTrue(audit["same_public_message"])
+        self.assertEqual(audit["state_writes"], [])
+        self.assertNotIn("messages", generated)
+        self.assertNotIn("messages", validated)
+        self.assertNotIn("tour_state", generated)
+        self.assertNotIn("visitor_profile", generated)
+        self.assertNotIn("active_route_plan", generated)
+        self.assertNotIn("narration_coverage", generated)
+        self.assertNotIn("narration_coverage", validated)
+        self.assertEqual(state["narration_coverage"], coverage_before)
 
     def test_role_model_text_content_blocks_are_decoded_without_stringifying(self):
         with patch.dict(os.environ, {

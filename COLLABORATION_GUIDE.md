@@ -1,5 +1,16 @@
 # CURRENT ROLE SHADOW HANDOFF (2026-08-09)
 
+```text
+current_validation_date: 2026-08-10
+role_narration_budget_quality_gate: passed
+role_mode_and_continuity: 16/16 passed
+role_targeted_validation: 73/73 passed
+p0_matrix: 3/3 passed
+full_regression: 1095/1095 passed
+18_style_shadow_baseline: pending
+active_takeover: disabled
+```
+
 ## Baseline cleanup boundary
 
 The baseline cleanup is a separate completed change. It updates deterministic
@@ -37,8 +48,8 @@ p0_matrix: 10/10 passed
 p0_matrix: passed
 ```
 
-The role Shadow phase now has one deterministic selector for the three
-reviewed modes. It may record role selection and generate a candidate for
+The role Shadow phase now has one deterministic selector for the complete
+reviewed style catalog. It may record role selection and generate a candidate for
 evaluation, but it must not publish the candidate or write TourState,
 VisitorProfile, route, proposal, StopProgram, Coverage, RAG, or tool state.
 Unknown and multi-role requests must remain clarification records.
@@ -503,3 +514,9 @@ P2-04-B 只读审计旧 P1-11 的 preparation、proposal、确认、合法 `appl
 P3 从 `experiment/agent-orchestration-v2@9d744d3` 开始，P2 Gate 3 的结论仍仅是 Shadow／只读集成通过；路线、重规划、到达、完成、跳过、下一站和结束的 active takeover 均未获授权。协作者不得因 P2 审计字段存在而将其作为新的状态、路线、proposal 或游客输出事实源。
 
 P3-02 已核实复用现有的 `GuidancePolicy → NarrationStylePolicy → narration_rendering` 单链，不应新建风格状态或复制 VisitorProfile。下一项 P3-01 / CA-12 必须由负责人先冻结 `tour_mode` 的唯一归属、生命周期与问答打断恢复。未获决定前，不实现 CardDispatcher、经典/定制选择或新的 active Graph 接管；完整拆分见 `data/chen_clan_academy/evaluation/handoffs/p3_preflight_audit_handoff.md`。
+
+# 角色讲解预算质量门协作状态（2026-08-10）
+
+角色预算失败注入只允许修改非权威 `NarrationContentPlan` 副本，不得改 E5 审核渲染、路线、TourState、VisitorProfile 或 Coverage。拒绝候选在 Shadow 中应明确记录 `fallback_used=true`，因为游客实际继续看到旧链正文；这不表示发生 Active 接管。
+
+角色自然语言识别仍是确定性、闭合目录匹配：“古风一点”和“适合孩子/小朋友”等审核表达只映射到既有 style ID。多个角色必须按 `style_roles_v2.yaml` 顺序形成 clarification；上一轮已选角色只能作为只读 Shadow 上下文继承，不得写入 VisitorProfile。当前定向 73/73、P0 3/3、完整回归 1095/1095 通过，Active 继续关闭。

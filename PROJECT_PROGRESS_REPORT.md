@@ -1,5 +1,18 @@
 # CURRENT PHASE: ROLE MODE SHADOW (2026-08-09)
 
+## Current verification status (2026-08-10)
+
+```text
+role_narration_budget_quality_gate: passed
+listen_only_manual: passed_by_operator
+role_mode_and_continuity: 16/16 passed
+role_targeted_validation: 73/73 passed
+p0_matrix: 3/3 passed
+full_regression: 1095/1095 passed
+18_style_shadow_baseline: pending
+active_takeover: disabled
+```
+
 ## Baseline regression cleanup completed (2026-08-09)
 
 The five previously recorded baseline failures are resolved in an independent
@@ -1314,3 +1327,10 @@ Gate 3: passed for shadow/read-only integration
 - 重规划等待优先于下一站：等待剩余时间时提示先说明时间，等待路线候选时提示确认或保留原路线；当前站处于 `explaining` 或 `awaiting_confirmation` 时，“下一个”不能代替完成或跳过。无活跃路线时提示先规划路线。
 - 已确认新路线后，下一站导航只读取已应用的 active route、`current_stop_id`、`pending_stop_id` 和审核空间图。控制形态无法安全映射时走结构化澄清，禁止落入 `llm_think` 或 `rag_tool` 生成自由导航。
 - C4 定向回归 99 项通过，完整回归 730 项通过；仍待以独立 LangSmith 线程完成“偏航 → 剩余时间 → 确认新路线 → 下一个”及阻断场景复测。
+
+## 角色讲解预算质量门与连续性修复（2026-08-10）
+
+- 新增仅限角色讲解层的 `CJC_ROLE_NARRATION_TEST_FAILURE=budget_exceeded` 故障注入；真正超预算时不调用模型，验证拒绝并保留旧链正文，不提交 Coverage 或任何业务状态。
+- 静听模式真实点位由操作员确认：E5 与角色计划均分配 210 秒，`interaction_allowed=false`、`validation_status=accepted`、`same_fact_boundary=true`、`within_budget=true`、`state_writes=[]`。
+- 修复已审核角色自然表达、冲突候选稳定顺序和不写 VisitorProfile 的跨轮继承。角色连续性定向 16/16 通过。
+- 最终验证：角色及预算定向 73/73、P0 3/3、完整回归 1095/1095 通过；`active_takeover=false`。18 风格最终 Shadow 人工归档待下一阶段执行。
