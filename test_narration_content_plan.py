@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import unittest
 
-from narration_content_plan import build_narration_content_plan
+from narration_content_plan import (
+    build_narration_content_plan,
+    narration_content_plan_from_dict,
+)
 
 
 class NarrationContentPlanTests(unittest.TestCase):
@@ -22,6 +25,7 @@ class NarrationContentPlanTests(unittest.TestCase):
             "rendered_craft_ids": ["灰塑"],
             "rendered_ornament_ids": ["lion_01"],
             "content_budget_seconds": 180,
+            "allocated_content_seconds": 120,
         }
 
     def test_plan_contains_only_approved_fact_sections(self):
@@ -31,11 +35,16 @@ class NarrationContentPlanTests(unittest.TestCase):
             narration_coverage={"introduced_craft_ids": ["灰塑"]},
         )
         self.assertEqual(plan.status, "ready")
+        self.assertEqual(plan.allocated_content_seconds, 120)
         self.assertEqual([fact.fact_id for fact in plan.facts], ["craft:灰塑", "ornament:lion_01"])
         serialized = str(plan.to_dict())
         self.assertNotIn("观察提示", serialized)
         self.assertNotIn("下一步", serialized)
         self.assertNotIn("source", serialized)
+
+        restored = narration_content_plan_from_dict(plan.to_dict())
+        self.assertIsNotNone(restored)
+        self.assertEqual(restored.allocated_content_seconds, 120)
 
     def test_mismatched_reviewed_id_fails_closed(self):
         audit = {**self.audit, "rendered_ornament_ids": ["missing"]}

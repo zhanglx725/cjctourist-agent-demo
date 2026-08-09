@@ -114,3 +114,21 @@ omitted_count = 0
 
 批量测试仍保持暂停，必须先在全新 Studio Thread 中重跑同一中性清晰单点，
 并确认 `validation_status=accepted` 后才能恢复。
+
+## 18 风格首轮结果与研学观察修复
+
+人工批测报告显示17种风格通过，仅 `student_research` 因
+`same_fact_boundary=false` 被拒绝；Shadow 安全隔离继续有效。
+
+研学风格的独立真实模型复现能够返回全部人工构造 facts，说明风格卡本身并非
+必然越界。为消除真实多事实点位中的偶发遗漏与超预算，生成边界进一步收紧：
+
+- `used_fact_ids` 与 `omitted_fact_ids` 必须无重复、无交集，并完整覆盖计划 facts；
+- 所有 required fact IDs 必须位于 `used_fact_ids`；
+- 任一事实 ID 分区错误以 `invalid_fact_id_partition` 进入一次受控修复；
+- token 恢复前检查连接语字符数和最终正文字符数；
+- 超预算候选以 `candidate_budget_exceeded` 进入一次受控修复；
+- 第二次仍不合格则保持 rejected，不放宽 `same_fact_boundary` 或预算校验。
+
+修复后只需先对 `student_research` 使用全新 Thread 连续复测3个真实
+`stop_guidance`。三条均为 accepted 后，才把本轮18风格 Shadow 质量结果归档。

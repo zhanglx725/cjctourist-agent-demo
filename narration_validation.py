@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -88,9 +89,21 @@ def validate_role_narration(
         or re.search(r"(?:请你|试着|任务|回答|拍照|跟着做)", candidate.public_text)
     ):
         reasons.append("listen_only_interaction_violation")
-    # Conservative speech estimate: four CJK/visible characters per second.
-    visible_length = len(re.sub(r"\s+", "", candidate.public_text))
-    within_budget = plan.budget_seconds > 0 and visible_length <= plan.budget_seconds * 4
+    # E5 has already budgeted the immutable approved facts.  Estimate only
+    # model-added connective prose here, otherwise the same content is charged
+    # twice and valid plans are globally rejected before style realization.
+    connector_length = len(re.sub(r"\s+", "", connector))
+    allocated_seconds = plan.allocated_content_seconds
+    if allocated_seconds <= 0:
+        fact_characters = sum(
+            len(re.sub(r"\s+", "", fact.statement)) for fact in plan.facts
+        )
+        allocated_seconds = math.ceil(fact_characters / 4)
+    within_budget = (
+        candidate.generation_status == "generated"
+        and plan.budget_seconds > 0
+        and allocated_seconds + math.ceil(connector_length / 4) <= plan.budget_seconds
+    )
     if not within_budget:
         reasons.append("content_budget_exceeded")
     safe_boundary = public_visitor_message_or_fallback(candidate.public_text) == candidate.public_text
@@ -116,4 +129,3 @@ def validate_role_narration(
         within_budget=within_budget,
         public_message_safe=safe_boundary and not bool(_INTERNAL.search(candidate.public_text)),
     )
-

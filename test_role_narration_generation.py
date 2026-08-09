@@ -98,7 +98,7 @@ class RoleNarrationGenerationTests(unittest.TestCase):
             stop_id="front", style_id="neutral", language="zh", budget_seconds=1,
             facts=(NarrationFact("fact:a", "craft_background", "这是一条明显超过四个字的审核事实。"),),
             must_include=(), already_covered=(), must_not_claim=(),
-            interaction_allowed=True,
+            interaction_allowed=True, allocated_content_seconds=2,
         )
         calls = []
         value = generate_role_narration(
@@ -107,6 +107,83 @@ class RoleNarrationGenerationTests(unittest.TestCase):
         self.assertEqual(value.reason_code, "fact_budget_infeasible")
         self.assertFalse(value.model_called)
         self.assertEqual(calls, [])
+
+    def test_e5_allocated_duration_prevents_double_charging_approved_facts(self):
+        statement = "这是已经通过上游审核并分配讲解时长的事实内容。" * 12
+        plan = NarrationContentPlan(
+            stop_id="front", style_id="neutral", language="zh", budget_seconds=60,
+            facts=(NarrationFact("fact:a", "craft_background", statement),),
+            must_include=(), already_covered=(), must_not_claim=(),
+            interaction_allowed=True, allocated_content_seconds=50,
+        )
+        candidate = generate_role_narration(
+            plan, compile_style_brief("neutral"),
+            lambda _: self.response(
+                "neutral", "请看，[[FACT_000]]", ["fact:a"],
+            ),
+        )
+        result = validate_role_narration(
+            candidate, plan, compile_style_brief("neutral"),
+        )
+        self.assertEqual(candidate.generation_status, "generated")
+        self.assertEqual(result.validation_status, "accepted")
+        self.assertTrue(result.within_budget)
+
+    def test_rejected_empty_candidate_is_not_reported_within_budget(self):
+        plan = self.plan("neutral")
+        candidate = generate_role_narration(
+            plan, compile_style_brief("neutral"),
+            lambda _: (_ for _ in ()).throw(TimeoutError()),
+        )
+        result = validate_role_narration(
+            candidate, plan, compile_style_brief("neutral"),
+        )
+        self.assertFalse(result.within_budget)
+
+    def test_incomplete_fact_partition_gets_one_bounded_repair(self):
+        plan = NarrationContentPlan(
+            stop_id="front", style_id="neutral", language="zh", budget_seconds=60,
+            facts=(
+                NarrationFact("fact:a", "craft_background", "审核事实甲。"),
+                NarrationFact("fact:b", "object_detail", "审核事实乙。"),
+            ),
+            must_include=(), already_covered=(), must_not_claim=(),
+            interaction_allowed=True,
+        )
+        outputs = iter([
+            self.response("neutral", "[[FACT_000]]", ["fact:a"]),
+            json.dumps({
+                "schema_version": "role_narration_candidate_v1",
+                "style_id": "neutral",
+                "public_text": "[[FACT_000]][[FACT_001]]",
+                "used_fact_ids": ["fact:a", "fact:b"],
+                "omitted_fact_ids": [],
+                "self_check": {
+                    "added_new_facts": False,
+                    "role_consistent": True,
+                    "within_budget": True,
+                },
+            }, ensure_ascii=False),
+        ])
+        candidate = generate_role_narration(
+            plan, compile_style_brief("neutral"), lambda _: next(outputs),
+        )
+        self.assertEqual(candidate.generation_status, "generated")
+        self.assertEqual(candidate.used_fact_ids, ("fact:a", "fact:b"))
+        self.assertIn("审核事实甲。", candidate.public_text)
+        self.assertIn("审核事实乙。", candidate.public_text)
+
+    def test_overlong_connectors_get_one_bounded_repair(self):
+        plan = self.plan("neutral")
+        outputs = iter([
+            self.response("neutral", "长" * 121 + "[[FACT_000]]"),
+            self.response("neutral", "[[FACT_000]]"),
+        ])
+        candidate = generate_role_narration(
+            plan, compile_style_brief("neutral"), lambda _: next(outputs),
+        )
+        self.assertEqual(candidate.generation_status, "generated")
+        self.assertEqual(candidate.public_text, plan.facts[0].statement)
 
     def test_new_story_or_date_is_rejected_even_if_self_check_claims_safe(self):
         plan = self.plan()
@@ -122,7 +199,7 @@ class RoleNarrationGenerationTests(unittest.TestCase):
         value = generate_role_narration(plan, brief, lambda _: self.response(plan.style_id, "屋脊可见灰塑。 source_ids=S1", ["fact:unknown"]))
         result = validate_role_narration(value, plan, brief)
         self.assertIn("fact_id_boundary_violation", result.reason_codes)
-        self.assertIn("invalid_fact_placeholders", result.reason_codes)
+        self.assertIn("invalid_fact_id_partition", result.reason_codes)
 
     def test_internal_field_leak_is_rejected_after_fact_hydration(self):
         plan = self.plan()

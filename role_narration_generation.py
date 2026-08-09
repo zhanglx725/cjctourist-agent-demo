@@ -8,6 +8,7 @@ remain verbatim; the model may only arrange them and add bounded role phrasing.
 from __future__ import annotations
 
 import json
+import math
 import re
 import time
 from dataclasses import dataclass
@@ -31,6 +32,29 @@ _SELF_CHECK_FIELDS = frozenset({
     "added_new_facts", "role_consistent", "within_budget",
 })
 _FACT_TOKEN = re.compile(r"\[\[FACT_\d{3}\]\]")
+
+
+def _plan_output_limits(plan: NarrationContentPlan) -> tuple[int, int]:
+    approved_fact_characters = sum(
+        len(re.sub(r"\s+", "", fact.statement))
+        for fact in plan.facts
+    )
+    allocated_seconds = plan.allocated_content_seconds
+    if allocated_seconds <= 0 and approved_fact_characters:
+        # Compatibility fallback for old serialized plans and unit fixtures.
+        # Live plans carry E5's authoritative allocated duration.
+        allocated_seconds = math.ceil(approved_fact_characters / 4)
+    remaining_seconds = max(0, plan.budget_seconds - allocated_seconds)
+    max_connector_characters = max(
+        0,
+        min(
+            120,
+            len(plan.facts) * 60,
+            remaining_seconds * 4,
+        ),
+    )
+    max_public_characters = approved_fact_characters + max_connector_characters
+    return max_public_characters, max_connector_characters
 
 
 @dataclass(frozen=True)
@@ -67,14 +91,7 @@ def role_narration_prompt(plan: NarrationContentPlan, brief: StyleBrief) -> str:
     # state, retrieval, or coverage data and without weakening validation.
     required_facts = [fact for fact in plan.facts if fact.required]
     optional_facts = [fact for fact in plan.facts if not fact.required]
-    fact_character_count = sum(
-        len(re.sub(r"\s+", "", fact.statement)) for fact in required_facts
-    )
-    max_public_characters = max(0, plan.budget_seconds * 4)
-    max_role_connector_characters = max(
-        0,
-        min(120, len(plan.facts) * 60, max_public_characters - fact_character_count),
-    )
+    max_public_characters, max_role_connector_characters = _plan_output_limits(plan)
     payload = {
         "style_brief": brief.to_dict(),
         "content_plan": {
@@ -197,6 +214,20 @@ def _hydrate_fact_tokens(
         return candidate
     text = candidate.public_text
     used_ids = set(candidate.used_fact_ids)
+    omitted_ids = set(candidate.omitted_fact_ids)
+    all_ids = {fact.fact_id for fact in plan.facts}
+    required_ids = {fact.fact_id for fact in plan.facts if fact.required}
+    if (
+        len(used_ids) != len(candidate.used_fact_ids)
+        or len(omitted_ids) != len(candidate.omitted_fact_ids)
+        or used_ids & omitted_ids
+        or used_ids | omitted_ids != all_ids
+        or not required_ids.issubset(used_ids)
+    ):
+        return _failed(
+            plan.style_id, "invalid_fact_id_partition",
+            candidate.latency_ms, model_called=True,
+        )
     known_tokens = {
         f"[[FACT_{index:03d}]]": fact
         for index, fact in enumerate(plan.facts)
@@ -206,6 +237,7 @@ def _hydrate_fact_tokens(
             plan.style_id, "invalid_fact_placeholders",
             candidate.latency_ms, model_called=True,
         )
+    connector_text = text
     for token, fact in known_tokens.items():
         token_count = text.count(token)
         statement_count = text.count(fact.statement)
@@ -218,7 +250,18 @@ def _hydrate_fact_tokens(
                 plan.style_id, "invalid_fact_placeholders",
                 candidate.latency_ms, model_called=True,
             )
+        connector_text = connector_text.replace(token, "")
+        connector_text = connector_text.replace(fact.statement, "")
         text = text.replace(token, fact.statement)
+    max_public_characters, max_connector_characters = _plan_output_limits(plan)
+    if (
+        len(re.sub(r"\s+", "", connector_text)) > max_connector_characters
+        or len(re.sub(r"\s+", "", text)) > max_public_characters
+    ):
+        return _failed(
+            plan.style_id, "candidate_budget_exceeded",
+            candidate.latency_ms, model_called=True,
+        )
     return RoleNarrationCandidate(
         style_id=candidate.style_id,
         public_text=text,
@@ -237,11 +280,13 @@ def generate_role_narration(
 ) -> RoleNarrationCandidate:
     if plan.status != "ready" or brief.style_id != plan.style_id:
         return _failed(plan.style_id, "plan_or_style_not_ready")
-    required_fact_characters = sum(
-        len(re.sub(r"\s+", "", fact.statement))
-        for fact in plan.facts if fact.required
-    )
-    if plan.budget_seconds <= 0 or required_fact_characters > plan.budget_seconds * 4:
+    allocated_seconds = plan.allocated_content_seconds
+    if allocated_seconds <= 0:
+        approved_fact_characters = sum(
+            len(re.sub(r"\s+", "", fact.statement)) for fact in plan.facts
+        )
+        allocated_seconds = math.ceil(approved_fact_characters / 4)
+    if plan.budget_seconds <= 0 or allocated_seconds > plan.budget_seconds:
         return _failed(plan.style_id, "fact_budget_infeasible")
     started = time.perf_counter()
     prompt = role_narration_prompt(plan, brief)

@@ -43,6 +43,11 @@ class NarrationContentPlan:
     already_covered: tuple[str, ...]
     must_not_claim: tuple[str, ...]
     interaction_allowed: bool
+    # Authoritative duration already allocated by the reviewed E5 renderer.
+    # Role realization may spend only the remaining duration on connective
+    # prose; approved fact text must not be rejected by a second char-count
+    # estimate that disagrees with E5.
+    allocated_content_seconds: int = 0
     status: str = "ready"
     reason_codes: tuple[str, ...] = ()
     schema_version: str = PLAN_SCHEMA_VERSION
@@ -61,6 +66,7 @@ class NarrationContentPlan:
             "already_covered": list(self.already_covered),
             "must_not_claim": list(self.must_not_claim),
             "interaction_allowed": self.interaction_allowed,
+            "allocated_content_seconds": self.allocated_content_seconds,
         }
 
 
@@ -136,6 +142,9 @@ def build_narration_content_plan(
             "absolute_ranking", "official_certification",
         ),
         interaction_allowed=interaction_allowed,
+        allocated_content_seconds=max(
+            0, int(render_audit.get("allocated_content_seconds") or 0),
+        ),
     )
 
 
@@ -157,6 +166,9 @@ def narration_content_plan_from_dict(value: Mapping[str, Any] | None) -> Narrati
             already_covered=tuple(value.get("already_covered", [])),
             must_not_claim=tuple(value.get("must_not_claim", [])),
             interaction_allowed=bool(value.get("interaction_allowed")),
+            allocated_content_seconds=max(
+                0, int(value.get("allocated_content_seconds") or 0),
+            ),
             status=str(value.get("status") or "rejected"),
             reason_codes=tuple(value.get("reason_codes", [])),
         )
