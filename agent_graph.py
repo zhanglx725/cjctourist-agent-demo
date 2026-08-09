@@ -194,6 +194,10 @@ DEFAULT_DEEPSEEK_MAX_TOKENS = 450
 DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
 
 
+class RoleNarrationOutputTruncatedError(RuntimeError):
+    """The provider stopped before a complete role JSON candidate existed."""
+
+
 # Load local development settings before any model is constructed.  Existing
 # process environment variables retain priority, so deployment configuration is
 # never overwritten by a local .env file.
@@ -547,10 +551,31 @@ def _invoke_role_narration_model(prompt: str) -> str:
     model_name = os.getenv(
         "ROLE_NARRATION_MODEL", os.getenv("DEEPSEEK_MODEL", DEFAULT_DEEPSEEK_MODEL)
     )
-    max_tokens = int(os.getenv("ROLE_NARRATION_MAX_TOKENS", "1800"))
+    # The candidate must preserve every required reviewed statement verbatim
+    # and then wrap it in the strict JSON envelope. 1800 tokens was too close
+    # to a four-minute Chinese guidance payload and caused the OpenAI parser to
+    # raise LengthFinishReasonError before our own fail-closed decoder could
+    # inspect the response. Keep this budget role-specific and bounded.
+    try:
+        max_tokens = int(os.getenv("ROLE_NARRATION_MAX_TOKENS", "4096"))
+    except ValueError as exc:
+        raise ValueError("ROLE_NARRATION_MAX_TOKENS must be an integer") from exc
+    if not 512 <= max_tokens <= 8192:
+        raise ValueError("ROLE_NARRATION_MAX_TOKENS must be between 512 and 8192")
     model = ChatDeepSeek(
-        model=model_name, temperature=0, max_tokens=max_tokens,
-    ).bind(response_format={"type": "json_object"})
+        model=model_name,
+        temperature=0,
+        max_tokens=max_tokens,
+        # DeepSeek V4 defaults to thinking mode. Role realization is a bounded
+        # transcription task, so reasoning only consumes the output budget and
+        # can cause the final JSON to be truncated. Put provider-specific
+        # controls in extra_body: OpenAI merges them into the HTTP request,
+        # while LangChain does not switch to chat.completions.parse().
+        extra_body={
+            "thinking": {"type": "disabled"},
+            "response_format": {"type": "json_object"},
+        },
+    )
     response = model.invoke([
         {
             "role": "system",
@@ -561,6 +586,13 @@ def _invoke_role_narration_model(prompt: str) -> str:
         },
         {"role": "user", "content": prompt},
     ])
+    # Do not use ChatDeepSeek.bind(response_format=...). In the current
+    # OpenAI-compatible stack that selects chat.completions.parse(), which
+    # raises LengthFinishReasonError and discards the partial raw content.
+    # The project already owns a stricter exact-field JSON decoder below.
+    metadata = response.response_metadata if isinstance(response.response_metadata, dict) else {}
+    if metadata.get("finish_reason") == "length":
+        raise RoleNarrationOutputTruncatedError("role_narration_output_truncated")
     content = response.content
     if isinstance(content, str):
         return content

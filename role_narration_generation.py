@@ -30,6 +30,7 @@ _CANDIDATE_ENVELOPE_FIELDS = frozenset({
 _SELF_CHECK_FIELDS = frozenset({
     "added_new_facts", "role_consistent", "within_budget",
 })
+_FACT_TOKEN = re.compile(r"\[\[FACT_\d{3}\]\]")
 
 
 @dataclass(frozen=True)
@@ -61,15 +62,33 @@ class RoleNarrationCandidate:
 
 
 def role_narration_prompt(plan: NarrationContentPlan, brief: StyleBrief) -> str:
+    # Keep every reviewed fact but omit planning fields that cannot affect the
+    # expression candidate. This reduces prompt echo without exposing route,
+    # state, retrieval, or coverage data and without weakening validation.
     payload = {
         "style_brief": brief.to_dict(),
-        "content_plan": plan.to_dict(),
+        "content_plan": {
+            "schema_version": plan.schema_version,
+            "style_id": plan.style_id,
+            "language": plan.language,
+            "budget_seconds": plan.budget_seconds,
+            "facts": [
+                {
+                    **fact.to_dict(),
+                    "public_text_token": f"[[FACT_{index:03d}]]",
+                }
+                for index, fact in enumerate(plan.facts)
+            ],
+            "must_include": list(plan.must_include),
+            "must_not_claim": list(plan.must_not_claim),
+            "interaction_allowed": plan.interaction_allowed,
+        },
     }
     first_fact = plan.facts[0] if plan.facts else None
     shape_example = {
         "schema_version": CANDIDATE_SCHEMA_VERSION,
         "style_id": plan.style_id,
-        "public_text": first_fact.statement if first_fact else "",
+        "public_text": "[[FACT_000]]" if first_fact else "",
         "used_fact_ids": [first_fact.fact_id] if first_fact else [],
         "omitted_fact_ids": [fact.fact_id for fact in plan.facts[1:]],
         "self_check": {
@@ -79,8 +98,13 @@ def role_narration_prompt(plan: NarrationContentPlan, brief: StyleBrief) -> str:
         },
     }
     return """你是受控的导游表达实现器，不是事实检索器，也不是路线控制器。
-只能使用输入 content_plan.facts 中的事实。每条 statement 必须逐字原样出现在 public_text 中；
-你可以调整事实顺序，并添加简短的角色化称呼、开场、连接和收束，但不得新增人物、年代、
+content_plan.facts[*].statement 是不可编辑的审核原文，仅用于理解；不得把 statement 本身重打、
+概括或意译到 public_text。public_text 必须使用同一事实的 public_text_token 代表完整事实块。
+每个 required=true 的 public_text_token 必须原样出现且只出现一次。角色化文字只能放在 token
+之前、两个 token 之间或全部 token 之后，不得修改或拆分 token。所有 required=true 的
+fact_id 必须列入 used_fact_ids，且不得列入
+omitted_fact_ids。只允许省略 required=false 的事实。
+你可以调整完整事实块的顺序，并添加简短的角色化称呼、开场、连接和收束，但不得新增人物、年代、
 故事、寓意、排名、认证、现场对象或路线信息。不得回答计划之外的问题。
 不得输出文件路径、URL、source ID、节点 ID、工具名称或任何内部字段。
 若 interaction_allowed=false，不得使用问号、提问、任务、拍照或动作要求。
@@ -146,6 +170,48 @@ def validate_candidate_shape(
     )
 
 
+def _hydrate_fact_tokens(
+    candidate: RoleNarrationCandidate,
+    plan: NarrationContentPlan,
+) -> RoleNarrationCandidate:
+    """Replace model-arranged opaque tokens with immutable reviewed facts."""
+    if candidate.generation_status != "generated":
+        return candidate
+    text = candidate.public_text
+    used_ids = set(candidate.used_fact_ids)
+    known_tokens = {
+        f"[[FACT_{index:03d}]]": fact
+        for index, fact in enumerate(plan.facts)
+    }
+    if any(token not in known_tokens for token in _FACT_TOKEN.findall(text)):
+        return _failed(
+            plan.style_id, "invalid_fact_placeholders",
+            candidate.latency_ms, model_called=True,
+        )
+    for token, fact in known_tokens.items():
+        token_count = text.count(token)
+        statement_count = text.count(fact.statement)
+        expected = fact.fact_id in used_ids
+        # Exact statements remain accepted for backwards-compatible test
+        # fixtures, but live prompts use opaque tokens. A used fact must occur
+        # exactly once in one representation; an omitted fact must not occur.
+        if (token_count + statement_count) != (1 if expected else 0):
+            return _failed(
+                plan.style_id, "invalid_fact_placeholders",
+                candidate.latency_ms, model_called=True,
+            )
+        text = text.replace(token, fact.statement)
+    return RoleNarrationCandidate(
+        style_id=candidate.style_id,
+        public_text=text,
+        used_fact_ids=candidate.used_fact_ids,
+        omitted_fact_ids=candidate.omitted_fact_ids,
+        self_check=dict(candidate.self_check),
+        model_called=candidate.model_called,
+        latency_ms=candidate.latency_ms,
+    )
+
+
 def generate_role_narration(
     plan: NarrationContentPlan,
     brief: StyleBrief,
@@ -164,15 +230,17 @@ def generate_role_narration(
     candidate = validate_candidate_shape(
         _decode(raw), expected_style_id=plan.style_id, latency_ms=latency,
     )
+    candidate = _hydrate_fact_tokens(candidate, plan)
     if candidate.generation_status == "generated":
         return candidate
-    # One bounded schema-only repair is allowed. The same facts and StyleBrief
-    # remain authoritative; the repair call receives no state, tools or RAG.
+    # One bounded structural repair is allowed for schema or immutable fact
+    # placeholders. The same facts and StyleBrief remain authoritative; the
+    # repair call receives no state, tools or RAG.
     repair_prompt = (
         prompt
-        + "\n上一输出未通过 JSON Schema。请重新输出且只输出规定的 JSON 对象。"
-        + "不得解释错误，不得增加字段。上一输出："
-        + str(raw)[:2000]
+        + "\n上一输出未通过 JSON Schema 或事实占位符约束。请重新输出且只输出规定的 JSON 对象。"
+        + "不得解释错误，不得增加字段；required token 必须各出现一次。上一输出："
+        + str(raw)[:500]
     )
     try:
         repaired_raw = invoke_model(repair_prompt)
@@ -183,10 +251,11 @@ def generate_role_narration(
             total_latency, model_called=True,
         )
     total_latency = int((time.perf_counter() - started) * 1000)
-    return validate_candidate_shape(
+    repaired = validate_candidate_shape(
         _decode(repaired_raw), expected_style_id=plan.style_id,
         latency_ms=total_latency,
     )
+    return _hydrate_fact_tokens(repaired, plan)
 
 
 def role_narration_candidate_from_dict(value: Mapping[str, Any] | None) -> RoleNarrationCandidate | None:

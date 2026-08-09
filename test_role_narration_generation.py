@@ -8,6 +8,7 @@ from narration_style_policy import compile_style_brief
 from narration_validation import validate_role_narration
 from role_narration_generation import (
     generate_role_narration,
+    role_narration_prompt,
     role_narration_candidate_from_dict,
     validate_candidate_shape,
 )
@@ -41,6 +42,41 @@ class RoleNarrationGenerationTests(unittest.TestCase):
         self.assertEqual(result.validation_status, "accepted")
         self.assertEqual(result.state_writes, ())
 
+    def test_opaque_fact_token_is_hydrated_before_validation(self):
+        plan = self.plan()
+        brief = compile_style_brief(plan.style_id)
+        value = generate_role_narration(
+            plan, brief,
+            lambda _: self.response(plan.style_id, "请看，[[FACT_000]]可以从容细观。"),
+        )
+        self.assertNotIn("[[FACT_000]]", value.public_text)
+        self.assertIn(plan.facts[0].statement, value.public_text)
+        self.assertEqual(
+            validate_role_narration(value, plan, brief).validation_status,
+            "accepted",
+        )
+
+    def test_missing_or_unknown_fact_placeholder_fails_closed(self):
+        plan = self.plan()
+        brief = compile_style_brief(plan.style_id)
+        for public_text in ("这里只做角色表达。", "[[FACT_999]]"):
+            with self.subTest(public_text=public_text):
+                value = generate_role_narration(
+                    plan, brief,
+                    lambda _: self.response(plan.style_id, public_text),
+                )
+                self.assertEqual(value.generation_status, "rejected")
+                self.assertEqual(value.reason_code, "invalid_fact_placeholders")
+
+    def test_prompt_keeps_all_facts_but_omits_non_expression_plan_fields(self):
+        plan = self.plan()
+        prompt = role_narration_prompt(plan, compile_style_brief(plan.style_id))
+        self.assertIn(plan.facts[0].statement, prompt)
+        self.assertIn('"interaction_allowed":true', prompt)
+        self.assertIn('"must_include":', prompt)
+        self.assertNotIn('"stop_id":', prompt)
+        self.assertNotIn('"already_covered":', prompt)
+
     def test_new_story_or_date_is_rejected_even_if_self_check_claims_safe(self):
         plan = self.plan()
         brief = compile_style_brief(plan.style_id)
@@ -55,6 +91,16 @@ class RoleNarrationGenerationTests(unittest.TestCase):
         value = generate_role_narration(plan, brief, lambda _: self.response(plan.style_id, "屋脊可见灰塑。 source_ids=S1", ["fact:unknown"]))
         result = validate_role_narration(value, plan, brief)
         self.assertIn("fact_id_boundary_violation", result.reason_codes)
+        self.assertIn("invalid_fact_placeholders", result.reason_codes)
+
+    def test_internal_field_leak_is_rejected_after_fact_hydration(self):
+        plan = self.plan()
+        brief = compile_style_brief(plan.style_id)
+        value = generate_role_narration(
+            plan, brief,
+            lambda _: self.response(plan.style_id, "[[FACT_000]]source_ids=S1"),
+        )
+        result = validate_role_narration(value, plan, brief)
         self.assertIn("internal_field_leak", result.reason_codes)
 
     def test_listen_only_forbids_questions_and_tasks(self):

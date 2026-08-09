@@ -103,14 +103,48 @@ class RoleNarrationGraphTests(unittest.TestCase):
         with patch.dict(os.environ, {
             "DEEPSEEK_API_KEY": "test-key",
             "CJC_ROLE_NARRATION_TEST_FAILURE": "",
+            "ROLE_NARRATION_MAX_TOKENS": "4096",
         }, clear=False), patch("agent_graph.ChatDeepSeek") as model_cls:
-            model_cls.return_value.bind.return_value.invoke.return_value.content = [
+            response = model_cls.return_value.invoke.return_value
+            response.response_metadata = {"finish_reason": "stop"}
+            response.content = [
                 {"type": "text", "text": '{"schema_version":"role_narration_candidate_v1"}'},
             ]
             self.assertEqual(
                 _invoke_role_narration_model("ignored"),
                 '{"schema_version":"role_narration_candidate_v1"}',
             )
+            model_cls.assert_called_once_with(
+                model=os.getenv("ROLE_NARRATION_MODEL", os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")),
+                temperature=0,
+                max_tokens=4096,
+                extra_body={
+                    "thinking": {"type": "disabled"},
+                    "response_format": {"type": "json_object"},
+                },
+            )
+            self.assertFalse(model_cls.return_value.bind.called)
+
+    def test_role_model_length_finish_reason_fails_closed_without_partial_json(self):
+        with patch.dict(os.environ, {
+            "DEEPSEEK_API_KEY": "test-key",
+            "CJC_ROLE_NARRATION_TEST_FAILURE": "",
+            "ROLE_NARRATION_MAX_TOKENS": "4096",
+        }, clear=False), patch("agent_graph.ChatDeepSeek") as model_cls:
+            response = model_cls.return_value.invoke.return_value
+            response.response_metadata = {"finish_reason": "length"}
+            response.content = '{"schema_version":"role_narration_candidate_v1"'
+            with self.assertRaisesRegex(RuntimeError, "role_narration_output_truncated"):
+                _invoke_role_narration_model("ignored")
+
+    def test_role_model_rejects_unsafe_token_budget_configuration(self):
+        with patch.dict(os.environ, {
+            "DEEPSEEK_API_KEY": "test-key",
+            "CJC_ROLE_NARRATION_TEST_FAILURE": "",
+            "ROLE_NARRATION_MAX_TOKENS": "99999",
+        }, clear=False):
+            with self.assertRaisesRegex(ValueError, "between 512 and 8192"):
+                _invoke_role_narration_model("ignored")
 
     def test_invalid_internal_envelope_writes_no_tour_state_or_profile(self):
         state = self.state()
