@@ -73,6 +73,22 @@ class RouteRoleNarrationShadowTests(unittest.TestCase):
         self.assertEqual(result["validation_status"], "rejected")
         self.assertIn("legacy_boundary_or_role_template_mismatch", result["reason_codes"])
 
+    def test_ancient_route_planning_and_opening_have_distinct_role_lead_ins(self):
+        legacy = "路线已确认。第一站为前院中部。"
+        planning = build_route_role_text_candidate(
+            scene_kind="route_planning", role_mode="ancient_scholar",
+            legacy_text=legacy,
+        )
+        opening = build_route_role_text_candidate(
+            scene_kind="route_opening", role_mode="ancient_scholar",
+            legacy_text=legacy,
+        )
+        self.assertIn("一卷徐徐展开的图景", planning["public_text"])
+        self.assertIn("从眼前第一站启程", opening["public_text"])
+        self.assertNotEqual(planning["public_text"], opening["public_text"])
+        self.assertTrue(planning["public_text"].endswith(legacy))
+        self.assertTrue(opening["public_text"].endswith(legacy))
+
     def test_internal_fields_and_invalid_schema_fail_closed(self):
         legacy = "路线已确认。"
         invalid = {

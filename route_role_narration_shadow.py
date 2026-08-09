@@ -30,13 +30,19 @@ _INTERNAL = re.compile(
 _STYLE_PREFIX = {
     "route_planning": {
         "standard": "",
-        "ancient_scholar": "请随我循既定行程，从容观览。\n\n",
+        "ancient_scholar": (
+            "今日且把这段行程当作一卷徐徐展开的图景。路线、时长与先后次序"
+            "都已排定，诸位随我依次观来。\n\n"
+        ),
         "child": "我们按已经安排好的路线，一站一站慢慢看。\n\n",
         "listen_only": "以下为本次行程安排。\n\n",
     },
     "route_opening": {
         "standard": "",
-        "ancient_scholar": "请随我循既定行程，从容观览。\n\n",
+        "ancient_scholar": (
+            "诸位，行程既定，便从眼前第一站启程。一路不必匆忙，且看构件、"
+            "辨工艺，再把沿途细节一一串起。\n\n"
+        ),
         "child": "我们按已经安排好的路线，一站一站慢慢看。\n\n",
         "listen_only": "以下为本次行程安排。\n\n",
     },

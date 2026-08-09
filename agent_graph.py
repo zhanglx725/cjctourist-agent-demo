@@ -110,6 +110,7 @@ from controlled_rollout import (
     ROLE_QA,
     PRESENTATION_CONTENT_PLAN,
     RolloutMode,
+    competition_role_active_allowed,
     evaluation_record,
     rollout_from_environment,
 )
@@ -1459,10 +1460,15 @@ def tour_opening_node(state: AgentState, config: RunnableConfig = None) -> dict[
     # The automatic first-arrival path continues directly into stop guidance.
     # Record its completed legacy opening here, before that later node replaces
     # the latest public message with point guidance. This is audit-only and is
-    # deliberately unavailable in Active mode.
+    # Route-opening plans are also built for the narrowly gated competition
+    # Active path; the legacy opening remains authoritative unless the later
+    # scene validator accepts the role candidate and the pair is allowlisted.
     rollout = rollout_from_environment()
     if (
-        rollout.observes(PRESENTATION_CONTENT_PLAN)
+        (
+            rollout.observes(PRESENTATION_CONTENT_PLAN)
+            or rollout.enabled(ROLE_NARRATION)
+        )
         and result["program"].get("status") == "played"
         and not audit.get("idempotent")
     ):
@@ -2762,6 +2768,20 @@ def _commit_stop_guidance_coverage(
     return coverage_after, commit_audit
 
 
+def _competition_stop_guidance_style(
+    role_mode: Mapping[str, Any] | None,
+) -> str | None:
+    """Resolve the only style eligible for stop Active, failing closed."""
+
+    role_mode = role_mode or {}
+    role_status = role_mode.get("status")
+    if role_status == "selected" and role_mode.get("selected_style_id") in ROLE_MODE_IDS:
+        return str(role_mode["selected_style_id"])
+    if not role_mode or role_status == "not_requested":
+        return "neutral"
+    return None
+
+
 def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict[str, Any]:
     """Generate sourced current-stop guidance without advancing TourState."""
     started = time.perf_counter()
@@ -2788,7 +2808,14 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
             f"{public_message}\n\n{photo_guidance['message']}"
         )
     rollout = rollout_from_environment()
-    role_active = rollout.enabled(ROLE_NARRATION)
+    role_mode = state.get("role_mode_shadow") or {}
+    # Unknown, conflicting, or otherwise unresolved role requests must not
+    # silently become the neutral Active control path.
+    selected_style = _competition_stop_guidance_style(role_mode)
+    role_active = bool(
+        selected_style
+        and competition_role_active_allowed(selected_style, "stop_guidance")
+    )
     if role_active and result.get("status") == "guided_e5":
         coverage_after = load_narration_coverage(state.get("narration_coverage"))
         commit_audit = {
@@ -2980,7 +3007,7 @@ def role_narration_generation_node(state: AgentState) -> dict[str, Any]:
 
 
 def narration_validation_node(state: AgentState, config: RunnableConfig = None) -> dict[str, Any]:
-    """Validate Shadow output and append bounded audit; never replace messages."""
+    """Validate a role candidate; publication remains a separate gated node."""
     started = time.perf_counter()
     plan = narration_content_plan_from_dict(state.get("narration_content_plan"))
     candidate = role_narration_candidate_from_dict(state.get("role_narration_candidate"))
@@ -2996,7 +3023,10 @@ def narration_validation_node(state: AgentState, config: RunnableConfig = None) 
             candidate, plan, compile_style_brief(plan.style_id),
         ).to_dict()
     rollout = rollout_from_environment()
-    active_mode = rollout.enabled(ROLE_NARRATION)
+    active_mode = bool(
+        plan is not None
+        and competition_role_active_allowed(plan.style_id, "stop_guidance")
+    )
     latest = state.get("messages", [])[-1] if state.get("messages") else None
     legacy_text = str(latest.content or "") if isinstance(latest, AIMessage) else ""
     candidate_text = candidate.public_text if candidate else ""
@@ -3060,12 +3090,19 @@ def narration_commit_node(state: AgentState) -> dict[str, Any]:
     pending = state.get("pending_role_narration_commit") or {}
     candidate = role_narration_candidate_from_dict(state.get("role_narration_candidate"))
     validation = state.get("narration_validation") or {}
+    plan = narration_content_plan_from_dict(state.get("narration_content_plan"))
+    style_id = (
+        plan.style_id
+        if plan is not None
+        else str((state.get("active_role_narration_audit") or {}).get("style_id") or "")
+    )
     latest = state.get("messages", [])[-1] if state.get("messages") else None
     if (
         candidate is None
         or validation.get("validation_status") != "accepted"
         or not isinstance(latest, AIMessage)
         or not pending
+        or not competition_role_active_allowed(style_id, "stop_guidance")
     ):
         return deterministic_narration_fallback_node(state)
     suffix = _legacy_operational_suffix(str(pending.get("legacy_public_message") or ""))
@@ -3515,7 +3552,7 @@ def _route_role_narration_shadow_update(
     *,
     presentation_plan: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Audit one non-authoritative public-surface role candidate.
+    """Audit a route candidate and publish it only through the competition gate.
 
     This intentionally has no model invocation, tool call, or operational
     state write.  The candidate can only add a reviewed role lead-in before
@@ -3523,7 +3560,10 @@ def _route_role_narration_shadow_update(
     timings, ordering, and safety language mechanically comparable.
     """
     rollout = rollout_from_environment()
-    if not rollout.observes(ROLE_NARRATION):
+    if not (
+        rollout.observes(ROLE_NARRATION)
+        or rollout.enabled(ROLE_NARRATION)
+    ):
         return {}
     latest = state.get("messages", [])[-1] if state.get("messages") else None
     legacy_text = str(latest.content or "") if isinstance(latest, AIMessage) else ""
@@ -3542,25 +3582,53 @@ def _route_role_narration_shadow_update(
     validation = validate_route_role_text_candidate(
         candidate, plan=plan, legacy_text=legacy_text,
     )
+    active_allowed = competition_role_active_allowed(role_mode, scene_kind)
+    accepted = validation.get("validation_status") == "accepted"
+    active_takeover = bool(active_allowed and accepted and candidate)
     record = {
         "thread_id": _rollout_thread_id(config),
         "capability": ROLE_NARRATION,
-        "mode": "shadow",
-        "active_takeover": False,
+        "mode": "active" if active_allowed else "shadow",
+        "active_takeover": active_takeover,
         **validation,
+        "fallback_used": bool(active_allowed and not accepted),
+        "legacy_message_preserved": not active_takeover,
+        "same_public_message": not active_takeover,
+        "candidate_is_non_authoritative": not active_takeover,
+        "same_fact_boundary": not bool(
+            validation.get("fact_diff") or validation.get("route_diff")
+        ),
+        "public_message_safe": bool(validation.get("public_output_safe")),
+        "within_budget": bool(validation.get("budget_consistent")),
     }
-    return {
+    updates: dict[str, Any] = {
         "route_role_narration_evaluations": [
             *state.get("route_role_narration_evaluations", []), record
         ][-20:],
     }
+    if active_takeover and isinstance(latest, AIMessage):
+        updates["messages"] = [AIMessage(
+            id=latest.id,
+            content=str(candidate["public_text"]),
+            additional_kwargs={
+                **latest.additional_kwargs,
+                "route_role_narration": True,
+                "scene_kind": scene_kind,
+            },
+        )]
+    return updates
 
 
 def atomic_read_plan_shadow_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
-    """Append a P2-01 audit candidate after the legacy response, never execute it."""
+    """Append read-only audits and apply only the narrow route-role Active gate."""
     rollout = rollout_from_environment()
     updates: dict[str, Any] = {}
-    if rollout.observes(PRESENTATION_CONTENT_PLAN):
+    resolved_scene_kind = _presentation_scene_kind(state)
+    should_plan = rollout.observes(PRESENTATION_CONTENT_PLAN) or bool(
+        rollout.enabled(ROLE_NARRATION)
+        and resolved_scene_kind in {"route_planning", "route_opening"}
+    )
+    if should_plan:
         updates.update(_presentation_content_plan_shadow_update(state, config))
         plan = updates.get("presentation_content_plan")
         if isinstance(plan, dict) and plan.get("scene_kind") in {
@@ -4721,6 +4789,14 @@ def route_after_narration_validation(state: AgentState) -> str:
     rollout = rollout_from_environment()
     if not rollout.enabled(ROLE_NARRATION) or not state.get("pending_role_narration_commit"):
         return "atomic_read_plan_shadow"
+    plan = narration_content_plan_from_dict(state.get("narration_content_plan"))
+    style_id = (
+        plan.style_id
+        if plan is not None
+        else str((state.get("active_role_narration_audit") or {}).get("style_id") or "")
+    )
+    if not competition_role_active_allowed(style_id, "stop_guidance"):
+        return "deterministic_narration_fallback"
     validation = state.get("narration_validation") or {}
     return (
         "narration_commit"

@@ -74,6 +74,42 @@ def _clean_statement(value: str) -> str:
     return "\n".join(line.strip() for line in value.splitlines() if line.strip()).strip()
 
 
+_REVIEWED_LOCATION = re.compile(
+    r"它与(?P<location>[^。；]+?)存在审核关联；可结合现场标识观察。"
+)
+_REVIEWED_OBSERVATION = re.compile(
+    r"观察时，可结合(?P<location>[^。；]+?)处的构件位置辨认其造型。"
+)
+
+
+def _naturalize_reviewed_statement(value: str) -> str:
+    """Polish known review boilerplate without changing its fact boundary.
+
+    This is deliberately deterministic and narrow.  It only rewrites the two
+    public E5 location templates that otherwise make a role narration sound
+    like an internal audit report.  The reviewed location stays intact, no
+    new claim is introduced, and the resulting text remains the immutable
+    statement associated with the same fact ID for generation and validation.
+    """
+
+    matched_locations: set[str] = set()
+
+    def replace_location(match: re.Match[str]) -> str:
+        location = match.group("location").strip()
+        matched_locations.add(location)
+        return f"可以先对照现场标识，在{location}寻找它。"
+
+    result = _REVIEWED_LOCATION.sub(replace_location, value)
+
+    def replace_observation(match: re.Match[str]) -> str:
+        location = match.group("location").strip()
+        if location in matched_locations:
+            return "找到位置后，再留意它的造型和细节。"
+        return f"可以沿着{location}看过去，重点留意它的造型和细节。"
+
+    return _REVIEWED_OBSERVATION.sub(replace_observation, result)
+
+
 def _rejected(reason: str, *, stop_id: str = "", style_id: str = "neutral") -> NarrationContentPlan:
     return NarrationContentPlan(
         stop_id=stop_id, style_id=style_id, language="zh",
@@ -106,13 +142,20 @@ def build_narration_content_plan(
     }
     facts: list[NarrationFact] = []
     for craft_id in render_audit.get("rendered_craft_ids", []):
-        statement = sections.get(f"工艺背景：{craft_id}", "")
+        statement = _naturalize_reviewed_statement(
+            sections.get(f"工艺背景：{craft_id}", "")
+        )
         if not statement:
             return _rejected("craft_section_mismatch", stop_id=stop_id, style_id=style_id)
         facts.append(NarrationFact(f"craft:{craft_id}", "craft_background", statement))
     for ornament_id in render_audit.get("rendered_ornament_ids", []):
         object_name = items.get(str(ornament_id))
-        statement = sections.get(f"观察对象：{object_name}", "") if object_name else ""
+        statement = (
+            _naturalize_reviewed_statement(
+                sections.get(f"观察对象：{object_name}", "")
+            )
+            if object_name else ""
+        )
         if not statement:
             return _rejected("ornament_section_mismatch", stop_id=stop_id, style_id=style_id)
         facts.append(NarrationFact(f"ornament:{ornament_id}", "object_detail", statement))

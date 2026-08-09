@@ -63,6 +63,28 @@ class NarrationContentPlanTests(unittest.TestCase):
         )
         self.assertFalse(plan.interaction_allowed)
 
+    def test_known_review_location_boilerplate_is_naturalized_without_fact_drift(self):
+        message = (
+            "【工艺背景：灰塑】\n\n灰塑是建筑装饰工艺。\n\n"
+            "【观察对象：独角狮】\n\n"
+            "独角狮是一件灰塑装饰。"
+            "它与建筑山墙垂脊前沿存在审核关联；可结合现场标识观察。"
+            "观察时，可结合建筑山墙垂脊前沿处的构件位置辨认其造型。\n\n"
+            "【下一步】\n\n讲解结束后可继续。"
+        )
+        plan = build_narration_content_plan(
+            public_message=message, stop_program=self.program,
+            render_audit=self.audit, visitor_profile={"language": "zh"},
+            narration_coverage={},
+        )
+        self.assertEqual(plan.status, "ready")
+        fact = plan.facts[1]
+        self.assertEqual(fact.fact_id, "ornament:lion_01")
+        self.assertIn("在建筑山墙垂脊前沿寻找它", fact.statement)
+        self.assertIn("找到位置后，再留意它的造型和细节", fact.statement)
+        self.assertNotIn("存在审核关联", fact.statement)
+        self.assertNotIn("构件位置辨认其造型", fact.statement)
+
 
 if __name__ == "__main__":
     unittest.main()

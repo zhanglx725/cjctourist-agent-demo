@@ -20,6 +20,17 @@ ROLE_NARRATION = "role_narration"
 ROLE_QA = "role_qa"
 PRESENTATION_CONTENT_PLAN = "presentation_content_plan"
 
+ROLE_ACTIVE_ENABLED_ENV = "ROLE_ACTIVE_ENABLED"
+ROLE_ACTIVE_STYLES_ENV = "ROLE_ACTIVE_STYLES"
+ROLE_ACTIVE_SCENES_ENV = "ROLE_ACTIVE_SCENES"
+COMPETITION_ROLE_ACTIVE_PAIRS = frozenset({
+ ("ancient_scholar", "route_planning"),
+ ("ancient_scholar", "route_opening"),
+ ("ancient_scholar", "stop_guidance"),
+ ("child", "stop_guidance"),
+ ("neutral", "stop_guidance"),
+})
+
 
 @dataclass(frozen=True)
 class ReadOnlyRollout:
@@ -27,6 +38,23 @@ class ReadOnlyRollout:
  enabled_capabilities: frozenset[str]=frozenset({CONTROLLED_KNOWLEDGE})
  def enabled(self, capability: str)->bool: return self.mode is RolloutMode.READ_ONLY_ACTIVE and capability in self.enabled_capabilities
  def observes(self, capability: str)->bool: return self.mode is RolloutMode.SHADOW and capability in self.enabled_capabilities
+
+
+@dataclass(frozen=True)
+class CompetitionRoleActivePolicy:
+ """Fail-closed competition whitelist layered over the existing rollout."""
+
+ enabled: bool = False
+ styles: frozenset[str] = frozenset()
+ scenes: frozenset[str] = frozenset()
+
+ def allows(self, style_id: str, scene_kind: str) -> bool:
+  return bool(
+   self.enabled
+   and style_id in self.styles
+   and scene_kind in self.scenes
+   and (style_id, scene_kind) in COMPETITION_ROLE_ACTIVE_PAIRS
+  )
 
 
 def rollout_from_environment(environ: Mapping[str, str] | None = None) -> ReadOnlyRollout:
@@ -43,6 +71,42 @@ def rollout_from_environment(environ: Mapping[str, str] | None = None) -> ReadOn
  raw = values.get("CJC_READ_ONLY_ROLLOUT_CAPABILITIES", CONTROLLED_KNOWLEDGE)
  capabilities = frozenset(item.strip() for item in raw.split(",") if item.strip())
  return ReadOnlyRollout(mode, capabilities)
+
+
+def competition_role_active_from_environment(
+ environ: Mapping[str, str] | None = None,
+) -> CompetitionRoleActivePolicy:
+ """Read the competition Active allowlist; invalid or incomplete means off."""
+
+ values = os.environ if environ is None else environ
+ enabled = values.get(ROLE_ACTIVE_ENABLED_ENV, "").strip().lower() == "true"
+ styles = frozenset(
+  item.strip() for item in values.get(ROLE_ACTIVE_STYLES_ENV, "").split(",")
+  if item.strip()
+ )
+ scenes = frozenset(
+  item.strip() for item in values.get(ROLE_ACTIVE_SCENES_ENV, "").split(",")
+  if item.strip()
+ )
+ if not enabled or not styles or not scenes:
+  return CompetitionRoleActivePolicy()
+ return CompetitionRoleActivePolicy(True, styles, scenes)
+
+
+def competition_role_active_allowed(
+ style_id: str,
+ scene_kind: str,
+ environ: Mapping[str, str] | None = None,
+) -> bool:
+ """Require both the mature rollout gate and the competition pair gate."""
+
+ rollout = rollout_from_environment(environ)
+ return bool(
+  rollout.enabled(ROLE_NARRATION)
+  and competition_role_active_from_environment(environ).allows(
+   style_id, scene_kind
+  )
+ )
 
 
 def evaluation_record(thread_id: str, legacy: Mapping[str, Any], candidate: Mapping[str, Any] | None, *, mode: RolloutMode, outcome: str)->dict[str, Any]:
