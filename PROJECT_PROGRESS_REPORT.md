@@ -1,5 +1,7 @@
 # CURRENT PHASE: ROLE MODE SHADOW (2026-08-09)
 
+> 参赛材料统一事实口径见[《参赛版本完成度、功能实现范围与展示范围标杆》](data/chen_clan_academy/evaluation/handoffs/competition_scope_and_demo_baseline.md)。
+
 ## Current verification status (2026-08-10)
 
 ```text
