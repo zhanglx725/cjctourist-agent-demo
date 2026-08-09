@@ -281,6 +281,7 @@ class AgentState(TypedDict, total=False):
     role_mode_shadow: dict[str, Any] | None
     role_mode_shadow_evaluations: list[dict[str, Any]]
     pending_role_mode_clarification: dict[str, Any] | None
+    last_role_mode_confirmation: dict[str, Any] | None
     role_narration_candidate: dict[str, Any] | None
     narration_validation: dict[str, Any] | None
     active_role_narration_audit: dict[str, Any] | None
@@ -1979,6 +1980,117 @@ def extended_profile_control_node(state: AgentState) -> dict[str, Any]:
             })
             return updates
         updates["visitor_profile"] = result["profile"]
+    return updates
+
+
+def role_mode_confirmation_node(state: AgentState) -> dict[str, Any]:
+    """Apply one reviewed role without LLM/RAG or tour-state mutation."""
+    started = time.perf_counter()
+    role = state.get("role_mode_shadow") or {}
+    selected = role.get("selected_style_id")
+    if role.get("status") != "selected" or selected not in ROLE_MODE_IDS:
+        message = "请明确选择一种已审核的讲解角色。"
+        return {
+            "messages": [AIMessage(content=message)],
+            "last_role_mode_confirmation": {
+                "ok": False, "code": "reviewed_role_unavailable",
+            },
+            "pending_role_mode_clarification": None,
+            "performance_metrics": _append_metric(
+                state, "role_mode_confirmation", time.perf_counter() - started,
+                ok=False, code="reviewed_role_unavailable",
+            ),
+        }
+    profile = (
+        profile_from_dict(state["visitor_profile"])
+        if state.get("visitor_profile")
+        else create_visitor_profile()
+    )
+    profile_patch: dict[str, str] = {
+        "explanation_style": selected,
+        "interaction_mode": "listen_only" if selected == "listen_only" else "normal",
+    }
+    if selected == "child":
+        profile_patch["audience_mode"] = "child_friendly"
+    updated_profile = update_visitor_profile(profile, **profile_patch).to_dict()
+    interaction = state.get("tour_interaction_state") or {}
+    phase = interaction.get("stop_phase")
+    public_role_name = {
+        "ancient_scholar": "古风书生",
+        "child": "儿童友好",
+        "listen_only": "静听模式",
+    }[selected]
+    base_message = f"已确认使用“{public_role_name}”讲解角色。"
+    updates: dict[str, Any] = {
+        "visitor_profile": updated_profile,
+        "pending_role_mode_clarification": None,
+        "qa_context": clear_qa_context(state.get("qa_context")),
+        "pending_ornament_clarification": None,
+    }
+    if phase == "explaining" and state.get("active_stop_program"):
+        rewritten = reexpress_current_stop_guidance(
+            state.get("tour_state"), interaction,
+            state.get("active_stop_program"),
+            state.get("active_guidance_evidence_by_item"), updated_profile,
+        )
+        if rewritten["ok"]:
+            public_message = public_visitor_message_or_fallback(rewritten["message"])
+            presentation = (
+                {**rewritten["presentation"], "message": public_message}
+                if isinstance(rewritten.get("presentation"), dict)
+                else rewritten.get("presentation")
+            )
+            updates.update({
+                "messages": [AIMessage(
+                    content=public_message,
+                    additional_kwargs={"stop_guidance": True, "reexpressed": True},
+                )],
+                "active_stop_program": rewritten["stop_program"],
+                "active_guidance_evidence_by_item": rewritten["evidence_by_item"],
+                "retrieved_evidence": rewritten["evidence"],
+                "tour_presentation": presentation,
+                "last_role_mode_confirmation": {
+                    "ok": True, "code": "current_guidance_reexpressed",
+                    "selected_style_id": selected,
+                },
+            })
+        else:
+            updates.update({
+                "messages": [AIMessage(content=(
+                    f"{base_message}当前点位暂时无法安全重新表达；"
+                    "后续讲解将使用新角色，当前路线和进度保持不变。"
+                ))],
+                "last_role_mode_confirmation": {
+                    "ok": True, "code": "confirmed_with_legacy_fallback",
+                    "selected_style_id": selected,
+                },
+            })
+    elif phase == "navigating" and state.get("tour_state"):
+        navigation = format_next_stop_navigation(
+            next_stop_navigation(state.get("tour_state"))
+        )
+        updates.update({
+            "messages": [AIMessage(content=f"{base_message}\n\n{navigation}")],
+            "last_role_mode_confirmation": {
+                "ok": True, "code": "confirmed_and_navigation_resumed",
+                "selected_style_id": selected,
+            },
+        })
+    else:
+        updates.update({
+            "messages": [AIMessage(content=(
+                f"{base_message}后续讲解将使用这一角色，当前路线和进度保持不变。"
+            ))],
+            "last_role_mode_confirmation": {
+                "ok": True, "code": "confirmed_for_next_guidance",
+                "selected_style_id": selected,
+            },
+        })
+    updates["performance_metrics"] = _append_metric(
+        state, "role_mode_confirmation", time.perf_counter() - started,
+        ok=True, code=updates["last_role_mode_confirmation"]["code"],
+        selected_style_id=selected, model_called=False, rag_called=False,
+    )
     return updates
 
 
@@ -3950,6 +4062,16 @@ def route_initial_request(state: AgentState) -> str:
     # accepted role and the current navigation target remain untouched.
     if (state.get("pending_role_mode_clarification") or {}).get("status") == "clarification":
         return "clarification"
+    role_record = state.get("role_mode_shadow") or {}
+    if (
+        (state.get("tour_state") or {}).get("route_status") == "touring"
+        and role_record.get("status") == "selected"
+        and role_record.get("source") == "explicit_request"
+        and classify_tour_intent(
+            raw_text, state.get("tour_state"), state.get("tour_interaction_state")
+        ).route_kind == "other"
+    ):
+        return "role_mode_confirmation"
     onboarding_status = (state.get("visitor_welcome_program") or {}).get("status")
     onboarding_profile_control = parse_extended_profile_control(raw_text)
     if (
@@ -4302,6 +4424,15 @@ def route_after_journey_mode_selection(state: AgentState) -> str:
     return "profile_collection" if selection.get("status") == "selected" else END
 
 
+def route_after_role_mode_confirmation(state: AgentState) -> str:
+    confirmation = state.get("last_role_mode_confirmation") or {}
+    return (
+        "narration_content_plan"
+        if confirmation.get("code") == "current_guidance_reexpressed"
+        else "atomic_read_plan_shadow"
+    )
+
+
 def route_after_tour_event(state: AgentState) -> str:
     """Send only successful arrival/detail events into B3 evidence guidance."""
     event = state.get("last_tour_event", {})
@@ -4422,6 +4553,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("post_visit_title_blessing", post_visit_title_blessing_node)
     workflow.add_node("profile_update", profile_update_node)
     workflow.add_node("extended_profile_control", extended_profile_control_node)
+    workflow.add_node("role_mode_confirmation", role_mode_confirmation_node)
     workflow.add_node("tour_event", tour_event_node)
     workflow.add_node("prepare_replan", prepare_replan_node)
     workflow.add_node("prepare_replan_candidate", prepare_replan_candidate_node)
@@ -4447,7 +4579,7 @@ def build_agent_graph(with_checkpointer: bool = True):
         "semantic_normalization",
         route_initial_request,
         {
-            "direct_rag": "direct_rag", "controlled_knowledge_rollout": "controlled_knowledge_rollout", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "visitor_onboarding": "visitor_onboarding", "journey_mode_selection": "journey_mode_selection", "inactive_tour_end": "inactive_tour_end", "tour_opening": "tour_opening", "visit_summary": "visit_summary", "post_visit_title_blessing": "post_visit_title_blessing", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "tour_event": "tour_event",
+            "direct_rag": "direct_rag", "controlled_knowledge_rollout": "controlled_knowledge_rollout", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "visitor_onboarding": "visitor_onboarding", "journey_mode_selection": "journey_mode_selection", "inactive_tour_end": "inactive_tour_end", "tour_opening": "tour_opening", "visit_summary": "visit_summary", "post_visit_title_blessing": "post_visit_title_blessing", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "role_mode_confirmation": "role_mode_confirmation", "tour_event": "tour_event",
             "clarification": "clarification", "prepare_replan": "prepare_replan", "prepare_replan_candidate": "prepare_replan_candidate", "prepare_duration_replan": "prepare_duration_replan",
             "confirm_replan": "confirm_replan", "confirm_replan_and_next": "confirm_replan_and_next", "cancel_replan": "cancel_replan", "show_replan": "show_replan", "show_replan_time": "show_replan_time", "llm_think": "llm_think",
         },
@@ -4480,6 +4612,13 @@ def build_agent_graph(with_checkpointer: bool = True):
     )
     workflow.add_edge("profile_update", "atomic_read_plan_shadow")
     workflow.add_edge("extended_profile_control", "atomic_read_plan_shadow")
+    workflow.add_conditional_edges(
+        "role_mode_confirmation", route_after_role_mode_confirmation,
+        {
+            "narration_content_plan": "narration_content_plan",
+            "atomic_read_plan_shadow": "atomic_read_plan_shadow",
+        },
+    )
     workflow.add_conditional_edges(
         "tour_event", route_after_tour_event,
         {"tour_opening": "tour_opening", "stop_guidance": "stop_guidance", "visit_summary": "visit_summary", END: "atomic_read_plan_shadow"},

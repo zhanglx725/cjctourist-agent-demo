@@ -45,7 +45,7 @@
 - 最新五场景角色连续性：25/25 passed
 - 最新 P0/结束态回归：31/31 passed
 - 最新 P0/讲解/导航回归：32/32 passed
-- 最新完整回归：1072/1072 passed
+- 最新完整回归：1075/1075 passed
 - 原有 5 个基线问题已在独立的 baseline cleanup 提交中解决。
 - Trace 元数据：metadata_unavailable（本阶段尚未保存人工 Trace 元数据）。
 
@@ -141,6 +141,54 @@ full_regression: 1072/1072 passed
 
 - LangSmith 案例 8 修复后复测
 - Active 接管
+
+## 案例 8 第二轮修复：角色确认后禁止自由 RAG
+
+第二轮人工复测确认冲突澄清已通过，但游客随后只回复“儿童友好”时仍落入 `llm_think → rag_tool`，出现正文截断或“无法在不展示内部检索信息的前提下安全整理”的兜底。根因不是模型 token 本身，而是已审核角色确认缺少专属业务节点。
+
+本轮新增 `role_mode_confirmation`：
+
+- 仅在活跃导览、当前输入明确选择一个已审核角色且不包含其他导游事件时触发；
+- 优先级高于开放 `llm_think/RAG`；
+- 讲解阶段复用 `reexpress_current_stop_guidance` 和当前已审核讲解包；
+- 导航阶段复用 `next_stop_navigation`，完整重放当前下一站、路径、时间和安全提示；
+- 若当前讲解无法安全重表达，则显示受控确认与旧链 fallback，不调用自由 RAG；
+- 角色确认只更新受控 VisitorProfile 风格字段，不写 TourState 或 `tour_interaction_state`；
+- `pending_stop_id`、当前点位、已完成点位和路线保持不变；
+- 性能审计明确记录 `model_called=false`、`rag_called=false`。
+
+复测重点：
+
+```text
+角色冲突 → clarification
+→ 选择“儿童友好”
+→ role_mode_confirmation
+→ 当前正在讲解：narration_content_plan（Shadow）
+   或当前正在导航：atomic_read_plan_shadow
+```
+
+不得出现 `llm_think` 或 `rag_tool`。游客正文必须完整，且不得出现内部检索安全兜底。
+
+```text
+role_confirmation_targeted: 20/20 passed
+p0_semantic_guidance_regression: 72/72 passed
+full_regression: 1073/1073 passed
+```
+
+自然表达补充已纳入确定性角色候选归一化：
+
+```text
+语言风格改成静听和儿童友好
+儿童友好 + 静听
+同时使用儿童友好与静听
+```
+
+以上均产生 `candidate_style_ids=[child, listen_only]` 并在模型调用前进入 `clarification`。“儿童友好模式”则归一化为单一 `child`，在活跃导览中进入 `role_mode_confirmation`。不得进入 `llm_think` 或 `rag_tool`。
+
+```text
+natural_role_variants_and_routing: 65/65 passed
+full_regression: 1075/1075 passed
+```
 
 ## 下一位负责人任务
 

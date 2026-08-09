@@ -14,6 +14,7 @@ from agent_graph import (
     narration_content_plan_node,
     narration_validation_node,
     post_visit_title_blessing_node,
+    role_mode_confirmation_node,
     role_narration_generation_node,
     route_initial_request,
     semantic_normalization_node,
@@ -79,6 +80,25 @@ class RoleNarrationContinuityTests(unittest.TestCase):
     def test_role_applicability_contract_lists_all_five_surfaces(self):
         result = resolve_role_mode(ROLE_CASES["ancient_scholar"]).to_dict()
         self.assertEqual(result["applicability"]["surfaces"], list(ROLE_MODE_SURFACES))
+
+    def test_natural_role_conflict_variants_are_normalized_before_llm(self):
+        for text in (
+            "语言风格改成静听和儿童友好",
+            "儿童友好 + 静听",
+            "同时使用儿童友好与静听",
+        ):
+            with self.subTest(text=text):
+                result = resolve_role_mode(text).to_dict()
+                self.assertEqual(result["status"], "clarification")
+                self.assertEqual(
+                    result["candidate_style_ids"], ["child", "listen_only"],
+                )
+                self.assertIn("conflicting_role_request", result["reason_codes"])
+
+    def test_child_friendly_mode_is_a_single_reviewed_role(self):
+        result = resolve_role_mode("儿童友好模式").to_dict()
+        self.assertEqual(result["status"], "selected")
+        self.assertEqual(result["selected_style_id"], "child")
 
     def test_each_reviewed_role_survives_the_complete_shadow_journey(self):
         for role_id, request in ROLE_CASES.items():
@@ -223,7 +243,7 @@ class RoleNarrationContinuityTests(unittest.TestCase):
 
         conflict_input = {
             **state,
-            "messages": [HumanMessage(content="改成儿童友好和静听模式")],
+            "messages": [HumanMessage(content="语言风格改成静听和儿童友好")],
         }
         with patch(
             "agent_graph._invoke_semantic_model",
@@ -249,6 +269,33 @@ class RoleNarrationContinuityTests(unittest.TestCase):
             state["tour_interaction_state"]["pending_stop_id"], pending_stop,
         )
 
+        selection_input = {
+            **state,
+            "messages": [HumanMessage(content="儿童友好模式")],
+        }
+        with patch(
+            "agent_graph._invoke_semantic_model",
+            return_value='{"candidates":[],"ambiguity_reason":"no_candidate"}',
+        ):
+            semantic = semantic_normalization_node(selection_input)
+        selection_state = self._merge(selection_input, semantic)
+        self.assertEqual(route_initial_request(selection_state), "role_mode_confirmation")
+        confirmation = role_mode_confirmation_node(selection_state)
+        self.assertEqual(
+            confirmation["last_role_mode_confirmation"]["code"],
+            "confirmed_and_navigation_resumed",
+        )
+        self.assertIn("月台", confirmation["messages"][0].content)
+        self.assertEqual(confirmation["visitor_profile"]["explanation_style"], "child")
+        self.assertFalse(confirmation["performance_metrics"][-1]["model_called"])
+        self.assertFalse(confirmation["performance_metrics"][-1]["rag_called"])
+        for field in ("tour_state", "tour_interaction_state"):
+            self.assertNotIn(field, confirmation)
+        state = self._merge(selection_state, confirmation)
+        self.assertEqual(
+            state["tour_interaction_state"]["pending_stop_id"], pending_stop,
+        )
+
         generic_arrival_input = {
             **state,
             "messages": [HumanMessage(content="到达")],
@@ -260,6 +307,46 @@ class RoleNarrationContinuityTests(unittest.TestCase):
         self.assertTrue(arrival["last_tour_event"]["ok"])
         self.assertEqual(arrival["last_tour_event"]["event"], "arrive_at_stop")
         self.assertEqual(arrival["tour_state"]["current_stop_id"], pending_stop)
+
+    def test_single_role_confirmation_reexpresses_current_stop_without_rag(self):
+        prior = resolve_role_mode(ROLE_CASES["ancient_scholar"]).to_dict()
+        state = self._route_state(prior)
+        arrived_input = {
+            **state,
+            "messages": [HumanMessage(content="我到前院中部了")],
+        }
+        state = self._merge(arrived_input, tour_event_node(arrived_input))
+        state = self._merge(state, stop_guidance_node(state))
+        original_tour = deepcopy(state["tour_state"])
+        original_interaction = deepcopy(state["tour_interaction_state"])
+
+        selection_input = {
+            **state,
+            "messages": [HumanMessage(content="儿童友好")],
+        }
+        with patch(
+            "agent_graph._invoke_semantic_model",
+            return_value='{"candidates":[],"ambiguity_reason":"no_candidate"}',
+        ):
+            semantic = semantic_normalization_node(selection_input)
+        selection_state = self._merge(selection_input, semantic)
+        self.assertEqual(route_initial_request(selection_state), "role_mode_confirmation")
+        confirmation = role_mode_confirmation_node(selection_state)
+        self.assertEqual(
+            confirmation["last_role_mode_confirmation"]["code"],
+            "current_guidance_reexpressed",
+        )
+        public_text = confirmation["messages"][0].content
+        self.assertTrue(public_text.strip())
+        self.assertNotIn("无法在不展示内部检索信息", public_text)
+        self.assertNotIn("rag_tool", public_text)
+        self.assertEqual(confirmation["visitor_profile"]["explanation_style"], "child")
+        self.assertFalse(confirmation["performance_metrics"][-1]["model_called"])
+        self.assertFalse(confirmation["performance_metrics"][-1]["rag_called"])
+        self.assertNotIn("tour_state", confirmation)
+        self.assertNotIn("tour_interaction_state", confirmation)
+        self.assertEqual(selection_state["tour_state"], original_tour)
+        self.assertEqual(selection_state["tour_interaction_state"], original_interaction)
 
 
 if __name__ == "__main__":
