@@ -17,6 +17,7 @@ REPLAN_PROPOSAL = "replan_proposal"
 STATE_TRANSITION = "state_transition"
 NARRATION_COMPOSITION = "narration_composition"
 ROLE_NARRATION = "role_narration"
+ROLE_QA = "role_qa"
 PRESENTATION_CONTENT_PLAN = "presentation_content_plan"
 
 

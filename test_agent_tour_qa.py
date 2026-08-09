@@ -679,6 +679,66 @@ class AgentTourQaTests(unittest.TestCase):
         self.assertNotIn("tour_state", update)
         self.assertNotIn("tour_interaction_state", update)
 
+    def test_follow_up_recovers_validated_context_from_prior_tour_qa_message(self):
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            rag.invoke.return_value = CRAFT_PAYLOAD
+            first = tour_qa_node(_message_state("灰塑是什么？"))
+        embedded = first["messages"][0].additional_kwargs.get("qa_context")
+        self.assertEqual(embedded, first["qa_context"])
+
+        follow = {
+            **first,
+            "qa_context": None,
+            "messages": [
+                first["messages"][0],
+                HumanMessage(content="再讲详细一点"),
+            ],
+            "performance_metrics": [],
+        }
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            rag.invoke.return_value = CRAFT_PAYLOAD
+            update = qa_follow_up_detail_node(follow)
+        rag.invoke.assert_not_called()
+        self.assertIn("灰塑", update["messages"][0].content)
+        self.assertNotIn("没有可安全继续展开", update["messages"][0].content)
+        self.assertIsNotNone(update["qa_context"])
+
+    def test_follow_up_does_not_recover_unvalidated_message_metadata(self):
+        state = _message_state("再讲详细一点")
+        state["messages"] = [
+            agent_graph.AIMessage(
+                content="旧回答",
+                additional_kwargs={
+                    "tour_qa_answer": True,
+                    "qa_context": {"subject_terms": ["灰塑"]},
+                },
+            ),
+            HumanMessage(content="再讲详细一点"),
+        ]
+        update = qa_follow_up_detail_node(state)
+        self.assertIn("没有可安全继续展开", update["messages"][0].content)
+        self.assertIsNone(update["qa_context"])
+
+    def test_follow_up_does_not_recover_context_past_a_new_assistant_reply(self):
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            rag.invoke.return_value = CRAFT_PAYLOAD
+            first = tour_qa_node(_message_state("灰塑是什么？"))
+        state = {
+            **first,
+            "qa_context": None,
+            "messages": [
+                first["messages"][0],
+                agent_graph.AIMessage(
+                    content="已进入下一项操作",
+                    additional_kwargs={"stop_guidance": True},
+                ),
+                HumanMessage(content="再讲详细一点"),
+            ],
+        }
+        update = qa_follow_up_detail_node(state)
+        self.assertIn("没有可安全继续展开", update["messages"][0].content)
+        self.assertIsNone(update["qa_context"])
+
     def test_pottery_detail_explanation_follow_up_uses_canonical_craft_path(self):
         with patch("agent_graph.chen_clan_academy_rag_search") as rag:
             rag.invoke.return_value = CRAFT_PAYLOAD

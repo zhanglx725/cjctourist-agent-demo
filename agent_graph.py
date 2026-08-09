@@ -65,6 +65,7 @@ from qa_context import (
     clear_qa_context,
     is_qa_follow_up_detail_request,
     is_qa_subject_follow_up_request,
+    validate_qa_context,
 )
 from narration_coverage import empty_narration_coverage
 from narration_coverage import IntroductionRecord, NarrationCoverageError, commit_introductions, load_narration_coverage
@@ -106,6 +107,7 @@ from controlled_rollout import (
     STATE_TRANSITION,
     NARRATION_COMPOSITION,
     ROLE_NARRATION,
+    ROLE_QA,
     PRESENTATION_CONTENT_PLAN,
     RolloutMode,
     evaluation_record,
@@ -132,6 +134,7 @@ from route_role_narration_shadow import (
     validate_route_role_text_candidate,
 )
 from narration_validation import validate_role_narration
+from qa_role_shadow import build_qa_content_plan, qa_content_plan_from_dict
 from state_transition_adapter import dry_run_transition
 from policy_gate import evaluate_policy
 from reviewed_read_tools import answer_reviewed_controlled_knowledge
@@ -290,6 +293,13 @@ class AgentState(TypedDict, total=False):
     narration_validation: dict[str, Any] | None
     active_role_narration_audit: dict[str, Any] | None
     role_narration_evaluations: list[dict[str, Any]]
+    # QA role expression is always non-authoritative.  It is deliberately
+    # isolated from stop-guidance Coverage and Active commit state.
+    qa_content_plan: dict[str, Any] | None
+    qa_role_narration_candidate: dict[str, Any] | None
+    qa_role_narration_validation: dict[str, Any] | None
+    active_qa_role_narration_audit: dict[str, Any] | None
+    qa_role_narration_evaluations: list[dict[str, Any]]
     presentation_content_plan: dict[str, Any] | None
     presentation_content_plan_evaluations: list[dict[str, Any]]
     # Route planning/opening role text is Shadow-only. It is kept separately
@@ -3813,8 +3823,21 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
         post_visit_nearby_offer=state.get("post_visit_nearby_offer"),
     )
     public_message = public_visitor_message_or_fallback(result["message"])
+    qa_context = build_qa_context_from_answer(
+        query, result, state.get("tour_state")
+    )
     updates: dict[str, Any] = {
-        "messages": [AIMessage(content=public_message, additional_kwargs={"tour_qa_answer": True})],
+        "messages": [AIMessage(
+            content=public_message,
+            additional_kwargs={
+                "tour_qa_answer": True,
+                # Bounded recovery metadata only.  It contains no evidence,
+                # source IDs or mutable tour/profile state and lets the next
+                # turn recover when an Agent Server checkpoint omits the
+                # parallel top-level qa_context field.
+                **({"qa_context": qa_context} if qa_context is not None else {}),
+            },
+        )],
         "retrieved_evidence": result["evidence"],
         "performance_metrics": _append_metric(
             state,
@@ -3839,9 +3862,7 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
                 (result.get("knowledge_plan") or {}).get("question_type")
             ),
         ),
-        "qa_context": build_qa_context_from_answer(
-            query, result, state.get("tour_state")
-        ) or clear_qa_context(state.get("qa_context")),
+        "qa_context": qa_context or clear_qa_context(state.get("qa_context")),
         "pending_ornament_clarification": result.get(
             "pending_ornament_clarification"
         ),
@@ -3869,20 +3890,54 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
     return updates
 
 
+def _recover_bounded_qa_context(state: AgentState) -> dict[str, Any] | None:
+    """Return current QA context or the latest validated tour-QA snapshot.
+
+    Recovery is deliberately limited to an internal ``tour_qa_answer`` marker
+    produced by this graph.  Visitor prose is never parsed to reconstruct
+    subjects, locations, evidence or facts.
+    """
+    candidates: list[object] = [state.get("qa_context")]
+    latest_assistant = next(
+        (
+            message for message in reversed(state.get("messages") or [])
+            if isinstance(message, AIMessage)
+        ),
+        None,
+    )
+    if (
+        isinstance(latest_assistant, AIMessage)
+        and latest_assistant.additional_kwargs.get("tour_qa_answer")
+        and not latest_assistant.additional_kwargs.get("qa_follow_up_detail")
+    ):
+        candidates.append(latest_assistant.additional_kwargs.get("qa_context"))
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        try:
+            context = validate_qa_context(candidate)
+        except ValueError:
+            continue
+        if context.get("follow_up_allowed"):
+            return context
+    return None
+
+
 def qa_follow_up_detail_node(state: AgentState) -> dict[str, Any]:
     """Expand only the immediately preceding bounded tour-QA context."""
     query = _latest_user_text(state)
     started = time.perf_counter()
+    qa_context = _recover_bounded_qa_context(state)
     result = answer_qa_follow_up_detail(
         query,
-        state.get("qa_context"),
+        qa_context,
         state.get("tour_state"),
         state.get("tour_interaction_state"),
         lambda retrieval_query: str(chen_clan_academy_rag_search.invoke({"query": retrieval_query})),
         detailed=is_qa_follow_up_detail_request(query),
     )
     updated_context = build_qa_context_from_answer(
-        query, result, state.get("tour_state"), state.get("qa_context")
+        query, result, state.get("tour_state"), qa_context
     )
     public_message = public_visitor_message_or_fallback(result["message"])
     updates: dict[str, Any] = {
@@ -3907,6 +3962,151 @@ def qa_follow_up_detail_node(state: AgentState) -> dict[str, Any]:
     if question_log is not None:
         updates["tour_question_log"] = question_log
     return updates
+
+
+def qa_content_plan_node(state: AgentState) -> dict[str, Any]:
+    """Plan role expression from the already-approved public QA answer only."""
+    started = time.perf_counter()
+    latest = state.get("messages", [])[-1] if state.get("messages") else None
+    public_message = str(latest.content or "") if isinstance(latest, AIMessage) else ""
+    scene_kind = (
+        "qa_follow_up_detail"
+        if isinstance(latest, AIMessage)
+        and latest.additional_kwargs.get("qa_follow_up_detail")
+        else "tour_qa"
+    )
+    plan = build_qa_content_plan(
+        legacy_public_message=public_message,
+        scene_kind=scene_kind,
+        role_mode=state.get("role_mode_shadow"),
+        language=str((state.get("visitor_profile") or {}).get("language") or "zh"),
+    )
+    return {
+        "qa_content_plan": plan.to_dict(),
+        "qa_role_narration_candidate": None,
+        "qa_role_narration_validation": None,
+        "performance_metrics": _append_metric(
+            state, "qa_content_plan", time.perf_counter() - started,
+            status=plan.status, scene_kind=scene_kind,
+            model_called=False,
+        ),
+    }
+
+
+def _rejected_qa_role_candidate(style_id: str, reason: str) -> dict[str, Any]:
+    return {
+        "schema_version": "role_narration_candidate_v1",
+        "generation_status": "rejected",
+        "reason_code": reason,
+        "style_id": style_id,
+        "public_text": "",
+        "used_fact_ids": [],
+        "omitted_fact_ids": [],
+        "self_check": {},
+        "model_called": False,
+        "latency_ms": 0,
+    }
+
+
+def qa_role_narration_generation_node(state: AgentState) -> dict[str, Any]:
+    """Generate a QA expression candidate without retrieval, tools or writes."""
+    started = time.perf_counter()
+    qa_plan = qa_content_plan_from_dict(state.get("qa_content_plan"))
+    narration_plan = qa_plan.narration_plan if qa_plan is not None else None
+    rollout = rollout_from_environment()
+    role_qa_configured = (
+        rollout.mode in {RolloutMode.SHADOW, RolloutMode.READ_ONLY_ACTIVE}
+        and bool({ROLE_QA, ROLE_NARRATION} & rollout.enabled_capabilities)
+    )
+    if qa_plan is None or narration_plan is None or qa_plan.status != "ready":
+        candidate = _rejected_qa_role_candidate(
+            narration_plan.style_id if narration_plan else "neutral",
+            "qa_content_plan_not_ready",
+        )
+    elif not role_qa_configured:
+        candidate = _rejected_qa_role_candidate(
+            narration_plan.style_id, "role_qa_rollout_off",
+        )
+    else:
+        candidate = generate_role_narration(
+            narration_plan,
+            compile_style_brief(narration_plan.style_id),
+            _invoke_role_narration_model,
+        ).to_dict()
+    return {
+        "qa_role_narration_candidate": candidate,
+        "performance_metrics": _append_metric(
+            state, "qa_role_narration_generation", time.perf_counter() - started,
+            status=candidate["generation_status"],
+            model_called=candidate["model_called"],
+            reason_code=candidate.get("reason_code"),
+            scene_kind=qa_plan.scene_kind if qa_plan else None,
+        ),
+    }
+
+
+def qa_role_narration_validation_node(
+    state: AgentState,
+    config: RunnableConfig = None,
+) -> dict[str, Any]:
+    """Audit a QA role candidate; the authoritative message always remains."""
+    started = time.perf_counter()
+    qa_plan = qa_content_plan_from_dict(state.get("qa_content_plan"))
+    candidate = role_narration_candidate_from_dict(
+        state.get("qa_role_narration_candidate")
+    )
+    narration_plan = qa_plan.narration_plan if qa_plan is not None else None
+    if narration_plan is None or candidate is None:
+        validation = {
+            "validation_status": "rejected",
+            "reason_codes": ["qa_shadow_input_unavailable"],
+            "state_writes": [],
+            "same_fact_boundary": False,
+            "role_consistent": False,
+            "within_budget": False,
+            "public_message_safe": False,
+        }
+    else:
+        validation = validate_role_narration(
+            candidate,
+            narration_plan,
+            compile_style_brief(narration_plan.style_id),
+        ).to_dict()
+    role_mode = state.get("role_mode_shadow") or {}
+    record = {
+        "thread_id": _rollout_thread_id(config),
+        "capability": ROLE_QA,
+        "mode": "shadow",
+        "scene_kind": qa_plan.scene_kind if qa_plan else None,
+        "style_id": narration_plan.style_id if narration_plan else None,
+        "role_mode_status": role_mode.get("status", "not_requested"),
+        "model_called": bool(candidate and candidate.model_called),
+        "candidate_fact_ids": (
+            [fact.fact_id for fact in narration_plan.facts]
+            if narration_plan else []
+        ),
+        "used_fact_ids": list(candidate.used_fact_ids) if candidate else [],
+        "omitted_fact_ids": list(candidate.omitted_fact_ids) if candidate else [],
+        **validation,
+        "active_takeover": False,
+        "fallback_used": validation["validation_status"] != "accepted",
+        "legacy_message_preserved": True,
+        "same_public_message": True,
+        "candidate_is_non_authoritative": True,
+        "latency_ms": candidate.latency_ms if candidate else 0,
+    }
+    return {
+        "qa_role_narration_validation": validation,
+        "active_qa_role_narration_audit": record,
+        "qa_role_narration_evaluations": [
+            *state.get("qa_role_narration_evaluations", []), record,
+        ][-20:],
+        "performance_metrics": _append_metric(
+            state, "qa_role_narration_validation", time.perf_counter() - started,
+            status=validation["validation_status"],
+            reason_codes=validation["reason_codes"], model_called=False,
+        ),
+    }
 
 
 def rag_tool_node(state: AgentState) -> dict[str, Any]:
@@ -4598,6 +4798,9 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("replan_proposal_shadow", replan_proposal_shadow_node)
     workflow.add_node("tour_qa", tour_qa_node)
     workflow.add_node("qa_follow_up_detail", qa_follow_up_detail_node)
+    workflow.add_node("qa_content_plan", qa_content_plan_node)
+    workflow.add_node("qa_role_narration_generation", qa_role_narration_generation_node)
+    workflow.add_node("qa_role_narration_validation", qa_role_narration_validation_node)
     workflow.add_node("direct_route", direct_route_node)
     workflow.add_node("profile_collection", profile_collection_node)
     workflow.add_node("journey_mode_selection", journey_mode_selection_node)
@@ -4640,8 +4843,11 @@ def build_agent_graph(with_checkpointer: bool = True):
     )
     workflow.add_edge("direct_rag", "llm_think")
     workflow.add_edge("controlled_knowledge_rollout", "llm_think")
-    workflow.add_edge("tour_qa", "atomic_read_plan_shadow")
-    workflow.add_edge("qa_follow_up_detail", "atomic_read_plan_shadow")
+    workflow.add_edge("tour_qa", "qa_content_plan")
+    workflow.add_edge("qa_follow_up_detail", "qa_content_plan")
+    workflow.add_edge("qa_content_plan", "qa_role_narration_generation")
+    workflow.add_edge("qa_role_narration_generation", "qa_role_narration_validation")
+    workflow.add_edge("qa_role_narration_validation", "atomic_read_plan_shadow")
     workflow.add_edge("direct_route", "route_proposal_shadow")
     workflow.add_edge("route_proposal_shadow", "atomic_read_plan_shadow")
     workflow.add_conditional_edges(
