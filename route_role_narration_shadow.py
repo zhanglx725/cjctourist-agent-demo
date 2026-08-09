@@ -1,4 +1,4 @@
-"""Read-only role-text candidates for route planning and route opening.
+"""Read-only role-text candidates for route and navigation surfaces.
 
 The legacy route and opening messages remain the authoritative public text.
 This module deliberately creates a bounded *candidate* by adding only a
@@ -17,7 +17,9 @@ from presentation_content_plan import PresentationContentPlan, presentation_cont
 
 
 ROUTE_ROLE_TEXT_CANDIDATE_SCHEMA_VERSION = "route_role_text_candidate_v1"
-SCENE_KINDS = frozenset({"route_planning", "route_opening"})
+SCENE_KINDS = frozenset({
+    "route_planning", "route_opening", "navigation", "tour_closing",
+})
 ROLE_MODES = frozenset({"standard", "ancient_scholar", "child", "listen_only"})
 _CANDIDATE_FIELDS = frozenset({"schema_version", "scene_kind", "role_mode", "public_text"})
 _INTERNAL = re.compile(
@@ -26,11 +28,35 @@ _INTERNAL = re.compile(
     re.IGNORECASE,
 )
 _STYLE_PREFIX = {
-    "standard": "",
-    "ancient_scholar": "请随我循既定行程，从容观览。\n\n",
-    "child": "我们按已经安排好的路线，一站一站慢慢看。\n\n",
-    "listen_only": "以下为本次行程安排。\n\n",
+    "route_planning": {
+        "standard": "",
+        "ancient_scholar": "请随我循既定行程，从容观览。\n\n",
+        "child": "我们按已经安排好的路线，一站一站慢慢看。\n\n",
+        "listen_only": "以下为本次行程安排。\n\n",
+    },
+    "route_opening": {
+        "standard": "",
+        "ancient_scholar": "请随我循既定行程，从容观览。\n\n",
+        "child": "我们按已经安排好的路线，一站一站慢慢看。\n\n",
+        "listen_only": "以下为本次行程安排。\n\n",
+    },
+    "navigation": {
+        "standard": "",
+        "ancient_scholar": "前路已明，请随我依照既定路线移步。\n\n",
+        "child": "下一段路线已经安排好了，我们按提示慢慢前往。\n\n",
+        "listen_only": "以下是前往下一站的路线提示。\n\n",
+    },
+    "tour_closing": {
+        "standard": "",
+        "ancient_scholar": "此行所见，且容我为您作一番收束。\n\n",
+        "child": "今天的探索告一段落，我们来看看这次旅程留下了什么。\n\n",
+        "listen_only": "以下是本次游览的结束记录。\n\n",
+    },
 }
+
+
+def _style_prefix(scene_kind: str, role_mode: str) -> str:
+    return _STYLE_PREFIX.get(scene_kind, {}).get(role_mode, "")
 
 
 def _visible_length(value: str) -> int:
@@ -74,7 +100,7 @@ def build_route_role_text_candidate(
         "schema_version": ROUTE_ROLE_TEXT_CANDIDATE_SCHEMA_VERSION,
         "scene_kind": scene_kind,
         "role_mode": role_mode,
-        "public_text": f"{_STYLE_PREFIX.get(role_mode, '')}{legacy_text}",
+        "public_text": f"{_style_prefix(scene_kind, role_mode)}{legacy_text}",
     }
 
 
@@ -127,7 +153,7 @@ def validate_route_role_text_candidate(
         ):
             reasons.append("invalid_candidate_fields")
         candidate_text = candidate_text if isinstance(candidate_text, str) else ""
-    expected_text = f"{_STYLE_PREFIX.get(role_mode, '')}{legacy_text}"
+    expected_text = f"{_style_prefix(scene_kind, role_mode)}{legacy_text}"
     if role_mode not in ROLE_MODES:
         reasons.append("invalid_role_mode")
     if candidate_text != expected_text:
@@ -136,7 +162,17 @@ def validate_route_role_text_candidate(
         reasons.append("internal_field_leak")
     if public_visitor_message_or_fallback(candidate_text) != candidate_text:
         reasons.append("public_message_boundary_rejected")
-    if role_mode == "listen_only" and re.search(r"[?？]|(?:请你|请问|回答|任务|拍照)", candidate_text):
+    # The legacy message remains authoritative and can contain an existing
+    # product follow-up.  listen_only forbids the role layer from *adding* a
+    # question/task; it must not reject an unchanged legacy prompt.
+    added_role_text = (
+        candidate_text.replace(legacy_text, "", 1)
+        if legacy_text and legacy_text in candidate_text
+        else candidate_text
+    )
+    if role_mode == "listen_only" and re.search(
+        r"[?？]|(?:请你|请问|回答|任务|拍照)", added_role_text,
+    ):
         reasons.append("listen_only_interaction_violation")
     within_budget = (
         parsed_plan.budget_seconds > 0

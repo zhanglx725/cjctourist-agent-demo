@@ -3171,7 +3171,10 @@ def _presentation_scene_kind(state: AgentState) -> str | None:
         return "tour_closing"
     if metadata.get("direct_route_plan"):
         return "route_planning"
-    if metadata.get("stop_guidance") or state.get("active_narration_render_audit"):
+    # A render audit can remain in state after the visitor completes a stop.
+    # Only the latest public-message marker identifies the current response as
+    # stop guidance; otherwise a fresh navigation event must take precedence.
+    if metadata.get("stop_guidance"):
         return "stop_guidance"
     opening = state.get("last_tour_opening_action") or {}
     if opening.get("status") == "completed" and not opening.get("continue_to_stop_guidance"):
@@ -3302,7 +3305,7 @@ def _route_role_narration_shadow_update(
     *,
     presentation_plan: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Audit one non-authoritative route/opening role-text candidate.
+    """Audit one non-authoritative public-surface role candidate.
 
     This intentionally has no model invocation, tool call, or operational
     state write.  The candidate can only add a reviewed role lead-in before
@@ -3321,7 +3324,9 @@ def _route_role_narration_shadow_update(
         build_route_role_text_candidate(
             scene_kind=scene_kind, role_mode=role_mode, legacy_text=legacy_text,
         )
-        if scene_kind in {"route_planning", "route_opening"} and legacy_text
+        if scene_kind in {
+            "route_planning", "route_opening", "navigation", "tour_closing",
+        } and legacy_text
         else None
     )
     validation = validate_route_role_text_candidate(
@@ -3348,7 +3353,9 @@ def atomic_read_plan_shadow_node(state: AgentState, config: RunnableConfig) -> d
     if rollout.observes(PRESENTATION_CONTENT_PLAN):
         updates.update(_presentation_content_plan_shadow_update(state, config))
         plan = updates.get("presentation_content_plan")
-        if isinstance(plan, dict) and plan.get("scene_kind") == "route_planning":
+        if isinstance(plan, dict) and plan.get("scene_kind") in {
+            "route_planning", "navigation", "tour_closing",
+        }:
             updates.update(
                 _route_role_narration_shadow_update(
                     state, config, presentation_plan=plan,

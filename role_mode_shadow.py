@@ -14,6 +14,10 @@ from typing import Any, Mapping
 
 ROLE_MODE_SCHEMA_VERSION = "role_mode_shadow_v1"
 ROLE_MODE_IDS = frozenset({"ancient_scholar", "child", "listen_only"})
+ROLE_MODE_SURFACES = (
+    "route_planning_shadow", "route_opening_shadow", "stop_guidance_shadow",
+    "navigation_shadow", "tour_closing_shadow",
+)
 
 _EXPLICIT_ROLE_PHRASES = {
     "ancient_scholar": (
@@ -97,7 +101,7 @@ def _not_requested(reason: str = "no_role_request") -> RoleModeShadowResolution:
         candidate_style_ids=(),
         confidence=0.0,
         source="none",
-        applicability={"surfaces": ["route_planning_shadow", "route_opening_shadow", "stop_guidance_shadow"]},
+        applicability={"surfaces": list(ROLE_MODE_SURFACES)},
         presentation_strategy={},
         reason_codes=(reason,),
     )
@@ -111,7 +115,7 @@ def _clarification(reason: str, candidates: tuple[str, ...] = ()) -> RoleModeSha
         confidence=0.0,
         source="conflict",
         applicability={
-            "surfaces": ["route_planning_shadow", "route_opening_shadow", "stop_guidance_shadow"],
+            "surfaces": list(ROLE_MODE_SURFACES),
             "requires_user_choice": True,
         },
         presentation_strategy={},
@@ -127,7 +131,7 @@ def _selected(style_id: str, *, source: str, confidence: float) -> RoleModeShado
         confidence=confidence,
         source=source,
         applicability={
-            "surfaces": ["route_planning_shadow", "route_opening_shadow", "stop_guidance_shadow"],
+            "surfaces": list(ROLE_MODE_SURFACES),
             "facts": "approved_plan_only",
             "state_mutation": False,
         },

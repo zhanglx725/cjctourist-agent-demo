@@ -10,19 +10,25 @@ from langchain_core.messages import HumanMessage
 from agent_graph import (
     atomic_read_plan_shadow_node,
     direct_route_node,
+    post_visit_title_blessing_node,
     tour_event_node,
     tour_opening_node,
+    visit_summary_node,
 )
+from narration_coverage import empty_narration_coverage
 from presentation_content_plan import build_presentation_content_plan
 from route_role_narration_shadow import (
     build_route_role_text_candidate,
     validate_route_role_text_candidate,
 )
+from tour_state import finish_tour
 
 
 SOURCES = {
     "route_planning": ("visitor_profile", "guidance_policy", "route_selection", "route_stop_catalog"),
     "route_opening": ("route_selection", "route_stop_catalog", "tour_opening_evidence"),
+    "navigation": ("tour_state", "approved_spatial_graph", "route_stop_catalog"),
+    "tour_closing": ("visit_summary", "narration_coverage", "tour_state"),
 }
 
 
@@ -37,7 +43,7 @@ def _plan(scene: str, role: str):
 
 
 class RouteRoleNarrationShadowTests(unittest.TestCase):
-    def test_all_reviewed_roles_generate_valid_candidates_for_both_surfaces(self):
+    def test_all_reviewed_roles_generate_valid_candidates_for_all_surfaces(self):
         legacy = "路线主题已确定。第一站为前院中部。请以现场安排为准。"
         for scene in SOURCES:
             for role in ("standard", "ancient_scholar", "child", "listen_only"):
@@ -149,6 +155,150 @@ class RouteRoleNarrationShadowTests(unittest.TestCase):
         self.assertEqual(record["fact_diff"], [])
         self.assertEqual(record["route_diff"], [])
         self.assertEqual(record["safety_diff"], [])
+
+    def test_navigation_shadow_preserves_legacy_route_and_state(self):
+        route = direct_route_node({
+            "messages": [HumanMessage(content="选择经典模式，30分钟路线")],
+            "visitor_profile": {
+                "available_minutes": 30, "interests": [],
+                "detail_level": "standard", "route_constraint": None,
+            },
+        })
+        tour = deepcopy(route["tour_state"])
+        tour["route_status"] = "touring"
+        tour["current_stop_id"] = tour["route_stop_ids"][0]
+        tour["remaining_stop_ids"] = list(tour["route_stop_ids"])
+        interaction = deepcopy(route["tour_interaction_state"])
+        interaction["pending_stop_id"] = tour["current_stop_id"]
+        interaction["stop_phase"] = "explaining"
+        state = {
+            **route,
+            "messages": [HumanMessage(content="完成本点")],
+            "tour_state": tour,
+            "tour_interaction_state": interaction,
+            "role_mode_shadow": {
+                "status": "selected", "selected_style_id": "ancient_scholar",
+            },
+        }
+        event_update = tour_event_node(state)
+        event_state = {**state, **event_update}
+        before = deepcopy(event_state)
+        shadow_env = {
+            "CJC_READ_ONLY_ROLLOUT_MODE": "shadow",
+            "CJC_READ_ONLY_ROLLOUT_CAPABILITIES": "presentation_content_plan,role_narration",
+        }
+        with patch.dict(os.environ, shadow_env, clear=False):
+            update = atomic_read_plan_shadow_node(
+                event_state, {"configurable": {"thread_id": "navigation-role"}},
+            )
+        plan = update["presentation_content_plan"]
+        record = update["route_role_narration_evaluations"][-1]
+        self.assertEqual(plan["scene_kind"], "navigation")
+        self.assertEqual(record["scene_kind"], "navigation")
+        self.assertEqual(record["role_mode"], "ancient_scholar")
+        self.assertEqual(record["validation_status"], "accepted")
+        self.assertTrue(record["legacy_message_preserved"])
+        self.assertEqual(record["fact_diff"], [])
+        self.assertEqual(record["route_diff"], [])
+        self.assertEqual(record["safety_diff"], [])
+        self.assertEqual(record["state_writes"], [])
+        self.assertEqual(event_state, before)
+
+    def test_navigation_listen_only_adds_no_question_or_task(self):
+        legacy = "沿廊道前往下一站，现场通行请以工作人员指引为准。"
+        candidate = build_route_role_text_candidate(
+            scene_kind="navigation", role_mode="listen_only", legacy_text=legacy,
+        )
+        result = validate_route_role_text_candidate(
+            candidate, plan=_plan("navigation", "listen_only"), legacy_text=legacy,
+        )
+        self.assertEqual(result["validation_status"], "accepted")
+        self.assertNotRegex(candidate["public_text"], r"[?？]|请你|请问|回答|任务|拍照")
+
+    def test_navigation_candidate_cannot_change_path_time_or_safety_text(self):
+        legacy = "向东步行约40秒前往后座，现场通行请以工作人员指引为准。"
+        candidate = build_route_role_text_candidate(
+            scene_kind="navigation", role_mode="child", legacy_text=legacy,
+        )
+        candidate["public_text"] = candidate["public_text"].replace("向东", "向西")
+        result = validate_route_role_text_candidate(
+            candidate, plan=_plan("navigation", "child"), legacy_text=legacy,
+        )
+        self.assertEqual(result["validation_status"], "rejected")
+        self.assertIn("legacy_boundary_or_role_template_mismatch", result["reason_codes"])
+
+    def test_tour_closing_shadow_preserves_award_summary_and_operational_state(self):
+        route = direct_route_node({
+            "messages": [HumanMessage(content="选择经典模式，30分钟路线")],
+            "visitor_profile": {
+                "available_minutes": 30, "interests": ["灰塑"],
+                "detail_level": "standard", "route_constraint": None,
+            },
+        })
+        completed = {
+            **route,
+            "tour_state": finish_tour(route["tour_state"]),
+            "narration_coverage": empty_narration_coverage().to_dict(),
+            "tour_question_log": [],
+            "role_mode_shadow": {
+                "status": "selected", "selected_style_id": "child",
+            },
+        }
+        summarized = {**completed, **visit_summary_node(completed)}
+        closing_state = {
+            **summarized, **post_visit_title_blessing_node(summarized),
+        }
+        before = deepcopy(closing_state)
+        shadow_env = {
+            "CJC_READ_ONLY_ROLLOUT_MODE": "shadow",
+            "CJC_READ_ONLY_ROLLOUT_CAPABILITIES": "presentation_content_plan,role_narration",
+        }
+        with patch.dict(os.environ, shadow_env, clear=False):
+            update = atomic_read_plan_shadow_node(
+                closing_state, {"configurable": {"thread_id": "closing-role"}},
+            )
+        plan = update["presentation_content_plan"]
+        record = update["route_role_narration_evaluations"][-1]
+        self.assertEqual(plan["scene_kind"], "tour_closing")
+        self.assertEqual(record["scene_kind"], "tour_closing")
+        self.assertEqual(record["role_mode"], "child")
+        self.assertEqual(record["validation_status"], "accepted")
+        self.assertTrue(record["legacy_message_preserved"])
+        self.assertEqual(record["fact_diff"], [])
+        self.assertEqual(record["route_diff"], [])
+        self.assertEqual(record["safety_diff"], [])
+        self.assertEqual(record["state_writes"], [])
+        self.assertEqual(closing_state, before)
+        for field in (
+            "tour_state", "visitor_profile", "narration_coverage",
+            "visit_summary", "post_visit_award", "post_visit_nearby_offer",
+        ):
+            self.assertNotIn(field, update)
+
+    def test_tour_closing_listen_only_does_not_reject_legacy_offer_question(self):
+        legacy = (
+            "你的本次游览称号是“百艺巡游者”。\n\n"
+            "请问您是否需要我为您推荐一些周边的美食？"
+        )
+        candidate = build_route_role_text_candidate(
+            scene_kind="tour_closing", role_mode="listen_only", legacy_text=legacy,
+        )
+        result = validate_route_role_text_candidate(
+            candidate, plan=_plan("tour_closing", "listen_only"), legacy_text=legacy,
+        )
+        self.assertEqual(result["validation_status"], "accepted")
+
+    def test_tour_closing_candidate_cannot_change_recorded_counts_or_title(self):
+        legacy = "本次提出了 2 次问题。你的称号是“好奇探索者”。"
+        candidate = build_route_role_text_candidate(
+            scene_kind="tour_closing", role_mode="ancient_scholar", legacy_text=legacy,
+        )
+        candidate["public_text"] = candidate["public_text"].replace("2 次", "9 次")
+        result = validate_route_role_text_candidate(
+            candidate, plan=_plan("tour_closing", "ancient_scholar"), legacy_text=legacy,
+        )
+        self.assertEqual(result["validation_status"], "rejected")
+        self.assertIn("legacy_boundary_or_role_template_mismatch", result["reason_codes"])
 
 
 if __name__ == "__main__":
