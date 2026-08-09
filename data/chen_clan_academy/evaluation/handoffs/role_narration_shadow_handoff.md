@@ -45,7 +45,7 @@
 - 最新五场景角色连续性：25/25 passed
 - 最新 P0/结束态回归：31/31 passed
 - 最新 P0/讲解/导航回归：32/32 passed
-- 最新完整回归：1071/1071 passed
+- 最新完整回归：1072/1072 passed
 - 原有 5 个基线问题已在独立的 baseline cleanup 提交中解决。
 - Trace 元数据：metadata_unavailable（本阶段尚未保存人工 Trace 元数据）。
 
@@ -114,9 +114,32 @@ p0_guidance_navigation_regression: 32/32 passed
 full_regression: 1071/1071 passed
 ```
 
+## LangSmith 人工验收与案例 8 修复
+
+人工案例 1–5 已全部通过：三种角色均贯穿五场景，普通问答后角色可恢复，完成点位后的最新审计正确标记为 `navigation`。案例 6、7、9、10 的总结、画像采集、故障回退与结束事件也通过或基本通过。
+
+案例 9 使用独立进程设置 `CJC_ROLE_NARRATION_TEST_FAILURE=invalid_schema` 后，非法候选被拒绝，`active_takeover=false`、`legacy_message_preserved=true`，游客仍看到完整旧讲解。Studio 截图中 `model_called=false` 与原始审计预期存在差异，但不影响本次 fail-closed 和游客可见回退结论；后续如需核对模型调用统计，应展开同一轮 `role_narration_generation` 记录，避免读取相邻的计划或验证审计。
+
+案例 8 原失败链为：角色冲突落入 `llm_think`，随后月台 `pending_stop_id` 未被正确续接，游客输入“到达”时再次被要求确认点位。本轮修复为：
+
+- 新增 `pending_role_mode_clarification`，把冲突角色请求作为确定性待澄清控制；
+- `route_initial_request` 在画像、LLM/RAG 回退之前优先路由到 `clarification`；
+- 冲突不是角色切换，继续保留上一条已确认 `role_mode_shadow`；
+- 澄清节点不写 TourState、VisitorProfile 或 `tour_interaction_state`；
+- 原 `pending_stop_id=label_moon_platform` 保持不变；
+- 澄清后输入“到达”可确定性进入 `tour_event` 并抵达月台。
+
+自动化验证：
+
+```text
+role_conflict_and_arrival_targeted: 66/66 passed
+p0_semantic_profile_regression: 64/64 passed
+full_regression: 1072/1072 passed
+```
+
 ## 当前未完成
 
-- LangSmith 全流程角色连续性人工验收
+- LangSmith 案例 8 修复后复测
 - Active 接管
 
 ## 下一位负责人任务

@@ -9,11 +9,14 @@ from langchain_core.messages import HumanMessage
 
 from agent_graph import (
     atomic_read_plan_shadow_node,
+    clarification_node,
     direct_route_node,
     narration_content_plan_node,
     narration_validation_node,
     post_visit_title_blessing_node,
     role_narration_generation_node,
+    route_initial_request,
+    semantic_normalization_node,
     stop_guidance_node,
     tour_event_node,
     tour_opening_node,
@@ -200,6 +203,63 @@ class RoleNarrationContinuityTests(unittest.TestCase):
         self.assertIsNone(conflict["selected_style_id"])
         self.assertEqual(conflict["state_writes"], [])
         self.assertEqual(prior["selected_style_id"], "ancient_scholar")
+
+    def test_role_conflict_clarifies_and_preserves_next_stop_for_generic_arrival(self):
+        prior = resolve_role_mode(ROLE_CASES["ancient_scholar"]).to_dict()
+        state = self._route_state(prior)
+
+        arrived_input = {
+            **state,
+            "messages": [HumanMessage(content="我到前院中部了")],
+        }
+        state = self._merge(arrived_input, tour_event_node(arrived_input))
+        completed_input = {
+            **state,
+            "messages": [HumanMessage(content="完成本点")],
+        }
+        state = self._merge(completed_input, tour_event_node(completed_input))
+        pending_stop = state["tour_interaction_state"]["pending_stop_id"]
+        self.assertEqual(pending_stop, "label_moon_platform")
+
+        conflict_input = {
+            **state,
+            "messages": [HumanMessage(content="改成儿童友好和静听模式")],
+        }
+        with patch(
+            "agent_graph._invoke_semantic_model",
+            return_value='{"candidates":[],"ambiguity_reason":"no_candidate"}',
+        ):
+            semantic = semantic_normalization_node(conflict_input)
+        conflict_state = self._merge(conflict_input, semantic)
+        self.assertEqual(route_initial_request(conflict_state), "clarification")
+        self.assertEqual(
+            conflict_state["role_mode_shadow"]["selected_style_id"],
+            "ancient_scholar",
+        )
+        self.assertEqual(
+            conflict_state["pending_role_mode_clarification"]["status"],
+            "clarification",
+        )
+        clarified = clarification_node(conflict_state)
+        self.assertIn("只选择一种", clarified["messages"][0].content)
+        for field in ("tour_state", "tour_interaction_state", "visitor_profile"):
+            self.assertNotIn(field, clarified)
+        state = self._merge(conflict_state, clarified)
+        self.assertEqual(
+            state["tour_interaction_state"]["pending_stop_id"], pending_stop,
+        )
+
+        generic_arrival_input = {
+            **state,
+            "messages": [HumanMessage(content="到达")],
+        }
+        semantic = semantic_normalization_node(generic_arrival_input)
+        arrival_state = self._merge(generic_arrival_input, semantic)
+        self.assertEqual(route_initial_request(arrival_state), "tour_event")
+        arrival = tour_event_node(arrival_state)
+        self.assertTrue(arrival["last_tour_event"]["ok"])
+        self.assertEqual(arrival["last_tour_event"]["event"], "arrive_at_stop")
+        self.assertEqual(arrival["tour_state"]["current_stop_id"], pending_stop)
 
 
 if __name__ == "__main__":

@@ -280,6 +280,7 @@ class AgentState(TypedDict, total=False):
     # it never becomes VisitorProfile and never controls the legacy output.
     role_mode_shadow: dict[str, Any] | None
     role_mode_shadow_evaluations: list[dict[str, Any]]
+    pending_role_mode_clarification: dict[str, Any] | None
     role_narration_candidate: dict[str, Any] | None
     narration_validation: dict[str, Any] | None
     active_role_narration_audit: dict[str, Any] | None
@@ -421,13 +422,29 @@ def _latest_human_text(state: AgentState) -> str:
 
 def _role_mode_shadow_update(state: AgentState, user_text: str) -> dict[str, Any]:
     """Record one bounded role selection without changing the old chain."""
+    prior = state.get("role_mode_shadow")
     resolution = resolve_role_mode(
         user_text,
         state.get("visitor_profile"),
-        state.get("role_mode_shadow"),
+        prior,
     ).to_dict()
+    prior_selected = bool(
+        isinstance(prior, dict)
+        and prior.get("status") == "selected"
+        and prior.get("selected_style_id") in ROLE_MODE_IDS
+    )
+    active_resolution = (
+        prior
+        if resolution.get("status") == "clarification" and prior_selected
+        else resolution
+    )
     return {
-        "role_mode_shadow": resolution,
+        # A conflicting turn is an unresolved proposal, not a role change.
+        # Preserve the last accepted role until the visitor selects one role.
+        "role_mode_shadow": active_resolution,
+        "pending_role_mode_clarification": (
+            resolution if resolution.get("status") == "clarification" else None
+        ),
         "role_mode_shadow_evaluations": [
             *state.get("role_mode_shadow_evaluations", []), resolution,
         ][-20:],
@@ -2934,17 +2951,34 @@ def clarification_node(state: AgentState) -> dict[str, Any]:
     decision = classify_tour_intent(
         _effective_control_text(state), state.get("tour_state"), state.get("tour_interaction_state")
     )
+    role_clarification = state.get("pending_role_mode_clarification") or {}
+    role_reason = role_clarification.get("reason_codes", [None])[0]
+    role_message = {
+        "conflicting_role_request": (
+            "您同时选择了多种讲解角色。请只选择一种，例如“儿童友好”或“静听模式”。"
+        ),
+        "conflicting_profile_role": (
+            "当前讲解偏好包含相互冲突的角色设置，请明确保留一种讲解角色。"
+        ),
+        "unsupported_role_request": (
+            "您选择的讲解角色目前尚未通过审核，请改选已有的讲解风格。"
+        ),
+    }.get(role_reason)
     presentation = present_clarification(
-        decision.clarification_message or "请换一种更明确的说法。",
+        role_message or decision.clarification_message or "请换一种更明确的说法。",
         state.get("tour_interaction_state"),
     )
     return {
         "messages": [AIMessage(content=presentation["message"])],
         "last_tour_intent": decision.to_dict(),
         "tour_presentation": presentation,
+        "pending_role_mode_clarification": None,
         "qa_context": clear_qa_context(state.get("qa_context")),
         "pending_ornament_clarification": None,
-        "performance_metrics": _append_metric(state, "clarification", 0.0, reason_code=decision.reason_code),
+        "performance_metrics": _append_metric(
+            state, "clarification", 0.0,
+            reason_code=role_reason or decision.reason_code,
+        ),
     }
 
 
@@ -3911,6 +3945,11 @@ def route_initial_request(state: AgentState) -> str:
     # venue fact.  Keep it out of RAG in both pre-tour and active-tour modes.
     if is_identity_document_civil_service_request(raw_text):
         return "tour_qa"
+    # Role conflicts are deterministic, non-mutating controls.  They must be
+    # clarified before onboarding/profile/LLM fallbacks, while the previously
+    # accepted role and the current navigation target remain untouched.
+    if (state.get("pending_role_mode_clarification") or {}).get("status") == "clarification":
+        return "clarification"
     onboarding_status = (state.get("visitor_welcome_program") or {}).get("status")
     onboarding_profile_control = parse_extended_profile_control(raw_text)
     if (
