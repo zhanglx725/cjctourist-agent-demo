@@ -10,15 +10,16 @@ from typing import Any
 from controlled_knowledge_query import public_visitor_message_or_fallback
 from narration_content_plan import NarrationContentPlan
 from narration_style_policy import StyleBrief
-from role_narration_generation import RoleNarrationCandidate
+from role_narration_generation import (
+    UNAPPROVED_CONNECTOR_FACT_TRIGGER,
+    RoleNarrationCandidate,
+    role_connector_text,
+)
 
 
 _INTERNAL = re.compile(
     r"(?:https?://|file://|[A-Za-z]:\\|source[_ ]?ids?|node[_ ]?id|raw[_ ]?chunk|"
     r"rag_tool|llm_think|stop_guidance|narration_content_plan)", re.IGNORECASE
-)
-_UNAPPROVED_FACT_TRIGGER = re.compile(
-    r"(?:\d{3,4}年|公元|朝代|作者|创作者|传说|典故|寓意|象征|第一|唯一|最[具有佳高大]|官方认证|国家级)"
 )
 _DANGEROUS = re.compile(r"(?:触摸|攀爬|攀坐|跨越护栏|堵住通道|必须回答|强制互动)")
 
@@ -45,13 +46,6 @@ class NarrationValidationResult:
         }
 
 
-def _connector_text(public_text: str, plan: NarrationContentPlan) -> str:
-    remaining = public_text
-    for fact in sorted(plan.facts, key=lambda item: len(item.statement), reverse=True):
-        remaining = remaining.replace(fact.statement, "", 1)
-    return remaining
-
-
 def validate_role_narration(
     candidate: RoleNarrationCandidate,
     plan: NarrationContentPlan,
@@ -70,12 +64,12 @@ def validate_role_narration(
     missing_statements = [fact.fact_id for fact in plan.facts if fact.required and fact.statement not in candidate.public_text]
     if missing_statements:
         reasons.append("approved_statement_not_preserved")
-    connector = _connector_text(candidate.public_text, plan)
+    connector = role_connector_text(candidate.public_text, plan)
     if len(connector) > max(120, len(plan.facts) * 60):
         reasons.append("unbounded_role_connectors")
     # Triggers already present in an approved statement are harmless. Only
     # inspect model-added connective prose for new factual assertions.
-    if _UNAPPROVED_FACT_TRIGGER.search(connector):
+    if UNAPPROVED_CONNECTOR_FACT_TRIGGER.search(connector):
         reasons.append("unapproved_fact_trigger")
     if _INTERNAL.search(candidate.public_text):
         reasons.append("internal_field_leak")

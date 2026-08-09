@@ -193,6 +193,56 @@ class RoleNarrationGenerationTests(unittest.TestCase):
         self.assertEqual(result.validation_status, "rejected")
         self.assertIn("unapproved_fact_trigger", result.reason_codes)
 
+    def test_approved_story_words_inside_immutable_fact_are_accepted(self):
+        plan = NarrationContentPlan(
+            stop_id="front", style_id="ancient_scholar", language="zh",
+            budget_seconds=60,
+            facts=(NarrationFact(
+                "ornament:orn_005", "object_detail",
+                "独角狮造型来自审核传说，寓意辟邪保平安。",
+            ),),
+            must_include=(), already_covered=(), must_not_claim=(),
+            interaction_allowed=True,
+        )
+        brief = compile_style_brief(plan.style_id)
+        candidate = generate_role_narration(
+            plan, brief,
+            lambda _: self.response(
+                plan.style_id, "诸位且看，[[FACT_000]]", ["ornament:orn_005"],
+            ),
+        )
+        result = validate_role_narration(candidate, plan, brief)
+        self.assertEqual(result.validation_status, "accepted")
+        self.assertTrue(result.same_fact_boundary)
+
+    def test_factual_ancient_connector_gets_one_bounded_repair(self):
+        plan = NarrationContentPlan(
+            stop_id="front", style_id="ancient_scholar", language="zh",
+            budget_seconds=60,
+            facts=(NarrationFact(
+                "ornament:orn_005", "object_detail",
+                "独角狮造型来自审核传说，寓意辟邪保平安。",
+            ),),
+            must_include=(), already_covered=(), must_not_claim=(),
+            interaction_allowed=True,
+        )
+        outputs = iter([
+            self.response(
+                plan.style_id,
+                "另有传说称它象征太平。[[FACT_000]]",
+                ["ornament:orn_005"],
+            ),
+            self.response(
+                plan.style_id, "诸位且看，[[FACT_000]]", ["ornament:orn_005"],
+            ),
+        ])
+        brief = compile_style_brief(plan.style_id)
+        candidate = generate_role_narration(plan, brief, lambda _: next(outputs))
+        result = validate_role_narration(candidate, plan, brief)
+        self.assertEqual(result.validation_status, "accepted")
+        self.assertTrue(result.same_fact_boundary)
+        self.assertNotIn("另有传说", candidate.public_text)
+
     def test_unapproved_fact_id_and_internal_fields_are_rejected(self):
         plan = self.plan()
         brief = compile_style_brief(plan.style_id)

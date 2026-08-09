@@ -32,6 +32,33 @@ _SELF_CHECK_FIELDS = frozenset({
     "added_new_facts", "role_consistent", "within_budget",
 })
 _FACT_TOKEN = re.compile(r"\[\[FACT_\d{3}\]\]")
+UNAPPROVED_CONNECTOR_FACT_TRIGGER = re.compile(
+    r"(?:\d{3,4}年|公元|朝代|作者|创作者|传说|典故|寓意|象征|第一|唯一|"
+    r"最[具有佳高大]|官方认证|国家级)"
+)
+
+
+def role_connector_text(
+    public_text: str,
+    plan: NarrationContentPlan,
+) -> str:
+    """Return model prose outside the one immutable copy of each fact."""
+    remaining = public_text
+    for fact in sorted(plan.facts, key=lambda item: len(item.statement), reverse=True):
+        remaining = remaining.replace(fact.statement, "", 1)
+    return remaining
+
+
+def connector_has_unapproved_fact(
+    candidate: "RoleNarrationCandidate",
+    plan: NarrationContentPlan,
+) -> bool:
+    return bool(
+        candidate.generation_status == "generated"
+        and UNAPPROVED_CONNECTOR_FACT_TRIGGER.search(
+            role_connector_text(candidate.public_text, plan)
+        )
+    )
 
 
 def _plan_output_limits(plan: NarrationContentPlan) -> tuple[int, int]:
@@ -300,14 +327,22 @@ def generate_role_narration(
         _decode(raw), expected_style_id=plan.style_id, latency_ms=latency,
     )
     candidate = _hydrate_fact_tokens(candidate, plan)
-    if candidate.generation_status == "generated":
+    connector_fact_violation = connector_has_unapproved_fact(candidate, plan)
+    if candidate.generation_status == "generated" and not connector_fact_violation:
         return candidate
-    # One bounded structural repair is allowed for schema or immutable fact
-    # placeholders. The same facts and StyleBrief remain authoritative; the
-    # repair call receives no state, tools or RAG.
+    # One bounded repair is allowed for structural errors or factual connector
+    # prose. Facts and StyleBrief remain authoritative; the repair receives no
+    # state, tools or RAG and validation remains fail-closed.
+    repair_instruction = (
+        "事实 token 之外的连接语新增或改写了事实。请让所有事实内容只通过原样的 "
+        "FACT token 表达；连接语只能是简短称呼、过渡或收束，不得复述、概括或推断事实。"
+        if connector_fact_violation
+        else ""
+    )
     repair_prompt = (
         prompt
-        + "\n上一输出未通过 JSON Schema 或事实占位符约束。请重新输出且只输出规定的 JSON 对象。"
+        + "\n" + repair_instruction
+        + "上一输出未通过 JSON Schema、事实占位符或连接语事实边界约束。请重新输出且只输出规定的 JSON 对象。"
         + "不得解释错误，不得增加字段；required token 必须各出现一次。上一输出："
         + str(raw)[:500]
     )
