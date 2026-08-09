@@ -520,3 +520,12 @@ P3-02 已核实复用现有的 `GuidancePolicy → NarrationStylePolicy → narr
 角色预算失败注入只允许修改非权威 `NarrationContentPlan` 副本，不得改 E5 审核渲染、路线、TourState、VisitorProfile 或 Coverage。拒绝候选在 Shadow 中应明确记录 `fallback_used=true`，因为游客实际继续看到旧链正文；这不表示发生 Active 接管。
 
 角色自然语言识别仍是确定性、闭合目录匹配：“古风一点”和“适合孩子/小朋友”等审核表达只映射到既有 style ID。多个角色必须按 `style_roles_v2.yaml` 顺序形成 clarification；上一轮已选角色只能作为只读 Shadow 上下文继承，不得写入 VisitorProfile。当前定向 73/73、P0 3/3、完整回归 1095/1095 通过，Active 继续关闭。
+
+# 比赛版角色 Shadow 抽样协作状态（2026-08-10）
+
+18 风格不再执行完整人工矩阵。自动化覆盖通过后，只以七个高风险风格的
+审核点位样本作为比赛门槛；当前 `7/7 passed_by_operator`，完整回归
+`1101/1101`。未保存 Thread/Trace 的样本必须继续标记
+`trace_metadata: unavailable`。候选首次拒绝、随后新线程通过时，两次结果都应
+记录；不得把安全 fallback 隐藏成首次成功。该归档只授权进入角色问答
+Shadow，不授权任何 Active。

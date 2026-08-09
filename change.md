@@ -815,3 +815,25 @@ p0_matrix: 3/3 passed
 ~~~
 
 当前自动化与预算质量门已经通过；18 风格最终人工归档完成前仍不得开启 `read_only_active`。
+
+## 17. 比赛版七风格 Shadow 风险抽样（2026-08-10）
+
+```text
+automated_18_style_validation: passed
+manual_risk_sample: 7/7 passed
+manual_full_18_style_matrix: waived_due_to_schedule
+risk_sample_related_targeted_validation: 65/65 passed
+p0_matrix: 3/3 passed
+full_regression: 1101/1101 passed
+active_takeover: disabled
+```
+
+人工抽样覆盖 `child`、`professional`、`ancient_scholar`、`listen_only`、
+`cantonese_storyteller`、`exploration_game` 与 `photo_guide`。最终样本均为
+`accepted`、事实边界一致、公开输出安全、角色一致、预算内且零状态写入。
+专业与古风各有一次候选事实边界拒绝，均正确保留旧正文；古风连接语事实化
+已通过一次受限重生成修复，未放宽 `unapproved_fact_trigger`。详细记录见
+`role_shadow_risk_sample_handoff.md`。
+
+比赛最小闭环下一步只进入 `tour_qa` 与 `qa_follow_up_detail` 的角色问答
+Shadow；点位讲解 Active 和问答 Active 仍未授权。

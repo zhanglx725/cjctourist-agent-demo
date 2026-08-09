@@ -8,10 +8,19 @@ listen_only_manual: passed_by_operator
 role_mode_and_continuity: 16/16 passed
 role_targeted_validation: 73/73 passed
 p0_matrix: 3/3 passed
-full_regression: 1095/1095 passed
-18_style_shadow_baseline: pending
+full_regression: 1101/1101 passed
+automated_18_style_validation: passed
+manual_risk_sample: 7/7 passed
+manual_full_18_style_matrix: waived_due_to_schedule
 active_takeover: disabled
 ```
+
+Competition risk sampling is now archived at commit baseline `8d09f53`.
+The final seven reviewed-stop samples all passed; the latest related targeted validation is
+`65/65`, P0 is `3/3`, and full regression is `1101/1101`. One professional and
+one ancient-scholar candidate also demonstrated safe fallback before fresh
+Thread retries passed. The next scoped production stage is role-aware QA
+Shadow only; Active remains disabled.
 
 ## Baseline regression cleanup completed (2026-08-09)
 
