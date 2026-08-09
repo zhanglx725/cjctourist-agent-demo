@@ -216,3 +216,8 @@ def compile_style_brief(style_id: str) -> StyleBrief:
         prohibited_patterns=tuple(style.prohibited_patterns),
         few_shot_examples=tuple(dict(item) for item in style.few_shot_examples),
     )
+
+
+def approved_style_ids() -> tuple[str, ...]:
+    """Return the complete reviewed catalog in stable authoring order."""
+    return tuple(_load_all())
