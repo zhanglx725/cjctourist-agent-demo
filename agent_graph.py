@@ -3428,7 +3428,7 @@ def _presentation_content_plan_shadow_update(
     resolved_scene_kind = scene_kind or _presentation_scene_kind(state)
     role_record = state.get("role_mode_shadow") or {}
     selected_role = role_record.get("selected_style_id")
-    role_mode = selected_role if selected_role in {"ancient_scholar", "child", "listen_only"} else "standard"
+    role_mode = selected_role if selected_role in ROLE_MODE_IDS else "standard"
     profile = state.get("visitor_profile") or {}
     detail_level = profile.get("detail_level", "standard")
     sources, evidence_available = (

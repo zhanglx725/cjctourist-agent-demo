@@ -8,7 +8,8 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from agent_graph import role_narration_generation_node, semantic_normalization_node
 from narration_content_plan import NarrationContentPlan, NarrationFact
-from narration_style_policy import compile_style_brief
+from narration_style_policy import approved_style_ids, compile_style_brief
+from profile_dialogue import EXPLICIT_STYLE_PHRASES, STYLE_ALIASES
 from narration_validation import validate_role_narration
 from role_mode_shadow import resolve_role_mode
 from role_narration_generation import (
@@ -18,7 +19,7 @@ from role_narration_generation import (
 
 
 class RoleModeShadowTests(unittest.TestCase):
-    def test_three_explicit_requests_select_only_reviewed_roles(self):
+    def test_explicit_requests_select_reviewed_roles(self):
         cases = {
             "我喜欢古风一点的讲解，帮我规划路线。": "ancient_scholar",
             "请用适合孩子理解的方式讲灰塑。": "child",
@@ -33,6 +34,16 @@ class RoleModeShadowTests(unittest.TestCase):
                 self.assertEqual(result.state_writes, ())
                 self.assertFalse(result.applicability["state_mutation"])
 
+    def test_all_eighteen_reviewed_styles_have_explicit_role_audit(self):
+        for style_id in approved_style_ids():
+            with self.subTest(style_id=style_id):
+                phrases = STYLE_ALIASES.get(style_id) or EXPLICIT_STYLE_PHRASES[style_id]
+                text = f"选择{phrases[0]}风格"
+                result = resolve_role_mode(text)
+                self.assertEqual(result.status, "selected")
+                self.assertEqual(result.selected_style_id, style_id)
+                self.assertEqual(result.source, "explicit_request")
+
     def test_profile_signal_is_read_only_and_does_not_infer_age(self):
         child = resolve_role_mode("", {"audience_mode": "child_friendly"})
         self.assertEqual(child.selected_style_id, "child")
@@ -45,6 +56,9 @@ class RoleModeShadowTests(unittest.TestCase):
             resolve_role_mode("", {"explanation_style": ["child"]}).status,
             "not_requested",
         )
+        neutral = resolve_role_mode("", {"explanation_style": "neutral"})
+        self.assertEqual(neutral.selected_style_id, "neutral")
+        self.assertEqual(neutral.source, "visitor_profile")
 
     def test_conflicting_and_unknown_roles_fail_closed(self):
         conflicting = resolve_role_mode("请用古风书生又适合孩子的方式讲解")
@@ -52,7 +66,7 @@ class RoleModeShadowTests(unittest.TestCase):
         self.assertEqual(conflicting.reason_codes, ("conflicting_role_request",))
         self.assertEqual(set(conflicting.candidate_style_ids), {"ancient_scholar", "child"})
 
-        unknown = resolve_role_mode("请用霸道总裁模式讲解")
+        unknown = resolve_role_mode("请用抽象讲解模式讲解")
         self.assertEqual(unknown.status, "clarification")
         self.assertEqual(unknown.reason_codes, ("unsupported_role_request",))
         self.assertEqual(unknown.candidate_style_ids, ())

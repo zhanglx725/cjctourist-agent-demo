@@ -65,6 +65,16 @@ def role_narration_prompt(plan: NarrationContentPlan, brief: StyleBrief) -> str:
     # Keep every reviewed fact but omit planning fields that cannot affect the
     # expression candidate. This reduces prompt echo without exposing route,
     # state, retrieval, or coverage data and without weakening validation.
+    required_facts = [fact for fact in plan.facts if fact.required]
+    optional_facts = [fact for fact in plan.facts if not fact.required]
+    fact_character_count = sum(
+        len(re.sub(r"\s+", "", fact.statement)) for fact in required_facts
+    )
+    max_public_characters = max(0, plan.budget_seconds * 4)
+    max_role_connector_characters = max(
+        0,
+        min(120, len(plan.facts) * 60, max_public_characters - fact_character_count),
+    )
     payload = {
         "style_brief": brief.to_dict(),
         "content_plan": {
@@ -82,15 +92,20 @@ def role_narration_prompt(plan: NarrationContentPlan, brief: StyleBrief) -> str:
             "must_include": list(plan.must_include),
             "must_not_claim": list(plan.must_not_claim),
             "interaction_allowed": plan.interaction_allowed,
+            "max_public_text_characters": max_public_characters,
+            "max_role_connector_characters": max_role_connector_characters,
         },
     }
-    first_fact = plan.facts[0] if plan.facts else None
     shape_example = {
         "schema_version": CANDIDATE_SCHEMA_VERSION,
         "style_id": plan.style_id,
-        "public_text": "[[FACT_000]]" if first_fact else "",
-        "used_fact_ids": [first_fact.fact_id] if first_fact else [],
-        "omitted_fact_ids": [fact.fact_id for fact in plan.facts[1:]],
+        "public_text": "".join(
+            f"[[FACT_{index:03d}]]"
+            for index, fact in enumerate(plan.facts)
+            if fact.required
+        ),
+        "used_fact_ids": [fact.fact_id for fact in required_facts],
+        "omitted_fact_ids": [fact.fact_id for fact in optional_facts],
         "self_check": {
             "added_new_facts": False,
             "role_consistent": True,
@@ -104,6 +119,9 @@ content_plan.facts[*].statement 是不可编辑的审核原文，仅用于理解
 之前、两个 token 之间或全部 token 之后，不得修改或拆分 token。所有 required=true 的
 fact_id 必须列入 used_fact_ids，且不得列入
 omitted_fact_ids。只允许省略 required=false 的事实。
+public_text 去除事实 token 后的全部角色连接文字，总字符数不得超过
+content_plan.max_role_connector_characters；public_text 恢复事实后的总字符数不得超过
+content_plan.max_public_text_characters。若连接预算为 0，只输出 required token，不加任何文字。
 你可以调整完整事实块的顺序，并添加简短的角色化称呼、开场、连接和收束，但不得新增人物、年代、
 故事、寓意、排名、认证、现场对象或路线信息。不得回答计划之外的问题。
 不得输出文件路径、URL、source ID、节点 ID、工具名称或任何内部字段。
@@ -219,6 +237,12 @@ def generate_role_narration(
 ) -> RoleNarrationCandidate:
     if plan.status != "ready" or brief.style_id != plan.style_id:
         return _failed(plan.style_id, "plan_or_style_not_ready")
+    required_fact_characters = sum(
+        len(re.sub(r"\s+", "", fact.statement))
+        for fact in plan.facts if fact.required
+    )
+    if plan.budget_seconds <= 0 or required_fact_characters > plan.budget_seconds * 4:
+        return _failed(plan.style_id, "fact_budget_infeasible")
     started = time.perf_counter()
     prompt = role_narration_prompt(plan, brief)
     try:

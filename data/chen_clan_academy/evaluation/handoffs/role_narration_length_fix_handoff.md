@@ -73,3 +73,44 @@ state_writes = []
 ```
 
 仅当该冒烟测试稳定通过后，恢复 18 种风格批量验收。
+
+## 第二轮质量门修复
+
+首次 Studio 复测确认长度截断已解除，但暴露出三个后续阻断：
+
+```text
+role_mode_status = not_requested
+same_fact_boundary = false
+role_consistent = false
+within_budget = false
+```
+
+根因与修复：
+
+1. `role_mode_shadow` 仍停留在早期三角色范围。现已统一使用审核风格目录与
+   `profile_dialogue` 的18种受控别名，`neutral` 及其余审核风格均可产生
+   `selected` 审计；未知风格继续澄清。
+2. 原 JSON 示例只使用第一条 fact，并把剩余 facts 标为 omitted，与 required
+   契约冲突。示例现使用所有 required fact IDs 和所有 required tokens，仅允许
+   optional facts 进入 omitted。
+3. 提示新增确定性 `max_public_text_characters` 和
+   `max_role_connector_characters`。连接语预算取事实恢复后的剩余字符与既有连接
+   上限的较小值；若 required facts 本身已超过内容预算，则在调用模型前以
+   `fact_budget_infeasible` 失败关闭，不生成注定超预算的候选。
+
+真实 DeepSeek 两事实调用验证结果：
+
+```text
+finish_reason = stop
+reasoning_length = 0
+exact_schema = true
+style_id = neutral
+FACT_000 count = 1
+FACT_001 count = 1
+unknown token count = 0
+used_fact_ids = fact:a,fact:b
+omitted_count = 0
+```
+
+批量测试仍保持暂停，必须先在全新 Studio Thread 中重跑同一中性清晰单点，
+并确认 `validation_status=accepted` 后才能恢复。

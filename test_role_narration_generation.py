@@ -77,6 +77,37 @@ class RoleNarrationGenerationTests(unittest.TestCase):
         self.assertNotIn('"stop_id":', prompt)
         self.assertNotIn('"already_covered":', prompt)
 
+    def test_prompt_example_uses_every_required_fact_and_connector_budget(self):
+        plan = NarrationContentPlan(
+            stop_id="front", style_id="neutral", language="zh", budget_seconds=60,
+            facts=(
+                NarrationFact("fact:a", "craft_background", "审核事实甲。"),
+                NarrationFact("fact:b", "object_detail", "审核事实乙。"),
+            ),
+            must_include=(), already_covered=(), must_not_claim=(),
+            interaction_allowed=True,
+        )
+        prompt = role_narration_prompt(plan, compile_style_brief("neutral"))
+        self.assertIn('"public_text":"[[FACT_000]][[FACT_001]]"', prompt)
+        self.assertIn('"used_fact_ids":["fact:a","fact:b"]', prompt)
+        self.assertIn('"omitted_fact_ids":[]', prompt)
+        self.assertIn('"max_role_connector_characters":', prompt)
+
+    def test_infeasible_required_fact_budget_fails_before_model_call(self):
+        plan = NarrationContentPlan(
+            stop_id="front", style_id="neutral", language="zh", budget_seconds=1,
+            facts=(NarrationFact("fact:a", "craft_background", "这是一条明显超过四个字的审核事实。"),),
+            must_include=(), already_covered=(), must_not_claim=(),
+            interaction_allowed=True,
+        )
+        calls = []
+        value = generate_role_narration(
+            plan, compile_style_brief("neutral"), lambda prompt: calls.append(prompt),
+        )
+        self.assertEqual(value.reason_code, "fact_budget_infeasible")
+        self.assertFalse(value.model_called)
+        self.assertEqual(calls, [])
+
     def test_new_story_or_date_is_rejected_even_if_self_check_claims_safe(self):
         plan = self.plan()
         brief = compile_style_brief(plan.style_id)

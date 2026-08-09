@@ -5,12 +5,14 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any, Iterable, Mapping
 
+from narration_style_policy import approved_style_ids
+
 
 PRESENTATION_CONTENT_PLAN_SCHEMA_VERSION = "presentation_content_plan_v1"
 SCENE_KINDS = frozenset(
     {"route_planning", "route_opening", "stop_guidance", "navigation", "tour_closing"}
 )
-ROLE_MODE_IDS = frozenset({"standard", "ancient_scholar", "child", "listen_only"})
+ROLE_MODE_IDS = frozenset({"standard", *approved_style_ids()})
 DETAIL_LEVELS = frozenset({"short", "standard", "deep"})
 FALLBACK_MODES = frozenset({"legacy_chain"})
 

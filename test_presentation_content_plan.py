@@ -21,6 +21,7 @@ from presentation_content_plan import (
     build_presentation_content_plan,
     presentation_content_plan_from_dict,
 )
+from narration_style_policy import approved_style_ids
 
 
 SOURCES = {
@@ -56,7 +57,7 @@ class PresentationContentPlanTests(unittest.TestCase):
                 self.assertEqual(plan.state_writes, ())
 
     def test_all_reviewed_roles_are_plan_valid(self):
-        for role in ("ancient_scholar", "child", "listen_only"):
+        for role in approved_style_ids():
             with self.subTest(role=role):
                 plan = build_presentation_content_plan(
                     scene_kind="stop_guidance", role_mode=role, detail_level="standard",

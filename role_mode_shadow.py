@@ -1,9 +1,9 @@
 """Deterministic, read-only role-mode selection for narration Shadow.
 
-This module is deliberately narrower than the semantic router.  It recognizes
-only the three roles that are being evaluated in this phase and returns an
-audit record.  It never edits ``VisitorProfile`` and never produces route,
-fact, evidence, or visitor-message data.
+This module is deliberately narrower than the semantic router. It recognizes
+only the approved narration-style catalog and returns an audit record. It
+never edits ``VisitorProfile`` and never produces route, fact, evidence, or
+visitor-message data.
 """
 
 from __future__ import annotations
@@ -11,33 +11,30 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from narration_style_policy import approved_style_ids
+from profile_dialogue import EXPLICIT_STYLE_PHRASES, STYLE_ALIASES
+
 
 ROLE_MODE_SCHEMA_VERSION = "role_mode_shadow_v1"
-ROLE_MODE_IDS = frozenset({"ancient_scholar", "child", "listen_only"})
+ROLE_MODE_IDS = frozenset(approved_style_ids())
 ROLE_MODE_SURFACES = (
     "route_planning_shadow", "route_opening_shadow", "stop_guidance_shadow",
     "navigation_shadow", "tour_closing_shadow",
 )
 
 _EXPLICIT_ROLE_PHRASES = {
-    "ancient_scholar": (
-        "古风书生", "古风一点", "古风讲解", "古风风格", "书生风格", "书生式",
-    ),
-    "child": (
-        "儿童友好", "儿童友好模式", "儿童模式", "适合孩子理解", "适合孩子",
-        "孩子能听懂", "小朋友能听懂",
-    ),
-    "listen_only": (
-        "静听", "静听模式", "静听讲解", "安静听讲", "只想安静听讲", "不要频繁提问",
-        "少提问", "不要互动", "不需要互动",
-    ),
+    style_id: tuple(dict.fromkeys((
+        *STYLE_ALIASES.get(style_id, ()),
+        *EXPLICIT_STYLE_PHRASES.get(style_id, ()),
+    )))
+    for style_id in ROLE_MODE_IDS
 }
 
 # These are intentionally not treated as aliases for a supported role.  A
 # request for an unreviewed persona must remain a clarification, not silently
 # fall back to one of the three reviewed roles.
 _UNSUPPORTED_ROLE_MARKERS = (
-    "霸道总裁", "总裁模式", "抽象讲解", "脱口秀模式", "诗人模式", "戏剧模式",
+    "抽象讲解", "脱口秀模式", "诗人模式", "戏剧模式",
     "情绪陪伴模式", "机器人模式",
 )
 
@@ -60,6 +57,13 @@ _PRESENTATION_STRATEGIES = {
         "interaction": "no_proactive_questions_or_tasks",
         "fact_boundary": "approved_facts_and_required_safety_only",
     },
+}
+
+_DEFAULT_PRESENTATION_STRATEGY = {
+    "organization": "preserve_approved_fact_order",
+    "sentence_strategy": "reviewed_style_brief_only",
+    "interaction": "preserve_reviewed_interaction_policy",
+    "fact_boundary": "approved_facts_and_safety_unchanged",
 }
 
 
@@ -136,7 +140,9 @@ def _selected(style_id: str, *, source: str, confidence: float) -> RoleModeShado
             "facts": "approved_plan_only",
             "state_mutation": False,
         },
-        presentation_strategy=dict(_PRESENTATION_STRATEGIES[style_id]),
+        presentation_strategy=dict(
+            _PRESENTATION_STRATEGIES.get(style_id, _DEFAULT_PRESENTATION_STRATEGY)
+        ),
     )
 
 
