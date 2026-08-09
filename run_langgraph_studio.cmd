@@ -20,10 +20,15 @@ set "CJC_READ_ONLY_ROLLOUT_CAPABILITIES=role_narration,presentation_content_plan
 
 rem Use a fresh local port so stale 2034 processes cannot shadow this Graph.
 for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":%STUDIO_PORT%" ^| findstr "LISTENING"') do (
-    echo Port %STUDIO_PORT% is already occupied by PID %%P.
-    echo Close the process using %STUDIO_PORT%, then run this file again.
-    pause
-    exit /b 1
+    echo Stopping previous LangGraph server on port %STUDIO_PORT%, PID %%P...
+    taskkill /PID %%P /T /F >nul 2>&1
+)
+
+:wait_port_release
+netstat -ano | findstr ":%STUDIO_PORT%" | findstr "LISTENING" >nul
+if not errorlevel 1 (
+    timeout /t 1 /nobreak >nul
+    goto wait_port_release
 )
 
 echo Starting LangGraph local server...
