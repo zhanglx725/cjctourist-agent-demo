@@ -1,0 +1,33 @@
+.\.venv\Scripts\python.exe : test_active_route_validation_failure_falls_back_to_legacy (test_competition_role_active.Co
+mpetitionRoleActiveTests.test_active_route_validation_failure_falls_back_to_legacy) ... ok
+所在位置 行:2 字符: 53
++ ... NG='utf-8'; .\.venv\Scripts\python.exe -m unittest -v test_competitio ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_active_rou..._legacy) ... ok:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+test_ancient_scholar_route_planning_and_opening_take_over (test_competition_role_active.CompetitionRoleActiveTests.test
+_ancient_scholar_route_planning_and_opening_take_over) ... ok
+test_conflicting_or_unknown_role_never_becomes_neutral_active (test_competition_role_active.CompetitionRoleActiveTests.
+test_conflicting_or_unknown_role_never_becomes_neutral_active) ... ok
+test_fixed_pair_allowlist_rejects_unapproved_combinations (test_competition_role_active.CompetitionRoleActiveTests.test
+_fixed_pair_allowlist_rejects_unapproved_combinations) ... ok
+test_kill_switch_keeps_legacy_message (test_competition_role_active.CompetitionRoleActiveTests.test_kill_switch_keeps_l
+egacy_message) ... ok
+test_policy_defaults_off_and_requires_both_rollout_layers (test_competition_role_active.CompetitionRoleActiveTests.test
+_policy_defaults_off_and_requires_both_rollout_layers) ... ok
+test_route_active_audit_does_not_mutate_authoritative_state_or_other_thread (test_competition_role_active.CompetitionRo
+leActiveTests.test_route_active_audit_does_not_mutate_authoritative_state_or_other_thread) ... ok
+test_unapproved_scene_or_style_stays_shadow_and_preserves_message (test_competition_role_active.CompetitionRoleActiveTe
+sts.test_unapproved_scene_or_style_stays_shadow_and_preserves_message) ... ok
+test_e5_failure_and_no_evidence_keep_reason_in_trace_not_public_text (test_p0_safety_output_gate_matrix.P0SafetyOutputG
+ateMatrixTests.test_e5_failure_and_no_evidence_keep_reason_in_trace_not_public_text) ... ok
+test_same_adversarial_requests_hit_safety_before_all_five_states (test_p0_safety_output_gate_matrix.P0SafetyOutputGateM
+atrixTests.test_same_adversarial_requests_hit_safety_before_all_five_states) ... ok
+test_tool_failure_is_bounded_and_traceable_before_public_boundary (test_p0_safety_output_gate_matrix.P0SafetyOutputGate
+MatrixTests.test_tool_failure_is_bounded_and_traceable_before_public_boundary) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 3.984s
+
+OK

@@ -1,4 +1,4 @@
-"""Competition-facing Streamlit shell; all guide responses come from agent_graph.chat."""
+"""Competition-facing Streamlit shell using public messages from one Agent turn."""
 
 from __future__ import annotations
 
@@ -21,7 +21,16 @@ STYLES = {
     "古风书生": "ancient_scholar",
 }
 INTERESTS = ["灰塑", "木雕", "石雕", "陶塑", "故事", "吉祥", "工艺", "建筑装饰"]
-QUICK_ACTIONS = ["我到前院中部了", "再讲详细一点", "完成本点"]
+QUICK_ACTIONS = ["我到了", "再讲详细一点", "完成本点"]
+SCENE_LABELS = {
+    "route_planning": "路线规划",
+    "welcome": "欢迎来到陈家祠",
+    "route_opening": "导览开场",
+    "stop_guidance": "当前点讲解",
+    "tour_qa": "导览问答",
+    "tour_closing": "游览总结",
+    "assistant": "导览回复",
+}
 
 
 def _secret(name: str, default: str = "") -> str:
@@ -33,7 +42,11 @@ def _secret(name: str, default: str = "") -> str:
 
 def _configure_environment() -> None:
     # Secrets take precedence for this process only. They are never rendered or logged.
-    for key in ("DEEPSEEK_API_KEY", "DEEPSEEK_MODEL", "ROLE_NARRATION_MODEL"):
+    for key in (
+        "DEEPSEEK_API_KEY", "DEEPSEEK_MODEL", "ROLE_NARRATION_MODEL",
+        "CJC_READ_ONLY_ROLLOUT_MODE", "CJC_READ_ONLY_ROLLOUT_CAPABILITIES",
+        "ROLE_ACTIVE_ENABLED", "ROLE_ACTIVE_STYLES", "ROLE_ACTIVE_SCENES",
+    ):
         value = _secret(key)
         if value:
             os.environ[key] = value
@@ -44,9 +57,17 @@ def _configure_environment() -> None:
 @st.cache_resource(show_spinner=False)
 def _agent_call():
     _configure_environment()
-    from agent_graph import chat
+    from agent_graph import chat_public_turn
 
-    return chat
+    return chat_public_turn
+
+
+@st.cache_resource(show_spinner=False)
+def _session_starter():
+    _configure_environment()
+    from agent_graph import start_public_session
+
+    return start_public_session
 
 
 def _profile_message(duration: int, interests: list[str], detail: str, style_label: str) -> str:
@@ -58,6 +79,7 @@ def _init_adapter() -> DemoAdapter:
     if "demo_adapter" not in st.session_state:
         st.session_state.demo_adapter = DemoAdapter(
             _agent_call(),
+            session_starter=_session_starter(),
             max_turns=int(_secret("DEMO_MAX_TURNS", "20")),
             max_input_chars=int(_secret("DEMO_MAX_INPUT_CHARS", "200")),
         )
@@ -68,7 +90,29 @@ def _send(adapter: DemoAdapter, message: str) -> None:
     st.session_state.messages.append({"role": "user", "content": message})
     with st.spinner("正在组织本次导览…"):
         reply = adapter.send(message)
-    st.session_state.messages.append({"role": "assistant", "content": reply.text, "error": reply.is_error})
+    for public_message in reply.messages:
+        st.session_state.messages.append(
+            {
+                "role": "assistant",
+                "content": public_message.text,
+                "scene_kind": public_message.scene_kind,
+                "error": reply.is_error,
+            }
+        )
+    st.session_state.itinerary = reply.itinerary
+
+
+def _start_session(adapter: DemoAdapter) -> None:
+    reply = adapter.start()
+    for public_message in reply.messages:
+        st.session_state.messages.append(
+            {
+                "role": "assistant",
+                "content": public_message.text,
+                "scene_kind": public_message.scene_kind,
+                "error": reply.is_error,
+            }
+        )
     st.session_state.itinerary = reply.itinerary
 
 
@@ -76,7 +120,17 @@ def main() -> None:
     st.set_page_config(page_title="祠语智游｜比赛演示版", page_icon="🏛️", layout="wide")
     _configure_environment()
     st.markdown("""<style>
-    .stApp {background:#f7f1e6;color:#23221f;} [data-testid='stSidebar']{background:#39251f;}
+    .stApp {background:#f7f1e6;color:#23221f;}
+    [data-testid='stSidebar']{background:#39251f;}
+    [data-testid='stSidebar'] h1,
+    [data-testid='stSidebar'] h2,
+    [data-testid='stSidebar'] h3,
+    [data-testid='stSidebar'] [data-testid='stWidgetLabel'] p,
+    [data-testid='stSidebar'] [role='radiogroup'] label p,
+    [data-testid='stSidebar'] [data-testid='stCaptionContainer'] p,
+    [data-testid='stSidebar'] [data-testid='stSpinner'] p {
+        color:#fff8ec !important;
+    }
     .hero {padding:1.1rem 1.35rem;border-radius:16px;background:#6f2d26;color:#fff7e8;margin-bottom:1rem;}
     .itinerary {padding:1rem 1.2rem;border:1px solid #c8a55a;border-radius:14px;background:#fffaf0;}
     </style>""", unsafe_allow_html=True)
@@ -91,6 +145,8 @@ def main() -> None:
         st.session_state.messages = []
     if "itinerary" not in st.session_state:
         st.session_state.itinerary = adapter.itinerary
+    if not st.session_state.messages:
+        _start_session(adapter)
 
     with st.sidebar:
         st.subheader("开始一段导览")
@@ -105,6 +161,7 @@ def main() -> None:
             adapter.reset()
             st.session_state.messages = []
             st.session_state.itinerary = adapter.itinerary
+            _start_session(adapter)
             st.rerun()
         st.caption("服务状态：可用｜每次对话均由当前导游系统实时处理")
 
@@ -117,7 +174,9 @@ def main() -> None:
     st.markdown("#### 与导游对话")
     for item in st.session_state.messages:
         with st.chat_message(item["role"]):
-            st.write(item["content"])
+            if item["role"] == "assistant" and item.get("scene_kind") in SCENE_LABELS:
+                st.caption(SCENE_LABELS[item["scene_kind"]])
+            st.markdown(item["content"])
     columns = st.columns(3)
     for column, action in zip(columns, QUICK_ACTIONS):
         if column.button(action, use_container_width=True):

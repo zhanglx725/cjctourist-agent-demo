@@ -1,0 +1,26 @@
+﻿[Script Info]
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Caption,Microsoft YaHei,30,&H00FFFFFF,&H00FFFFFF,&H003A261F,&H003A261F,-1,0,0,0,100,100,0,0,1,1.5,0,2,120,120,18,1
+Style: Title,Microsoft YaHei,58,&H00FFFFFF,&H00FFFFFF,&H00743329,&H00743329,-1,0,0,0,100,100,1,0,1,0,0,5,100,100,70,1
+Style: Subtitle,Microsoft YaHei,30,&H00F5D8AE,&H00F5D8AE,&H00743329,&H00743329,0,0,0,0,100,100,0,0,1,0,0,5,100,100,215,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.00,0:00:08.00,Subtitle,,0,0,0,,A段｜古风书生主线\N个性化路线 · 到站讲解 · 连续问答 · 游后延伸
+Dialogue: 0,0:00:08.00,0:00:20.80,Caption,,0,0,0,,游客选择可用时间、兴趣内容和讲解风格，\N系统由此开始组织本次文化导览。
+Dialogue: 0,0:00:20.80,0:00:34.37,Caption,,0,0,0,,系统仅从审核路线、点位目录和空间关系中生成方案，\N并给出点位顺序、停留时间和下一站提示。
+Dialogue: 0,0:00:34.37,0:00:53.04,Caption,,0,0,0,,游客确认到达后，TourState 更新当前位置，\N并启动当前点位的审核讲解。
+Dialogue: 0,0:00:53.04,0:01:08.37,Caption,,0,0,0,,古风书生在审核事实范围内组织语言，\N角色改变的是表达方式，而不是文化事实。
+Dialogue: 0,0:01:08.37,0:01:21.10,Caption,,0,0,0,,游客可以围绕当前点位自由提问。\N系统结合当前场景，回答灰塑的材料、工艺与特点。
+Dialogue: 0,0:01:21.10,0:01:38.88,Caption,,0,0,0,,连续追问继承当前对象与证据范围，\N游客无需重复说明问题背景。
+Dialogue: 0,0:01:38.88,0:02:08.56,Caption,,0,0,0,,面对研究型问题，系统提供可核对的研究视角，\N并说明个案材料的适用范围。
+Dialogue: 0,0:02:08.56,0:02:39.22,Caption,,0,0,0,,文化知识与场馆服务信息分别处理。\N开放时间等动态内容以官方最新公告为准。
+Dialogue: 0,0:02:39.22,0:02:51.72,Caption,,0,0,0,,完成点位后，系统更新已访问点和剩余行程，\N并依据真实记录继续下一步。
+Dialogue: 0,0:02:51.72,0:03:11.77,Caption,,0,0,0,,游览结束后，系统可提供审核范围内的周边建议。\N推荐内容与馆内路线和游览状态保持隔离。

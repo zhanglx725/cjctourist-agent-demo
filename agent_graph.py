@@ -6,7 +6,7 @@ import os
 import json
 import re
 import time
-from dataclasses import asdict, replace
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -196,6 +196,35 @@ from visitor_localization import localize_visitor_text
 MAX_TOOL_LOOPS = 3
 DEFAULT_DEEPSEEK_MAX_TOKENS = 450
 DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
+
+
+@dataclass(frozen=True)
+class PublicMessage:
+    """One already-committed visitor message for a single graph turn."""
+
+    message_id: str
+    scene_kind: str
+    text: str
+    active_takeover: bool
+
+
+@dataclass(frozen=True)
+class PublicTourSummary:
+    """The small, visitor-safe route summary consumed by presentation clients."""
+
+    current_stop: str = "等待路线确认"
+    next_stop: str = "将在路线生成后显示"
+    completed_count: int = 0
+    total_count: int = 0
+    remaining_count: int = 0
+
+
+@dataclass(frozen=True)
+class PublicTurnResult:
+    """Read-only public projection of exactly one graph invocation."""
+
+    public_messages: tuple[PublicMessage, ...]
+    tour_summary: PublicTourSummary
 
 
 class RoleNarrationOutputTruncatedError(RuntimeError):
@@ -1051,11 +1080,27 @@ def visitor_localization_node(state: AgentState) -> dict[str, Any]:
             model_called=result.api_called,
         ),
     }
-    if result.public_text != source and latest.id:
+    # Every terminal visitor response gets an explicit public scene marker here.
+    # This node is after the graph's public-output boundary, so it does not
+    # promote draft candidates or audit records.  Existing specialized markers
+    # remain authoritative; all other already-committed replies stay available
+    # to clients as a generic visitor response.
+    scene_kind = latest.additional_kwargs.get("public_scene_kind")
+    if scene_kind is None:
+        scene_kind = "tour_qa" if latest.additional_kwargs.get("tour_qa_answer") else "assistant"
+    known_bilingual_prompt = source in {
+        LANGUAGE_PROMPT, LANGUAGE_REQUIRED_PROMPT, MODE_PROMPT,
+    }
+    if latest.id and (
+        result.public_text != source
+        or latest.additional_kwargs.get("public_scene_kind") is not None
+        or not known_bilingual_prompt
+    ):
         updates["messages"] = [latest.model_copy(update={
             "content": result.public_text,
             "additional_kwargs": {
                 **latest.additional_kwargs,
+                "public_scene_kind": scene_kind,
                 "visitor_localization": {
                     "status": result.status,
                     "target_language": result.target_language,
@@ -1326,7 +1371,13 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         + "\n\n到达第一站后，我会先自动进行陈家祠总体介绍，再开始本点讲解。"
         + "如需跳过，请在到站前明确说“跳过总体介绍”。"
     )
-    marker = AIMessage(content=message, additional_kwargs={"direct_route_plan": True})
+    marker = AIMessage(
+        content=message,
+        additional_kwargs={
+            "direct_route_plan": True,
+            "public_scene_kind": "route_planning",
+        },
+    )
     presentation = present_tour_state(tour, interaction)
     updates = {
         "messages": [marker],
@@ -1443,7 +1494,10 @@ def tour_opening_node(state: AgentState, config: RunnableConfig = None) -> dict[
     evaluations = list(state.get("tour_opening_evaluations") or [])
     evaluations.append(audit)
     updates: dict[str, Any] = {
-        "messages": [AIMessage(content=result["message"])],
+        "messages": [AIMessage(
+            content=result["message"],
+            additional_kwargs={"public_scene_kind": "route_opening"},
+        )],
         "tour_opening_program": result["program"],
         "tour_opening_evaluations": evaluations[-20:],
         "last_tour_opening_action": {
@@ -1524,7 +1578,10 @@ def visit_summary_node(state: AgentState) -> dict[str, Any]:
         "narration_coverage_preserved": True,
     })
     return {
-        "messages": [AIMessage(content=summary["message"])],
+        "messages": [AIMessage(
+            content=summary["message"],
+            additional_kwargs={"public_scene_kind": "tour_closing"},
+        )],
         "visit_summary": summary,
         "visit_summary_evaluations": evaluations[-20:],
         "performance_metrics": _append_metric(
@@ -1602,7 +1659,10 @@ def post_visit_title_blessing_node(state: AgentState) -> dict[str, Any]:
         "narration_coverage_preserved": True,
     })
     return {
-        "messages": [AIMessage(content=message)],
+        "messages": [AIMessage(
+            content=message,
+            additional_kwargs={"public_scene_kind": "tour_closing"},
+        )],
         "post_visit_award": award,
         "post_visit_nearby_offer": offer,
         "post_visit_award_evaluations": evaluations[-20:],
@@ -1751,7 +1811,10 @@ def visitor_welcome_node(state: AgentState) -> dict[str, Any]:
         }
     program = initialize_visitor_welcome()
     return {
-        "messages": [AIMessage(content=WELCOME_MESSAGE)],
+        "messages": [AIMessage(
+            content=WELCOME_MESSAGE,
+            additional_kwargs={"public_scene_kind": "welcome"},
+        )],
         "visitor_welcome_program": program,
         "performance_metrics": _append_metric(
             state, "visitor_welcome", 0.0,
@@ -1962,7 +2025,10 @@ def profile_update_node(state: AgentState) -> dict[str, Any]:
     else:
         presentation = present_clarification(result["message"], result.get("interaction_state"))
     updates: dict[str, Any] = {
-        "messages": [AIMessage(content=presentation["message"])],
+        "messages": [AIMessage(
+            content=presentation["message"],
+            additional_kwargs={"public_scene_kind": "assistant"},
+        )],
         "last_profile_update": {"ok": result["ok"], "code": result["code"]},
         "tour_presentation": presentation,
         "qa_context": clear_qa_context(state.get("qa_context")),
@@ -2222,7 +2288,10 @@ def tour_event_node(state: AgentState, config: RunnableConfig = None) -> dict[st
         }
     presentation = present_tour_event(result)
     updates: dict[str, Any] = {
-        "messages": [AIMessage(content=presentation["message"])],
+        "messages": [AIMessage(
+            content=presentation["message"],
+            additional_kwargs={"public_scene_kind": "assistant"},
+        )],
         "last_tour_intent": decision.to_dict(),
         "last_tour_event": {
             "event": result["event"],
@@ -2828,7 +2897,13 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
             introduced_by="stop_guidance",
         )
     updates: dict[str, Any] = {
-        "messages": [AIMessage(content=public_message, additional_kwargs={"stop_guidance": True})],
+        "messages": [AIMessage(
+            content=public_message,
+            additional_kwargs={
+                "stop_guidance": True,
+                "public_scene_kind": "stop_guidance",
+            },
+        )],
         "retrieved_evidence": result["evidence"],
         "tour_presentation": (
             {**result["presentation"], "message": public_message}
@@ -3124,7 +3199,11 @@ def narration_commit_node(state: AgentState) -> dict[str, Any]:
     return {
         "messages": [AIMessage(
             id=latest.id, content=final_text,
-            additional_kwargs={"stop_guidance": True, "role_narration": True},
+            additional_kwargs={
+                "stop_guidance": True,
+                "role_narration": True,
+                "public_scene_kind": "stop_guidance",
+            },
         )],
         "tour_presentation": (
             {**presentation, "message": final_text}
@@ -3899,6 +3978,7 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
             content=public_message,
             additional_kwargs={
                 "tour_qa_answer": True,
+                "public_scene_kind": "tour_qa",
                 # Bounded recovery metadata only.  It contains no evidence,
                 # source IDs or mutable tour/profile state and lets the next
                 # turn recover when an Agent Server checkpoint omits the
@@ -4011,7 +4091,11 @@ def qa_follow_up_detail_node(state: AgentState) -> dict[str, Any]:
     updates: dict[str, Any] = {
         "messages": [AIMessage(
             content=public_message,
-            additional_kwargs={"tour_qa_answer": True, "qa_follow_up_detail": True},
+            additional_kwargs={
+                "tour_qa_answer": True,
+                "qa_follow_up_detail": True,
+                "public_scene_kind": "tour_qa",
+            },
         )],
         "retrieved_evidence": result["evidence"],
         "qa_context": updated_context or clear_qa_context(state.get("qa_context")),
@@ -5019,6 +5103,116 @@ def chat(user_text: str, thread_id: str = "default") -> str:
         config={"configurable": {"thread_id": thread_id}},
     )
     return result["messages"][-1].content
+
+
+_PUBLIC_SCENE_KINDS = frozenset({
+    "welcome", "route_planning", "route_opening", "stop_guidance", "tour_qa", "tour_closing", "assistant",
+})
+_PUBLIC_TEXT_FORBIDDEN = re.compile(
+    r"(?:source_ids|node_id|route_id|traceback|langsmith|"
+    r"role_narration_generation|narration_validation|narration_commit|"
+    r"atomic_read_plan_shadow|tour_opening|direct_route)",
+    re.IGNORECASE,
+)
+
+
+def _public_tour_summary(result: dict[str, Any]) -> PublicTourSummary:
+    """Project the completed graph state into names/counts without exposing IDs."""
+    tour = result.get("tour_state")
+    if not isinstance(tour, dict):
+        return PublicTourSummary()
+    catalog = _read_catalog(CATALOG_FILE)
+
+    def stop_name(value: object) -> str:
+        if not isinstance(value, str) or not value:
+            return "未确认"
+        return str(catalog.get(value, {}).get("stop_name") or "未确认")
+
+    visited = list(tour.get("visited_stop_ids") or [])
+    remaining = list(tour.get("remaining_stop_ids") or [])
+    current = tour.get("current_stop_id")
+    total = len(visited) + len(remaining)
+    if current and current not in visited and current not in remaining:
+        total += 1
+    return PublicTourSummary(
+        current_stop=stop_name(current),
+        next_stop=stop_name(remaining[0]) if remaining else "路线已接近完成",
+        completed_count=len(visited),
+        total_count=total,
+        remaining_count=len(remaining),
+    )
+
+
+def _public_turn_from_result(result: dict[str, Any], *, after_last_human: bool) -> PublicTurnResult:
+    """Project a completed invocation without invoking the graph again."""
+    messages = list(result.get("messages") or [])
+    last_human_index = max(
+        (
+            index
+            for index, message in enumerate(messages)
+            if getattr(message, "type", None) == "human"
+        ),
+        default=-1,
+    )
+    start_index = last_human_index + 1 if after_last_human else 0
+    turn_messages = [
+        message
+        for message in messages[start_index:]
+        if isinstance(message, AIMessage)
+    ]
+    public_messages: list[PublicMessage] = []
+    for message in turn_messages:
+        metadata = getattr(message, "additional_kwargs", {}) or {}
+        scene_kind = metadata.get("public_scene_kind")
+        content = message.content
+        message_id = getattr(message, "id", None)
+        if (
+            scene_kind not in _PUBLIC_SCENE_KINDS
+            or not isinstance(content, str)
+            or not content.strip()
+            or not isinstance(message_id, str)
+            or not message_id
+            or _PUBLIC_TEXT_FORBIDDEN.search(content)
+        ):
+            continue
+        public_messages.append(PublicMessage(
+            message_id=message_id,
+            scene_kind=scene_kind,
+            text=content.strip(),
+            active_takeover=bool(
+                metadata.get("route_role_narration")
+                or metadata.get("role_narration")
+            ),
+        ))
+    return PublicTurnResult(tuple(public_messages), _public_tour_summary(result))
+
+
+def start_public_session(thread_id: str = "default") -> PublicTurnResult:
+    """Start one new thread and return its existing bilingual welcome once."""
+    result = agent_graph.invoke(
+        {
+            "messages": [],
+            "tool_loops": 0,
+            "retrieved_evidence": [],
+            "performance_metrics": [],
+        },
+        config={"configurable": {"thread_id": thread_id}},
+    )
+    return _public_turn_from_result(result, after_last_human=False)
+
+
+def chat_public_turn(user_text: str, thread_id: str = "default") -> PublicTurnResult:
+    """Run one visitor turn and return only explicitly committed public output."""
+    result = agent_graph.invoke(
+        {
+            "messages": [("user", user_text)],
+            "tool_loops": 0,
+            "retrieved_evidence": [],
+            "performance_metrics": [],
+        },
+        config={"configurable": {"thread_id": thread_id}},
+    )
+    return _public_turn_from_result(result, after_last_human=True)
 
 
 def chat_with_profile(user_text: str, thread_id: str = "profile") -> tuple[str, list[dict[str, Any]]]:
