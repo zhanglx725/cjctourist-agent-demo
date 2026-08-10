@@ -1,10 +1,10 @@
 {
   "card_id": "research_015_grid_spatial_layout",
   "title_zh": "从礼仪中轴到网格式联通：陈家祠内部格局的形制解释",
-  "status": "reviewed",
+  "status": "draft",
   "verified_at": "2026-07-26",
   "source": {
-    "citation": "杨洋. 广府祠堂建筑形制演变研究[D]. 华南理工大学, 2012（年份待人工核对封面信息）.",
+    "citation": "杨扬. (2013). 广府祠堂建筑形制演变研究, 华南理工大学]. https://kns.cnki.net/kcms2/article/abstract?v=Jwx2WJw7wUEzSyYTVwmk6OTzx94VmRB-45Hqiau-YbLObGDJLmealyK0OImnyZeiKiqq-iumKCIsR7JkYKHGdYTti8k9RhRwT99vgOBjx0JjIpCO49qLptH0wxz_SPryOW6F5aIJz4cPB6Pt-IKKKtepLpj0BOfr6bxAllyFklLpy9ehKi9p8t107vT-1g3P62jdxeoank99f4xB_rIJXg==&uniplatform=NZKPT&language=CHS..",
     "local_file": "data/chen_clan_academy/raw/research_papers/陈家祠文献/广府祠堂建筑形制演变研究.pdf",
     "page_locator": "pp. 75-79（PDF pp. 79-83）；相关小结 p. 84（PDF p. 88）。",
     "access_scope": "本地研究资料；卡片仅保存概括与引文定位，不复制论文全文。"
@@ -22,11 +22,8 @@
     "青云巷和横向廊道怎样改变祠堂的空间体验？",
     "“网格式格局”在建筑研究中是什么意思？"
   ],
-  "applicable_node_ids": [
-    "stop_front_courtyard_center",
-    "label_moon_platform",
-    "stop_rear_courtyard"
-  ],
+  "applicable_node_ids": [],
+  "applicable_scope": "whole_site",
   "topic_tags": [
     "内部空间",
     "祠堂形制",

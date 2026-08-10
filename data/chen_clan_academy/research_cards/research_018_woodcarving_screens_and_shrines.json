@@ -1,10 +1,10 @@
 {
   "card_id": "research_018_woodcarving_screens_and_shrines",
   "title_zh": "木雕细读：屏门、龛罩与梁架如何把室内构件变成叙事画面",
-  "status": "reviewed",
+  "status": "draft",
   "verified_at": "2026-07-26",
   "source": {
-    "citation": "张锋. 广州陈家祠的装饰艺术分析——传统宗祠研究系列之一[J]. 天工, 2020(1): 16-19.",
+    "citation": "张锋. (2020). 广州陈家祠的装饰艺术分析——传统宗祠研究系列之一. 天工, No.31(01), 16-19. https://kns.cnki.net/kcms2/article/abstract?v=Jwx2WJw7wUEo2hAv7Fbt53J5KhqEV0exwJVOlb9QnfK1--PLJ0XRIpuNNNVLhipaOCFajAnYKpFp9xiO51lPMTpQJv5J_tTTw44Sv6thWYGAd-PsIaASYSwXghPY98tdI9WhYpzEfspKAyMxoAc_RoibvcmsDoehaOOGfSwzoqfeKy959Gy5wGQhogbbzELYrm49sqgqWaJwIw5uzB90yA==&uniplatform=NZKPT&language=CHS.",
     "local_file": "data/chen_clan_academy/raw/research_papers/陈家祠文献/广州陈家祠的装饰艺术分析——传统宗祠研究系列之一.pdf",
     "page_locator": "pp. 17-18（PDF pp. 2-3）。",
     "access_scope": "本地研究资料；卡片仅保存概括与引文定位，不复制论文全文。"
@@ -22,11 +22,8 @@
     "木雕屏门怎样同时起分隔空间和组织视线的作用？",
     "神龛上的木雕与梁架上的木雕，观看重点有什么不同？"
   ],
-  "applicable_node_ids": [
-    "label_moon_platform",
-    "stop_rear_courtyard",
-    "stop_rear_courtyard_west"
-  ],
+  "applicable_node_ids": [],
+  "applicable_scope": "whole_site",
   "topic_tags": [
     "木雕",
     "屏门",

@@ -1,12 +1,12 @@
 {
   "card_id": "research_013_courtyard_corridor_system",
   "title_zh": "庭院、连廊与冷巷：陈家祠内部空间的气候性组织",
-  "status": "reviewed",
+  "status": "draft",
   "verified_at": "2026-07-26",
   "source": {
-    "citation": "罗瑜斌. 陈家祠的岭南建筑庭院特征[J]. 广东园林, 2007(1): 12-17.",
+    "citation": "罗瑜斌. (2007). 陈家祠的岭南建筑庭院特征. 广东园林, No.116(01), 12-17. https://kns.cnki.net/kcms2/article/abstract?v=Jwx2WJw7wUG61yBuMxS-CNLv3jLRnG8Dvuz_UFWX5u9GeMmh7OCD3U1GAEOCZS9dA6TU4TknVP3cSYmSSPaNo2j4TnLycu9X9XLZyermaFjt2kDyhKrceAbDd2v0UVwoTrM7DjN-nDZWYx7gDIa-q5HsL6Ff8jZ1JfsqI9nxyete-t4pcmPjcvcZ-m06Q4l55FH6hPWVCH4=&uniplatform=NZKPT&language=CHS.",
     "local_file": "data/chen_clan_academy/raw/research_papers/陈家祠文献/陈家祠的岭南建筑庭院特征.pdf",
-    "page_locator": "pp. 12-17（PDF pp. 1-6）",
+    "page_locator": "pp. 12-17",
     "access_scope": "本地研究资料；卡片仅保存概括与引文定位，不复制论文全文。"
   },
   "research_question": "陈家祠怎样以庭院、厅堂、连廊和冷巷共同组织内部空间，并回应岭南湿热气候？",
@@ -22,10 +22,8 @@
     "连廊在陈家祠中除了避雨，还承担什么空间作用？",
     "怎样从庭院和建筑高低关系理解岭南建筑的气候适应？"
   ],
-  "applicable_node_ids": [
-    "stop_front_courtyard_north",
-    "stop_rear_courtyard"
-  ],
+  "applicable_node_ids": [],
+  "applicable_scope": "whole_site",
   "topic_tags": [
     "内部空间",
     "庭院",
