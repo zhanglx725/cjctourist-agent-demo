@@ -33,3 +33,8 @@ data/chen_clan_academy/raw/research_papers/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local document/video production artifacts
+~$*.docx
+tmp/
+tools/_vendor_video/
