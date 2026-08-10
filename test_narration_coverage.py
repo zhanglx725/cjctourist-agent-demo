@@ -55,6 +55,14 @@ class NarrationCoverageTests(unittest.TestCase):
         self.assertTrue(is_craft_introduced(coverage, "灰塑"))
         self.assertTrue(is_ornament_introduced(coverage, "orn_005"))
 
+    def test_role_commit_and_fallback_are_reviewed_coverage_writers(self):
+        for introduced_by in ("narration_commit", "deterministic_narration_fallback"):
+            with self.subTest(introduced_by=introduced_by):
+                coverage = commit_introductions(
+                    None, [_record(introduced_by=introduced_by)]
+                )
+                self.assertTrue(is_craft_introduced(coverage, "灰塑"))
+
     def test_duplicate_submission_is_idempotent_and_preserves_first_audit_record(self):
         first = commit_introductions(None, [_record(node_id="stop_front_courtyard_center", turn_id="turn:1")])
         repeated = commit_introductions(first, [_record(node_id="label_moon_platform", turn_id="turn:2", source_ids=["S99"])])

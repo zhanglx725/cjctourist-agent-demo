@@ -51,6 +51,24 @@ STYLE_POLICY = {
     "technical": "technical",
     "interactive": "interactive",
     "expert": "expert",
+    "neutral": "neutral",
+    "child": "child",
+    "family": "family",
+    "student_research": "student_research",
+    "professional": "professional",
+    "listen_only": "listen_only",
+    "mixed_group": "mixed_group",
+    "dominant_ceo": "dominant_ceo",
+    "cute_junior": "cute_junior",
+    "ancient_scholar": "ancient_scholar",
+    "warm_sister": "warm_sister",
+    "bestie_chat": "bestie_chat",
+    "buddy_guide": "buddy_guide",
+    "exploration_game": "exploration_game",
+    "photo_guide": "photo_guide",
+    "hostel_scholar": "hostel_scholar",
+    "xiguan_young_master": "xiguan_young_master",
+    "cantonese_storyteller": "cantonese_storyteller",
 }
 
 KNOWLEDGE_POLICY = {
@@ -103,7 +121,9 @@ def _validated_profile(profile: VisitorProfile | dict[str, Any]) -> VisitorProfi
     raise TypeError("profile 必须是 VisitorProfile 或已序列化的画像字典。")
 
 
-def build_guidance_policy(profile: VisitorProfile | dict[str, Any]) -> GuidancePolicy:
+def build_guidance_policy(
+    profile: VisitorProfile | dict[str, Any], *, detail_level_override: str | None = None
+) -> GuidancePolicy:
     """Build a stable policy without mutating profile or planning any content.
 
     Conflict order is encoded here once: factual/safety limits remain outside
@@ -113,7 +133,10 @@ def build_guidance_policy(profile: VisitorProfile | dict[str, Any]) -> GuidanceP
     changing the detail-level time/length limits.
     """
     value = _validated_profile(profile)
-    detail = DETAIL_POLICY[value.detail_level]
+    effective_detail_level = detail_level_override or value.detail_level
+    if effective_detail_level not in DETAIL_POLICY:
+        raise ValueError("detail_level_override must be short, standard, deep, or None")
+    detail = DETAIL_POLICY[effective_detail_level]
     audience = AUDIENCE_POLICY[value.audience_mode]
     knowledge = KNOWLEDGE_POLICY[value.knowledge_level]
     interaction = INTERACTION_POLICY[value.interaction_mode]

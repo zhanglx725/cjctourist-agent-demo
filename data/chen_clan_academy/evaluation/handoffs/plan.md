@@ -1,7 +1,26 @@
 # 陈家祠受控 Agent 分阶段实施计划
 
+## P3-01 / CA-12 已冻结的模式契约（2026-08-03）
+
+- 保留既有 `tour_mode`：`chat`、`button_guided`、`continuous`；它继续只表达交互形式。
+- 在同一份 `tour_interaction_state` 中增加 `journey_mode`：`classic`、`custom`；新路线请求必须由游客明确选择模式，不从默认值、语气、身份或偏好推断。内部缺失/异常状态仍可安全回退为 `classic`，但该兼容回退不得替代游客端模式选择。
+- `VisitorProfile`、`TourState` 均不保存 `journey_mode`。路线确认时只在不可变的路线审计快照记录最终采用模式，且该审计字段不参与路线计算。
+- 只读问答的恢复目标仅保存在 interaction/session control；问答不得重建或覆盖既有路线、TourState、VisitorProfile、StopProgram 或 NarrationCoverage。
+- 经典模式只主动收集游览时长；定制模式只收集游客明确给出的最小偏好（例如兴趣），**不再询问讲解深度**。
+- 定制模式的讲解深度固定为“详细讲解”这一产品输出策略；它不写入 `VisitorProfile`，不新增画像字段，也不成为路线计算条件。实际叙述长度、段落和朗读版式仍由后续 P3-04 在预算与证据门控下统一实现。
+
+在经典模式中，调度规则应是：
+
+- 术语卡：可在当前点确有相关工艺、且基础讲解需要解释时主动补充；
+- 比较卡：只在有明确、合格的比较对象和证据时补充，不能把比较结论说成基础事实；
+- 打卡点卡：仅在游客有明确拍照意图，或产品后续明确批准“低打扰推荐”时使用；必须先过安全与点位门控；
+- 研究/学术摘要卡：经典模式一律不主动注入；
+- 无合格卡：正常结束基础讲解，不硬塞卡片内容。
+
+“撰写卡片内容且无需关键词就直接讲解输出”不在 P3-01 完成；它属于 P3-03 CardDispatcher 的实现与验收范围。P3-01 只冻结经典/定制模式下哪些卡具备主动调度资格；P3-04 再统一卡片与基础讲解的段落、长度和朗读版式。P3-01 不实现 CardDispatcher 或任何卡片主动输出。
+
 > 文档性质：基于当前工作区、`CONTROLLED_AGENT_ARCHITECTURE_UPGRADE_PLAN.md`、目标架构图和现有问题台账形成的执行拆解。  
-> 生成日期：2026-08-01；状态同步：2026-08-02
+> 生成日期：2026-08-01；状态同步：2026-08-02（`experiment/agent-orchestration-v2@1b418dc`）
 > 目标文件：`data/chen_clan_academy/evaluation/handoffs/plan.md`  
 > 当前结论：先收敛正确性与契约，再迁移受控 Agent；学术、多模态和游后推荐不得抢跑。
 
@@ -9,13 +28,13 @@
 
 ### 1.1 实际 Git 状态
 
-- 当前分支：`main`。
-- 当前本地 HEAD：`56688f7d9bda505da2b426021553afb54a05c5ce`（`fix: route stop completion through deterministic control`）。
-- 本地与 `origin/main`：同一提交；工作树干净。
+- 当前开发分支：`experiment/agent-orchestration-v2`。
+- 当前本地 HEAD：`72e9c9268ed16dc34d101819f332325a7f66e72e`（`feat: roll out controlled knowledge in shadow mode`）。
+- P2-05 前置核对时，当前分支与 `origin/experiment/agent-orchestration-v2`：同一提交且工作树干净。后续文档归档改动应单独提交；`main` 与 `origin/main` 当前停留在 `9eec98d`，实验分支尚未合并。
 - 原审计时列出的架构方案、八天计划和数据文件修改均已纳入历史提交；当前不存在需先认领的未跟踪或未提交文件。
-- 当前完整回归已在 `56688f7` 上运行，`770/770` 通过（0 failure、0 error）；P0 定向安全/游客输出矩阵 `59/59` 通过。P0-03/CA-00 行为矩阵见 `data/chen_clan_academy/evaluation/p0_gate_0_behavior_matrix_v1.yaml`。
+- 负责人于 2026-08-02 在重建的 Python 3.12.7 项目虚拟环境中运行 `python -m unittest discover -v`：P2-05 接入前 `1b418dc` 为 `827/827`；本轮工作树的 P2-05 实现为 `831/831`（0 failure、0 error，35.528 秒）。P0 定向安全/游客输出矩阵最近记录为 `59/59` 通过。P0-03/CA-00 行为矩阵见 `data/chen_clan_academy/evaluation/p0_gate_0_behavior_matrix_v1.yaml`。
 
-Git 同步和工作区归属已完成；Gate 0 当前为 `conditional_pass`：自动化护栏绿色，但本提交尚缺当前 LangSmith Trace，且 P1-04 仍有外部空间数据阻塞。仍禁止以文档计划替代真实代码、测试和 LangSmith 证据。
+Git 同步、工作区归属和当前实验分支自动化基线已完成；Gate 0 仍为 `conditional_pass`：自动化护栏绿色，`1b418dc` 已完成 CA00-SF-01～04 四个安全实链并记录 Thread/Run ID，但 Trace URL 与其余矩阵仍待复核，且 P1-04 仍有外部空间数据阻塞。CA-01～CA-05、Policy Gate、受控只读 Executor、原子多意图只读计划、路线/重规划 proposal、确认后状态迁移适配器和只读灰度契约已经进入实验分支；这些实现尚不能替代 Gate 1～Gate 3 的实链验收。四项证据见 `data/chen_clan_academy/evaluation/handoffs/p0_current_commit_live_safety_evidence_20260802.md`。
 
 ### 1.2 本计划读取的主要依据
 
@@ -28,10 +47,10 @@ Git 同步和工作区归属已完成；Gate 0 当前为 `conditional_pass`：�
 - `CONTROLLED_AGENT_ARCHITECTURE_UPGRADE_PLAN.md`
 - `NEXT_STAGE_ISSUE_AND_ROADMAP.md`
 - 当前 `agent_graph.py`、TourState、VisitorProfile、路线、RAG、知识卡、讲解和安全模块
-- 当前 92 个 `test_*.py` 测试文件
+- 当前 105 个 `test_*.py` 测试文件
 - `outputs/chen_clan_controlled_agent_architecture.png`
 
-本计划没有重新运行完整测试。本文中的“已通过”只复述现有台账；凡缺少当前 commit、thread ID 或 Trace URL 的人工结果，仍应视为待复核。
+本文记录的 `827/827` 来自接入前基线；`72e9c92` 的 P2-05 完整回归为 `831/831`。凡缺少当前 commit、thread ID 或 Trace URL 的 LangSmith 人工结果，应标记为 Trace 元数据待补；若负责人已提供功能操作截图、输入、路径、正文与状态观察，可作为 `functional_validation: passed_by_operator` 进入后续只验收闸门，但不得写成 Trace 已验证。
 
 ## 2. 目标产品与不可变边界
 
@@ -304,10 +323,16 @@ Planner 只能提交事件请求；adapter 再调用冻结的 `handle_tour_event
 
 ### P3-01 冻结经典/定制模式与恢复协议（CA-12）
 
-这是当前明确的规划—实现未决事项。负责人必须先决定 `tour_mode` 唯一归属：会话控制、VisitorProfile 还是路线快照。推荐将“本轮模式选择”放在会话/规划控制层，并把最终采用的模式写入不可变路线快照；不要把它变成长期身份画像。
+负责人已于 2026-08-03 冻结双维 session 模型：既有 `tour_mode` 仍只表示
+`chat` / `button_guided` / `continuous` 交互形式；同一 `tour_interaction_state`
+的 `journey_mode` 表示 `classic` / `custom` 产品模式。默认 classic，只有游客
+明确选择才进入 custom；VisitorProfile 与 TourState 不保存此字段，路线确认后
+仅在不可变审计快照记录最终模式且不得参与路线计算。只读问答只读取既有恢复
+目标，不得写入控制状态。经典模式只主动收集时长；定制模式不询问讲解深度，
+统一按“详细讲解”产品策略输出，且该策略不写入 VisitorProfile 或路线事实。
 
 - 经典模式：只强制收集时间，其他用透明中性默认；不主动插研究/比较/摄影卡。
-- 定制模式：最多收集明确兴趣、讲解风格、可选目的/同行情况；未填保持中性。
+- 定制模式：最多收集明确兴趣、可选目的/同行情况；不询问讲解深度，统一按详细讲解策略输出。讲解风格仅在游客主动指定时作为既有 P3-02 的独立表达策略使用，不在 P3-01 主动追问；未填保持中性。
 - 两种模式都可被事实问答打断并恢复。
 - 不根据语气、设备或外貌猜模式。
 
@@ -347,9 +372,28 @@ Planner 只能提交事件请求；adapter 再调用冻结的 `handle_tour_event
 
 路线确认后给一次可跳过、可重播的陈家祠总体介绍；使用独立审核 evidence。问答打断后恢复，重规划不重复播放。
 
+当前实现状态（2026-08-05）：已启动 P4-01。本地工作树已新增独立审核
+evidence、确定性 `TourOpeningProgram`、窄控制表达和 Graph 节点。人工
+反馈后，契约修正为首个正式点位成功到达时自动执行开场，随后同轮进入
+`stop_guidance`；只有游客到站前明确说“跳过总体介绍”才绕过。该程序仅写入
+thread-local 开场程序/审计，不写 TourState、VisitorProfile、路线或
+NarrationCoverage。待负责人本机完成定向与全量回归后，再进入 LangSmith
+五案例验收；未通过前不得开始 P4-02。
+
 ### P4-02 VisitSummaryEngine
 
 输入只能来自本轮已确认 TourState 和成功提交的 NarrationCoverage。
+
+当前实现状态（2026-08-05）：已新增确定性 `VisitSummaryEngine` 和 Graph
+结束出口。仅统计正式确认完成的 visited stops，以及发生在这些点位、由
+`stop_guidance` 成功提交的 Coverage；远程问答、跳过、未确认到达、预览和
+失败讲解均排除。对象—工艺关系只读取审核 guide-card 映射；Coverage 异常
+时保留点位总结但不报告精确工艺/题材数量。另以新路线为边界记录游客实际
+进入 `tour_qa`/`qa_follow_up_detail` 的提问回合数，供 P4-03 称号规则使用；
+预路线问题、控制指令和内部调用不计数。`title_basis` 同时提供实际听过的
+工艺/题材、内容多样性、显式兴趣及其与实际讲解的精确匹配，以及非中性且
+验证通过的讲解风格/互动/知识偏好；默认值、语言、无障碍需求和推断人格不
+作为成就信号。待本机回归与 LangSmith 验收。
 
 统计步骤：
 
@@ -371,6 +415,45 @@ Planner 只能提交事件请求；adapter 再调用冻结的 `handle_tour_event
 - 不写长期 VisitorProfile。
 - 祝福只使用用户明确画像；未知时使用中性文案。
 - 不使用未授权歌词；优先原创短祝福或有许可模板。
+
+当前实现状态（2026-08-05）：已新增版本化确定性称号策略和原创祝福节点。
+`visit_summary` 成功后自动进入 `post_visit_title_blessing`；结束态重复结束、
+查看总结或请求称号/祝福不会回到模式选择。规则仅消费已审计
+`title_basis`，固定优先级并提供中性 fallback、理由与“非官方认证”声明，
+不写 TourState、VisitorProfile、路线或 Coverage。同期补齐 active route 下
+“到达/我到下一个点位了/我到下一站了”的确定性到站解析，禁止回退 LLM/RAG。
+
+后续产品方案采用“人工审核称号库 + 确定性类别选择 + API 受约束生成表达 +
+本地模板回退”，不允许 API 自由发明称号或自行评判游客：
+
+1. `TitleAwardPolicy` 继续根据 `title_basis` 以固定优先级确定稳定
+   `category_id`；同一份审计输入必须得到同一类别。
+2. 称号候选由团队人工填写和审核。编写模板位于
+   `evaluation/manual_reviews/p4_03_title_catalog_authoring_template_v1.yaml`；
+   每个候选必须有全局唯一 `candidate_id`、审核状态、文化说明及多语言字段。
+3. 运行时只能从对应类别中选择 `review_status=approved` 且 `enabled=true`
+   的称号；不得使用 draft 条目。候选选择必须稳定可复现，并始终保留一个
+   已审核的中性 fallback。
+   普通重复查看称号必须返回同一结果；只有游客明确说“换一个称号”等换称号
+   指令时，才允许在当前 `category_id` 的已审核启用候选中按冻结顺序推进
+   `variant_cursor`。轮换不得改变称号类别、`title_basis` 或游客评级语义，
+   不得随机抽取或调用 API 发明新称号；候选耗尽时应透明说明或按版本化策略
+   循环。候选池只有一个条目时，应明确说明当前类别暂无其他已审核称号。
+4. API 仅可根据已选称号和允许的审计字段润色“授予理由”和原创短祝福，
+   可按游客明确选择的讲解语言输出；不得改变称号类别、生成新称号、推断
+   性格/身份/年龄/能力，或写入 TourState、VisitorProfile、路线和 Coverage。
+5. API 输出须经过结构、占位符、安全声明和敏感推断校验。超时、异常、
+   缺证据或校验失败时，立即使用人工审核的 `reason_template` 与
+   `blessing_template`，不得调用自由 LLM 补救。
+6. 游客正文始终说明称号是趣味纪念而非官方认证或评级；多语言译文只有在
+   对应语言人工审核后才能启用，缺少审核译文时使用已审核的默认语言模板。
+
+该混合方案的验收至少覆盖：类别优先级确定性、draft 不可见、候选稳定选择、
+API 成功润色、API 失败回退、非法新称号拒绝、未授权占位符拒绝、多语言回退、
+普通重复请求幂等、明确换称号时同类别稳定轮换、单候选透明关闭、轮换审计，
+以及所有受保护状态保持不变。当前 v1 确定性称号与本地祝福
+继续作为上线基线；人工目录接入和可选 API 润色应作为后续独立变更实施，
+不得阻塞现有 P4-03 安全出口。
 
 ### P4-04 NearbyRecommendationService
 
@@ -509,12 +592,42 @@ Place → Ornament → Craft/Term → Source/ResearchCard/ComparisonCard
 
 不要从流程图最上方的 ASR 开始，也不要先开发 Academic Advisor。当前最合适的顺序是：
 
-1. 已完成：本地/远端分叉和未提交文件归属已收敛为干净的 `main@56688f7`。
-2. 已完成：项目虚拟环境完整回归为 `770/770`，P0 安全/游客输出矩阵为 `59/59`；CA-00 行为矩阵已建立，Gate 0 为 `conditional_pass`。
+1. 已完成：本地/远端分叉和未提交文件归属已收敛；当前开发基线为干净且已推送的 `experiment/agent-orchestration-v2@1b418dc`，尚未合并 `main`。
+2. 已完成：Python 3.12.7 项目虚拟环境已重建；当前提交完整回归为 `827/827`，P0 安全/游客输出矩阵最近记录为 `59/59`；CA-00 行为矩阵已建立，Gate 0 仍为 `conditional_pass`。
 3. 完成 P0-01/P0-02 的 LangSmith 守护矩阵，以及 P1-19/P1-21 的跨出口游客渲染复测；定向安全通过不等于实链通过。
 4. 复测并收口 P1-07/08/09/11/12/13/14/16；P1-12C1/C4 的自动化已通过，当前提交仍待 LangSmith；P1-04 继续等待空间负责人决策。
-5. 用 CA-00 行为矩阵补齐当前提交的 LangSmith 证据，并由负责人审核是否从 `conditional_pass` 提升为 `passed`。
-6. 只有 Gate 0 通过后，才依次实施 CA-01 AgentDecision schema、CA-02 Tool Registry、CA-03/04 只读 adapter 和 CA-05 Shadow Planner。
+5. 用 CA-00 行为矩阵补齐 `1b418dc` 的 LangSmith 证据，并由负责人审核是否从 `conditional_pass` 提升为 `passed`。
+6. 已在实验分支完成：CA-01 AgentDecision schema、CA-02 Tool Registry、CA-03/04 只读 adapter、CA-05 Shadow Planner、Policy Gate、受控只读 Executor、原子多意图只读计划、路线/重规划 proposal、确认后状态迁移适配器和只读灰度契约。
+7. 待完成：以独立线程执行 Gate 1～Gate 3 LangSmith 矩阵，核对候选/旧路由差异、游客正文、evidence、状态 diff、proposal 确认边界和线程隔离；未通过前不启用写操作灰度。
+8. 待完成：LangSmith 通过并审核后，将实验分支按可回滚边界合并到 `main`，记录合并提交与回滚提交。
+
+### P2-05 Graph 灰度接入第一阶段（CA-14 前半）
+
+当前实验分支已将 `controlled_knowledge` 接到 Graph 的 pre-tour 闭合知识问答入口：`off` 保持原 `direct_rag`；`shadow` 运行候选并保留旧链游客正文；`read_only_active` 仅在 AgentDecision、Policy Gate、Executor 和公开输出校验全部成功时展示候选，否则回退到旧的受控知识渲染，不得回退原始 RAG 文本。配置由 `CJC_READ_ONLY_ROLLOUT_MODE` 与 `CJC_READ_ONLY_ROLLOUT_CAPABILITIES` 控制，候选/旧链差异只写入 thread-local `controlled_rollout_evaluations`。`72e9c92` 的定向 26 项与完整 831 项回归均通过；负责人已在 Studio 对 shadow、active、范围边界和游客输出完成操作验证。当前归档为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`：未保存完整 Thread ID/Trace URL，不得伪造或写成 Trace 已验证。该 evidence debt 不阻塞 Gate 1 的只验收工作；路线和控制事件仍不接入本阶段。
+
+### P2-01 Graph Shadow 归档（功能已验收，Trace 元数据待补）
+
+`fa1e00f` 将既有 `atomic_read_plan.py` 接到旧 Graph 末端的审计 Shadow：旧路径完成后，从最近 Human 输入生成闭合只读候选，并仅写入 thread-local `atomic_read_plan_evaluations`。`read_only_active` 未开放，候选不执行、不产生游客正文、不写 TourState、VisitorProfile、proposal、StopProgram 或 NarrationCoverage。定向 46/46、完整 841/841 与 P0 8/8 均通过。负责人 Studio 正向验证记录的 Thread ID 为 `019fc3b7-67ea-77d2-8131-6a3b93a7fcd3`，候选为 `single_fact` + `controlled_knowledge`，且 `decision_kind=atomic_read_plan`；Trace URL/revision 未保存，状态为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。详见 `p2_01_graph_shadow_handoff.md`。Gate 2 仍 pending，Gate 3 仍 blocked；P2-02/P2-03/P2-04 不得因此开启。
+
+### P2-02 Route Proposal Graph Shadow（功能已验收，Trace 元数据待补）
+
+`d0b61e0`/`44235c3` 将同一份旧 `RouteSelection` 包装为审计 proposal，而不重新选择、重新规划或改变旧 `direct_route` 的 `start_tour`/正文/正式状态。accepted 候选只写入 thread-local `route_proposal_evaluations`，并对旧路线记录 `matches_legacy=true`；10 分钟非法画像被记录为 `rejected_reason=invalid_profile_value`，旧的 20–120 分钟提示不变。定向 55/55、完整 852/852、P0 8/8 均通过。负责人 Studio 提供了三个 Thread ID，但未保存 Trace URL/revision；归档为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P2-02 active disabled，P2-03/P2-04 未开始；详见 `p2_02_route_proposal_shadow_handoff.md`。
+
+### P2-03 Replan Proposal Graph Shadow（功能已验收，Trace 元数据待补）
+
+`09a85c8`/`334ea7a` 将旧 P1-11 已产生的 `pending_replan_proposal` 只读包装为 thread-local `replan_proposal_evaluations`；不重新调用重规划器，不应用或取消 proposal，不改变旧游客正文或正式状态。Studio 人工验证：月台补充 40 分钟后的同一份旧 proposal 为 `accepted` 且 `matches_legacy=true`；未知位置保持旧澄清、不生成默认 proposal；取消后旧 preview 清空，Shadow 如实记录 `legacy_proposal_absent`。当前完整回归 860/860、P0 3/3 与 `git diff --check` 通过。完整 Thread ID、Trace URL/revision 与人工逐字段状态 diff 未保存，因此归档为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P2-03 active disabled；P2-04 未开始；Gate 3 仍 pending。详见 `p2_03_replan_proposal_shadow_handoff.md`。
+
+### P2-04-A 普通状态事件 Graph Shadow（功能已验收，Trace 元数据待补）
+
+`92ca888` 为普通 `tour_event` 增加纯 dry-run 审计：到达、讲解结束、确认完成、跳过、下一站和结束只读取状态快照；旧 Graph 仍是唯一执行者，且每个事件只调用一次 `handle_tour_event`。thread-local `state_transition_evaluations` 记录预期阶段、拒绝/原因码和与旧链实际结果的比对，不构成第二份 TourState。定向 24/24、完整 867/867、P0 3/3 均通过。Studio 人工操作已看到六类普通事件均为 accepted 且 `legacy_execution_observed=true`、`legacy_result_matches_shadow=true`；完整 Thread/Trace URL/revision 未保存，故归档为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P2-04-A active disabled；P2-04-B 重规划复合事件审计未开始；Gate 3 仍等待 P2-04-B 与最终验收。详见 `p2_04a_normal_event_shadow_handoff.md`。
+
+### P1-11 confirm_replan_and_next Graph 可达性修复
+
+`route_initial_request()` 已有合法复合目标 `confirm_replan_and_next`，但 `semantic_normalization` 的条件映射曾缺少该 key，导致本地 Studio 抛出 `KeyError`。最小修复仅将既有节点加入映射，保留冻结顺序 `apply_replan_proposal → next_stop`，不属于 P2 active 接管。定向 54/54、完整 869/869、P0 3/3 与 `git diff --check` 通过；负责人手动验证新路线只应用一次并输出下一站导航。未保存完整 Thread ID/Trace URL，状态为 `manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P1-11 confirm_replan_and_next Graph reachability: verified；P2-04-B: not started; prerequisite repaired。
+
+### P2-04-B 重规划复合事件 Shadow（功能已验收，Trace 元数据待补）
+
+在不接管旧 P1-11 的前提下，`replan_composite_evaluations` 只记录 preparation、候选生成、确认、合法 `apply_replan_proposal → next_stop` 与取消的旧链前后差异。它不调用事件执行器、状态适配器或路线规划器，也不构成第二份状态。定向 5/5、关联 66/66、完整 874/874、P0 3/3 和 `git diff --check` 通过。负责人 Studio 观察到复合确认 accepted、formal route changed、contract match 和 proposal 清空；取消保留原路线。完整 Thread/Trace URL/revision 未保存，归档为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P2-04-B active disabled；Gate 3 pending final P2 integration acceptance。详见 `p2_04b_replan_composite_shadow_handoff.md`。
 
 这 8 步完成前，不建议开始语音、多语言、附近实时推荐或图数据库。它们依赖稳定的 Renderer、证据包、状态事件和工具权限；过早接入只会放大当前分散路由的问题。
 
@@ -533,3 +646,28 @@ Place → Ornament → Craft/Term → Source/ResearchCard/ComparisonCard
 - 学术工作区不伪造来源、不越权使用全文、不污染导游状态。
 - 文字、字幕和语音事实一致，所有内部字段只留在审计。
 - 自动测试、LangSmith 实链、故障注入、线程隔离和回滚演练全部通过。
+
+## Gate 3：P2 Shadow / 只读最终集成验收（已通过）
+
+`5ee99ea` 完成 P2 最终 Shadow/只读集成验收：P2-01 原子多意图、P2-02 路线 proposal、P2-03 重规划 proposal、P2-04-A 普通状态事件、P2-04-B 重规划复合操作均保持 Shadow；P2-05 保持其已冻结的受控只读灰度契约。所有审计字段仅存在于当前 thread checkpoint，不能成为第二份 TourState、VisitorProfile、正式路线或 proposal。
+
+Gate 3 定向 66/66、完整回归 877/877、P0 矩阵 3/3 和 `git diff --check` 通过。负责人完成四组 Studio 功能操作：游览中票务问答后继续导游、多意图安全澄清、60 分钟路线与旧选择一致、偏航后的确认新路线并前往下一站。未保存完整 Trace 元数据，统一标记 `manual_validation: passed_by_operator` 与 `langsmith_trace_status: metadata_unavailable`，不得写成 Trace 已验证。
+
+```text
+P2 integration functional validation: passed
+P2 state-class active takeover: disabled
+Gate 3: passed for shadow/read-only integration
+```
+
+详见 `p2_gate_3_integration_acceptance.md`。下一阶段在获得独立授权前不得开启任何路线、重规划或状态类 active takeover。
+
+## P3 前置审计与执行顺序（2026-08-03）
+
+以 `experiment/agent-orchestration-v2@9d744d3` 为基线的审计确认：P2 Gate 3 已通过 Shadow／只读集成，但所有状态类 active takeover 仍禁用。P3 必须按 `P3-01 模式契约 → P3-03 只读 CardDispatcher 候选 → P3-04 事实型 NarrationComposer/版式 → P3-05 分能力灰度` 推进，每步独立测试、独立提交和可回滚。
+
+`P3-02` 是风险最低的核查项，但不应重复实现：当前唯一链路已是 `GuidancePolicy → compile_narration_style() → NarrationStylePolicy → narration_rendering`，只读取确认策略、未知/异常失败关闭为 neutral，且不改变证据、路线、TourState、VisitorProfile、StopProgram 或 NarrationCoverage。新建第二风格状态、第二画像或自由文本选风格都会违反既有 E5 契约。
+
+P3-01 / CA-12 的模式归属、生命周期与知识问答恢复语义已由负责人冻结，
+当前进入独立实现与测试阶段。它不得写入 VisitorProfile、TourState 或新的会话
+事实源；完整审计、实现边界与验收记录见 `p3_preflight_audit_handoff.md` 和
+`p3_01_journey_mode_handoff.md`。

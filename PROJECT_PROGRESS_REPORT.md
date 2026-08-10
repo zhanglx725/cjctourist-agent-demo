@@ -1,4 +1,195 @@
+# CURRENT PHASE: ROLE MODE SHADOW (2026-08-09)
+
+> 参赛材料统一事实口径见[《参赛版本完成度、功能实现范围与展示范围标杆》](data/chen_clan_academy/evaluation/handoffs/competition_scope_and_demo_baseline.md)。
+
+## Current verification status (2026-08-10)
+
+```text
+role_narration_budget_quality_gate: passed
+listen_only_manual: passed_by_operator
+role_mode_and_continuity: 16/16 passed
+role_targeted_validation: 73/73 passed
+p0_matrix: 3/3 passed
+full_regression: 1101/1101 passed
+automated_18_style_validation: passed
+manual_risk_sample: 7/7 passed
+manual_full_18_style_matrix: waived_due_to_schedule
+active_takeover: disabled
+```
+
+Competition risk sampling is now archived at commit baseline `8d09f53`.
+The final seven reviewed-stop samples all passed; the latest related targeted validation is
+`65/65`, P0 is `3/3`, and full regression is `1101/1101`. One professional and
+one ancient-scholar candidate also demonstrated safe fallback before fresh
+Thread retries passed. The next scoped production stage is role-aware QA
+Shadow only; Active remains disabled.
+
+## Baseline regression cleanup completed (2026-08-09)
+
+The five previously recorded baseline failures are resolved in an independent
+non-role change. The cleanup preserves the raw message for deterministic C2
+preference parsing, permits explicit C8 controls before optional onboarding,
+adds bounded English duration/detail parsing, and aligns tests with the
+frozen interest-order and complete-Trace contracts.
+
+```text
+baseline_cleanup_targeted_tests: 57/57 passed
+full_regression: 1061/1061 passed
+remaining_preexisting_failures: 0
+role_shadow: unchanged
+active_takeover: disabled
+```
+
+## Route planning and opening role-text Shadow
+
+The completed deterministic `route_planning` and `route_opening` messages are
+now audited as non-authoritative role-text candidates. Every accepted
+candidate preserves the old message in full, so route facts, timing, order and
+safety text cannot drift. Candidates never replace visitor output and write no
+TourState, VisitorProfile, route, proposal or StopProgram data.
+
+```text
+route_planning_role_text_shadow: implemented_and_verified
+route_opening_role_text_shadow: implemented_and_verified
+role_text_targeted_tests: 22/22 passed
+p0_role_text_tests: 18/18 passed
+full_regression: 1053/1058 (five preexisting failures)
+active_takeover: disabled
+```
+
+```text
+role_schema: fixed
+role_shadow: implemented_and_automated_verified
+presentation_content_plan: implemented
+presentation_content_plan_shadow: automated_verified
+route_opening_shadow: implemented_and_automated_verified
+route_opening_shadow_manual: passed_by_operator
+role_active: disabled
+active_takeover: disabled
+automated_validation: partial_due_to_preexisting_failures
+role_shadow_targeted_tests: 22/22 passed
+presentation_content_plan_targeted_tests: 9/9 passed
+route_opening_integration_tests: 19/19 passed
+full_regression: 1047/1052
+p0_matrix: 10/10 passed
+```
+
+Implemented `role_mode_shadow.py` and its Graph bridge. It reads only explicit
+role requests or existing validated profile values, supports the three reviewed
+roles (`ancient_scholar`, `child`, `listen_only`), records confidence,
+applicability and presentation strategy, and fails closed for unknown or
+conflicting roles. Role selection only changes the non-authoritative Shadow
+plan; old visitor output and operational state remain authoritative.
+
+## Current phase: unified presentation content plan Shadow (2026-08-09)
+
+Implemented `presentation_content_plan.py` and the dedicated
+`presentation_content_plan` rollout capability. The plan supports
+`route_planning`, `route_opening`, `stop_guidance`, `navigation`, and
+`tour_closing`. It records content sections, role strategy, evidence and
+safety requirements, and a scene-specific budget. It contains no internal
+IDs, raw RAG chunks, final visitor text, or state patches.
+
+Verification:
+
+```text
+presentation_content_plan_targeted_tests: 9/9 passed
+route_opening_integration_tests: 19/19 passed
+p0_matrix: 10/10 passed
+full_regression: 1047/1052
+preexisting_failures: 5
+```
+
+The five failures are unchanged parent/current baseline failures. Their
+assertions were not modified. Role Active and Active takeover remain disabled.
+
+### Route-opening Shadow repair (2026-08-09)
+
+The first-arrival flow is `tour_event → tour_opening → stop_guidance`. The
+previous generic post-response Shadow boundary only saw the final point-guidance
+message, so it recorded `stop_guidance` and missed `route_opening`. The repair
+records one explicit, non-authoritative `route_opening` plan immediately after
+the legacy opening message is built and before the legacy flow enters
+`stop_guidance`. The existing terminal Shadow boundary then independently
+records `stop_guidance`.
+
+The repair does not change the opening text, route, TourState, VisitorProfile,
+proposal, StopProgram, Coverage, RAG, or Active configuration. A repeated
+idempotent “开始导游” action does not append a second opening plan. Automated
+route-opening integration tests are `19/19`; P0 is `10/10`. Studio operator
+retest passed: the audit showed an independent `route_opening` record with
+`validation_status=accepted`, `active_takeover=false`,
+`legacy_message_preserved=true`, `plan_is_non_authoritative=true`, and
+`state_writes=[]`. No Trace URL/revision was supplied.
+
+The five baseline failures were reproduced identically on the parent and role
+Schema commits and remain preexisting. They are not being fixed here:
+
+```text
+test_same_thread_retains_profile_but_new_thread_isolated
+test_english_minute_route_input_starts_same_thirty_minute_route
+test_title_basis_combines_heard_topics_questions_and_explicit_profile
+test_two_hour_woodcarving_deep_request_uses_route_planner
+test_two_hour_woodcarving_request_replans_from_active_tour
+```
+
 # 陈家祠金牌导游 Agent：现阶段技术进度与业务逻辑说明
+
+## 角色候选 Schema Phase 1 复核（2026-08-09）
+
+- 只读审计确认 `invalid_candidate_schema` 的实际触发点是 `role_narration_generation.validate_candidate_shape()` 对模型 wire object 的严格顶层字段集合校验；LangSmith 展示的 `role_narration_candidate` 是失败后的审计 envelope，不是模型原始 JSON，因此不能仅凭截图判断具体多余字段。
+- 既有实现已经具备 JSON object、`ROLE_NARRATION_MAX_TOKENS` 和一次受控 Schema repair；本轮补强 `role_narration_candidate_from_dict()` 的内部 envelope 严格反序列化，拒绝未知字段、非法状态/类型、负延迟和 rejected 状态携带游客正文。
+- 补强角色模型返回内容块的处理：只拼接显式 text block，避免将 Python list 表示序列化成单引号字符串后造成二次 `invalid_candidate_schema`；非文本内容仍失败关闭。
+- 新增覆盖合法候选、缺字段、多余字段、错误类型、未知角色、未知版本、内部 ID/来源/状态/最终文案字段，以及内部 envelope 未知字段的测试。
+- 本轮没有修改路线、TourState、VisitorProfile、RAG、知识卡、StopProgram 或游客旧输出；Shadow 仍不接管角色候选，Active 继续禁用。
+- 项目负责人已补跑本阶段定向测试 `15/15 OK`。父提交 `28c6d6b` 与当前提交 `ca4b64c` 的 5 个失败结果完全一致：完整回归均为 `1031/1036`，即 4 failures + 1 error；因此确认 5 项为既有基线问题，本次角色 Schema 修改未引入这些失败，且未修改旧测试断言。`test_agent_graph.py` 不存在，不计入回归结果。P0 安全/游客输出矩阵 `62/62 OK`。
+
+状态：
+
+```text
+invalid_candidate_schema: fixed
+automated_validation: partial_due_to_preexisting_failures
+role_shadow: implemented_and_automated_verified
+active: disabled
+```
+
+## P3-05 讲解组合 Graph Shadow（2026-08-04）
+
+- 新增 `narration_composition` 灰度能力，并在 `stop_guidance_node` 接入纯 Shadow 审计。旧 E5 讲解正文仍是唯一游客输出和 Coverage 提交依据；P3-03/04 只复用同一次旧结果，不二次检索、规划、选对象或提交 Coverage。
+- 默认 off；仅 `CJC_READ_ONLY_ROLLOUT_MODE=shadow` 且 capability 显式包含 `narration_composition` 时写线程内审计。误设 `read_only_active` 也不会接管正文；观察器异常被 Graph 吞掉并记录拒绝原因，旧正文和 Coverage 继续。
+- 审计记录候选安全正文、与旧正文是否一致、候选/省略卡、预算、警告、显示/TTS 一致性，并固定 `active_takeover=false`、`state_writes=[]`；每线程最多保留 20 条。
+- P3 Shadow 专项 23/23、P2 Gate/状态/讲解/Coverage 相关 39/39、完整回归 905/905（30.925 秒）通过。当前状态为 `implemented_pending_langsmith_verification`；完成五类新线程 Trace 验收前不得开启 active 或进入 P4。
+- 独立交接见 `data/chen_clan_academy/evaluation/handoffs/p3_05_narration_shadow_handoff.md`。
+
+## P3-04 NarrationComposer 与游客版式（2026-08-04）
+
+- 新增确定性 `narration_composer.py`，组合既有证据讲解和 P3-03 只读候选；不调用模型、不重写基础事实、不接入 Graph，也不提交 Coverage 或修改任何路线/状态/画像/StopProgram。
+- 可选增强统一插入“下一步”之前，最多两项并共享剩余预算；术语只读审核定义，研究强制作者归因与范围限制，比较强制研究口径与适用范围，摄影再次通过同点位选择器并保留安全边界。
+- 游客正文移除 Markdown 列表前缀，不生成嵌套列表；最大 1800 字，统一经过公共游客输出边界。客户端显示与 TTS 使用完全相同的安全正文，内部 card/source/file/URL 信息仅留在审计结果。
+- P3-04 专项 7/7、讲解/风格/边界/Coverage 相关 68/68、完整回归 901/901（29.610 秒）通过。该层尚未进入 Graph，故本步未运行 LangSmith；P2-07 Studio 版式实链验收留待 P3-05 灰度接入。
+- 独立交接见 `data/chen_clan_academy/evaluation/handoffs/p3_04_narration_composer_handoff.md`。下一步为 P3-05 分能力灰度。
+
+## P3-03 / CA-13 只读 CardDispatcher（2026-08-04）
+
+- 新增确定性 `card_dispatcher.py`，只输出有序、不可变增强候选，不输出卡片正文，不接入 Graph，不修改路线、TourState、VisitorProfile、StopProgram、对象选择或 NarrationCoverage。
+- 顺序固定为基础对象事实、术语、研究、比较、摄影。术语必须绑定当前点且绑定本次实际选择对象；研究仅在 custom/深度策略、明确兴趣和当前点审核映射均满足时进入，并强制归因；比较只接受 StopProgram 显式绑定卡；摄影必须同时具备明确意图、上游安全清关和同点位审核候选。
+- 所有可选候选共享并逐项扣减剩余讲解预算；无合格增强时正常保留基础讲解。经典模式不会主动注入研究或比较卡。
+- P3-03 专项 7/7、卡片资格相关 52/52、完整回归 894/894（30.248 秒）通过。该层尚无 Graph/游客正文路径，因此本步未运行 LangSmith。
+- 独立交接见 `data/chen_clan_academy/evaluation/handoffs/p3_03_card_dispatcher_handoff.md`。下一步为 P3-04 NarrationComposer 与游客版式。
+
+## P3-02 NarrationStylePolicy 集成验收（2026-08-04）
+
+- 已完成代码与契约审计：唯一生产链保持为 `GuidancePolicy → compile_narration_style() → NarrationStylePolicy → render_guidance_evidence()`，不新增第二画像、风格状态或路线事实。
+- 七种批准风格、未知风格回退 neutral、样式库失败关闭、`listen_only` 无问句/任务，以及同一证据下工艺、对象、来源、预算、覆盖候选不漂移均已有自动化测试覆盖。
+- 本轮未修改生产代码。已修复 Windows Python/MSI 异常，恢复 Python 3.12.7，并按 `requirements.txt` 重建 `.venv`；`pip check` 无损坏依赖，P3-02 定向测试 33/33、完整回归 887/887（30.912 秒）通过。P3-03 可以开始。
+- 独立验收记录见 `data/chen_clan_academy/evaluation/handoffs/p3_02_narration_style_acceptance.md`。
+
+## P3-01 / CA-12 模式契约（2026-08-03）
+
+- 已实现并通过定向自动测试：既有 `tour_mode` 保留为交互形式；同一 `tour_interaction_state` 新增 session-owned 的 `journey_mode`（`classic` / `custom`）。
+- 默认 `classic` 只要求游览时长；只有游客显式选择 `custom` 才收集最小明确偏好。custom 的必填项为时长和兴趣，不追问讲解深度；其详细讲解策略仅由 session 的 `journey_mode` 派生，仍受证据、预算和安全门控限制，且不写入 TourState 或 VisitorProfile。
+- 路线创建后，最终模式仅记录于 `active_route_plan.journey_mode_audit`，并明确标记为不参与路线计算；结束游览会清理 session 模式，路线审计仍保留。
+- 只读问答可标记恢复目标，但不会写 TourState、路线、StopProgram 或 NarrationCoverage。P3-03 CardDispatcher、主动卡片输出及 P3-04 版式尚未实现；状态类 active takeover 继续禁用。
 
 > 学习、答辩和项目全貌说明已独立迁移至 `PROJECT_LEARNING_AND_DEFENSE_GUIDE.md`。本文件只维护当前实现进度、验证状态与后续事项，避免将“计划”误写为“已实现”。
 
@@ -1032,6 +1223,71 @@ glossary_ids
 - 明确点位概览（如“讲讲月台”）进入该点的审核讲解包，点位仅限定本轮查询，不改变 `current_stop_id`。当前点工艺术语先核对本点审核对象；不存在时返回 `current_craft_absent`，不以全馆资料补造眼前实例。
 - 顶层对“明确危险动作 + 明确拍照意图”先送入 D6 安全拒绝，再进行到达或多意图仲裁；拒绝不会查询打卡候选，也不会写入 TourState。
 
+## P2-05 受控知识灰度接入第一阶段（功能已验收，Trace 元数据待补）
+
+- `72e9c92` 已将游览前的 `controlled_knowledge`（团队订单电子发票规则）接入 `off`、`shadow`、`read_only_active` 三档灰度；路线、重规划和状态事件未接入。
+- 负责人已在 Studio 操作验证 shadow 的 `candidate_shadow` 与 active 的 `candidate_active`，新旧游客正文一致；路线、到达和普通问答保持既有路径，索取内部资料不泄露 source ID、文件名、URL、检索字段或原始 evidence。
+- 本轮未保存完整 Thread ID、Trace URL 或 Trace revision ID。状态应记为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`，不得写成 LangSmith Trace 已验证；Trace 元数据是待补 evidence debt，不阻塞 Gate 1 的只验收工作。
+- 自动化：P2-05 定向 `26/26`、完整回归 `831/831`（0 failure、0 error）；候选失败回退旧受控渲染由自动化覆盖，Studio 未故意注入故障。
+
+## P2-01 多意图原子只读计划 Graph Shadow（功能已验收，Trace 元数据待补）
+
+- `fa1e00f` 已把 P2-01 作为只观察的 Graph 末端节点接入：旧路径先完成，Shadow 再从最近 Human 输入组装只读原子候选，并只记录 `atomic_read_plan_evaluations`。
+- 自动化：定向 `46/46`、完整回归 `841/841`、P0 安全/游客输出矩阵 `8/8` 均通过。
+- Studio 人工正向验证：Thread `019fc3b7-67ea-77d2-8131-6a3b93a7fcd3` 对“陈家祠什么时候开始筹建,再团队订单电子发票规则是什么？”生成 `decision_kind=atomic_read_plan`，候选分别为 `single_fact` 与 `controlled_knowledge`，均为 `read_only`。
+- `trace_url` 与 `trace_revision_id` 未保存；状态为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`，不得写成 Trace 已验证。P2-01 active 仍 disabled；P2-02/P2-03/P2-04 未接入。
+
+## P2-02 路线 Proposal Graph Shadow（功能已验收，Trace 元数据待补）
+
+- `d0b61e0`/`44235c3` 已把同一份旧 `RouteSelection` 包装为 route proposal Shadow 审计；不再次调用选择器或规划器，旧 `direct_route` 仍独占 `start_tour`、游客正文和正式路线状态。
+- 自动化：P2-02 定向 `55/55`、完整回归 `852/852`、P0 矩阵 `8/8` 均通过。
+- Studio：30 分钟灰塑和 60 分钟灰塑+木雕均显示 `validation_status=accepted` 与 `matches_legacy=true`；10 分钟显示 `rejected_reason=invalid_profile_value` 和 `proposal=null`，游客继续看到旧的 20–120 分钟校验提示。
+- 三个 Thread ID 已在 handoff 记录；Trace URL/revision 与完整人工状态 diff 未保存，因此为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P2-02 active disabled；P2-03/P2-04 未开始。
+
+## P2-03 重规划 Proposal Graph Shadow（功能已验收，Trace 元数据待补）
+
+- `09a85c8` 接入只读 `replan_proposal_shadow`，`334ea7a` 补齐 capability 未启用时的结构化拒绝审计；该节点只包装旧 P1-11 的 `pending_replan_proposal`，不重跑重规划、不调用状态适配器、不替换正式路线。
+- 自动化：当前完整回归 `860/860`、P0 矩阵 `3/3`、`git diff --check` 均通过；P2-03 定向覆盖为 57/57，新增诊断套件 6/6。
+- Studio：月台补充 40 分钟的旧 proposal 被审计为 `accepted`/`matches_legacy=true`；未知位置保持澄清；取消后记录 `legacy_proposal_absent` 且原路线保持。完整 Trace URL/revision、完整 Thread ID 与人工逐字段状态 diff 未保存，因此为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。
+- P2-03 active disabled；P2-04 未开始；Gate 3 仍 pending。
+
+## P2-04-A 普通状态迁移 Graph Shadow（功能已验收，Trace 元数据待补）
+
+- `92ca888` 在普通 `tour_event` 入口加入只读 dry-run 对照；旧 `handle_tour_event` 仍只执行一次，Shadow 不能写状态或改变游客正文。
+- 覆盖到达、讲解结束、确认完成、跳过、下一站和结束；审计字段仅写入 thread-local `state_transition_evaluations`。
+- 自动化：定向 24/24、完整回归 867/867、P0 矩阵 3/3 均通过。
+- Studio 人工验证观察到所有上述普通事件均为 accepted 且旧链执行/结果匹配。完整 Thread ID、Trace URL/revision 和逐字段状态 diff 未保存，因此状态为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。
+- P2-04-A active disabled；P2-04-B replan composite audit not started；Gate 3 pending final acceptance。
+
+## P2-04-B 重规划复合事件 Shadow（功能已验收，Trace 元数据待补）
+
+- 新增纯 `replan_composite_evaluations`，只对旧 P1-11 的 preparation、候选生成、确认、合法的 `apply_replan_proposal → next_stop` 复合确认、取消及无候选确认做前后态比较；Shadow 不执行事件、不调用状态适配器、不改变游客正文。
+- 自动化：定向 5/5、关联 66/66、完整回归 874/874、P0 3/3 与 `git diff --check` 均通过。
+- Studio：负责人确认复合确认记录为 `accepted`、`formal_route_changed=true`、`matches_expected_contract=true`，proposal 清空；取消仍由旧 P1-11 清理且原路线保持。完整 Thread ID、Trace URL/revision 和逐字段状态截图未保存，因此为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P2-04 active takeover disabled；Gate 3 pending final P2 integration acceptance。详见 `p2_04b_replan_composite_shadow_handoff.md`。
+
+## P2 Gate 3：Shadow / 只读最终集成验收（已通过）
+
+- 基线：`experiment/agent-orchestration-v2@5ee99ea`。Gate 3 覆盖 P2-01 原子多意图 Shadow、P2-02 路线 proposal Shadow、P2-03 重规划 proposal Shadow、P2-04-A 普通事件 Shadow、P2-04-B 重规划复合 Shadow，以及 P2-05 已冻结的受控知识只读灰度。
+- 自动化：Gate 3 定向及 P2/Gate 1 相关套件 `66/66`、完整回归 `877/877`、P0 安全/游客输出矩阵 `3/3` 均通过；`git diff --check` 通过（仅有未修改路线 JSON 的 CRLF 提示）。
+- 人工 Studio：游览中票务问答后“下一站”正常继续；到达+问答+下一站保持旧澄清而未半执行；60 分钟路线与旧 RouteSelection 一致；偏航后“确认新路线并前往下一站”实际到达 `confirm_replan_and_next`，新 proposal 仅应用一次并导航到新路线下一站。
+- 审计字段均为 thread checkpoint 内的观测记录，不是第二份 TourState、VisitorProfile、正式路线或 proposal。没有路线、重规划或状态类 active takeover。
+- 完整 Trace URL、Thread ID、revision 未保存；状态如实归档为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`，不得写成 Trace 已验证。
+
+```text
+P2 integration functional validation: passed
+P2 state-class active takeover: disabled
+Gate 3: passed for shadow/read-only integration
+```
+
+详见 `data/chen_clan_academy/evaluation/handoffs/p2_gate_3_integration_acceptance.md`。
+
+## P3 前置审计（2026-08-03）
+
+- 基线为 `experiment/agent-orchestration-v2@9d744d3`；P2 Gate 3 已通过 Shadow／只读集成，状态类 active takeover 继续禁用。
+- 审计确认 P3-02 的 E5 风格链已实际存在：`GuidancePolicy → compile_narration_style() → NarrationStylePolicy → narration_rendering`。它是纯展示策略，不复制 VisitorProfile，不改证据、状态、路线、StopProgram 或 Coverage；因此本轮没有新增重复实现。
+- P3-01 / CA-12 是下一项真正实现前置：`tour_mode` 的唯一归属、生命周期和问答打断恢复规则未冻结。此项涉及产品/状态契约，不能自行选择 VisitorProfile、TourState、路线快照或新的会话事实源。
+- 已形成 P3-00 审计、后续拆分和建议方案，见 `data/chen_clan_academy/evaluation/handoffs/p3_preflight_audit_handoff.md`。在负责人确认模式归属前，不启动 CardDispatcher、模式选择或新的 Graph active rollout。
+
 ## P1-21 游客文本与内部审计来源分离（已实现，待 LangSmith 验证）
 
 - 工艺总述的游客渲染不再拼接内部来源编号；工艺和对象来源继续保留在 `evidence`、术语元数据与 Trace 审计结构中。
@@ -1055,6 +1311,7 @@ glossary_ids
 
 ## P1-11 显式当前位置的确认式后续重规划（自动化已验证，待 LangSmith 验证）
 
+- 2026-08-03 修复 `confirm_replan_and_next` 的 Graph 可达性：`route_initial_request()` 已可返回该目标，但 `semantic_normalization` 的条件路由映射此前遗漏该 key，Studio 会抛出 `KeyError`。现已只补齐既有 `confirm_replan_and_next_node` 的映射，不改变其冻结的 `apply_replan_proposal → next_stop` 顺序或任何状态契约。定向 54/54、完整回归 869/869、P0 3/3 和 `git diff --check` 通过。负责人在新的本地 Studio 服务手动验证“确认使用新路线，然后前往下一站”：实际进入 `confirm_replan_and_next`，`crafts_60_replanned` 只应用一次、pending proposal 清空，并输出前院中部的下一站导航；未保存完整 Thread ID/Trace URL，故为 `manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。P1-11 confirm_replan_and_next Graph reachability: verified；P2-04-B: not started; prerequisite repaired。
 - 活跃路线中，任何明确到达且不同于正式 pending 的审核点位都视为路线偏航：先以审核解析结果写入唯一位置事实 `TourState.current_stop_id`，再进入 `replan_time_confirmation` 询问游客本轮还剩多少时间；显式“重新安排后续行程”仍支持，但不再是必要条件。不得以初始路线总时长生成候选。
 - 解析到明确分钟数后，才从 `current_stop_id` 生成 `awaiting_route_confirmation` 候选；候选的 `origin_node_id` 与 `physical_node_snapshot` 都只是审计快照。A1 `apply_replan_proposal` 验证二者仍一致后才原子替换剩余路线并保留 visited/skipped；取消只清除待确认动作。
 - `pending_action_kind` 明确区分时间确认与路线确认。两阶段的“下一站”都会被拦截，不能调用 `next_stop`、静默应用候选或把路线写为 completed；路线确认阶段使用统一控制表达归一化和“否定 → 疑问/查看 → freshness → 确认”仲裁，支持“确认新路线”“使用新路线”“就按新路线走”等，否定或问句不会应用候选。
@@ -1081,3 +1338,10 @@ glossary_ids
 - 重规划等待优先于下一站：等待剩余时间时提示先说明时间，等待路线候选时提示确认或保留原路线；当前站处于 `explaining` 或 `awaiting_confirmation` 时，“下一个”不能代替完成或跳过。无活跃路线时提示先规划路线。
 - 已确认新路线后，下一站导航只读取已应用的 active route、`current_stop_id`、`pending_stop_id` 和审核空间图。控制形态无法安全映射时走结构化澄清，禁止落入 `llm_think` 或 `rag_tool` 生成自由导航。
 - C4 定向回归 99 项通过，完整回归 730 项通过；仍待以独立 LangSmith 线程完成“偏航 → 剩余时间 → 确认新路线 → 下一个”及阻断场景复测。
+
+## 角色讲解预算质量门与连续性修复（2026-08-10）
+
+- 新增仅限角色讲解层的 `CJC_ROLE_NARRATION_TEST_FAILURE=budget_exceeded` 故障注入；真正超预算时不调用模型，验证拒绝并保留旧链正文，不提交 Coverage 或任何业务状态。
+- 静听模式真实点位由操作员确认：E5 与角色计划均分配 210 秒，`interaction_allowed=false`、`validation_status=accepted`、`same_fact_boundary=true`、`within_budget=true`、`state_writes=[]`。
+- 修复已审核角色自然表达、冲突候选稳定顺序和不写 VisitorProfile 的跨轮继承。角色连续性定向 16/16 通过。
+- 最终验证：角色及预算定向 73/73、P0 3/3、完整回归 1095/1095 通过；`active_takeover=false`。18 风格最终 Shadow 人工归档待下一阶段执行。

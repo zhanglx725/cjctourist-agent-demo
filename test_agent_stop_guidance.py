@@ -9,7 +9,14 @@ from unittest.mock import patch
 
 from langchain_core.messages import HumanMessage
 
-from agent_graph import direct_route_node, route_after_tour_event, stop_guidance_node, tour_event_node
+from agent_graph import (
+    direct_route_node,
+    route_after_tour_event,
+    route_after_tour_opening,
+    stop_guidance_node,
+    tour_event_node,
+    tour_opening_node,
+)
 
 
 PAYLOAD = json.dumps({
@@ -31,11 +38,15 @@ class AgentStopGuidanceTests(unittest.TestCase):
     def _arrived(self):
         started = direct_route_node(_state("我有30分钟，请规划路线"))
         arrived = tour_event_node(_state("我到前院中部了", started))
-        return {**started, **arrived}
+        state = {**started, **arrived}
+        self.assertEqual(route_after_tour_event(state), "tour_opening")
+        opening = tour_opening_node(state)
+        self.assertEqual(route_after_tour_opening(opening), "stop_guidance")
+        return {**state, **opening}
 
-    def test_planned_arrival_routes_to_stop_guidance_and_does_not_mark_visit(self):
+    def test_planned_arrival_opens_then_routes_to_guidance_without_marking_visit(self):
         state = self._arrived()
-        self.assertEqual(route_after_tour_event(state), "stop_guidance")
+        self.assertEqual(state["tour_opening_program"]["status"], "played")
         before_tour = deepcopy(state["tour_state"])
         before_interaction = deepcopy(state["tour_interaction_state"])
         with patch("agent_graph.chen_clan_academy_rag_search") as rag:
@@ -56,18 +67,20 @@ class AgentStopGuidanceTests(unittest.TestCase):
         )
 
     def test_request_detail_reaches_guidance_and_keeps_route_progress(self):
-        state = self._arrived()
-        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
-            rag.invoke.return_value = PAYLOAD
-            first = stop_guidance_node(state)
-        detailed_event = tour_event_node(_state("再讲详细一点", {**state, **first}))
-        continued = {**state, **first, **detailed_event}
-        self.assertEqual(route_after_tour_event(continued), "stop_guidance")
-        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
-            rag.invoke.return_value = PAYLOAD
-            detailed = stop_guidance_node(continued)
-        self.assertEqual(detailed_event["tour_state"]["visited_stop_ids"], [])
-        self.assertIn("再看细一点", detailed["messages"][0].content)
+        for text in ("再讲详细一点", "再详细讲解"):
+            with self.subTest(text=text):
+                state = self._arrived()
+                with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+                    rag.invoke.return_value = PAYLOAD
+                    first = stop_guidance_node(state)
+                detailed_event = tour_event_node(_state(text, {**state, **first}))
+                continued = {**state, **first, **detailed_event}
+                self.assertEqual(route_after_tour_event(continued), "stop_guidance")
+                with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+                    rag.invoke.return_value = PAYLOAD
+                    detailed = stop_guidance_node(continued)
+                self.assertEqual(detailed_event["tour_state"]["visited_stop_ids"], [])
+                self.assertIn("再看细一点", detailed["messages"][0].content)
 
 
 if __name__ == "__main__":

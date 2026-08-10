@@ -1,4 +1,88 @@
+# CURRENT ROLE SHADOW LEARNING NOTE (2026-08-09)
+
+## Baseline cleanup lesson: routing normalization is not profile extraction
+
+Semantic normalization may safely reduce an utterance to a bounded routing
+control, but it must not erase explicit visitor preferences before C2 parses
+them. The cleanup keeps the normalized text for Graph routing and the raw
+utterance for deterministic profile extraction. It also treats profile
+controls as independent of optional onboarding and validates complete trace
+order instead of relying on a fragile last-three-metrics assertion.
+
+Verified by baseline targeted `57/57` and full regression `1061/1061`.
+
+## Route/opening role-text Shadow: why preserve the complete legacy message
+
+Route descriptions contain coupled facts: the selected route, time budget,
+stop order, first stop and site-safety caveats. The Shadow candidate therefore
+uses the complete deterministic legacy public message as its immutable body
+and can add only a reviewed role-specific lead-in. The validator checks exact
+body preservation, public-output safety, role rules and the existing budget.
+This gives a measurable role-expression candidate without granting it route,
+fact, state or final-message authority. Automated evidence is 22/22 role-text
+tests and 18/18 P0 tests; Active takeover remains disabled.
+
+The three-role Shadow layer is a bounded presentation experiment, not a new
+agent authority. Deterministic code selects only reviewed role IDs from an
+explicit request or validated profile. The model receives the approved
+content plan and reviewed StyleBrief; it cannot choose facts, routes, state,
+tools, or the final visitor message. A rejected or ambiguous role preserves
+the legacy explanation.
+
+```text
+role_schema: fixed
+role_shadow: implemented_and_automated_verified
+presentation_content_plan: implemented
+presentation_content_plan_shadow: automated_verified
+route_opening_shadow: implemented_and_automated_verified
+route_opening_shadow_manual: passed_by_operator
+role_active: disabled
+active_takeover: disabled
+role_shadow_targeted_tests: 22/22 passed
+presentation_content_plan_targeted_tests: 9/9 passed
+route_opening_integration_tests: 19/19 passed
+full_regression: 1047/1052
+p0_matrix: 10/10 passed
+```
+
+Keep the five parent/current identical baseline failures separate from this
+phase and do not describe them as role regressions.
+
+统一内容计划的答辩边界：它是“讲什么结构”的只读计划，不是新的事实
+源、路线源或状态源。五类场景分别从已审核的路线、开场程序、StopProgram、
+空间导航和 VisitSummary 读取摘要；来源或预算缺失就回退旧链。古风书生
+只能改变组织与语气，儿童模式只能改变句式和观察难度，静听模式移除主动
+任务；三者都不能增加事实、对象、来源或安全权限。
+
+路线开场是一个容易在实际 Graph 中漏记的场景：首次到站后，旧链会在同一
+流程内先输出 `tour_opening`，再继续 `stop_guidance`。若 Shadow 只在末端读取
+最后一条游客正文，就会误把该轮仅归档为点位讲解。现在开场节点在输出旧正文
+后立即写入一条非权威 `route_opening` 计划，随后点位讲解仍独立记录；这不改变
+路线、事实、状态或游客正文。自动化已验证 `19/19`，P0 `10/10`；Studio
+操作员已观察到独立 `route_opening` 的 accepted Shadow 记录，且不接管、不写
+状态、旧正文保留。完整 Trace URL/revision 未保存，故仍为
+`langsmith_trace_status: metadata_unavailable`，不得伪造 Trace 级元数据。
+
 # 陈家祠金牌导游 Agent：项目学习与答辩说明
+
+## 角色候选 Schema Phase 1：为什么必须区分模型 wire object 和 Graph envelope（2026-08-09）
+
+角色模型输出与 LangGraph 审计状态不是同一个 Schema。模型只应返回六个表达候选字段；Graph 为了记录生成状态、耗时和失败原因，可以保存十字段内部 envelope，但该 envelope 也必须严格校验。若内部 parser 宽松接受未知字段，就会形成“模型拒绝、Graph 又重新接受”的旁路。
+
+另一个常见陷阱是 LangChain 的 `AIMessage.content` 在不同兼容运行时可能是字符串或文本内容块列表。把列表直接调用 `str()` 会得到带单引号的 Python 表示，随后 JSON 解码失败；正确做法是只提取明确的 text block，其他内容保持 fail-closed。这个修复只改善序列化边界，不改变事实、路线、状态或角色权限。
+
+本阶段的验收结论必须拆开记录：
+
+```text
+invalid_candidate_schema: fixed
+automated_validation: partial_due_to_preexisting_failures
+role_shadow: implemented_and_automated_verified
+active: disabled
+```
+
+## P3-01：为什么产品模式不复用 `tour_mode`
+
+`tour_mode` 已冻结为交互形式，直接改为经典/定制会破坏 A1 校验。因此 P3-01 在同一 interaction/session control 内新增 `journey_mode`，而非复制 VisitorProfile 或 TourState。它只决定收集协议：classic 只要求时长；custom 只接受游客显式提供的时长和兴趣，并在讲解时纯派生为详细策略。该策略不成为画像、TourState 或路线计算事实，仍必须让证据、预算和安全门控优先。路线完成后模式仅留在不可参与计算的审计快照中。这样保留旧 Graph 和既有状态事实源，也为 P3-03 的 CardDispatcher 提供受控输入，而不让模型或卡片越权写状态；段落、长度和朗读版式仍属于 P3-04。
 
 > 用途：学习项目代码、答辩和新人交接。进度只看 `PROJECT_PROGRESS_REPORT.md`，需求只看 `PROJECT_REQUIREMENTS.md`。
 >
@@ -90,6 +174,26 @@ knowledge/*.md
 `agent_graph.py` 使用 LangGraph。图中多个节点从 `START` 分出，表示“每条新消息按意图选择处理器”；并不表示会话状态丢失。状态由相同 `thread_id` 保存。
 
 真实优化：`should_direct_rag()` 跳过一次无必要的工具选择 LLM；`should_direct_route()` 不让 LLM 编路线；`webapp.py` 预热模型；`agent_profile.py` 拆解节点耗时；LangSmith/Studio 测浏览器端到端体验，而不是替代控制台定位。
+
+### P2-05 证据分级：功能验收与 Trace 追溯分开
+
+P2-05 的负责人 Studio 操作可证明功能路径、游客正文和可见状态观察，但只有保存了当前 commit 对应的完整 Thread ID、Trace URL 和 revision ID，才能称为可追溯的 LangSmith Trace 验证。`72e9c92` 的 P2-05 记录为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`：不得伪造缺失标识。该 evidence debt 可以允许 Gate 1 的 schema、Registry、Policy Gate 与 Executor **只验收**继续，但不能作为路线 proposal、重规划或状态事件接管的放行依据。
+
+### P2-01 Shadow：末端审计必须读取 Human 原话
+
+P2-01 的 Shadow 节点安排在旧链路之后，以保证不改变游客正文；因此最后一条 message 往往已是 AI 回答。审计若直接读取 `messages[-1]`，会把 AI 正文误当用户输入，导致多意图被误判为 `not_multi_intent`。`fa1e00f` 改为倒序读取最近 Human message，并以 Graph 级回归固定该边界。人工 Studio 已观察到 `single_fact` 与 `controlled_knowledge` 的闭合只读候选，但 Trace URL/revision 与完整状态 diff 未保存；应如实记为 `functional_validation: passed`、`manual_validation: passed_by_operator`、`langsmith_trace_status: metadata_unavailable`。这只允许 Shadow 归档，不允许 active 执行或状态类能力接管。
+
+### P2-03 Shadow：审计必须复用旧 P1-11 proposal，而不是再规划一次
+
+P2-03 的正确对象是旧 P1-11 已生成的 `pending_replan_proposal`，而不是另一份重规划候选。`09a85c8` 因此只读取该 preview 和当前 TourState 快照；一旦 origin、visited/skipped 快照、时间或 schema 不一致就失败关闭。`334ea7a` 进一步要求 Shadow 模式的 capability 配置错误产生结构化 `capability_not_enabled` 审计，而不是 Trace 中出现空节点造成误判。人工实链已经看到补充 40 分钟后的 `accepted/matches_legacy=true`、未知位置澄清及取消后的 `legacy_proposal_absent`。这仍是 Shadow evidence，不允许自动确认、应用新路线或接入状态适配器。
+
+### P2-04-A Shadow：dry-run 必须与唯一一次旧链执行分离
+
+状态事件最危险的回归是为了比较结果而执行两次。`92ca888` 把普通 tour event 的共同规则抽成纯 preflight：它只读取复制的状态，输出预期阶段和原因码，不能调用 `handle_tour_event`。Graph 随后仍由旧路径执行一次，再把实际事件结果和 dry-run 建议写进 `state_transition_evaluations`。这样审计可发现差异，却不成为第二个 TourState 或第二个写入口。该轮仅覆盖普通事件；P1-11 的 replan 确认、复合确认后下一站和取消仍保留在 P2-04-B 单独审计，不能因 P2-04-A 通过而宣称状态接管已开启。
+
+### P2-04-B Shadow：复合旧链必须审计顺序，不能重放事件
+
+P1-11 的“确认新路线并前往下一站”是唯一合法的双事件操作，顺序固定为 `apply_replan_proposal → next_stop`。P2-04-B 只读取旧链执行前后的快照并记录该序列、proposal 状态、正式路线变化、进度变化及契约比对；它绝不能为了验证而再调用 handler。取消则不是 A1 事件，而是清理 pending action，必须证明正式路线、当前位置与 visited/skipped 不变。没有待确认 proposal 的确认保持旧澄清并写为安全无操作。P2-04-B 通过自动化 5/5、关联 66/66、完整 874/874 与 P0 3/3；人工证据为负责人确认通过，Trace 元数据未保存，active takeover 仍禁用。
 
 ## 5. 空间网络与路线规划
 
@@ -1070,6 +1174,14 @@ P1-13/P1-16 将这条边界用于票务与服务：发票规则的确定性模�
 
 答辩要点：展示层最小化暴露，审计层完整留痕；两层的职责不同，不能用“隐藏来源”作为删除证据的理由。
 
+## Gate 3 学习说明：为什么通过 Shadow 验收不等于状态接管
+
+P2 的价值在于把未来 Agent 化所需的候选、proposal 和状态校验放到真实 Graph 中观察，而不把执行权从旧链移走。P2-01 只记录多意图候选；P2-02/P2-03 只包装旧路线或旧重规划候选；P2-04 将 dry-run 或前后快照与旧链结果对照；P2-05 只在受控知识范围内保留只读灰度。所有 `*_evaluations` 都是单线程审计信息，不能成为另一份状态或路线事实。
+
+Gate 3 在 `5ee99ea` 上以定向 66/66、完整 877/877、P0 3/3 及四组 Studio 功能操作通过。尤其“确认新路线并前往下一站”显示旧 P1-11 的合法复合顺序 `apply_replan_proposal → next_stop`，不是 Shadow 造成的二次执行。结论必须准确表述为“P2 Shadow／只读集成功能验收通过，状态类 active takeover 仍禁用”；未保存完整 Trace 元数据时只能写 `metadata_unavailable`，不能将截图或本地测试包装成可追溯 Trace。
+
+答辩可概括为：候选、审核、旧链执行和审计记录各自分层。Shadow 证明新控制面能观察真实系统而不污染事实源；它不证明也不授权 Planner、proposal 或状态适配器接管生产写操作。
+
 ## P1-20 学习说明：为什么工艺资料不能扩写为单件文物传说
 
 工艺总述只能说明“灰塑如何制作、常出现在哪里”等工艺事实，不能自动证明“独角狮”的人物、情节或完整传说。对象故事必须同时满足：对象已由审核点位清单唯一解析，检索证据来自 `08_ornament_items.md`，并且标题、对象、工艺和适用点位未与该对象冲突。
@@ -1079,6 +1191,8 @@ P1-13/P1-16 将这条边界用于票务与服务：发票规则的确定性模�
 P1-20 已在 2026-07-31 通过新线程人工验收并标记 `verified_fixed`。答辩时应同时说明：自动化回归证明门控与状态不变量，LangSmith 证明真实链路；若某次 Trace 标识未被保存，必须如实保留该审计缺口，不能伪造链接。
 
 ## P1-11 学习说明：为什么中途重规划必须先候选、后确认
+
+`confirm_replan_and_next` 不是重复执行错误，而是唯一被允许的复合操作：先应用已确认、仍新鲜的 proposal，再取得下一站。2026-08-03 发现并修复的是 Graph 映射缺口，而不是状态语义缺陷：入口已经会返回该路由目标，但 `semantic_normalization` 的条件映射没有目标 key，导致 Studio `KeyError`。最小修复只恢复既有节点可达性；定向 54/54、完整 869/869、P0 3/3 通过，人工 Studio 显示新路线只应用一次且直接给出下一站。P1-11 confirm_replan_and_next Graph reachability: verified；P2-04-B: not started; prerequisite repaired。
 
 初始路线规划可以从产品默认入口建立新会话；中途调整则必须保留已访问、已跳过和当前真实位置。`current_stop_id` 是唯一物理位置事实，候选中的 `origin_node_id` 只是创建候选时的审计快照，不能成为可独立修改的第二位置源。
 
@@ -1123,3 +1237,24 @@ TourState 记录游客在哪里、是否完成和下一站是什么；它不能�
 新的 Planner、Tool Registry 或执行器很容易在“架构更整齐”的名义下重写旧的状态、证据或安全边界。因此先把现有正确行为写成可执行矩阵：输入、前置状态、允许和禁止的状态变化、禁止进入的节点、自动化证据与 LangSmith 状态必须可追溯，而不能只比较最终文案。
 
 `main@56688f7` 的完整回归 `770/770` 和 P0 安全/游客输出矩阵 `59/59` 给出了自动化基线；但没有当前提交的真实 Trace，就不能把人工链路写成已验证。故 Gate 0 目前是 `conditional_pass`：后续架构只能在不破坏该矩阵的前提下以只读、影子方式进入，空间审核仍不确定时必须继续失败关闭。
+
+## P3 前置审计学习说明：为何不能先写一个新的风格或模式状态
+
+P2 Gate 3 证明新的控制面能够在真实 Graph 中进行只读观察，不等于它获得了产品模式、路线或状态的写入权。E5 已经把 `GuidancePolicy` 确定性编译为 `NarrationStylePolicy`；它只改变词汇、节奏和互动方式，不改变证据、路线、TourState、VisitorProfile、StopProgram 或 NarrationCoverage。此时再把风格复制到新的 Agent 状态或工具输出中，会形成第二事实源而非改进能力。
+
+P3 的真正前置是 `tour_mode` 契约：经典/定制的唯一归属、默认值、知识问答打断后的恢复和重置规则都会影响卡片调度及后续灰度。它属于产品和状态语义，必须由负责人冻结；在此之前，最安全的交付是审计与拆分，而不是猜测性实现。批准后，先以单一 P3-01 契约与回归推进，再让 CardDispatcher 只产出经过资格、预算和审核点位校验的只读候选。
+
+## 角色预算与连续性学习说明：为什么 Shadow 拒绝也要记录 fallback
+
+Shadow 模式从未替换游客正文，所以候选被拒绝时，游客实际使用的就是旧链确定性讲解。审计中的 `fallback_used=true` 描述这个公开输出事实，不代表系统尝试或完成了 Active 接管。预算故障注入必须停留在角色计划副本中，才能验证真实失败关闭而不污染 E5 时长、Coverage 或业务状态。
+
+角色连续性也不能依赖自由模型猜测。自然表达先映射到审核 style ID；多角色请求按稳定目录顺序澄清；无新角色请求时只读继承上一轮选择。这样既能支持“古风一点”“适合孩子理解”等自然说法，又不会把语言偏好推断成年龄、身份或第二份 VisitorProfile。
+
+## 比赛抽样学习说明：为什么 accepted 之前的 fallback 也要保留
+
+高风险角色抽样验证的不只是“模型最终能说出来”，还包括候选越界时旧链是否
+真的接得住。专业和古风样本都曾因事实边界被拒绝，并正确保持
+`active_takeover=false`、`legacy_message_preserved=true` 与零状态写入；新线程
+随后通过。古风问题的安全解法不是删除事实触发器，而是让生成层对事实化连接语
+进行一次受限重生成：事实仍只能来自不可变 FACT 块，第二次仍越界就继续拒绝。
+这同时证明了表达可用性和失败关闭，适合作为比赛最小闭环的风险证据。

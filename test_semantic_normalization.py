@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 from copy import deepcopy
 from unittest.mock import patch
@@ -169,6 +170,18 @@ class SemanticNormalizationTests(unittest.TestCase):
             recognize_semantic_candidate("我到啦", lambda _: (_ for _ in ()).throw(RuntimeError("offline"))),
             SemanticCandidate(),
         )
+
+    def test_multi_candidate_envelope_keeps_order_and_legacy_primary(self):
+        raw = json.dumps({
+            "candidates": [
+                {"candidate_type": "route_request", "evidence_span": "规划路线", "confidence": 0.93},
+                {"candidate_type": "available_duration", "evidence_span": "30分钟", "time_text": "30分钟", "time_role": "available", "confidence": 0.95},
+            ],
+            "ambiguity_reason": None,
+        }, ensure_ascii=False)
+        candidate = recognize_semantic_candidate("30分钟，帮我规划路线", lambda _: raw)
+        self.assertEqual(candidate.candidate_type, "available_duration")
+        self.assertEqual([item.candidate_type for item in candidate.alternatives], ["route_request"])
 
     def test_minimize_walking_is_a_candidate_not_a_hidden_route_change(self):
         candidate = validate_candidate("帮我安排一条少走路的路线", {
@@ -497,6 +510,17 @@ class SemanticNormalizationTests(unittest.TestCase):
         self.assertEqual(result["performance_metrics"][-1]["status"], "deterministic_knowledge_plan")
         self.assertFalse(result["performance_metrics"][-1]["model_called"])
         self.assertEqual(result["knowledge_query_plan"]["domain"], "ticketing")
+
+    def test_deterministic_route_request_has_auditable_envelope_candidate(self):
+        state = self._state("中文，经典模式，我有30分钟，请规划少走路路线")
+        with patch("agent_graph.recognize_semantic_candidate") as recognizer:
+            result = semantic_normalization_node(state)
+        recognizer.assert_not_called()
+        envelope = result["semantic_intent_envelope"]
+        self.assertFalse(envelope["model_called"])
+        self.assertEqual(envelope["candidates"][0]["intent"], "request_route")
+        self.assertEqual(envelope["candidates"][0]["arguments"]["available_minutes"], 30)
+        self.assertTrue(envelope["candidates"][0]["arguments"]["minimize_walking"])
 
 
 if __name__ == "__main__":

@@ -15,7 +15,11 @@ from photo_spot_validation import EDITORIAL_ON_SITE_DISCLAIMER, query_available_
 from visit_safety_rules import answer_visit_safety_question, is_visit_safety_question
 
 
-PHOTO_CUES = ("拍照", "拍一张", "拍", "怎么拍", "打卡", "机位", "构图", "合影", "自拍", "拍哪里", "值得拍", "拍摄建议")
+PHOTO_CUES = (
+    "拍照", "拍一张", "拍", "怎么拍", "打卡", "机位", "构图", "合影", "自拍",
+    "拍哪里", "值得拍", "拍摄建议", "拍照姿势", "摆什么姿势", "什么姿势",
+    "怎么摆", "怎么站", "摆动作", "手怎么放",
+)
 ROUTE_CHANGE_CUES = ("加入路线", "加入行程", "加入游览", "改路线", "调整路线")
 DEICTIC_CUES = ("这里", "此处", "眼前", "当前点", "当前站", "本点")
 FAMILY_CUES = ("一家人", "亲子", "全家", "家庭")
@@ -157,9 +161,19 @@ def _render_candidate(selection: dict[str, Any]) -> dict[str, Any]:
         instruction = pose.get("instruction_zh")
         if instruction:
             lines.append(f"如现场允许，可采用较自然的方式：{instruction}")
+    disclosed_field_review = False
     for limitation in selection.get("limitations", []):
+        limitation = str(limitation or "").strip()
+        # Editorial lifecycle values are internal audit metadata, not useful
+        # visitor prose.  Keep the actual on-site uncertainty while hiding the
+        # YAML status token and review workflow wording.
+        if "draft_manual_review" in limitation or limitation.startswith("原卡为"):
+            disclosed_field_review = True
+            continue
         if limitation and limitation not in lines:
-            lines.append(str(limitation))
+            lines.append(limitation)
+    if disclosed_field_review:
+        lines.append("具体站位、可见性和现场拍摄条件仍请以现场管理要求为准。")
     return {"message": "\n".join(lines), "node_id": spot.get("node_id"), "photo_spot": spot}
 
 
@@ -212,6 +226,41 @@ def answer_photo_request(
     requested_themes = _theme_hints(user_query)
     group_hints = _audience_group_hints(user_query, visitor_profile)
     current_node_id = point_context.get("node_id") if point_context else None
+    if current_node_id:
+        # A current or explicitly resolved point is authoritative. Never
+        # answer "这里怎么拍" with candidates from other route stops.
+        try:
+            current_selection = query_selector(
+                node_id=current_node_id,
+                audience_mode=(visitor_profile or {}).get("audience_mode"),
+                themes=tuple(requested_themes),
+            )
+            if not current_selection.get("available"):
+                current_selection = query_selector(
+                    node_id=current_node_id,
+                    audience_mode=(visitor_profile or {}).get("audience_mode"),
+                    themes=(),
+                )
+        except Exception:
+            current_selection = {"available": False}
+        if current_selection.get("available"):
+            rendered_current = _render_candidate(current_selection)
+            return {
+                "message": "可以参考这一处已审核的拍摄建议：\n\n" + rendered_current["message"],
+                "mode": "photo_recommendation",
+                "photo_spots": [rendered_current],
+                "point_context": point_context,
+            }
+        return {
+            "message": (
+                "当前点位暂无可用的已审核拍摄建议。我可以先提供一般安全原则："
+                "请在允许拍摄且不影响通行的位置取景，不触摸、倚靠或攀坐文物与建筑构件，"
+                "并遵守现场标识和工作人员要求。"
+            ),
+            "mode": "photo_no_current_candidate",
+            "photo_spots": [],
+            "point_context": point_context,
+        }
     parent_ids = _parent_node_ids()
     remaining = list((tour_state or {}).get("remaining_stop_ids") or [])
     remaining_rank = {node_id: index for index, node_id in enumerate(remaining)}

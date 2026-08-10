@@ -6,7 +6,13 @@ from unittest.mock import patch
 from langchain_core.messages import HumanMessage
 
 import agent_graph
-from agent_graph import direct_route_node, route_initial_request, tour_event_node
+from agent_graph import (
+    direct_route_node,
+    inactive_tour_end_node,
+    route_after_tour_event,
+    route_initial_request,
+    tour_event_node,
+)
 
 
 def _message_state(text: str, initial: dict | None = None) -> dict:
@@ -38,6 +44,42 @@ class AgentTourStateTests(unittest.TestCase):
         self.assertEqual(result["tour_interaction_state"]["stop_phase"], "explaining")
         self.assertEqual(result["tour_presentation"]["phase"], "explaining")
         self.assertIn("explanation_finished", [item["id"] for item in result["tour_presentation"]["actions"]])
+
+    def test_next_point_arrival_variants_never_fall_through_to_llm_or_rag(self):
+        for text in ("到达", "我到下一个点位了。", "我到下一站了", "已到前院中部"):
+            with self.subTest(text=text):
+                initial = self._started()
+                state = _message_state(text, initial)
+                self.assertEqual(route_initial_request(state), "tour_event")
+                result = tour_event_node(state)
+                self.assertEqual(result["last_tour_intent"]["event_type"], "arrive_at_stop")
+                self.assertEqual(result["tour_state"]["visited_stop_ids"], [])
+
+    def test_route_less_finish_cancels_mode_selection_without_starting_route(self):
+        state = _message_state("结束游览", {
+            "journey_mode_selection": {"status": "awaiting_choice"},
+        })
+        self.assertEqual(route_initial_request(state), "inactive_tour_end")
+        result = inactive_tour_end_node(state)
+        self.assertEqual(result["journey_mode_selection"]["status"], "cancelled")
+        self.assertIn("当前没有进行中的游览", result["messages"][0].content)
+        for protected in ("tour_state", "visitor_profile", "narration_coverage"):
+            self.assertNotIn(protected, result)
+
+    def test_early_finish_beats_stale_mode_selection_and_routes_to_summary(self):
+        started = self._started()
+        arrived = tour_event_node(_message_state("到达", started))
+        completed_first = tour_event_node(_message_state("完成本点", arrived))
+        state = _message_state("结束游览", {
+            **completed_first,
+            "journey_mode_selection": {"status": "awaiting_choice"},
+        })
+        self.assertEqual(state["tour_state"]["route_status"], "touring")
+        self.assertEqual(route_initial_request(state), "tour_event")
+        finished = tour_event_node(state)
+        self.assertEqual(finished["last_tour_event"]["event"], "finish_tour")
+        self.assertEqual(finished["tour_state"]["route_status"], "completed")
+        self.assertEqual(route_after_tour_event(finished), "visit_summary")
 
     def test_generic_arrival_uses_pending_stop_only_through_adapter(self):
         initial = self._started()
@@ -189,14 +231,17 @@ class AgentTourStateTests(unittest.TestCase):
     def test_new_route_request_collects_profile_before_later_route_replacement(self):
         initial = self._started()
         self.assertEqual(
-            route_initial_request(_message_state("我有45分钟，帮我规划路线", initial)),
+            route_initial_request(_message_state("选择经典模式，我有45分钟，帮我规划路线", initial)),
             "profile_collection",
         )
 
-    def test_bare_duration_without_route_enters_profile_collection(self):
+    def test_bare_duration_without_route_requires_mode_selection(self):
         for text in ("1.5个小时", "1.5小时", "一个半小时", "90分钟"):
             with self.subTest(text=text):
-                self.assertEqual(route_initial_request(_message_state(text)), "profile_collection")
+                self.assertEqual(
+                    route_initial_request(_message_state(text)),
+                    "journey_mode_selection",
+                )
 
     def test_bare_duration_on_active_route_uses_replan_time_event(self):
         initial = self._started()

@@ -2,8 +2,9 @@
 
 This is deliberately a lightweight Demo gate, not a claim of full on-site
 certification.  It selects only structurally safe editorial candidates.  D6
-may later call this module for an explicit photo request; no generic knowledge
-query, RAG path, route, or TourState path may expose these assets directly.
+may call this module for an explicit photo request or the deterministic
+route-aware proactive trigger; no generic knowledge query, RAG path, route, or
+TourState mutation path may expose these assets directly.
 """
 
 from __future__ import annotations
@@ -143,7 +144,7 @@ def query_available_photo_spots(
     audience_mode: str | None = None,
     themes: tuple[str, ...] | list[str] = (),
 ) -> dict[str, Any]:
-    """Dedicated D6-ready read-only selector for explicit photo requests.
+    """Dedicated read-only selector for explicit or route-planned photo help.
 
     ``audience_mode`` is accepted only as future caller context; D5-B does not
     infer audience identity or manufacture a group match.  ``themes`` may

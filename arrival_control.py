@@ -15,6 +15,7 @@ _BARE_ARRIVAL_FORMS = frozenset(
     {
         "到了", "到啦", "到咯", "我到了", "我到啦", "我到咯",
         "我已到了", "我已经到了", "我到这了", "我到这儿了",
+        "到达", "我到下一个点位了", "我到下一站了", "我已到下一个点位了",
     }
 )
 _EXPLICIT_ARRIVAL = re.compile(
@@ -26,7 +27,7 @@ _EXPLICIT_ARRIVAL = re.compile(
 _COMPLETION_ARRIVAL = re.compile(
     r"(?:已|已经|刚|终于)\s*(?:走|逛|晃悠)?\s*"
     r"(?:抵达|到达|来到|走到|走进|到位|到了|到啦|到咯|"
-    r"到[^，。！？?\s]{0,16}(?:了|啦|咯))"
+    r"到[^，。！？?\s]{1,16}(?:了|啦|咯)?)"
 )
 _CURRENT_LOCATION_REPORT = re.compile(
     r"^(?:我现在在|现在人在|现在人就在)\s*[^？?。！!]+$"

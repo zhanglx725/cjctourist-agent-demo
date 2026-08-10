@@ -45,6 +45,10 @@ BARE_ARRIVAL_SYNONYMS = frozenset(
         "我已经到了",
         "我到这了",
         "我到这儿了",
+        "到达",
+        "我到下一个点位了",
+        "我到下一站了",
+        "我已到下一个点位了",
     }
 )
 
@@ -546,10 +550,17 @@ def _event_hits(text: str) -> set[str]:
         hits.add("replan_time")
     if "explanation_finished" not in hits and any(term in text for term in ("结束导览", "结束游览", "结束路线", "路线结束", "游览结束", "结束了")):
         hits.add("finish_tour")
-    if any(term in text for term in ("再讲详细", "详细一点", "讲细一点", "展开讲解")):
+    if any(term in text for term in (
+        "再讲详细", "再详细讲解", "详细一点", "讲细一点", "展开讲解",
+        "再讲一次当前点", "再讲一遍当前点", "重新讲一次当前点",
+    )):
         hits.add("request_stop_detail")
     # “讲完了，去下一站” is one confirmation intent, not two events.
-    if "confirm_stop_complete" not in hits and _is_next_stop_navigation_phrase(text):
+    if (
+        "confirm_stop_complete" not in hits
+        and "arrive_at_stop" not in hits
+        and _is_next_stop_navigation_phrase(text)
+    ):
         hits.add("next_stop")
     return hits
 
@@ -583,6 +594,17 @@ def classify_tour_intent(
         return clarification(
             completion_reason,
             "我不会据此确认完成本点。请在确认已完成当前正式点位后，再明确说“完成本点”。",
+        )
+    # Tentative completion language is neither a factual question nor an
+    # executable completion confirmation. Keep it out of free LLM/RAG and ask
+    # for the existing explicit confirmation phrase instead.
+    if (
+        any(marker in text for marker in ("好像", "似乎", "大概", "可能"))
+        and any(marker in text for marker in ("差不多", "看完", "结束", "逛完", "完成"))
+    ):
+        return clarification(
+            "tentative_completion_requires_confirmation",
+            "我不会据此确认完成本点。如果您已经完成当前点位，请明确说“完成本点”。",
         )
     # A bare “完成” has no route, replan, or end-tour meaning by itself.  It
     # is allowed only in the exact already-arrived current-stop context, and

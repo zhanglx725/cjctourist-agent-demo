@@ -61,9 +61,31 @@ MUSEUM_HISTORY_EVIDENCE = {
         "1994 年“广东民间工艺馆”更名为“广东民间工艺博物馆”。"
     ),
 }
+ACADEMY_NAME_EVIDENCE = {
+    "category": "history_architecture",
+    "document": "02_history_architecture.md",
+    "title_path": ["历史、建筑与文化特色", "历史沿革"],
+    "source_ids": ["S02", "S04"],
+    "content": (
+        "陈家祠又称陈氏书院，是广东多地陈氏宗族合资兴建的合族祠；"
+        "建成后供参与集资宗族的子弟到广州应考或办理事务时暂住，"
+        "也承担祭祀等宗族功能。"
+    ),
+}
 
 
 class SingleFactAnswerTests(unittest.TestCase):
+    def test_academy_name_reason_is_controlled_and_evidence_bounded(self):
+        query = "陈家祠为什么又叫陈氏书院？"
+        self.assertEqual(identify_single_fact_kind(query), "academy_name_reason")
+        self.assertEqual(single_fact_categories(query), ["history_architecture"])
+        answer = render_single_fact_answer(query, [ACADEMY_NAME_EVIDENCE])
+        self.assertIsNotNone(answer)
+        self.assertTrue(answer.ok)
+        self.assertIn("合族祠", answer.message)
+        self.assertIn("应考", answer.message)
+        self.assertNotIn("S02", answer.message)
+
     def test_only_explicit_reviewed_fact_shapes_are_recognized(self):
         self.assertEqual(
             identify_single_fact_kind("陈家祠是什么时候建成的？"),

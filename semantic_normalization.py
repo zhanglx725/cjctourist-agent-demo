@@ -85,6 +85,7 @@ class SemanticCandidate:
     knowledge_domain: str | None = None
     question_type: str | None = None
     detail_level: str | None = None
+    alternatives: tuple["SemanticCandidate", ...] = ()
 
     @property
     def actionable(self) -> bool:
@@ -126,7 +127,7 @@ class SemanticCandidate:
 
 
 def recognition_prompt(user_text: str) -> str:
-    """Return a strict, fact-free prompt for one model classification call."""
+    """Return a strict, fact-free prompt for up to three classifications."""
     return f"""你是受控语义识别器，不是导游。只判断用户这句话是否明确表达以下一个操作或事实问题；
 不能回答问题、不能补充事实、不能猜测地点、不能生成检索词、类别、node_id、路线或画像。
 
@@ -177,13 +178,16 @@ def recognition_prompt(user_text: str) -> str:
 - arrival 的 location_text 必须是原话中的连续地点片段，不能输出 node_id；没有明确地点时为 null。
 - available_duration / remaining_duration 的 time_text 必须是原话中的连续时间片段，time_role 分别为 available / remaining。不能计算或输出分钟数。
 
-普通候选只输出一行 JSON，严格只含 candidate_type、evidence_span、confidence 三个键。
+每个普通候选严格只含 candidate_type、evidence_span、confidence 三个键。
 arrival 严格只含 candidate_type、evidence_span、location_text、confidence 四个键。
 duration 严格只含 candidate_type、evidence_span、time_text、time_role、confidence 五个键。
 knowledge_query 严格只含 candidate_type、evidence_span、confidence、knowledge_domain、question_type、detail_level 六个键。
 confidence 必须是 0 到 1 的数字；仅在把握很高时使用不低于 0.90 的值。
 禁止输出 node_id、minutes、seconds、deadline、route、route_id、source_ids、query、categories、answer、state_update、tool 或其他任何键。
-有疑义时输出 {"candidate_type":"none","evidence_span":"","confidence":0.0}。
+整体只输出一行 JSON：{{"candidates":[候选1,候选2],"ambiguity_reason":null}}。
+candidates 最多 3 个，按置信度从高到低排列。同一句存在多个明确意图时分别保留；
+互相冲突时也不得替用户选择，并在 ambiguity_reason 中简短说明冲突。
+没有有效候选时输出 {{"candidates":[],"ambiguity_reason":"no_candidate"}}。
 
 用户原话：{user_text}"""
 
@@ -301,7 +305,34 @@ def recognize_semantic_candidate(
         raw = invoke_model(recognition_prompt(user_text))
     except Exception:
         return SemanticCandidate()
-    return validate_candidate(user_text, _decode_json(raw))
+    decoded = _decode_json(raw)
+    # Backward compatibility: existing model mocks and older deployments may
+    # still return one candidate object rather than the v3 envelope.
+    if not isinstance(decoded, dict) or "candidates" not in decoded:
+        return validate_candidate(user_text, decoded)
+    if set(decoded) != {"candidates", "ambiguity_reason"}:
+        return SemanticCandidate()
+    values = decoded.get("candidates")
+    if not isinstance(values, list) or len(values) > 3:
+        return SemanticCandidate()
+    candidates = [validate_candidate(user_text, value) for value in values]
+    candidates = [candidate for candidate in candidates if candidate.actionable]
+    if not candidates:
+        return SemanticCandidate()
+    candidates.sort(key=lambda item: item.confidence, reverse=True)
+    primary = candidates[0]
+    return SemanticCandidate(
+        candidate_type=primary.candidate_type,
+        evidence_span=primary.evidence_span,
+        confidence=primary.confidence,
+        location_text=primary.location_text,
+        time_text=primary.time_text,
+        time_role=primary.time_role,
+        knowledge_domain=primary.knowledge_domain,
+        question_type=primary.question_type,
+        detail_level=primary.detail_level,
+        alternatives=tuple(candidates[1:]),
+    )
 
 
 def canonical_control_text(candidate: SemanticCandidate) -> str | None:

@@ -122,6 +122,26 @@ class PhotoSpotRuntimeTests(unittest.TestCase):
         self.assertFalse(is_explicit_photo_request("灰塑是什么？"))
         self.assertTrue(has_photo_route_conflict("把这个打卡点加入路线"))
 
+    def test_pose_wording_uses_the_existing_photo_intent(self) -> None:
+        for request in (
+            "这里拍照摆什么姿势？",
+            "一个人打卡应该怎么站？",
+            "和门厅合影手怎么放？",
+        ):
+            self.assertTrue(is_explicit_photo_request(request), request)
+
+    def test_real_pose_response_hides_internal_review_status(self) -> None:
+        result = answer_photo_request(
+            "在前院中部拍照摆什么姿势？",
+            point_context={"node_id": "stop_front_courtyard_center", "name": "前院中部"},
+            tour_state={"route_status": "touring", "current_stop_id": "stop_front_courtyard_center"},
+            visitor_profile={},
+        )
+        self.assertEqual(result["mode"], "photo_recommendation")
+        self.assertIn("如现场允许，可采用较自然的方式", result["message"])
+        self.assertNotIn("draft_manual_review", result["message"])
+        self.assertNotIn("原卡为", result["message"])
+
     def test_unsafe_photo_request_requires_action_and_protected_feature(self) -> None:
         for request in (
             "我想踩在栏杆上拍照，怎么拍？",
@@ -245,14 +265,18 @@ class PhotoSpotRuntimeTests(unittest.TestCase):
     def test_current_point_without_candidate_is_disclosed_before_route_fallback(self) -> None:
         candidates = _candidates()
         candidates["photo_current"] = {**candidates["photo_current"], "available": False}
+        def current_unavailable_selector(*, node_id, **kwargs):
+            if node_id == CURRENT:
+                return {"available": False, "reason": "no_editorial_photo_candidate"}
+            return _selector(node_id=node_id, **kwargs)
         result = answer_photo_request(
             "这里怎么拍？", point_context={"node_id": CURRENT, "name": "月台"},
             tour_state={"remaining_stop_ids": [NEXT]}, visitor_profile={},
-            candidate_validator=lambda: candidates, query_selector=_selector,
+            candidate_validator=lambda: candidates, query_selector=current_unavailable_selector,
         )
-        self.assertEqual(result["mode"], "photo_recommendation")
-        self.assertEqual(result["photo_spots"][0]["node_id"], NEXT)
-        self.assertIn("当前点位暂没有", result["message"])
+        self.assertEqual(result["mode"], "photo_no_current_candidate")
+        self.assertEqual(result["photo_spots"], [])
+        self.assertIn("当前点位暂无", result["message"])
 
     def test_route_change_is_not_partially_executed(self) -> None:
         result = answer_photo_request("把这个打卡点加入路线", point_context={"node_id": CURRENT}, tour_state=None, visitor_profile=None, candidate_validator=_candidates, query_selector=_selector)

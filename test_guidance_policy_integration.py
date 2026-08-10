@@ -109,6 +109,24 @@ class GuidancePolicyIntegrationTests(unittest.TestCase):
         self.assertTrue(result["guidance_policy"]["comparison_enabled"])
         self.assertTrue(result["guidance_policy"]["research_extension_enabled"])
 
+    def test_custom_session_derives_detailed_policy_without_profile_or_state_write(self):
+        before_tour = deepcopy(self.tour)
+        before_interaction = deepcopy(self.interaction)
+        custom_interaction = {**self.interaction, "journey_mode": "custom"}
+        profile = self._profile(detail_level="standard", interaction_mode="listen_only")
+        result = build_stop_guidance(self.tour, custom_interaction, _rag, visitor_profile=profile)
+
+        self.assertEqual(result["guidance_policy"]["explanation_length"], "detailed")
+        self.assertEqual(result["stop_program"]["detail_level"], "deep")
+        self.assertLessEqual(
+            result["stop_program"]["allocated_content_seconds"],
+            result["stop_program"]["budget_seconds"],
+        )
+        self.assertFalse(result["guidance_policy"]["interaction_task_enabled"])
+        self.assertEqual(self.tour, before_tour)
+        self.assertEqual(self.interaction, before_interaction)
+        self.assertEqual(profile["detail_level"], "standard")
+
 
 if __name__ == "__main__":
     unittest.main()

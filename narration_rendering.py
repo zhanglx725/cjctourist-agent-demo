@@ -7,6 +7,8 @@ snapshot, then returns prose plus candidates that a later A4 node may commit.
 
 from __future__ import annotations
 
+import hashlib
+
 from dataclasses import dataclass
 import re
 from typing import Any, Iterable, Mapping
@@ -216,7 +218,14 @@ def _template(style: NarrationStylePolicy | None, key: str, slots: dict[str, str
     if style is None or style.style_id == "neutral":
         return None
     try:
-        value = style.templates[key].format(**slots).strip()
+        candidates = style.templates[key]
+        if isinstance(candidates, tuple):
+            seed = "\x1f".join((style.style_id, key, *(f"{name}={slots[name]}" for name in sorted(slots))))
+            index = int.from_bytes(hashlib.sha256(seed.encode("utf-8")).digest()[:8], "big") % len(candidates)
+            template = candidates[index]
+        else:
+            template = candidates
+        value = template.format(**slots).strip()
     except (KeyError, ValueError, AttributeError):
         return None
     return value or None

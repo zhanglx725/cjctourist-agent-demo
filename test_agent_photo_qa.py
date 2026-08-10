@@ -22,6 +22,33 @@ def _state(text: str, initial: dict | None = None) -> dict:
 
 
 class AgentPhotoQaTests(unittest.TestCase):
+    def test_explicit_current_and_global_photo_scopes_are_distinct(self) -> None:
+        initial = {
+            "tour_state": {
+                "current_stop_id": "stop_front_courtyard_center",
+                "remaining_stop_ids": ["label_moon_platform"],
+                "route_status": "touring",
+            },
+            "tour_interaction_state": {"stop_phase": "explaining"},
+        }
+        captured: list[dict | None] = []
+
+        def fake_answer(_query, *, point_context, **_kwargs):
+            captured.append(point_context)
+            return {
+                "message": "受控拍摄建议", "mode": "photo_recommendation",
+                "photo_spots": [], "point_context": point_context,
+            }
+
+        with patch("tour_qa.answer_photo_request", side_effect=fake_answer):
+            tour_qa_node(_state("有没有在前院中部推荐的打卡姿势", initial))
+            tour_qa_node(_state("这里怎么拍照比较好？", initial))
+            tour_qa_node(_state("给我推荐几个打卡点", initial))
+
+        self.assertEqual(captured[0]["node_id"], "stop_front_courtyard_center")
+        self.assertEqual(captured[1]["node_id"], "stop_front_courtyard_center")
+        self.assertIsNone(captured[2])
+
     def test_photo_request_routes_to_tour_qa_without_rag(self) -> None:
         request = _state("给我推荐几个打卡点")
         self.assertEqual(route_initial_request(request), "tour_qa")

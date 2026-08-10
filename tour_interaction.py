@@ -22,6 +22,8 @@ from tour_state import (
 
 
 VALID_TOUR_MODES = {"chat", "button_guided", "continuous"}
+VALID_JOURNEY_MODES = {"classic", "custom"}
+VALID_READ_ONLY_RESUME_TARGETS = {None, "profile_collection", "guided_tour"}
 VALID_STOP_PHASES = {"navigating", "explaining", "awaiting_confirmation", "finished"}
 VALID_PENDING_ACTION_KINDS = {None, "replan_time_confirmation", "replan_route_confirmation"}
 EVENTS = {
@@ -36,9 +38,173 @@ EVENTS = {
     "apply_replan_proposal",
 }
 
+# P2-04-A deliberately limits Graph shadowing to the ordinary, single A1
+# events.  Replanning remains on its existing P1-11 paths.
+NORMAL_SHADOW_EVENTS = frozenset({
+    "arrive_at_stop", "explanation_finished", "confirm_stop_complete",
+    "skip_stop", "next_stop", "finish_tour",
+})
+
+
+def validate_tour_event_transition(
+    tour_state: dict[str, Any] | None,
+    interaction_state: dict[str, Any] | None,
+    event: str,
+    **payload: Any,
+) -> dict[str, Any]:
+    """Pure preflight for one A1 event; it never calls an event handler.
+
+    The compact result is safe to retain as a Shadow audit record.  It is not
+    a state patch, proposal, or visitor response.
+    """
+    def result(accepted: bool, reason_code: str, expected_phase: str | None, effect: str) -> dict[str, Any]:
+        return {
+            "accepted": accepted, "event_type": event,
+            "expected_phase": expected_phase, "reason_code": reason_code,
+            "requires_confirmation": event == "confirm_stop_complete",
+            "side_effect_level": "read_only" if event == "next_stop" else "confirmed_state_change",
+            "expected_state_effect_summary": effect,
+        }
+
+    if event not in EVENTS:
+        return result(False, "invalid_event", None, "none")
+    if event == "finish_tour":
+        if tour_state is None or interaction_state is None:
+            return result(False, "route_not_initialized", None, "none")
+        if tour_state.get("route_status") == "completed" or interaction_state.get("stop_phase") == "finished":
+            return result(True, "tour_already_finished", "finished", "idempotent")
+        return result(True, "tour_finished", "finished", "route_completed")
+    if tour_state is None or interaction_state is None:
+        return result(False, "route_not_initialized", None, "none")
+    if interaction_state.get("tour_mode") not in VALID_TOUR_MODES or interaction_state.get("stop_phase") not in VALID_STOP_PHASES or interaction_state.get("pending_action_kind") not in VALID_PENDING_ACTION_KINDS:
+        return result(False, "invalid_phase", None, "none")
+    if tour_state.get("route_status") == "completed" or interaction_state.get("stop_phase") == "finished":
+        return result(False, "tour_finished", "finished", "none")
+
+    current, pending, phase = tour_state.get("current_stop_id"), interaction_state.get("pending_stop_id"), interaction_state.get("stop_phase")
+    if event == "arrive_at_stop":
+        node_id = payload.get("node_id")
+        if not isinstance(node_id, str) or node_id not in known_node_ids():
+            return result(False, "invalid_node_id", phase, "none")
+        if node_id == pending:
+            return result(True, "arrived", "explaining", "record_arrival_only")
+        return result(True, "self_arrival", "navigating", "record_physical_location_only")
+    if event == "explanation_finished":
+        if phase == "awaiting_confirmation" and current == pending:
+            return result(True, "explanation_already_finished", "awaiting_confirmation", "idempotent")
+        if current != pending or current not in tour_state.get("remaining_stop_ids", []):
+            return result(False, "not_current_stop", phase, "none")
+        return result(phase == "explaining", "explanation_finished" if phase == "explaining" else "invalid_phase", "awaiting_confirmation" if phase == "explaining" else phase, "await_confirmation")
+    if event == "next_stop":
+        pending_action = interaction_state.get("pending_action_kind")
+        if pending_action == "replan_time_confirmation":
+            return result(False, "pending_replan_time_confirmation", phase, "none")
+        if pending_action == "replan_route_confirmation":
+            return result(False, "pending_replan_route_confirmation", phase, "none")
+        if phase in {"explaining", "awaiting_confirmation"}:
+            return result(False, "invalid_phase", phase, "none")
+        if pending is None:
+            return result(False, "no_remaining_stop", phase, "none")
+        return result(True, "next_stop_ready", "navigating", "navigation_only")
+    if event == "skip_stop":
+        target = payload.get("node_id") or (current if current in tour_state.get("remaining_stop_ids", []) else pending)
+        if target is None:
+            return result(False, "no_remaining_stop", phase, "none")
+        if target in tour_state.get("skipped_stop_ids", []):
+            return result(True, "already_skipped", phase, "idempotent")
+        if target not in tour_state.get("remaining_stop_ids", []):
+            return result(False, "stop_not_in_route", phase, "none")
+        return result(True, "skipped", None, "mark_skipped_only")
+    if event == "confirm_stop_complete":
+        if current in tour_state.get("visited_stop_ids", []) and phase == "navigating":
+            return result(True, "already_completed", "navigating", "idempotent")
+        if current != pending or current not in tour_state.get("remaining_stop_ids", []):
+            return result(False, "not_current_stop", phase, "none")
+        return result(phase in {"explaining", "awaiting_confirmation"}, "stop_completed" if phase in {"explaining", "awaiting_confirmation"} else "invalid_phase", None, "mark_visited_only")
+    # The remaining legacy A1 events are intentionally out of P2-04-A scope.
+    return result(True, "outside_normal_shadow_scope", None, "legacy_event")
+
+
+def normalize_journey_mode(value: Any) -> str:
+    """Return the explicit product mode, defaulting transparently to classic.
+
+    ``tour_mode`` remains the frozen UI interaction mode.  This separate
+    field is deliberately session-only and never becomes a TourState or
+    VisitorProfile fact.
+    """
+    if value is None:
+        return "classic"
+    if value not in VALID_JOURNEY_MODES:
+        raise TourStateError(f"未知游览产品模式：{value}")
+    return str(value)
+
+
+def journey_mode_from_interaction(interaction_state: dict[str, Any] | None) -> str:
+    """Read the session product mode without requiring a route interaction."""
+    if not isinstance(interaction_state, dict):
+        return "classic"
+    try:
+        return normalize_journey_mode(interaction_state.get("journey_mode"))
+    except TourStateError:
+        return "classic"
+
+
+def derived_guidance_detail_level(interaction_state: dict[str, Any] | None) -> str | None:
+    """Return the non-persistent narration policy implied by journey mode."""
+    return "deep" if journey_mode_from_interaction(interaction_state) == "custom" else None
+
+
+def explicit_journey_mode_choice(text: str) -> str | None:
+    """Recognize only an explicit classic/custom product-mode choice.
+
+    This is not a preference inference: ordinary requests mentioning interests,
+    tone, age, or devices never select a journey mode.
+    """
+    value = str(text or "").replace(" ", "")
+    lowered = value.casefold().rstrip("。！!？?")
+    classic = (
+        any(token in value for token in ("经典模式", "选择经典", "用经典"))
+        or value == "经典" or value.startswith(("经典，", "经典,", "经典；", "经典;"))
+        or lowered in {"classic", "classicmode", "chooseclassic", "useclassic"}
+    )
+    custom = (
+        any(token in value for token in ("定制模式", "选择定制", "用定制"))
+        or value == "定制" or value.startswith(("定制，", "定制,", "定制；", "定制;"))
+        or lowered in {"custom", "custommode", "choosecustom", "usecustom"}
+    )
+    if classic == custom:
+        return None
+    return "classic" if classic else "custom"
+
+
+def update_session_control(
+    interaction_state: dict[str, Any] | None,
+    *,
+    journey_mode: str | None = None,
+    resume_after_read_only: str | None = None,
+) -> dict[str, Any]:
+    """Copy the single session-control dictionary without touching tour facts.
+
+    Before a route exists this can contain only session fields.  Once the
+    route is initialized, ``initialize_interaction`` merges the same fields
+    into the existing A1 interaction state.
+    """
+    updated = deepcopy(interaction_state) if isinstance(interaction_state, dict) else {}
+    selected_mode = journey_mode if journey_mode is not None else updated.get("journey_mode")
+    try:
+        updated["journey_mode"] = normalize_journey_mode(selected_mode)
+    except TourStateError:
+        # A stale or malformed session value must not become a route/profile
+        # fact or crash a read path. Use the transparent product default.
+        updated["journey_mode"] = "classic"
+    if resume_after_read_only not in VALID_READ_ONLY_RESUME_TARGETS:
+        raise TourStateError(f"未知只读问答恢复目标：{resume_after_read_only}")
+    updated["resume_after_read_only"] = resume_after_read_only
+    return updated
+
 
 def initialize_interaction(
-    tour_state: dict[str, Any], tour_mode: str = "chat"
+    tour_state: dict[str, Any], tour_mode: str = "chat", *, journey_mode: str = "classic"
 ) -> dict[str, Any]:
     """Create UI-neutral interaction state for an initialized route."""
     if tour_mode not in VALID_TOUR_MODES:
@@ -48,6 +214,12 @@ def initialize_interaction(
     return {
         "pending_stop_id": pending,
         "tour_mode": tour_mode,
+        "journey_mode": normalize_journey_mode(journey_mode),
+        # This is established when the controlled tour begins. Read-only
+        # questions inspect it but do not write interaction state.
+        "resume_after_read_only": (
+            None if tour_state.get("route_status") == "completed" else "guided_tour"
+        ),
         "stop_phase": "finished" if tour_state.get("route_status") == "completed" else "navigating",
         "pending_action_kind": None,
     }
@@ -136,6 +308,10 @@ def handle_tour_event(
     **payload: Any,
 ) -> dict[str, Any]:
     """Handle one contract-whitelisted event without mutating either input."""
+    # P2-04-A: execute the shared pure preflight before the unchanged legacy
+    # handlers.  The handlers retain their established visitor messages and
+    # are still the sole state-transition implementation.
+    validate_tour_event_transition(tour_state, interaction_state, event, **payload)
     if event not in EVENTS:
         return _rejection(event, "invalid_event", "不支持该游览操作。", tour_state, interaction_state)
     if event == "finish_tour":
@@ -393,7 +569,15 @@ def _finish(tour_state: dict[str, Any] | None, interaction_state: dict[str, Any]
             tour_state=tour_state, interaction_state=interaction_state, idempotent=True,
         )
     updated_tour = _finish_tour(tour_state)
-    updated_interaction = {**interaction_state, "pending_stop_id": None, "stop_phase": "finished"}
+    # A completed tour closes its session product-mode lifecycle.  The adopted
+    # mode remains available only in the immutable route audit snapshot.
+    updated_interaction = {
+        **interaction_state,
+        "pending_stop_id": None,
+        "stop_phase": "finished",
+        "journey_mode": "classic",
+        "resume_after_read_only": None,
+    }
     return _result(
         ok=True, event="finish_tour", code="tour_finished", message="已结束本次游览，并保留真实游览记录。",
         tour_state=updated_tour, interaction_state=updated_interaction,

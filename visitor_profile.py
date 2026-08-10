@@ -23,7 +23,14 @@ MAX_AVAILABLE_MINUTES = 120
 VALID_DETAIL_LEVELS = frozenset({"short", "standard", "deep"})
 VALID_AUDIENCE_MODES = frozenset({"standard", "child_friendly", "family", "study", "mixed_group"})
 VALID_KNOWLEDGE_LEVELS = frozenset({"general", "enthusiast", "professional"})
-VALID_EXPLANATION_STYLES = frozenset({"standard", "story", "technical", "interactive", "expert"})
+VALID_EXPLANATION_STYLES = frozenset({
+    "standard", "story", "technical", "interactive", "expert",
+    "neutral", "child", "family", "student_research", "professional",
+    "listen_only", "mixed_group", "dominant_ceo", "cute_junior",
+    "ancient_scholar", "warm_sister", "bestie_chat", "buddy_guide",
+    "exploration_game", "photo_guide", "hostel_scholar",
+    "xiguan_young_master", "cantonese_storyteller",
+})
 VALID_INTERACTION_MODES = frozenset({"listen_only", "normal", "interactive_tasks"})
 VALID_ROUTE_CONSTRAINTS = frozenset({"minimize_walking"})
 FUTURE_OPTIONAL_FIELDS = frozenset(
@@ -51,10 +58,11 @@ class VisitorProfileError(ValueError):
 
 
 def normalize_interests(interests: Iterable[str] | str | None) -> tuple[str, ...]:
-    """Trim, de-duplicate and stably order explicit interest labels.
+    """Trim and de-duplicate explicit interests in visitor mention order.
 
     C1 treats labels as stated preferences, not inferred user traits.  Stable
-    ordering makes serializations and later deterministic planners repeatable.
+    first-occurrence ordering preserves what the visitor said while remaining
+    deterministic for serialization and later planners.
     """
     if interests is None:
         return ()
@@ -73,7 +81,7 @@ def normalize_interests(interests: Iterable[str] | str | None) -> tuple[str, ...
         if not item:
             continue
         normalized.setdefault(item.casefold(), item)
-    return tuple(normalized[key] for key in sorted(normalized))
+    return tuple(normalized.values())
 
 
 def _normalize_minutes(value: Any) -> int:

@@ -12,9 +12,11 @@ from langchain_core.messages import HumanMessage
 from agent_graph import (
     direct_route_node,
     route_after_tour_event,
+    route_after_tour_opening,
     route_initial_request,
     stop_guidance_node,
     tour_event_node,
+    tour_opening_node,
     tour_qa_node,
 )
 from guide_program_planner import plan_stop_program
@@ -56,7 +58,10 @@ class StageBEndToEndTests(unittest.TestCase):
         self.assertEqual(route_initial_request(arrival_request), "tour_event")
         arrived = tour_event_node(arrival_request)
         state = {**started, **arrived}
-        self.assertEqual(route_after_tour_event(state), "stop_guidance")
+        self.assertEqual(route_after_tour_event(state), "tour_opening")
+        opening = tour_opening_node(state)
+        self.assertEqual(route_after_tour_opening(opening), "stop_guidance")
+        state = {**state, **opening}
         with patch("agent_graph.chen_clan_academy_rag_search") as rag:
             rag.invoke.return_value = RAG_PAYLOAD
             guidance = stop_guidance_node(state)

@@ -28,6 +28,7 @@ from term_card_runtime import (
     runtime_term_instance_enhancement,
 )
 from photo_spot_runtime import answer_photo_request, is_explicit_photo_request
+from nearby_poi_runtime import answer_nearby_request, is_nearby_offer_input
 from visit_safety_rules import answer_visit_safety_question
 from qa_context import create_qa_context, is_qa_follow_up_detail_request, validate_qa_context
 from tour_intent import resolve_reviewed_node
@@ -1376,6 +1377,7 @@ def answer_tour_question(
     normalized_fact_kind: str | None = None,
     normalized_knowledge_plan: ControlledKnowledgePlan | None = None,
     pending_ornament_clarification: dict[str, Any] | None = None,
+    post_visit_nearby_offer: dict[str, Any] | None = None,
     grounded_knowledge_renderer: (
         Callable[[ControlledKnowledgePlan, list[dict[str, Any]]], str] | None
     ) = None,
@@ -1404,8 +1406,27 @@ def answer_tour_question(
             "presentation": presentation,
             "retrieval_query": None,
         }
+    offer_context = isinstance(post_visit_nearby_offer, dict)
+    if offer_context and is_nearby_offer_input(user_query, offer_pending=True):
+        result = answer_nearby_request(
+            user_query,
+            offer_pending=True,
+            excluded_poi_ids=post_visit_nearby_offer.get("recommended_poi_ids", []),
+        )
+        presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
+        if presentation:
+            presentation = {
+                **presentation,
+                "message": result["message"],
+                "code": result["mode"],
+                "ok": result["mode"] == "nearby_recommendation",
+            }
+            result = {**result, "presentation": presentation}
+        else:
+            result = {**result, "presentation": None}
+        return {**result, "evidence": [], "retrieval_query": None, "point_context": None}
     safety_answer = answer_visit_safety_question(user_query)
-    if safety_answer is not None:
+    if safety_answer is not None and not is_nearby_offer_input(user_query, offer_pending=False):
         presentation = (
             present_tour_state(tour_state, interaction_state)
             if tour_state and interaction_state
@@ -1643,6 +1664,20 @@ def answer_tour_question(
                 "retrieval_query": None,
                 "point_context": current_stop_context(tour_state),
             }
+    if is_nearby_offer_input(user_query, offer_pending=False):
+        result = answer_nearby_request(user_query, offer_pending=offer_context)
+        presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
+        if presentation:
+            presentation = {
+                **presentation,
+                "message": result["message"],
+                "code": result["mode"],
+                "ok": result["mode"] == "nearby_recommendation",
+            }
+            result = {**result, "presentation": presentation}
+        else:
+            result = {**result, "presentation": None}
+        return {**result, "evidence": [], "retrieval_query": None, "point_context": None}
     if normalized_knowledge_plan is not None:
         try:
             payload = parse_rag_payload(rag_search(user_query))
@@ -1691,9 +1726,11 @@ def answer_tour_question(
             if presentation:
                 presentation = {**presentation, "message": message, "code": "photo_point_clarification", "ok": False}
             return {"message": message, "mode": "photo_point_clarification", "evidence": [], "point_context": None, "presentation": presentation, "retrieval_query": None}
-        # A whole-site request can still prioritize the real current position,
-        # but this is only a ranking hint and never a state update.
-        context = context or current_stop_context(tour_state)
+        # ``resolve_point_context`` already enforces the priority contract:
+        # explicit reviewed point > deictic current point > no point. A true
+        # whole-site request must keep ``None`` so the photo runtime may return
+        # several route/global candidates instead of silently pinning it to the
+        # current stop.
         result = answer_photo_request(
             user_query,
             point_context=context,
@@ -1702,9 +1739,13 @@ def answer_tour_question(
         )
         presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
         if presentation:
-            message = result["message"] + "\n\n本次拍摄建议未改变路线或游览进度。"
-            presentation = {**presentation, "message": message, "code": result["mode"], "ok": result["mode"] == "photo_recommendation"}
-            result = {**result, "message": message, "presentation": presentation}
+            presentation = {
+                **presentation,
+                "message": result["message"],
+                "code": result["mode"],
+                "ok": result["mode"] == "photo_recommendation",
+            }
+            result = {**result, "presentation": presentation}
         else:
             result = {**result, "presentation": None}
         return {**result, "evidence": [], "retrieval_query": None}

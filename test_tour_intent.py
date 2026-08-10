@@ -28,6 +28,12 @@ class TourIntentTests(unittest.TestCase):
         self.assertEqual(decision.event_type, "arrive_at_stop")
         self.assertEqual(decision.arguments["node_id"], "stop_front_courtyard_center")
 
+    def test_subject_omitted_completed_arrival_maps_known_node(self):
+        decision = self.classify("已到前院中部")
+        self.assertEqual(decision.route_kind, "tour_event")
+        self.assertEqual(decision.event_type, "arrive_at_stop")
+        self.assertEqual(decision.arguments["node_id"], "stop_front_courtyard_center")
+
     def test_explicit_walking_arrival_is_available_to_controlled_replan(self):
         decision = self.classify("我自己走到了后西庭，想从这里重新安排后续行程。")
         self.assertEqual(decision.route_kind, "replan_request")
@@ -46,7 +52,10 @@ class TourIntentTests(unittest.TestCase):
                 self.assertEqual(decision.reason_code, "unresolved_replan_origin")
 
     def test_generic_arrival_uses_only_pending_stop_while_navigating(self):
-        for wording in ("我到了", "到了", "到啦", "到咯", "我到这儿了"):
+        for wording in (
+            "我到了", "到了", "到啦", "到咯", "我到这儿了", "到达",
+            "我到下一个点位了", "我到下一个点位了。", "我到下一站了",
+        ):
             with self.subTest(wording=wording):
                 decision = self.classify(wording)
                 self.assertEqual(decision.route_kind, "tour_event")
@@ -124,6 +133,13 @@ class TourIntentTests(unittest.TestCase):
     def test_completion_question_does_not_execute_confirm_event(self):
         decision = self.classify("确认完成本点吗？")
         self.assertNotEqual(decision.event_type, "confirm_stop_complete")
+
+    def test_tentative_completion_does_not_fall_into_open_llm(self):
+        decision = self.classify("这个地方好像差不多了吧。")
+        self.assertEqual(decision.route_kind, "clarification")
+        self.assertEqual(
+            decision.reason_code, "tentative_completion_requires_confirmation"
+        )
 
     def test_stop_completion_synonyms_map_to_existing_confirm_event(self):
         for text in (
@@ -208,7 +224,15 @@ class TourIntentTests(unittest.TestCase):
         self.assertEqual(decision.reason_code, "missing_remaining_minutes")
 
     def test_detail_request_is_no_side_effect_event(self):
-        decision = self.classify("再讲详细一点")
+        for text in ("再讲详细一点", "再详细讲解"):
+            with self.subTest(text=text):
+                decision = self.classify(text)
+                self.assertEqual(decision.route_kind, "tour_event")
+                self.assertEqual(decision.event_type, "request_stop_detail")
+
+    def test_repeat_current_stop_is_a_controlled_detail_request(self):
+        decision = self.classify("请再讲一次当前点。")
+        self.assertEqual(decision.route_kind, "tour_event")
         self.assertEqual(decision.event_type, "request_stop_detail")
 
     def test_finish_tour_phrase(self):

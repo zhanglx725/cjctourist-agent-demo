@@ -31,6 +31,7 @@ _DURATION_RE = re.compile(
     # such as "30minimum" while still allowing Chinese text to follow the unit
     # directly, as in "30min路线".
     r"|(?P<english_minutes>(?<![.\d])\d{1,3}\s*(?:minutes?|mins?)(?![A-Za-z]))"
+    r"|(?P<english_hours>(?<![A-Za-z])(?:one|\d{1,3}(?:\.\d+)?)\s*hours?(?![A-Za-z]))"
     r"|(?P<hours>(?:(?:\d{1,3}(?:\.\d+)?)\s*个?|一个|[零〇一二三四五六七八九十两]+)\s*小时)"
     r")",
     flags=re.IGNORECASE,
@@ -109,6 +110,14 @@ def _candidate_minutes(match: re.Match[str]) -> int | None:
         )
         numeric = _number_value(value)
         return int(numeric) if numeric is not None and numeric == numeric.to_integral_value() else None
+    english_hours = match.group("english_hours")
+    if english_hours:
+        value = re.sub(r"\s*hours?\s*$", "", english_hours, flags=re.IGNORECASE)
+        numeric = Decimal(1) if value.strip().casefold() == "one" else _number_value(value)
+        if numeric is None:
+            return None
+        duration = numeric * Decimal(60)
+        return int(duration) if duration == duration.to_integral_value() else None
     hours = match.group("hours")
     if hours:
         value = hours.removesuffix("小时").strip()
@@ -151,7 +160,7 @@ def has_route_duration_context(text: str) -> bool:
         return False
     return any(term in text for term in ROUTE_CONTEXT_TERMS) or any(
         phrase in text for phrase in ("我有", "我只有", "我仅有", "可用时间")
-    )
+    ) or any(term in text.casefold() for term in ("route", "tour", "plan"))
 
 
 def has_remaining_duration_context(text: str) -> bool:

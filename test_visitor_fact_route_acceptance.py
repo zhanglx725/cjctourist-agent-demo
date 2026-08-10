@@ -382,7 +382,7 @@ class VisitorFactRouteAcceptanceTests(unittest.TestCase):
                 )
 
     def test_two_hour_woodcarving_deep_request_uses_route_planner(self):
-        text = "给我规划两小时路线，喜欢木雕，详细讲解。"
+        text = "选择经典模式，使用中文，给我规划两小时路线，喜欢木雕，详细讲解。"
         request = _state(text)
         self.assertEqual(route_initial_request(request), "profile_collection")
         graph = build_agent_graph(with_checkpointer=False)
@@ -398,13 +398,12 @@ class VisitorFactRouteAcceptanceTests(unittest.TestCase):
         self.assertIn("详细讲解", message)
         self._assert_visitor_safe(message)
         nodes = [metric["node"] for metric in result["performance_metrics"]]
-        self.assertEqual(
-            nodes[-3:],
-            ["semantic_normalization", "profile_collection", "direct_route"],
-        )
+        self.assertIn("semantic_normalization", nodes)
+        self.assertLess(nodes.index("semantic_normalization"), nodes.index("visitor_onboarding"))
+        self.assertLess(nodes.index("visitor_onboarding"), nodes.index("direct_route"))
 
     def test_two_hour_woodcarving_request_replans_from_active_tour(self):
-        text = "给我规划两小时路线，喜欢木雕，详细讲解。"
+        text = "选择经典模式，给我规划两小时路线，喜欢木雕，详细讲解。"
         request = _state(text, self.active)
         self.assertEqual(route_initial_request(request), "profile_collection")
         result = build_agent_graph(with_checkpointer=False).invoke(request)
@@ -418,10 +417,9 @@ class VisitorFactRouteAcceptanceTests(unittest.TestCase):
         self.assertIn("详细讲解", message)
         self._assert_visitor_safe(message)
         nodes = [metric["node"] for metric in result["performance_metrics"]]
-        self.assertEqual(
-            nodes[-3:],
-            ["semantic_normalization", "profile_collection", "direct_route"],
-        )
+        self.assertIn("semantic_normalization", nodes)
+        self.assertLess(nodes.index("semantic_normalization"), nodes.index("profile_collection"))
+        self.assertLess(nodes.index("profile_collection"), nodes.index("direct_route"))
 
 
 if __name__ == "__main__":
