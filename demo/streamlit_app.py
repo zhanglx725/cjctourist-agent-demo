@@ -1,4 +1,4 @@
-"""Competition-facing Streamlit shell; all guide responses come from agent_graph.chat."""
+"""Competition-facing Streamlit shell using public messages from one Agent turn."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ STYLES = {
     "古风书生": "ancient_scholar",
 }
 INTERESTS = ["灰塑", "木雕", "石雕", "陶塑", "故事", "吉祥", "工艺", "建筑装饰"]
-QUICK_ACTIONS = ["我到前院中部了", "再讲详细一点", "完成本点"]
+QUICK_ACTIONS = ["我到了", "再讲详细一点", "完成本点"]
 
 
 def _secret(name: str, default: str = "") -> str:
@@ -44,9 +44,9 @@ def _configure_environment() -> None:
 @st.cache_resource(show_spinner=False)
 def _agent_call():
     _configure_environment()
-    from agent_graph import chat
+    from agent_graph import chat_public_turn
 
-    return chat
+    return chat_public_turn
 
 
 def _profile_message(duration: int, interests: list[str], detail: str, style_label: str) -> str:
@@ -68,7 +68,10 @@ def _send(adapter: DemoAdapter, message: str) -> None:
     st.session_state.messages.append({"role": "user", "content": message})
     with st.spinner("正在组织本次导览…"):
         reply = adapter.send(message)
-    st.session_state.messages.append({"role": "assistant", "content": reply.text, "error": reply.is_error})
+    for public_text in reply.messages or (reply.text,):
+        st.session_state.messages.append(
+            {"role": "assistant", "content": public_text, "error": reply.is_error}
+        )
     st.session_state.itinerary = reply.itinerary
 
 

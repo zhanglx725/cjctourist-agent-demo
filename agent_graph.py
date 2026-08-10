@@ -5021,6 +5021,55 @@ def chat(user_text: str, thread_id: str = "default") -> str:
     return result["messages"][-1].content
 
 
+def chat_public_turn(user_text: str, thread_id: str = "default") -> list[str]:
+    """Run one graph turn and return its public visitor messages in order.
+
+    This is intentionally a presentation-only adapter: it invokes the graph once
+    and reads only already-committed AI messages from the resulting state.  It
+    never exposes Shadow candidates or audit fields, and keeps ``chat`` fully
+    backward compatible for existing callers.
+    """
+    result = agent_graph.invoke(
+        {
+            "messages": [("user", user_text)],
+            "tool_loops": 0,
+            "retrieved_evidence": [],
+            "performance_metrics": [],
+        },
+        config={"configurable": {"thread_id": thread_id}},
+    )
+    messages = list(result.get("messages") or [])
+    last_human_index = max(
+        (
+            index
+            for index, message in enumerate(messages)
+            if getattr(message, "type", None) == "human"
+        ),
+        default=-1,
+    )
+    turn_messages = [
+        message
+        for message in messages[last_human_index + 1 :]
+        if isinstance(message, AIMessage)
+    ]
+    has_role_route_message = any(
+        bool((getattr(message, "additional_kwargs", {}) or {}).get("route_role_narration"))
+        for message in turn_messages
+    )
+
+    public_messages: list[str] = []
+    for message in turn_messages:
+        metadata = getattr(message, "additional_kwargs", {}) or {}
+        # A successful role route message replaces the legacy direct-route body;
+        # keep the latter only as deterministic fallback when no replacement exists.
+        if has_role_route_message and metadata.get("direct_route_plan"):
+            continue
+        content = message.content
+        if isinstance(content, str) and content.strip():
+            public_messages.append(content.strip())
+    return public_messages
+
+
 def chat_with_profile(user_text: str, thread_id: str = "profile") -> tuple[str, list[dict[str, Any]]]:
     """Run one chat request and return the answer plus node-by-node timings."""
     result = agent_graph.invoke(

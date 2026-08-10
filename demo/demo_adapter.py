@@ -32,6 +32,7 @@ class DemoReply:
     text: str
     itinerary: ItinerarySummary
     is_error: bool = False
+    messages: tuple[str, ...] = ()
 
 
 def new_thread_id() -> str:
@@ -66,7 +67,7 @@ def read_public_state(thread_id: str) -> Mapping[str, Any] | None:
 class DemoAdapter:
     def __init__(
         self,
-        agent_call: Callable[[str, str], str],
+        agent_call: Callable[[str, str], object],
         *,
         state_reader: Callable[[str], Mapping[str, Any] | None] = read_public_state,
         max_turns: int = 20,
@@ -98,13 +99,34 @@ class DemoAdapter:
         try:
             response = self.agent_call(text, self.thread_id)
         except Exception:
-            return DemoReply(PUBLIC_ERROR_MESSAGE, self.itinerary, True)
+            return DemoReply(
+                PUBLIC_ERROR_MESSAGE,
+                self.itinerary,
+                True,
+                (PUBLIC_ERROR_MESSAGE,),
+            )
         self.turn_count += 1
-        if not isinstance(response, str) or not response.strip() or _UNSAFE_OUTPUT.search(response):
-            return DemoReply(PUBLIC_ERROR_MESSAGE, self.itinerary, True)
+        if isinstance(response, str):
+            raw_messages = (response,)
+        elif isinstance(response, (list, tuple)):
+            raw_messages = tuple(response)
+        else:
+            raw_messages = ()
+        messages = tuple(
+            item.strip()
+            for item in raw_messages
+            if isinstance(item, str) and item.strip() and not _UNSAFE_OUTPUT.search(item)
+        )
+        if not messages or len(messages) != len(raw_messages):
+            return DemoReply(
+                PUBLIC_ERROR_MESSAGE,
+                self.itinerary,
+                True,
+                (PUBLIC_ERROR_MESSAGE,),
+            )
         state = self.state_reader(self.thread_id)
         self.itinerary = self._itinerary_from_state(state)
-        return DemoReply(response.strip(), self.itinerary)
+        return DemoReply(messages[-1], self.itinerary, messages=messages)
 
     def _display_name(self, stop_id: object) -> str:
         if not isinstance(stop_id, str) or not stop_id:
