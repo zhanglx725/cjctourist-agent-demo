@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+<rect width="1600" height="900" fill="#F7F9FC"/><g font-family="Microsoft YaHei,Arial"><text x="800" y="75" text-anchor="middle" font-size="42" font-weight="700" fill="#163B66">游客旅程泳道图</text><text x="800" y="116" text-anchor="middle" font-size="22" fill="#56718E">游客体验、智能导游服务与可信底座协同运行</text>
+<g fill="#163B66" font-size="22" font-weight="700" text-anchor="middle"><text x="345" y="170">需求与规划</text><text x="650" y="170">到站与讲解</text><text x="955" y="170">问答与推进</text><text x="1260" y="170">总结与延伸</text></g>
+<rect x="65" y="205" width="1470" height="150" rx="16" fill="#EAF2FF"/><rect x="65" y="385" width="1470" height="150" rx="16" fill="#EBF8F1"/><rect x="65" y="565" width="1470" height="150" rx="16" fill="#FFF4E7"/>
+<g font-size="27" font-weight="700" fill="#163B66"><text x="95" y="255">游客</text><text x="95" y="435">智能导游</text><text x="95" y="615">可信底座</text></g>
+<g font-size="22" fill="#274966" text-anchor="middle"><text x="345" y="285">说明偏好</text><text x="650" y="285">到达、聆听</text><text x="955" y="285">提问、完成、跳过</text><text x="1260" y="285">回顾、离馆</text>
+<text x="345" y="465">建立画像 · 选路线 · 开场</text><text x="650" y="465">空间引导 · 点位讲解</text><text x="955" y="465">受控问答 · 更新进度</text><text x="1260" y="465">总结 · 称号 · 推荐</text>
+<text x="345" y="645">审核路线 · 空间拓扑</text><text x="650" y="645">ContentPlan · 审核事实</text><text x="955" y="645">QAContext · TourState</text><text x="1260" y="645">Coverage · 审计记录</text></g>
+<g stroke="#6D90B5" stroke-width="3" stroke-dasharray="8 8"><path d="M500 190V735"/><path d="M805 190V735"/><path d="M1110 190V735"/></g>
+<path d="M215 790 H1400" stroke="#4285E1" stroke-width="7" stroke-linecap="round"/><path d="M1410 790 l-26 -16 v32z" fill="#4285E1"/><text x="800" y="845" text-anchor="middle" font-size="24" fill="#1756A9">同一旅程状态贯穿全程，保证服务连续、事实可信、进度可追踪</text></g></svg>
