@@ -1,0 +1,19 @@
+[Script Info]
+Title: 祠语智游 Demo D段字幕
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Microsoft YaHei,38,&H00FFFFFF,&H00FFFFFF,&H003A261F,&H00000000,-1,0,0,0,100,100,1,0,1,2,0,2,120,120,20,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:03.00,0:00:08.33,Default,,0,0,0,,LangGraph 将欢迎、偏好、路线、讲解、问答和总结\N拆分为可追踪的状态节点。
+Dialogue: 0,0:00:08.33,0:00:13.66,Default,,0,0,0,,显式连边与条件路由让每次状态推进可定位，\N异常路径也保留确定性的回退入口。
+Dialogue: 0,0:00:13.66,0:00:19.66,Default,,0,0,0,,路线规划、知识检索、角色表达与校验分层执行，\N避免单次生成直接越过规则边界。
+Dialogue: 0,0:00:19.66,0:00:26.06,Default,,0,0,0,,单轮 Trace 可下钻到 direct_route 等节点，\N核对本轮输入、输出与路线结果。
+Dialogue: 0,0:00:26.06,0:00:35.79,Default,,0,0,0,,古风书生通过 narration validation 后进入 Active。\N审计保留风格、校验状态、回退标记与延迟字段。

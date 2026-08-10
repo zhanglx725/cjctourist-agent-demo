@@ -1,0 +1,17 @@
+[Script Info]
+Title: 祠语智游 Demo E段字幕
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Microsoft YaHei,38,&H00FFFFFF,&H00FFFFFF,&H003A261F,&H00000000,-1,0,0,0,100,100,1,0,1,2,0,2,120,120,20,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:03.00,0:00:09.67,Default,,0,0,0,,定向套件针对角色 Active 与 P0 输出安全门，\N运行11个高风险用例。
+Dialogue: 0,0:00:09.67,0:00:12.67,Default,,0,0,0,,覆盖校验失败回退、固定组合白名单、\NKill Switch 与权威状态隔离。
+Dialogue: 0,0:00:12.67,0:00:19.77,Default,,0,0,0,,无证据、对抗请求和工具故障均先经过安全边界。\N本轮11项测试全部通过，结果为 OK。

@@ -1,0 +1,16 @@
+﻿[Script Info]
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Caption,Microsoft YaHei,30,&H00FFFFFF,&H00FFFFFF,&H003A261F,&H003A261F,-1,0,0,0,100,100,0,0,1,1.5,0,2,125,125,17,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:06.00,0:00:13.00,Caption,,0,0,0,,祠语智游已建立18种角色化讲解策略。\N每种策略都受到统一事实与安全边界约束。
+Dialogue: 0,0:00:13.00,0:00:21.00,Caption,,0,0,0,,本次选取古风书生、儿童友好与中性清晰\N三种代表风格进行展示。
+Dialogue: 0,0:00:21.00,0:00:29.10,Caption,,0,0,0,,游客设置可用时间、兴趣和讲解节奏，\N系统据此生成个性化文化导览路线。

@@ -1,0 +1,23 @@
+﻿[Script Info]
+Title: 祠语智游 Demo B段字幕
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Microsoft YaHei,38,&H00FFFFFF,&H00FFFFFF,&H003A261F,&H00000000,-1,0,0,0,100,100,1,0,1,2,0,2,120,120,20,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:04.00,0:00:25.05,Default,,0,0,0,,系统依据30分钟时间预算、灰塑兴趣与古风书生风格。\N从审核路线中生成三个正式讲解点。
+Dialogue: 0,0:00:25.05,0:00:39.72,Default,,0,0,0,,游客确认到达后，TourState 更新当前位置。\N点位讲解由审核事实和当前路线共同约束。
+Dialogue: 0,0:00:39.72,0:01:08.10,Default,,0,0,0,,古风书生改变的是表达方式，不改变文化事实。\N点位、对象与下一步仍由确定性状态推进。
+Dialogue: 0,0:01:08.10,0:01:17.73,Default,,0,0,0,,游客询问灰塑特点，系统结合当前点位。\N回答材料、制作工艺与馆内关联实例。
+Dialogue: 0,0:01:17.73,0:01:31.06,Default,,0,0,0,,“再讲详细一点”继承当前对象和证据范围。\N无需重复说明问题背景。
+Dialogue: 0,0:01:31.06,0:01:39.53,Default,,0,0,0,,闭馆时间属于动态服务信息。\N系统给出已知时段，并提示以当日官方公告为准。
+Dialogue: 0,0:01:39.53,0:01:53.60,Default,,0,0,0,,面对学术研究问题，系统提供可核验的研究视角。\N同时说明个案材料的适用边界。
+Dialogue: 0,0:01:53.60,0:02:07.17,Default,,0,0,0,,完成三个正式点位后，系统基于真实记录生成游览总结。\N并统计本轮提问与讲解覆盖。
+Dialogue: 0,0:02:07.17,0:02:19.03,Default,,0,0,0,,游客确认需要后，系统返回审核范围内的周边候选。\N营业、价格与交通仍以商家和地图最新信息为准。

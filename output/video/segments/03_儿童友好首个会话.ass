@@ -1,0 +1,17 @@
+[Script Info]
+Title: 祠语智游 Demo C段字幕
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Microsoft YaHei,38,&H00FFFFFF,&H00FFFFFF,&H003A261F,&H00000000,-1,0,0,0,100,100,1,0,1,2,0,2,120,120,20,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:03.00,0:00:08.83,Default,,0,0,0,,从18种讲解策略中选择儿童友好，\N并设置60分钟与多项工艺兴趣。
+Dialogue: 0,0:00:08.83,0:00:13.83,Default,,0,0,0,,同一事实与安全边界下，角色策略仅调整\N语言难度、讲解节奏和故事化表达。
+Dialogue: 0,0:00:13.83,0:00:20.08,Default,,0,0,0,,首个会话生成60分钟装饰工艺与故事路线。\N五个点位受时间预算与兴趣覆盖共同约束。
