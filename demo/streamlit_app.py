@@ -76,7 +76,17 @@ def main() -> None:
     st.set_page_config(page_title="祠语智游｜比赛演示版", page_icon="🏛️", layout="wide")
     _configure_environment()
     st.markdown("""<style>
-    .stApp {background:#f7f1e6;color:#23221f;} [data-testid='stSidebar']{background:#39251f;}
+    .stApp {background:#f7f1e6;color:#23221f;}
+    [data-testid='stSidebar']{background:#39251f;}
+    [data-testid='stSidebar'] h1,
+    [data-testid='stSidebar'] h2,
+    [data-testid='stSidebar'] h3,
+    [data-testid='stSidebar'] [data-testid='stWidgetLabel'] p,
+    [data-testid='stSidebar'] [role='radiogroup'] label p,
+    [data-testid='stSidebar'] [data-testid='stCaptionContainer'] p,
+    [data-testid='stSidebar'] [data-testid='stSpinner'] p {
+        color:#fff8ec !important;
+    }
     .hero {padding:1.1rem 1.35rem;border-radius:16px;background:#6f2d26;color:#fff7e8;margin-bottom:1rem;}
     .itinerary {padding:1rem 1.2rem;border:1px solid #c8a55a;border-radius:14px;background:#fffaf0;}
     </style>""", unsafe_allow_html=True)

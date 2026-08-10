@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <rect width="1600" height="900" fill="#F7F9FC"/>
+  <text x="800" y="82" text-anchor="middle" font-family="Microsoft YaHei, Arial" font-size="42" font-weight="700" fill="#163B66">祠语智游：一段持续理解游客的文化旅程</text>
+  <text x="800" y="126" text-anchor="middle" font-family="Microsoft YaHei, Arial" font-size="22" fill="#56718E">从游前需求识别，到游中陪伴，再到游后文化记忆</text>
+  <g font-family="Microsoft YaHei, Arial" text-anchor="middle">
+    <rect x="90" y="230" width="370" height="270" rx="24" fill="#EAF2FF" stroke="#73A4F5" stroke-width="3"/>
+    <text x="275" y="285" font-size="30" font-weight="700" fill="#1756A9">游前｜了解游客</text>
+    <text x="275" y="340" font-size="24" fill="#274966">语言 · 时间 · 兴趣</text>
+    <text x="275" y="382" font-size="24" fill="#274966">讲解深度 · 表达偏好</text>
+    <text x="275" y="445" font-size="26" font-weight="700" fill="#1756A9">个性化路线规划</text>
+    <rect x="615" y="230" width="370" height="270" rx="24" fill="#EBF8F1" stroke="#62BE90" stroke-width="3"/>
+    <text x="800" y="285" font-size="30" font-weight="700" fill="#1C7A4D">游中｜连续陪伴</text>
+    <text x="800" y="340" font-size="24" fill="#274966">到站讲解 · 随时问答</text>
+    <text x="800" y="382" font-size="24" fill="#274966">空间引路 · 进度控制</text>
+    <text x="800" y="445" font-size="26" font-weight="700" fill="#1C7A4D">共享同一旅程状态</text>
+    <rect x="1140" y="230" width="370" height="270" rx="24" fill="#FFF4E7" stroke="#E6A14B" stroke-width="3"/>
+    <text x="1325" y="285" font-size="30" font-weight="700" fill="#A55A00">游后｜留下记忆</text>
+    <text x="1325" y="340" font-size="24" fill="#274966">参观总结 · 专属称号</text>
+    <text x="1325" y="382" font-size="24" fill="#274966">文化祝福 · 审核推荐</text>
+    <text x="1325" y="445" font-size="26" font-weight="700" fill="#A55A00">由真实游览记录生成</text>
+  </g>
+  <g fill="none" stroke="#4285E1" stroke-width="7" stroke-linecap="round"><path d="M470 365 H585"/><path d="M995 365 H1110"/></g>
+  <g fill="#4285E1"><path d="M585 365 l-22 -15 v30 z"/><path d="M1110 365 l-22 -15 v30 z"/></g>
+  <g font-family="Microsoft YaHei, Arial" text-anchor="middle">
+    <text x="800" y="600" font-size="28" font-weight="700" fill="#163B66">三项贯穿能力</text>
+    <rect x="150" y="650" width="390" height="130" rx="18" fill="#FFFFFF" stroke="#C9D7E7" stroke-width="2"/>
+    <text x="345" y="704" font-size="25" font-weight="700" fill="#1756A9">游客画像</text><text x="345" y="748" font-size="21" fill="#56718E">时间、兴趣、深度、偏好</text>
+    <rect x="605" y="650" width="390" height="130" rx="18" fill="#FFFFFF" stroke="#C9D7E7" stroke-width="2"/>
+    <text x="800" y="704" font-size="25" font-weight="700" fill="#1C7A4D">旅程记忆</text><text x="800" y="748" font-size="21" fill="#56718E">位置、进度、已讲内容、剩余行程</text>
+    <rect x="1060" y="650" width="390" height="130" rx="18" fill="#FFFFFF" stroke="#C9D7E7" stroke-width="2"/>
+    <text x="1255" y="704" font-size="25" font-weight="700" fill="#A55A00">可信底座</text><text x="1255" y="740" font-size="19" fill="#56718E"><tspan x="1255" dy="0">审核知识、空间关系</tspan><tspan x="1255" dy="27">路线规则、失败回退</tspan></text>
+  </g>
+</svg>
