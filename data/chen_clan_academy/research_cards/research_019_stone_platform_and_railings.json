@@ -1,12 +1,12 @@
 {
   "card_id": "research_019_stone_platform_and_railings",
   "title_zh": "石雕细读：聚贤堂月台栏板的狮子、果实与通透构图",
-  "status": "reviewed",
+  "status": "draft",
   "verified_at": "2026-07-26",
   "source": {
     "citation": "戴瑶, 李景明. (2017). 广州陈家祠的建筑装饰艺术. 江西建材, No.219(18), 31-32. https://kns.cnki.net/kcms2/article/abstract?v=Jwx2WJw7wUG-CXL-MeBy0_hIIePdX7XeJW4v14COq1PzwvmDTceq4uC8axMNNAtHdsHN612bRL8BL4cZSW4nro6zN8b0mwbbS6cYiHQFtiRkAesZZ9jQhqFqeXS_Anl9l2ygoX9yPfG516jTzSzkgLfhmWwuPjroPcl8vtbitha4DJxY_VYQlkEWuyDuS0Xc2K9NagYBh_EJJgIhi-FjzA==&uniplatform=NZKPT&language=CHS.",
     "local_file": "data/chen_clan_academy/raw/research_papers/陈家祠文献/广州陈家祠的建筑装饰艺术.pdf",
-    "page_locator": "石雕段（PDF p. 2）；书目信息待人工复核。",
+    "page_locator": "石雕段（PDF pp. 1-2）；书目信息待人工复核。",
     "access_scope": "本地研究资料；卡片仅保存概括与引文定位，不复制论文全文。"
   },
   "research_question": "聚贤堂月台的石雕栏板、望柱与果实、狮子题材，如何同时承担边界、礼仪强调与岭南地域意象的作用？",
@@ -22,9 +22,8 @@
     "石狮与岭南果实为什么会一起出现在望柱头？",
     "怎样在不触碰文物的前提下细读石雕栏板？"
   ],
-  "applicable_node_ids": [
-    "label_moon_platform"
-  ],
+  "applicable_node_ids": [],
+  "applicable_scope": "whole_site",
   "topic_tags": [
     "石雕",
     "聚贤堂",
