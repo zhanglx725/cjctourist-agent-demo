@@ -169,12 +169,17 @@ def _load_reviewed_roles() -> dict[str, dict[str, Any]]:
 
 def _load_point_narration_components() -> dict[str, dict[str, tuple[str, ...]]]:
     """Load reviewed, fact-free phrases for fact-block interleaving."""
-    required = {"opening", "observation", "transition", "appreciation", "closing"}
+    required = {
+        "opening", "appreciation", "closing",
+        *(f"{topic}_{kind}" for topic in ("space", "craft", "ornament")
+          for kind in ("intro", "observation", "transition")),
+    }
     try:
         payload = yaml.safe_load(POINT_COMPONENT_FILE.read_text(encoding="utf-8"))
         if (
-            payload.get("schema_version") != "point_narration_components_v1"
+            payload.get("schema_version") != "point_narration_components_v2"
             or payload.get("review_status") != "approved"
+            or payload.get("layout") != "continuous_narration"
             or not isinstance(payload.get("roles"), dict)
         ):
             raise ValueError("point narration components are not approved")
@@ -195,6 +200,8 @@ def _load_point_narration_components() -> dict[str, dict[str, tuple[str, ...]]]:
                 # references and venue-specific claims at the source boundary.
                 if any(re.search(r"(?:source|node|route|http|www\\.|\\d{3,4}年)", value, re.I) for value in values):
                     raise ValueError("point narration component contains non-expression content")
+                if any(re.search(r"(?:～|。。|，，|,,|\n|【|】|^\s*(?:#|[-*+]\s|\d+[.)、]))", value) for value in values):
+                    raise ValueError("point narration component violates continuous layout")
                 components[key] = tuple(values)
             result[style_id] = components
         return result
@@ -237,6 +244,12 @@ def _load_all() -> dict[str, NarrationStylePolicy]:
                 point_narration_components=components,
                 role_review_status="approved",
             )
+            interaction_mode = str(role["acceptance_profile"]["interaction_contract"].get("mode") or "none")
+            if interaction_mode == "none" and any(
+                re.search(r"[?？]|(?:请|试着|拍|站|走|找一找)", phrase)
+                for values in components.values() for phrase in values
+            ):
+                raise ValueError(f"non-interactive point components request action: {style_id}")
             result[style_id] = NarrationStylePolicy(**normalized)
         if not REQUIRED_BASE_STYLES.issubset(result):
             raise ValueError("incomplete style set")

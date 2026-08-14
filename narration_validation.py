@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import re
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
@@ -26,6 +27,9 @@ _DANGEROUS = re.compile(r"(?:触摸|攀爬|攀坐|跨越护栏|堵住通道|必�
 _INTERACTION_REQUEST = re.compile(r"(?:\?|？|请你|试着|任务|回答|拍照|跟着做)")
 _SENTENCE_LIMITS = {"short": 42, "compact": 60, "medium": 80}
 _MALFORMED_PUNCTUATION = re.compile(r"(?:[。！？]{2,}|[，、]{2,}|[，。！？]\s*[，。！？]|～)")
+_LAYOUT_HEADING = re.compile(r"【[^】]+】")
+_LAYOUT_MARKDOWN = re.compile(r"(?m)^\s*(?:#{1,6}\s+|[-*+]\s+|\d+[.)、]\s+)")
+_LAYOUT_SPACING = re.compile(r"\n\s*\n|\n{3,}")
 
 
 def _style_acceptance_reasons(connector: str, brief: StyleBrief) -> list[str]:
@@ -109,36 +113,64 @@ def _fact_connector_segments(
     return segments
 
 
-def _has_point_style_coverage(
+def _point_style_coverage_reasons(
     candidate: RoleNarrationCandidate,
     plan: NarrationContentPlan,
     brief: StyleBrief,
-) -> bool:
-    """Require reviewed persona phrasing at the beginning, middle, and end."""
+) -> list[str]:
+    """Require matching reviewed components around every typed fact unit."""
     segments = _fact_connector_segments(candidate.public_text, plan)
     components = brief.point_narration_components
     if segments is None or not components:
-        return False
+        return ["style_coverage_incomplete"]
     opening = tuple(components.get("opening", ()))
     closing = tuple(components.get("closing", ()))
     if not opening or not closing:
-        return False
+        return ["style_coverage_incomplete"]
     if not any(value in segments[0] for value in opening):
-        return False
+        return ["style_coverage_incomplete"]
     if not any(value in segments[-1] for value in closing):
-        return False
-    middle = segments[1:-1]
-    if not middle:
-        return True  # One fact still has a styled opening and closing.
-    bridge_values = tuple(
-        value
-        for kind in ("observation", "transition", "appreciation")
-        for value in components.get(kind, ())
-    )
-    return all(
-        segment.strip() and any(value in segment for value in bridge_values)
-        for segment in middle
-    )
+        return ["style_coverage_incomplete"]
+    reasons: list[str] = []
+    all_typed = {
+        topic: tuple(
+            value for kind in ("intro", "observation", "transition")
+            for value in components.get(f"{topic}_{kind}", ())
+        )
+        for topic in ("space", "craft", "ornament")
+    }
+    matched_components: list[str] = []
+    for index, fact in enumerate(plan.facts):
+        segment = segments[index]
+        topic = fact.topic_kind
+        is_start = index == 0 or plan.facts[index - 1].unit_id != fact.unit_id
+        expected_key = f"{topic}_{'intro' if is_start else 'observation'}"
+        expected = tuple(components.get(expected_key, ()))
+        if not expected or not any(value in segment for value in expected):
+            reasons.append(f"{topic}_style_coverage_incomplete")
+        if is_start and index > 0:
+            previous_topic = plan.facts[index - 1].topic_kind
+            transition = tuple(components.get(f"{previous_topic}_transition", ()))
+            if not transition or not any(value in segment for value in transition):
+                reasons.append(f"{previous_topic}_style_coverage_incomplete")
+        for other_topic in all_typed:
+            wrong_values = tuple(
+                value for kind in ("intro", "observation")
+                for value in components.get(f"{other_topic}_{kind}", ())
+            )
+            if other_topic != topic and any(value in segment for value in wrong_values):
+                reasons.append("style_component_topic_mismatch")
+        for values in components.values():
+            for value in values:
+                if value and value in segment:
+                    matched_components.append(value)
+    if any(
+        left == right for left, right in zip(matched_components, matched_components[1:])
+    ):
+        reasons.append("repeated_style_component")
+    if reasons:
+        reasons.append("style_coverage_incomplete")
+    return list(dict.fromkeys(reasons))
 
 
 @dataclass(frozen=True)
@@ -150,6 +182,8 @@ class NarrationValidationResult:
     role_consistent: bool = False
     within_budget: bool = False
     public_message_safe: bool = False
+    layout_passed: bool = False
+    layout_reason_codes: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -160,6 +194,8 @@ class NarrationValidationResult:
             "role_consistent": self.role_consistent,
             "within_budget": self.within_budget,
             "public_message_safe": self.public_message_safe,
+            "layout_passed": self.layout_passed,
+            "layout_reason_codes": list(self.layout_reason_codes),
         }
 
 
@@ -178,9 +214,17 @@ def validate_role_narration(
         reasons.append("style_mismatch")
     if not used_ids.issubset(allowed_ids) or not required_ids.issubset(used_ids):
         reasons.append("fact_id_boundary_violation")
-    missing_statements = [fact.fact_id for fact in plan.facts if fact.required and fact.statement not in candidate.public_text]
-    if missing_statements:
+    expected_statement_counts = Counter(
+        fact.statement for fact in plan.facts if fact.fact_id in used_ids
+    )
+    actual_statement_counts = {
+        statement: candidate.public_text.count(statement)
+        for statement in expected_statement_counts
+    }
+    if any(actual_statement_counts[value] != count for value, count in expected_statement_counts.items()):
         reasons.append("approved_statement_not_preserved")
+    if _fact_connector_segments(candidate.public_text, plan) is None:
+        reasons.append("approved_statement_order_changed")
     connector = role_connector_text(candidate.public_text, plan)
     if len(connector) > role_connector_character_limit(plan):
         reasons.append("unbounded_role_connectors")
@@ -192,12 +236,24 @@ def validate_role_narration(
         reasons.append("internal_field_leak")
     if _DANGEROUS.search(candidate.public_text):
         reasons.append("unsafe_or_coercive_expression")
-    if _MALFORMED_PUNCTUATION.search(candidate.public_text):
+    malformed_punctuation = bool(_MALFORMED_PUNCTUATION.search(candidate.public_text))
+    if malformed_punctuation:
         reasons.append("malformed_punctuation")
+    layout_reasons: list[str] = []
+    if malformed_punctuation:
+        layout_reasons.append("malformed_punctuation")
+    if _LAYOUT_HEADING.search(candidate.public_text):
+        layout_reasons.append("layout_heading_leak")
+    if _LAYOUT_MARKDOWN.search(candidate.public_text):
+        layout_reasons.append("layout_markdown_leak")
+    if _LAYOUT_SPACING.search(candidate.public_text):
+        layout_reasons.append("layout_spacing_invalid")
+    if "\n" in candidate.public_text or not candidate.public_text.strip().endswith(("。", "！", "？")):
+        layout_reasons.append("layout_not_continuous")
+    reasons.extend(layout_reasons)
     if _has_duplicate_connector_sentence(connector):
         reasons.append("repeated_role_expression")
-    if not _has_point_style_coverage(candidate, plan, brief):
-        reasons.append("style_coverage_incomplete")
+    reasons.extend(_point_style_coverage_reasons(candidate, plan, brief))
     if any(pattern and pattern in candidate.public_text for pattern in brief.prohibited_patterns):
         reasons.append("style_prohibited_pattern")
     reasons.extend(_style_acceptance_reasons(connector, brief))
@@ -230,7 +286,7 @@ def validate_role_narration(
     same_fact_boundary = not any(
         reason in reasons for reason in (
             "fact_id_boundary_violation", "approved_statement_not_preserved",
-            "unapproved_fact_trigger",
+            "approved_statement_order_changed", "unapproved_fact_trigger",
         )
     )
     role_consistent = not any(
@@ -241,6 +297,9 @@ def validate_role_narration(
             "listen_only_interaction_violation", "unbounded_role_connectors",
             "malformed_punctuation", "repeated_role_expression",
             "style_coverage_incomplete",
+            "space_style_coverage_incomplete", "craft_style_coverage_incomplete",
+            "ornament_style_coverage_incomplete", "style_component_topic_mismatch",
+            "repeated_style_component",
         )
     )
     return NarrationValidationResult(
@@ -250,4 +309,6 @@ def validate_role_narration(
         role_consistent=role_consistent,
         within_budget=within_budget,
         public_message_safe=safe_boundary and not bool(_INTERNAL.search(candidate.public_text)),
+        layout_passed=not layout_reasons,
+        layout_reason_codes=tuple(dict.fromkeys(layout_reasons)),
     )

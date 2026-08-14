@@ -1,19 +1,17 @@
 """Deterministic, source-free content planning for role narration.
 
-The planner consumes only the already-approved public E5 sections plus their
-reviewed subject identifiers. It never reads raw retrieval chunks or exposes
-source identifiers to the role model.
+The planner consumes only fact units emitted by the reviewed E5 renderer.  It
+never infers facts from styled legacy prose, reads raw retrieval chunks, or
+exposes source identifiers to the role model.
 """
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import Any, Mapping
 
 
-PLAN_SCHEMA_VERSION = "narration_content_plan_v2"
-_SECTION = re.compile(r"【([^】]+)】\s*(.*?)(?=\n\s*【|\Z)", re.DOTALL)
+PLAN_SCHEMA_VERSION = "narration_content_plan_v3"
 
 
 @dataclass(frozen=True)
@@ -23,12 +21,26 @@ class NarrationFact:
     statement: str
     required: bool = True
 
+    @property
+    def unit_id(self) -> str:
+        return self.fact_id.rsplit(":", 1)[0] if self.fact_id.rsplit(":", 1)[-1].isdigit() else self.fact_id
+
+    @property
+    def topic_kind(self) -> str:
+        if self.semantic_role.startswith("space") or self.fact_id.startswith("space:"):
+            return "space"
+        if self.semantic_role.startswith("craft") or self.fact_id.startswith("craft:"):
+            return "craft"
+        return "ornament"
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "fact_id": self.fact_id,
             "semantic_role": self.semantic_role,
             "statement": self.statement,
             "required": self.required,
+            "unit_id": self.unit_id,
+            "topic_kind": self.topic_kind,
         }
 
 
@@ -72,46 +84,6 @@ class NarrationContentPlan:
         }
 
 
-def _clean_statement(value: str) -> str:
-    return "\n".join(line.strip() for line in value.splitlines() if line.strip()).strip()
-
-
-_REVIEWED_LOCATION = re.compile(
-    r"它与(?P<location>[^。；]+?)存在审核关联；可结合现场标识观察。"
-)
-_REVIEWED_OBSERVATION = re.compile(
-    r"观察时，可结合(?P<location>[^。；]+?)处的构件位置辨认其造型。"
-)
-
-
-def _naturalize_reviewed_statement(value: str) -> str:
-    """Polish known review boilerplate without changing its fact boundary.
-
-    This is deliberately deterministic and narrow.  It only rewrites the two
-    public E5 location templates that otherwise make a role narration sound
-    like an internal audit report.  The reviewed location stays intact, no
-    new claim is introduced, and the resulting text remains the immutable
-    statement associated with the same fact ID for generation and validation.
-    """
-
-    matched_locations: set[str] = set()
-
-    def replace_location(match: re.Match[str]) -> str:
-        location = match.group("location").strip()
-        matched_locations.add(location)
-        return f"可以先对照现场标识，在{location}寻找它。"
-
-    result = _REVIEWED_LOCATION.sub(replace_location, value)
-
-    def replace_observation(match: re.Match[str]) -> str:
-        location = match.group("location").strip()
-        if location in matched_locations:
-            return "找到位置后，再留意它的造型和细节。"
-        return f"可以沿着{location}看过去，重点留意它的造型和细节。"
-
-    return _REVIEWED_OBSERVATION.sub(replace_observation, result)
-
-
 def _rejected(
     reason: str, *, stop_id: str = "", style_id: str = "neutral", requested_scope: str = "whole_stop",
 ) -> NarrationContentPlan:
@@ -139,12 +111,6 @@ def build_narration_content_plan(
     style_id = str(render_audit.get("style_id") or "neutral")
     if not stop_id or not public_message.strip():
         return _rejected("approved_guidance_unavailable", stop_id=stop_id, style_id=style_id)
-    sections = {title.strip(): _clean_statement(body) for title, body in _SECTION.findall(public_message)}
-    items = {
-        str(item.get("ornament_id")): str(item.get("name"))
-        for item in stop_program.get("selected_items", [])
-        if isinstance(item, Mapping) and item.get("ornament_id") and item.get("name")
-    }
     request = str(request_text or "")
     asks_craft = any(token in request for token in ("工艺", "灰塑", "石雕", "木雕", "陶塑", "砖雕"))
     asks_ornament = any(token in request for token in ("纹样", "图案", "装饰", "独角狮", "福运", "花卉"))
@@ -156,12 +122,6 @@ def build_narration_content_plan(
         "whole_stop"
     )
 
-    def atomic_statement(value: str) -> str:
-        """One requested topic gets one approved atomic statement only."""
-        cleaned = _naturalize_reviewed_statement(value)
-        pieces = [part.strip() for part in re.split(r"(?<=[。！？])", cleaned) if part.strip()]
-        return pieces[0] if pieces else cleaned
-
     facts: list[NarrationFact] = []
     if requested_scope == "space":
         # Stop identity is already authoritative tour state.  It permits a
@@ -171,30 +131,52 @@ def build_narration_content_plan(
         facts.append(NarrationFact(
             f"space:{stop_id}", "space_identity", f"当前讲解点位为{display_name}。",
         ))
-    for craft_id in render_audit.get("rendered_craft_ids", []):
-        statement = _naturalize_reviewed_statement(
-            sections.get(f"工艺背景：{craft_id}", "")
+    audited_units = render_audit.get("fact_units")
+    if isinstance(audited_units, list) and audited_units:
+        expected_unit_ids = {
+            *(f"craft:{value}" for value in render_audit.get("rendered_craft_ids", [])),
+            *(f"ornament:{value}" for value in render_audit.get("rendered_ornament_ids", [])),
+        }
+        for raw_unit in audited_units:
+            if not isinstance(raw_unit, Mapping):
+                return _rejected("invalid_fact_unit", stop_id=stop_id, style_id=style_id)
+            unit_id = str(raw_unit.get("unit_id") or "")
+            topic_kind = str(raw_unit.get("topic_kind") or "")
+            statements = raw_unit.get("statements")
+            if (
+                topic_kind not in {"space", "craft", "ornament"}
+                or not unit_id
+                or not isinstance(statements, list)
+                or not statements
+                or not all(isinstance(value, str) and value.strip() for value in statements)
+            ):
+                return _rejected("invalid_fact_unit", stop_id=stop_id, style_id=style_id)
+            if topic_kind != "space" and unit_id not in expected_unit_ids:
+                return _rejected("fact_unit_subject_mismatch", stop_id=stop_id, style_id=style_id)
+            if requested_scope not in {"whole_stop", topic_kind}:
+                continue
+            selected = statements
+            semantic_role = {
+                "space": "space_identity",
+                "craft": "craft_background",
+                "ornament": "object_detail",
+            }[topic_kind]
+            for index, statement in enumerate(selected):
+                # These strings were emitted from the reviewed deterministic
+                # renderer.  Do not naturalize, trim internally, or otherwise
+                # rewrite them at the role boundary.
+                facts.append(NarrationFact(
+                    f"{unit_id}:{index:03d}", semantic_role, statement,
+                    bool(raw_unit.get("required", True)),
+                ))
+    else:
+        # Older checkpoints do not carry an auditable fact-unit boundary.
+        # Never guess that boundary from styled legacy prose: fail closed so
+        # deterministic_narration_fallback republishes that prose unchanged.
+        return _rejected(
+            "fact_units_unavailable", stop_id=stop_id, style_id=style_id,
+            requested_scope=requested_scope,
         )
-        if not statement:
-            return _rejected("craft_section_mismatch", stop_id=stop_id, style_id=style_id)
-        if requested_scope == "craft":
-            statement = atomic_statement(statement)
-        if requested_scope in {"whole_stop", "craft"}:
-            facts.append(NarrationFact(f"craft:{craft_id}", "craft_background", statement))
-    for ornament_id in render_audit.get("rendered_ornament_ids", []):
-        object_name = items.get(str(ornament_id))
-        statement = (
-            _naturalize_reviewed_statement(
-                sections.get(f"观察对象：{object_name}", "")
-            )
-            if object_name else ""
-        )
-        if not statement:
-            return _rejected("ornament_section_mismatch", stop_id=stop_id, style_id=style_id)
-        if requested_scope == "ornament":
-            statement = atomic_statement(statement)
-        if requested_scope in {"whole_stop", "ornament"}:
-            facts.append(NarrationFact(f"ornament:{ornament_id}", "object_detail", statement))
     if not facts:
         return _rejected("requested_scope_unavailable", stop_id=stop_id, style_id=style_id, requested_scope=requested_scope)
     profile = dict(visitor_profile or {})

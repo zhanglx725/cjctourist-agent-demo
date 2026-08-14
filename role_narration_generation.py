@@ -76,7 +76,7 @@ def _plan_output_limits(plan: NarrationContentPlan) -> tuple[int, int]:
     # immutable fact blocks.  The former whole-message cap often left room for
     # only an opening, so long explanations became generic after sentence one.
     # This remains bounded by the authoritative time budget.
-    structured_cap = min(280, 12 + 28 * (len(plan.facts) + 1))
+    structured_cap = min(360, 20 + 24 * (len(plan.facts) + 3))
     max_connector_characters = max(0, min(structured_cap, remaining_seconds * 4))
     max_public_characters = approved_fact_characters + max_connector_characters
     return max_public_characters, max_connector_characters
@@ -108,21 +108,40 @@ def apply_point_narration_scaffold(
     """
     if candidate.generation_status != "generated":
         return candidate
-    if not all(brief.point_narration_components.get(key) for key in (
-        "opening", "observation", "transition", "appreciation", "closing",
-    )):
+    required_components = {
+        "opening", "appreciation", "closing",
+        *(f"{topic}_{kind}" for topic in ("space", "craft", "ornament")
+          for kind in ("intro", "observation", "transition")),
+    }
+    if not all(brief.point_narration_components.get(key) for key in required_components):
         return _failed(plan.style_id, "style_components_unavailable", candidate.latency_ms, model_called=True)
     ordered_facts = [fact for fact in plan.facts if fact.fact_id in candidate.used_fact_ids]
     if not ordered_facts:
         return _failed(plan.style_id, "no_used_facts_for_scaffold", candidate.latency_ms, model_called=True)
     parts = [_component(brief, "opening", 0)]
-    bridge_kinds = ("observation", "transition", "appreciation")
+    previous_component = parts[0]
     for index, fact in enumerate(ordered_facts):
+        is_unit_start = index == 0 or ordered_facts[index - 1].unit_id != fact.unit_id
+        if is_unit_start:
+            intro = _component(brief, f"{fact.topic_kind}_intro", index)
+            if intro and intro != previous_component:
+                parts.append(intro)
+                previous_component = intro
         parts.append(fact.statement)
         if index < len(ordered_facts) - 1:
-            kind = bridge_kinds[index % len(bridge_kinds)]
-            parts.append(_component(brief, kind, index))
-    parts.append(_component(brief, "closing", len(ordered_facts)))
+            next_fact = ordered_facts[index + 1]
+            kind = "observation" if next_fact.unit_id == fact.unit_id else "transition"
+            bridge = _component(brief, f"{fact.topic_kind}_{kind}", index)
+            if bridge and bridge != previous_component:
+                parts.append(bridge)
+                previous_component = bridge
+    appreciation = _component(brief, "appreciation", len(ordered_facts))
+    if appreciation and appreciation != previous_component:
+        parts.append(appreciation)
+        previous_component = appreciation
+    closing = _component(brief, "closing", len(ordered_facts))
+    if closing and closing != previous_component:
+        parts.append(closing)
     public_text = "".join(part for part in parts if part)
     if len(re.sub(r"\s+", "", role_connector_text(public_text, plan))) > role_connector_character_limit(plan):
         return _failed(plan.style_id, "style_scaffold_budget_exceeded", candidate.latency_ms, model_called=True)
@@ -327,9 +346,21 @@ def _hydrate_fact_tokens(
         f"[[FACT_{index:03d}]]": fact
         for index, fact in enumerate(plan.facts)
     }
-    if any(token not in known_tokens for token in _FACT_TOKEN.findall(text)):
+    found_tokens = _FACT_TOKEN.findall(text)
+    if any(token not in known_tokens for token in found_tokens) or not found_tokens:
         return _failed(
             plan.style_id, "invalid_fact_placeholders",
+            candidate.latency_ms, model_called=True,
+        )
+    expected_tokens = [token for token, fact in known_tokens.items() if fact.fact_id in used_ids]
+    if found_tokens != expected_tokens:
+        return _failed(
+            plan.style_id, "invalid_fact_token_order",
+            candidate.latency_ms, model_called=True,
+        )
+    if text != "".join(expected_tokens):
+        return _failed(
+            plan.style_id, "model_connector_text_forbidden",
             candidate.latency_ms, model_called=True,
         )
     connector_text = text

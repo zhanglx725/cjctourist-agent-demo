@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 import unittest
+import os
+from unittest.mock import patch
+
+from langchain_core.messages import AIMessage
+from agent_graph import narration_commit_node
 
 from controlled_rollout import (
     STOP_GUIDANCE_ACTIVE_STYLE_BATCHES,
@@ -72,7 +77,36 @@ class RoleNarrationStyleMatrixTests(unittest.TestCase):
                     self.assertTrue(result.same_fact_boundary)
                     self.assertTrue(result.role_consistent)
                     self.assertTrue(result.public_message_safe)
+                    self.assertTrue(result.layout_passed)
                     self.assertIn(fact.statement, candidate.public_text)
+                    topic = fact.topic_kind
+                    self.assertTrue(any(
+                        value in candidate.public_text
+                        for value in brief.point_narration_components[f"{topic}_intro"]
+                    ))
+                    self.assertNotRegex(candidate.public_text, r"(?m)【[^】]+】|^\s*(?:#|[-*+]\s|\d+[.)、]\s)")
+                    self.assertNotRegex(candidate.public_text, r"～|。。|，，|source_id|node_id")
+                    legacy = "【工艺背景】旧链原文。【下一步】旧链提示。"
+                    with patch.dict(os.environ, ACTIVE_ENV, clear=False):
+                        committed = narration_commit_node({
+                            "messages": [AIMessage(id="legacy", content=legacy)],
+                            "narration_content_plan": _plan(style_id, fact).to_dict(),
+                            "role_narration_candidate": candidate.to_dict(),
+                            "narration_validation": result.to_dict(),
+                            "active_role_narration_audit": {
+                                "style_id": style_id, "state_writes": [],
+                            },
+                            "pending_role_narration_commit": {
+                                "status": "guided_e5", "legacy_public_message": legacy,
+                                "coverage_candidates": [], "narration_render_audit": {},
+                            },
+                            "narration_coverage": empty_narration_coverage().to_dict(),
+                        })
+                    audit = committed["active_role_narration_audit"]
+                    self.assertTrue(audit["active_takeover"])
+                    self.assertFalse(audit["fallback_used"])
+                    self.assertEqual(audit["state_writes"], [])
+                    self.assertNotIn("【", committed["messages"][0].content)
                     validated += 1
         self.assertEqual(validated, 54)
 

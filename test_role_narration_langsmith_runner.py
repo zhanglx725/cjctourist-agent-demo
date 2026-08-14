@@ -29,7 +29,7 @@ class RoleNarrationLangSmithRunnerTests(unittest.TestCase):
 
     def test_accepted_fixture_reaches_commit_with_model_response(self):
         inputs = next(item["inputs"] for item in build_examples() if item["inputs"]["style_id"] == "ancient_scholar" and item["inputs"]["point_type"] == "craft")
-        response = '{"schema_version":"role_narration_candidate_v1","style_id":"ancient_scholar","public_text":"诸位且看，[[FACT_000]]","used_fact_ids":["craft:灰塑"],"omitted_fact_ids":[],"self_check":{"added_new_facts":false,"role_consistent":true,"within_budget":true}}'
+        response = '{"schema_version":"role_narration_candidate_v1","style_id":"ancient_scholar","public_text":"[[FACT_000]]","used_fact_ids":["craft:灰塑"],"omitted_fact_ids":[],"self_check":{"added_new_facts":false,"role_consistent":true,"within_budget":true}}'
         with patch("agent_graph._invoke_role_narration_model", return_value=response):
             result = run_role_narration_example(inputs, {
                 "expected_coverage_commit_count": 1,
@@ -39,7 +39,7 @@ class RoleNarrationLangSmithRunnerTests(unittest.TestCase):
         self.assertTrue(result["commit_audit"]["active_takeover"])
         self.assertEqual(result["commit_audit"]["commit_decision"], "role_candidate_published")
         self.assertIn(inputs["approved_fact"], result["final_visitor_message"])
-        self.assertIn("【下一步】", result["final_visitor_message"])
+        self.assertNotIn("【下一步】", result["final_visitor_message"])
         self.assertTrue(all(result["assertions"].values()))
 
     def test_style_judge_is_optional_and_never_runs_for_a_fallback(self):

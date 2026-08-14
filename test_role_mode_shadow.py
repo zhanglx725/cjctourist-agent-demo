@@ -142,7 +142,7 @@ class RoleModeShadowTests(unittest.TestCase):
                     return json.dumps({
                         "schema_version": "role_narration_candidate_v1",
                         "style_id": selected,
-                        "public_text": "屋脊可见灰塑。请从容观察。" if selected == "ancient_scholar" else "屋脊可见灰塑。我们可以看看它。" if selected == "child" else "屋脊可见灰塑。",
+                        "public_text": "[[FACT_000]]",
                         "used_fact_ids": ["craft:灰塑"],
                         "omitted_fact_ids": [],
                         "self_check": {"added_new_facts": False, "role_consistent": True, "within_budget": True},

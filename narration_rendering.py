@@ -48,6 +48,7 @@ class NarrationRenderResult:
     style_schema_version: str
     style_fallback_used: bool
     style_warning_codes: tuple[str, ...]
+    fact_units: tuple[dict[str, Any], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -64,6 +65,7 @@ class NarrationRenderResult:
             "style_schema_version": self.style_schema_version,
             "style_fallback_used": self.style_fallback_used,
             "style_warning_codes": list(self.style_warning_codes),
+            "fact_units": [dict(unit) for unit in self.fact_units],
         }
 
 
@@ -258,7 +260,7 @@ def _visitor_craft_sentence(sentence: str) -> str:
 
 def _craft_segment(
     craft: str, packet: EvidencePacket, style: NarrationStylePolicy | None, style_id: str
-) -> tuple[list[str], tuple[str, ...], bool, str | None]:
+) -> tuple[list[str], tuple[str, ...], bool, str | None, tuple[str, ...]]:
     sentences = _sentences(packet)
     used: set[str] = set()
     selected: list[tuple[str, tuple[str, ...]]] = []
@@ -272,7 +274,7 @@ def _craft_segment(
         if len(covered_dimensions) >= 2 and len(selected) >= 1:
             break
     if not selected:
-        return [], (), False, f"{craft}缺少可用于首次介绍的工艺证据"
+        return [], (), False, f"{craft}缺少可用于首次介绍的工艺证据", ()
     visitor_selected = [(_visitor_craft_sentence(sentence), source_ids) for sentence, source_ids in selected]
     template_line = _template(style, "first_craft_intro_style", {
         "craft_name": craft,
@@ -285,7 +287,9 @@ def _craft_segment(
     source_ids = tuple(sorted({source for _, values in selected for source in values}))
     complete = len(covered_dimensions) >= 2
     warning = None if complete else f"{craft}工艺证据暂不足两类信息，未作为完整首次介绍"
-    return lines, source_ids, complete, warning
+    return lines, source_ids, complete, warning, tuple(
+        sentence for sentence, _ in visitor_selected
+    )
 
 
 def _ornament_segment(
@@ -296,7 +300,7 @@ def _ornament_segment(
     first: bool,
     style: NarrationStylePolicy | None,
     style_id: str,
-) -> tuple[list[str], tuple[str, ...], bool, str | None]:
+) -> tuple[list[str], tuple[str, ...], bool, str | None, tuple[str, ...]]:
     raw_location = location.raw_location if getattr(location, "valid", False) else None
     view = build_object_evidence_view(
         ornament_id=item.ornament_id,
@@ -326,7 +330,7 @@ def _ornament_segment(
         warning = None
     if not first and source_ids:
         lines.insert(1, "这一处作为前面内容的简短回顾，再补充本点可核对的细部。")
-    return lines, source_ids, complete if first else False, warning
+    return lines, source_ids, complete if first else False, warning, tuple(lines)
 
 
 def render_guidance_evidence(
@@ -351,6 +355,7 @@ def render_guidance_evidence(
     rendered_ornaments: list[str] = []
     used_sources: set[str] = set()
     warnings: list[str] = []
+    fact_units: list[dict[str, Any]] = []
     eligible: list[CoverageCandidate] = []
     eligible_by_subject = {(candidate.subject_kind, candidate.subject_id): candidate for candidate in bundle.coverage_candidates}
 
@@ -360,12 +365,19 @@ def render_guidance_evidence(
         if status == "first_introduction":
             packet = bundle.craft_overviews.get(craft)
             if packet and packet.evidence:
-                segment, sources, complete, warning = _craft_segment(craft, packet, style, style_id)
+                segment, sources, complete, warning, statements = _craft_segment(craft, packet, style, style_id)
                 # Use a plain-text section label instead of Markdown list
                 # syntax.  Studio renders wrapped list items with a deep
                 # hanging indent on narrow screens.
                 lines.append(f"【工艺背景：{craft}】")
                 lines.extend(segment)
+                if statements:
+                    fact_units.append({
+                        "unit_id": f"craft:{craft}",
+                        "topic_kind": "craft",
+                        "statements": list(statements),
+                        "required": True,
+                    })
                 used_sources.update(sources)
                 if complete and (candidate := eligible_by_subject.get(("craft", craft))):
                     eligible.append(candidate)
@@ -383,7 +395,7 @@ def render_guidance_evidence(
             warnings.append(f"{item.name}没有合格的单件文物证据")
             continue
         first = bundle.coverage_status["ornament"].get(item.ornament_id) == "first_introduction"
-        segment, sources, complete, warning = _ornament_segment(
+        segment, sources, complete, warning, statements = _ornament_segment(
             item, packet, bundle.location_evidence.get(item.ornament_id), first=first, style=style, style_id=style_id
         )
         # Keep every reviewed object in its own flat section.  In particular,
@@ -391,6 +403,13 @@ def render_guidance_evidence(
         # visitor sentence then becomes a nested-looking hanging indent.
         lines.append(f"【观察对象：{item.name}】")
         lines.extend(segment)
+        if statements:
+            fact_units.append({
+                "unit_id": f"ornament:{item.ornament_id}",
+                "topic_kind": "ornament",
+                "statements": list(statements),
+                "required": True,
+            })
         rendered_ornaments.append(item.ornament_id)
         used_sources.update(sources)
         if complete and (candidate := eligible_by_subject.get(("ornament", item.ornament_id))):
@@ -428,4 +447,5 @@ def render_guidance_evidence(
         style_schema_version=STYLE_SCHEMA_VERSION,
         style_fallback_used=style_fallback_used,
         style_warning_codes=style_warning_codes,
+        fact_units=tuple(fact_units),
     )

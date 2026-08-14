@@ -2987,7 +2987,7 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
 
 
 def narration_content_plan_node(state: AgentState) -> dict[str, Any]:
-    """Build a source-free claim plan from the authoritative legacy guidance."""
+    """Build a source-free claim plan from audited deterministic fact units."""
     started = time.perf_counter()
     latest = state.get("messages", [])[-1] if state.get("messages") else None
     public_message = str(latest.content) if isinstance(latest, AIMessage) else ""
@@ -3104,6 +3104,7 @@ def narration_validation_node(state: AgentState, config: RunnableConfig = None) 
             "state_writes": [], "same_fact_boundary": False,
             "role_consistent": False, "within_budget": False,
             "public_message_safe": False,
+            "layout_passed": False, "layout_reason_codes": ["layout_not_continuous"],
         }
     else:
         validation = validate_role_narration(
@@ -3126,6 +3127,9 @@ def narration_validation_node(state: AgentState, config: RunnableConfig = None) 
             "style_rhythm_mismatch", "style_interaction_contract_violation",
             "listen_only_interaction_violation", "unbounded_role_connectors",
             "style_coverage_incomplete",
+            "space_style_coverage_incomplete", "craft_style_coverage_incomplete",
+            "ornament_style_coverage_incomplete", "style_component_topic_mismatch",
+            "repeated_style_component",
         }
     ]
     record = {
@@ -3147,6 +3151,8 @@ def narration_validation_node(state: AgentState, config: RunnableConfig = None) 
         "style_quality_passed": validation["role_consistent"],
         "style_quality_reason_codes": style_quality_reason_codes,
         "candidate_fact_ids": [fact.fact_id for fact in plan.facts] if plan else [],
+        "fact_unit_ids": list(dict.fromkeys(fact.unit_id for fact in plan.facts)) if plan else [],
+        "fact_unit_topic_kinds": list(dict.fromkeys(fact.topic_kind for fact in plan.facts)) if plan else [],
         "used_fact_ids": list(candidate.used_fact_ids) if candidate else [],
         "omitted_fact_ids": list(candidate.omitted_fact_ids) if candidate else [],
         **validation,
@@ -3179,14 +3185,6 @@ def narration_validation_node(state: AgentState, config: RunnableConfig = None) 
     }
 
 
-def _legacy_operational_suffix(legacy_text: str) -> str:
-    starts = [
-        index for marker in ("【观察提示】", "【下一步】")
-        if (index := legacy_text.find(marker)) >= 0
-    ]
-    return legacy_text[min(starts):].strip() if starts else ""
-
-
 def narration_commit_node(state: AgentState) -> dict[str, Any]:
     """Publish one accepted role candidate and uniquely submit its Coverage."""
     pending = state.get("pending_role_narration_commit") or {}
@@ -3207,11 +3205,10 @@ def narration_commit_node(state: AgentState) -> dict[str, Any]:
         or not competition_role_active_allowed(style_id, "stop_guidance")
     ):
         return deterministic_narration_fallback_node(state)
-    suffix = _legacy_operational_suffix(str(pending.get("legacy_public_message") or ""))
-    final_text = candidate.public_text
-    if suffix:
-        final_text = f"{final_text}\n\n{suffix}"
-    final_text = public_visitor_message_or_fallback(final_text)
+    # Publish exactly the text accepted by narration_validation.  Appending a
+    # legacy section here would bypass the single validation gate and leak
+    # headings such as 【下一步】 into the continuous-layout success path.
+    final_text = public_visitor_message_or_fallback(candidate.public_text)
     coverage_after, commit_audit = _commit_stop_guidance_coverage(
         state, dict(pending), public_message=final_text,
         introduced_by="narration_commit",

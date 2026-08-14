@@ -26,6 +26,12 @@ class NarrationContentPlanTests(unittest.TestCase):
             "rendered_ornament_ids": ["lion_01"],
             "content_budget_seconds": 180,
             "allocated_content_seconds": 120,
+            "fact_units": [
+                {"unit_id": "craft:灰塑", "topic_kind": "craft", "required": True,
+                 "statements": ["灰塑是建筑装饰工艺。"]},
+                {"unit_id": "ornament:lion_01", "topic_kind": "ornament", "required": True,
+                 "statements": ["独角狮位于屋脊。"]},
+            ],
         }
 
     def test_plan_contains_only_approved_fact_sections(self):
@@ -36,7 +42,7 @@ class NarrationContentPlanTests(unittest.TestCase):
         )
         self.assertEqual(plan.status, "ready")
         self.assertEqual(plan.allocated_content_seconds, 120)
-        self.assertEqual([fact.fact_id for fact in plan.facts], ["craft:灰塑", "ornament:lion_01"])
+        self.assertEqual([fact.fact_id for fact in plan.facts], ["craft:灰塑:000", "ornament:lion_01:000"])
         serialized = str(plan.to_dict())
         self.assertNotIn("观察提示", serialized)
         self.assertNotIn("下一步", serialized)
@@ -53,7 +59,7 @@ class NarrationContentPlanTests(unittest.TestCase):
             render_audit=audit, visitor_profile={}, narration_coverage={},
         )
         self.assertEqual(plan.status, "rejected")
-        self.assertIn("ornament_section_mismatch", plan.reason_codes)
+        self.assertIn("fact_unit_subject_mismatch", plan.reason_codes)
 
     def test_listen_only_disables_interaction(self):
         plan = build_narration_content_plan(
@@ -70,7 +76,7 @@ class NarrationContentPlanTests(unittest.TestCase):
             request_text="请以古风书生风格讲解这里的灰塑工艺",
         )
         self.assertEqual(plan.requested_scope, "craft")
-        self.assertEqual([fact.fact_id for fact in plan.facts], ["craft:灰塑"])
+        self.assertEqual([fact.fact_id for fact in plan.facts], ["craft:灰塑:000"])
 
     def test_explicit_space_request_never_expands_to_craft_or_ornament(self):
         plan = build_narration_content_plan(
@@ -82,7 +88,7 @@ class NarrationContentPlanTests(unittest.TestCase):
         self.assertEqual(plan.requested_scope, "space")
         self.assertEqual([fact.fact_id for fact in plan.facts], ["space:front_courtyard_center"])
 
-    def test_known_review_location_boilerplate_is_naturalized_without_fact_drift(self):
+    def test_audited_location_statement_is_preserved_verbatim(self):
         message = (
             "【工艺背景：灰塑】\n\n灰塑是建筑装饰工艺。\n\n"
             "【观察对象：独角狮】\n\n"
@@ -93,16 +99,20 @@ class NarrationContentPlanTests(unittest.TestCase):
         )
         plan = build_narration_content_plan(
             public_message=message, stop_program=self.program,
-            render_audit=self.audit, visitor_profile={"language": "zh"},
+            render_audit={**self.audit, "fact_units": [
+                self.audit["fact_units"][0],
+                {"unit_id": "ornament:lion_01", "topic_kind": "ornament", "required": True,
+                 "statements": [
+                    "独角狮是一件灰塑装饰。",
+                    "它与建筑山墙垂脊前沿存在审核关联；可结合现场标识观察。",
+                    "观察时，可结合建筑山墙垂脊前沿处的构件位置辨认其造型。",
+                 ]},
+            ]}, visitor_profile={"language": "zh"},
             narration_coverage={},
         )
         self.assertEqual(plan.status, "ready")
-        fact = plan.facts[1]
-        self.assertEqual(fact.fact_id, "ornament:lion_01")
-        self.assertIn("在建筑山墙垂脊前沿寻找它", fact.statement)
-        self.assertIn("找到位置后，再留意它的造型和细节", fact.statement)
-        self.assertNotIn("存在审核关联", fact.statement)
-        self.assertNotIn("构件位置辨认其造型", fact.statement)
+        self.assertEqual(plan.facts[2].statement, "它与建筑山墙垂脊前沿存在审核关联；可结合现场标识观察。")
+        self.assertEqual(plan.facts[3].statement, "观察时，可结合建筑山墙垂脊前沿处的构件位置辨认其造型。")
 
 
 if __name__ == "__main__":
