@@ -63,6 +63,25 @@ class NarrationContentPlanTests(unittest.TestCase):
         )
         self.assertFalse(plan.interaction_allowed)
 
+    def test_explicit_craft_request_excludes_unrelated_ornament_story(self):
+        plan = build_narration_content_plan(
+            public_message=self.message, stop_program=self.program,
+            render_audit=self.audit, visitor_profile={}, narration_coverage={},
+            request_text="请以古风书生风格讲解这里的灰塑工艺",
+        )
+        self.assertEqual(plan.requested_scope, "craft")
+        self.assertEqual([fact.fact_id for fact in plan.facts], ["craft:灰塑"])
+
+    def test_explicit_space_request_never_expands_to_craft_or_ornament(self):
+        plan = build_narration_content_plan(
+            public_message=self.message,
+            stop_program={**self.program, "display_name": "前院中部"},
+            render_audit=self.audit, visitor_profile={}, narration_coverage={},
+            request_text="请以古风书生风格讲解这里的建筑空间",
+        )
+        self.assertEqual(plan.requested_scope, "space")
+        self.assertEqual([fact.fact_id for fact in plan.facts], ["space:front_courtyard_center"])
+
     def test_known_review_location_boilerplate_is_naturalized_without_fact_drift(self):
         message = (
             "【工艺背景：灰塑】\n\n灰塑是建筑装饰工艺。\n\n"

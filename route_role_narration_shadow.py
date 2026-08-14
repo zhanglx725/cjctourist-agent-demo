@@ -20,7 +20,12 @@ ROUTE_ROLE_TEXT_CANDIDATE_SCHEMA_VERSION = "route_role_text_candidate_v1"
 SCENE_KINDS = frozenset({
     "route_planning", "route_opening", "navigation", "tour_closing",
 })
-ROLE_MODES = frozenset({"standard", "ancient_scholar", "child", "listen_only"})
+ROLE_MODES = frozenset({
+    "standard", "neutral", "child", "family", "student_research", "professional",
+    "listen_only", "mixed_group", "dominant_ceo", "cute_junior", "ancient_scholar",
+    "warm_sister", "bestie_chat", "buddy_guide", "exploration_game", "photo_guide",
+    "hostel_scholar", "xiguan_young_master", "cantonese_storyteller",
+})
 _CANDIDATE_FIELDS = frozenset({"schema_version", "scene_kind", "role_mode", "public_text"})
 _INTERNAL = re.compile(
     r"(?:https?://|file://|[A-Za-z]:\\|source[_ ]?ids?|node[_ ]?id|route[_ ]?id|"
@@ -60,9 +65,35 @@ _STYLE_PREFIX = {
     },
 }
 
+# Route surfaces retain every deterministic route fact verbatim.  These short
+# lead-ins make the selected role visible without giving a model authority
+# over route order, timing, safety or state.
+_ROUTE_ROLE_OPENINGS = {
+    "neutral": "我们按既定安排开始这一段行程。\n\n",
+    "family": "我们慢慢走，把这一段行程照顾得从容些。\n\n",
+    "student_research": "先带着一个观察问题进入这段路线。\n\n",
+    "professional": "先明确行程结构，再依次查看重点。\n\n",
+    "mixed_group": "大家可按自己的节奏跟随这段安排。\n\n",
+    "dominant_ceo": "重点已定，直接进入行程。\n\n",
+    "cute_junior": "先看这一段的亮点，行程马上开始。\n\n",
+    "warm_sister": "不着急，我们按安排慢慢走。\n\n",
+    "bestie_chat": "这段行程有几个细节，咱们边走边看。\n\n",
+    "buddy_guide": "咱们抓重点，按安排往下走。\n\n",
+    "exploration_game": "这一段的线索已经排好，慢慢找。\n\n",
+    "photo_guide": "先把行程走稳，画面重点沿途再看。\n\n",
+    "hostel_scholar": "行至此处，先按次序展开这段行程。\n\n",
+    "xiguan_young_master": "得闲就照这段安排慢慢行。\n\n",
+    "cantonese_storyteller": "话说眼前这段行程，就从第一站讲起。\n\n",
+}
+
 
 def _style_prefix(scene_kind: str, role_mode: str) -> str:
-    return _STYLE_PREFIX.get(scene_kind, {}).get(role_mode, "")
+    prefix = _STYLE_PREFIX.get(scene_kind, {}).get(role_mode)
+    if prefix is not None:
+        return prefix
+    if scene_kind in {"route_planning", "route_opening"}:
+        return _ROUTE_ROLE_OPENINGS.get(role_mode, "")
+    return ""
 
 
 def _visible_length(value: str) -> int:

@@ -13,6 +13,7 @@ from narration_style_policy import StyleBrief
 from role_narration_generation import (
     UNAPPROVED_CONNECTOR_FACT_TRIGGER,
     RoleNarrationCandidate,
+    role_connector_character_limit,
     role_connector_text,
 )
 
@@ -22,6 +23,122 @@ _INTERNAL = re.compile(
     r"rag_tool|llm_think|stop_guidance|narration_content_plan)", re.IGNORECASE
 )
 _DANGEROUS = re.compile(r"(?:触摸|攀爬|攀坐|跨越护栏|堵住通道|必须回答|强制互动)")
+_INTERACTION_REQUEST = re.compile(r"(?:\?|？|请你|试着|任务|回答|拍照|跟着做)")
+_SENTENCE_LIMITS = {"short": 42, "compact": 60, "medium": 80}
+_MALFORMED_PUNCTUATION = re.compile(r"(?:[。！？]{2,}|[，、]{2,}|[，。！？]\s*[，。！？]|～)")
+
+
+def _style_acceptance_reasons(connector: str, brief: StyleBrief) -> list[str]:
+    """Validate only model-added prose against the reviewed role contract."""
+    profile = brief.acceptance_profile
+    markers = tuple(
+        marker for marker in profile.get("required_markers", [])
+        if isinstance(marker, str) and marker
+    )
+    minimum = profile.get("rhythm", {}).get("min_marker_groups", 1)
+    matched_groups = sum(marker in connector for marker in markers)
+    reasons: list[str] = []
+    # Interleaved reviewed components are a stronger, positional style gate
+    # than the legacy single-marker heuristic. Keep the marker rule only for
+    # old briefs that do not carry the component contract.
+    has_component_contract = bool(brief.point_narration_components)
+    if (
+        not isinstance(minimum, int)
+        or minimum < 1
+        or (not has_component_contract and matched_groups < minimum)
+    ):
+        reasons.append("style_marker_missing")
+    forbidden = tuple(
+        marker for marker in profile.get("forbidden_markers", [])
+        if isinstance(marker, str) and marker
+    )
+    if any(marker in connector for marker in forbidden):
+        reasons.append("style_forbidden_marker")
+    sentence_length = profile.get("rhythm", {}).get("sentence_length")
+    limit = _SENTENCE_LIMITS.get(sentence_length)
+    sentences = [
+        re.sub(r"\s+", "", value)
+        for value in re.split(r"[。！？!?；;\n]+", connector)
+        if re.sub(r"\s+", "", value)
+    ]
+    if limit is None or any(len(sentence) > limit for sentence in sentences):
+        reasons.append("style_rhythm_mismatch")
+    contract = profile.get("interaction_contract", {})
+    mode = contract.get("mode")
+    max_requests = contract.get("max_requests")
+    request_count = len(_INTERACTION_REQUEST.findall(connector))
+    if (
+        not isinstance(max_requests, int)
+        or max_requests < 0
+        or mode == "none" and request_count
+        or request_count > max_requests
+    ):
+        reasons.append("style_interaction_contract_violation")
+    return reasons
+
+
+def _has_duplicate_connector_sentence(connector: str) -> bool:
+    sentences = [
+        re.sub(r"\s+", "", value)
+        for value in re.split(r"[。！？\n]+", connector)
+        if re.sub(r"\s+", "", value)
+    ]
+    return len(sentences) != len(set(sentences))
+
+
+def _fact_connector_segments(
+    public_text: str,
+    plan: NarrationContentPlan,
+) -> list[str] | None:
+    """Return the prose before, between, and after immutable fact blocks."""
+    cursor = 0
+    segments: list[str] = []
+    found = 0
+    for fact in plan.facts:
+        position = public_text.find(fact.statement, cursor)
+        if position < 0:
+            if fact.required:
+                return None
+            continue
+        segments.append(public_text[cursor:position])
+        cursor = position + len(fact.statement)
+        found += 1
+    if not found:
+        return None
+    segments.append(public_text[cursor:])
+    return segments
+
+
+def _has_point_style_coverage(
+    candidate: RoleNarrationCandidate,
+    plan: NarrationContentPlan,
+    brief: StyleBrief,
+) -> bool:
+    """Require reviewed persona phrasing at the beginning, middle, and end."""
+    segments = _fact_connector_segments(candidate.public_text, plan)
+    components = brief.point_narration_components
+    if segments is None or not components:
+        return False
+    opening = tuple(components.get("opening", ()))
+    closing = tuple(components.get("closing", ()))
+    if not opening or not closing:
+        return False
+    if not any(value in segments[0] for value in opening):
+        return False
+    if not any(value in segments[-1] for value in closing):
+        return False
+    middle = segments[1:-1]
+    if not middle:
+        return True  # One fact still has a styled opening and closing.
+    bridge_values = tuple(
+        value
+        for kind in ("observation", "transition", "appreciation")
+        for value in components.get(kind, ())
+    )
+    return all(
+        segment.strip() and any(value in segment for value in bridge_values)
+        for segment in middle
+    )
 
 
 @dataclass(frozen=True)
@@ -65,7 +182,7 @@ def validate_role_narration(
     if missing_statements:
         reasons.append("approved_statement_not_preserved")
     connector = role_connector_text(candidate.public_text, plan)
-    if len(connector) > max(120, len(plan.facts) * 60):
+    if len(connector) > role_connector_character_limit(plan):
         reasons.append("unbounded_role_connectors")
     # Triggers already present in an approved statement are harmless. Only
     # inspect model-added connective prose for new factual assertions.
@@ -75,8 +192,15 @@ def validate_role_narration(
         reasons.append("internal_field_leak")
     if _DANGEROUS.search(candidate.public_text):
         reasons.append("unsafe_or_coercive_expression")
+    if _MALFORMED_PUNCTUATION.search(candidate.public_text):
+        reasons.append("malformed_punctuation")
+    if _has_duplicate_connector_sentence(connector):
+        reasons.append("repeated_role_expression")
+    if not _has_point_style_coverage(candidate, plan, brief):
+        reasons.append("style_coverage_incomplete")
     if any(pattern and pattern in candidate.public_text for pattern in brief.prohibited_patterns):
         reasons.append("style_prohibited_pattern")
+    reasons.extend(_style_acceptance_reasons(connector, brief))
     if not plan.interaction_allowed and (
         "?" in candidate.public_text
         or "？" in candidate.public_text
@@ -112,7 +236,11 @@ def validate_role_narration(
     role_consistent = not any(
         reason in reasons for reason in (
             "style_mismatch", "style_prohibited_pattern",
+            "style_marker_missing", "style_forbidden_marker",
+            "style_rhythm_mismatch", "style_interaction_contract_violation",
             "listen_only_interaction_violation", "unbounded_role_connectors",
+            "malformed_punctuation", "repeated_role_expression",
+            "style_coverage_incomplete",
         )
     )
     return NarrationValidationResult(

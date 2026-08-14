@@ -123,6 +123,14 @@ class RoleNarrationGraphTests(unittest.TestCase):
         self.assertNotIn("tour_state", result)
         self.assertNotIn("visitor_profile", result)
         self.assertTrue(result["active_role_narration_audit"]["active_takeover"])
+        self.assertEqual(
+            result["active_role_narration_audit"]["commit_decision"],
+            "role_candidate_published",
+        )
+        self.assertEqual(
+            result["active_role_narration_audit"]["commit_validation_status"],
+            "accepted",
+        )
 
     def test_stop_guidance_active_commit_is_limited_to_three_styles(self):
         with self.active_environment():
@@ -162,7 +170,44 @@ class RoleNarrationGraphTests(unittest.TestCase):
         self.assertFalse(result["active_role_narration_audit"]["active_takeover"])
         self.assertTrue(result["active_role_narration_audit"]["fallback_used"])
         self.assertTrue(result["active_role_narration_audit"]["legacy_message_preserved"])
+        self.assertEqual(
+            result["active_role_narration_audit"]["commit_decision"],
+            "legacy_fallback_published",
+        )
+        self.assertEqual(
+            result["active_role_narration_audit"]["commit_validation_status"],
+            "accepted",
+        )
         self.assertNotIn("messages", result)
+
+    def test_validation_audit_records_style_quality_without_changing_commit_authority(self):
+        state = self.state_with_plan()
+        state["role_narration_candidate"] = {
+            **self.state()["role_narration_candidate"],
+            "public_text": "请看，屋脊可见灰塑。",
+        }
+        with patch.dict(os.environ, {
+            "CJC_READ_ONLY_ROLLOUT_MODE": "read_only_active",
+            "CJC_READ_ONLY_ROLLOUT_CAPABILITIES": "role_narration",
+            "ROLE_ACTIVE_ENABLED": "true",
+            "ROLE_ACTIVE_STYLES": "ancient_scholar",
+            "ROLE_ACTIVE_SCENES": "stop_guidance",
+        }, clear=False):
+            result = narration_validation_node(state)
+        audit = result["active_role_narration_audit"]
+        self.assertFalse(audit["style_quality_passed"])
+        self.assertIn("style_coverage_incomplete", audit["style_quality_reason_codes"])
+        with patch.dict(os.environ, {
+            "CJC_READ_ONLY_ROLLOUT_MODE": "read_only_active",
+            "CJC_READ_ONLY_ROLLOUT_CAPABILITIES": "role_narration",
+            "ROLE_ACTIVE_ENABLED": "true",
+            "ROLE_ACTIVE_STYLES": "ancient_scholar",
+            "ROLE_ACTIVE_SCENES": "stop_guidance",
+        }, clear=False):
+            self.assertEqual(
+                route_after_narration_validation({**state, **result}),
+                "deterministic_narration_fallback",
+            )
 
     def test_rejected_active_candidate_routes_to_deterministic_fallback(self):
         state = self.state()
@@ -318,6 +363,8 @@ class RoleNarrationGraphTests(unittest.TestCase):
                 model=os.getenv("ROLE_NARRATION_MODEL", os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")),
                 temperature=0,
                 max_tokens=4096,
+                timeout=45.0,
+                max_retries=0,
                 extra_body={
                     "thinking": {"type": "disabled"},
                     "response_format": {"type": "json_object"},

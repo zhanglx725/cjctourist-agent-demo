@@ -23,12 +23,18 @@ PRESENTATION_CONTENT_PLAN = "presentation_content_plan"
 ROLE_ACTIVE_ENABLED_ENV = "ROLE_ACTIVE_ENABLED"
 ROLE_ACTIVE_STYLES_ENV = "ROLE_ACTIVE_STYLES"
 ROLE_ACTIVE_SCENES_ENV = "ROLE_ACTIVE_SCENES"
+STOP_GUIDANCE_ACTIVE_STYLE_BATCHES = (
+ ("neutral", "child", "family", "student_research", "professional", "listen_only", "mixed_group"),
+ ("dominant_ceo", "cute_junior", "ancient_scholar", "warm_sister", "bestie_chat", "buddy_guide"),
+ ("exploration_game", "photo_guide", "hostel_scholar", "xiguan_young_master", "cantonese_storyteller"),
+)
+STOP_GUIDANCE_ACTIVE_STYLES = frozenset(
+ style_id for batch in STOP_GUIDANCE_ACTIVE_STYLE_BATCHES for style_id in batch
+)
 COMPETITION_ROLE_ACTIVE_PAIRS = frozenset({
- ("ancient_scholar", "route_planning"),
- ("ancient_scholar", "route_opening"),
- ("ancient_scholar", "stop_guidance"),
- ("child", "stop_guidance"),
- ("neutral", "stop_guidance"),
+ *{(style_id, "route_planning") for style_id in STOP_GUIDANCE_ACTIVE_STYLES},
+ *{(style_id, "route_opening") for style_id in STOP_GUIDANCE_ACTIVE_STYLES},
+ *{(style_id, "stop_guidance") for style_id in STOP_GUIDANCE_ACTIVE_STYLES},
 })
 
 

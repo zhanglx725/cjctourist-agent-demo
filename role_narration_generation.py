@@ -72,16 +72,69 @@ def _plan_output_limits(plan: NarrationContentPlan) -> tuple[int, int]:
         # Live plans carry E5's authoritative allocated duration.
         allocated_seconds = math.ceil(approved_fact_characters / 4)
     remaining_seconds = max(0, plan.budget_seconds - allocated_seconds)
-    max_connector_characters = max(
-        0,
-        min(
-            120,
-            len(plan.facts) * 60,
-            remaining_seconds * 4,
-        ),
-    )
+    # A point narration needs a short role phrase before, between, and after
+    # immutable fact blocks.  The former whole-message cap often left room for
+    # only an opening, so long explanations became generic after sentence one.
+    # This remains bounded by the authoritative time budget.
+    structured_cap = min(280, 12 + 28 * (len(plan.facts) + 1))
+    max_connector_characters = max(0, min(structured_cap, remaining_seconds * 4))
     max_public_characters = approved_fact_characters + max_connector_characters
     return max_public_characters, max_connector_characters
+
+
+def role_connector_character_limit(plan: NarrationContentPlan) -> int:
+    """Expose the single budget formula used by generation and validation."""
+    return _plan_output_limits(plan)[1]
+
+
+def _component(brief: StyleBrief, kind: str, index: int) -> str:
+    values = brief.point_narration_components.get(kind, ())
+    if not values:
+        return ""
+    return str(values[index % len(values)]).strip()
+
+
+def apply_point_narration_scaffold(
+    candidate: RoleNarrationCandidate,
+    plan: NarrationContentPlan,
+    brief: StyleBrief,
+) -> RoleNarrationCandidate:
+    """Interleave immutable facts with reviewed persona-only components.
+
+    The model still supplies the strict token envelope.  Once its fact
+    partition is valid, its free-form connector prose is deliberately not
+    published: this deterministic composer guarantees that the same role is
+    audible at the opening, middle, and closing without altering any fact.
+    """
+    if candidate.generation_status != "generated":
+        return candidate
+    if not all(brief.point_narration_components.get(key) for key in (
+        "opening", "observation", "transition", "appreciation", "closing",
+    )):
+        return _failed(plan.style_id, "style_components_unavailable", candidate.latency_ms, model_called=True)
+    ordered_facts = [fact for fact in plan.facts if fact.fact_id in candidate.used_fact_ids]
+    if not ordered_facts:
+        return _failed(plan.style_id, "no_used_facts_for_scaffold", candidate.latency_ms, model_called=True)
+    parts = [_component(brief, "opening", 0)]
+    bridge_kinds = ("observation", "transition", "appreciation")
+    for index, fact in enumerate(ordered_facts):
+        parts.append(fact.statement)
+        if index < len(ordered_facts) - 1:
+            kind = bridge_kinds[index % len(bridge_kinds)]
+            parts.append(_component(brief, kind, index))
+    parts.append(_component(brief, "closing", len(ordered_facts)))
+    public_text = "".join(part for part in parts if part)
+    if len(re.sub(r"\s+", "", role_connector_text(public_text, plan))) > role_connector_character_limit(plan):
+        return _failed(plan.style_id, "style_scaffold_budget_exceeded", candidate.latency_ms, model_called=True)
+    return RoleNarrationCandidate(
+        style_id=candidate.style_id,
+        public_text=public_text,
+        used_fact_ids=candidate.used_fact_ids,
+        omitted_fact_ids=candidate.omitted_fact_ids,
+        self_check=candidate.self_check,
+        model_called=candidate.model_called,
+        latency_ms=candidate.latency_ms,
+    )
 
 
 @dataclass(frozen=True)
@@ -125,6 +178,7 @@ def role_narration_prompt(plan: NarrationContentPlan, brief: StyleBrief) -> str:
             "schema_version": plan.schema_version,
             "style_id": plan.style_id,
             "language": plan.language,
+            "requested_scope": plan.requested_scope,
             "budget_seconds": plan.budget_seconds,
             "facts": [
                 {
@@ -166,6 +220,14 @@ omitted_fact_ids。只允许省略 required=false 的事实。
 public_text 去除事实 token 后的全部角色连接文字，总字符数不得超过
 content_plan.max_role_connector_characters；public_text 恢复事实后的总字符数不得超过
 content_plan.max_public_text_characters。若连接预算为 0，只输出 required token，不加任何文字。
+style_brief.acceptance_profile 是本次点位讲解的审核表达合同。仅对你新增的角色连接文字执行：
+1. 用 point_narration_strategy 组织开场、事实之间的连接与收束；
+2. 在连接文字中满足 required_markers 的至少
+   rhythm.min_marker_groups 组，不足时宁可少写并由系统回退，不能伪造事实；
+3. 不得使用 forbidden_markers，并遵守 rhythm 的 sentence_length 与 pacing；
+4. interaction_contract.mode=none 或 content_plan.interaction_allowed=false 时，绝不提出问题、
+   任务、拍照或动作要求；其他 mode 也不得超过 interaction_contract.max_requests。
+few_shot_examples 仅示范语气、节奏和事实块周围的连接方式；其中 input_facts 不是可新增事实。
 你可以调整完整事实块的顺序，并添加简短的角色化称呼、开场、连接和收束，但不得新增人物、年代、
 故事、寓意、排名、认证、现场对象或路线信息。不得回答计划之外的问题。
 不得输出文件路径、URL、source ID、节点 ID、工具名称或任何内部字段。
@@ -177,7 +239,13 @@ self_check 只能包含 added_new_facts、role_consistent、within_budget 三个
         shape_example, ensure_ascii=False, separators=(",", ":")
     ) + "\n输入如下：\n" + json.dumps(
         payload, ensure_ascii=False, separators=(",", ":")
-    )
+    ) + """
+
+最终令牌协议（优先于前文所有角色表达指令）：服务端会确定性生成全部角色开场、观察、承接和收束。
+你的 public_text 必须且只能由已给出的 public_text_token 连续组成，不得加入任何其他字符，
+包括普通文字、称呼、空格、换行、标点、波浪号、问题、互动或 Markdown；不得改变 token 顺序。
+这不是风格缺失：风格文字由服务端在令牌水合后添加。只输出严格 JSON 对象。
+"""
 
 
 def _decode(value: str) -> Mapping[str, Any] | None:
@@ -300,6 +368,34 @@ def _hydrate_fact_tokens(
     )
 
 
+def _requires_unmodified_validation(
+    candidate: RoleNarrationCandidate,
+    plan: NarrationContentPlan,
+    brief: StyleBrief,
+) -> bool:
+    """Do not hide unsafe model prose by replacing it with a style scaffold."""
+    if candidate.generation_status != "generated":
+        return True
+    connector = role_connector_text(candidate.public_text, plan)
+    if connector_has_unapproved_fact(candidate, plan):
+        return True
+    if re.search(r"(?:source[_ ]?ids?|node[_ ]?id|https?://|file://|[A-Za-z]:\\\\)", candidate.public_text, re.I):
+        return True
+    if re.search(r"(?:[。！？]{2,}|[，、]{2,}|[，。！？]\s*[，。！？]|～)", candidate.public_text):
+        return True
+    sentences = [piece.strip() for piece in re.split(r"[。！？\n]+", connector) if piece.strip()]
+    if len(sentences) != len(set(sentences)):
+        return True
+    forbidden = tuple(brief.acceptance_profile.get("forbidden_markers", ())) + tuple(brief.prohibited_patterns)
+    if any(marker and marker in candidate.public_text for marker in forbidden):
+        return True
+    contract = brief.acceptance_profile.get("interaction_contract", {})
+    if not plan.interaction_allowed or contract.get("mode") == "none":
+        if re.search(r"(?:\?|？|请你|试着|任务|回答|拍照|跟着做)", candidate.public_text):
+            return True
+    return False
+
+
 def generate_role_narration(
     plan: NarrationContentPlan,
     brief: StyleBrief,
@@ -327,39 +423,13 @@ def generate_role_narration(
         _decode(raw), expected_style_id=plan.style_id, latency_ms=latency,
     )
     candidate = _hydrate_fact_tokens(candidate, plan)
-    connector_fact_violation = connector_has_unapproved_fact(candidate, plan)
-    if candidate.generation_status == "generated" and not connector_fact_violation:
+    # One request only: malformed output, fact drift, unsafe prose, and
+    # budget failure are all handed to narration_validation for the existing
+    # deterministic legacy fallback.  Retrying used to extend a visitor turn
+    # and could make a bad first response look safe after its prose vanished.
+    if _requires_unmodified_validation(candidate, plan, brief):
         return candidate
-    # One bounded repair is allowed for structural errors or factual connector
-    # prose. Facts and StyleBrief remain authoritative; the repair receives no
-    # state, tools or RAG and validation remains fail-closed.
-    repair_instruction = (
-        "事实 token 之外的连接语新增或改写了事实。请让所有事实内容只通过原样的 "
-        "FACT token 表达；连接语只能是简短称呼、过渡或收束，不得复述、概括或推断事实。"
-        if connector_fact_violation
-        else ""
-    )
-    repair_prompt = (
-        prompt
-        + "\n" + repair_instruction
-        + "上一输出未通过 JSON Schema、事实占位符或连接语事实边界约束。请重新输出且只输出规定的 JSON 对象。"
-        + "不得解释错误，不得增加字段；required token 必须各出现一次。上一输出："
-        + str(raw)[:500]
-    )
-    try:
-        repaired_raw = invoke_model(repair_prompt)
-    except Exception as exc:
-        total_latency = int((time.perf_counter() - started) * 1000)
-        return _failed(
-            plan.style_id, f"schema_repair_unavailable:{type(exc).__name__}",
-            total_latency, model_called=True,
-        )
-    total_latency = int((time.perf_counter() - started) * 1000)
-    repaired = validate_candidate_shape(
-        _decode(repaired_raw), expected_style_id=plan.style_id,
-        latency_ms=total_latency,
-    )
-    return _hydrate_fact_tokens(repaired, plan)
+    return apply_point_narration_scaffold(candidate, plan, brief)
 
 
 def role_narration_candidate_from_dict(value: Mapping[str, Any] | None) -> RoleNarrationCandidate | None:

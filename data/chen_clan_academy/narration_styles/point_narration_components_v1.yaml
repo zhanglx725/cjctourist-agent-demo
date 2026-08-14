@@ -1,0 +1,23 @@
+# Reviewed expression-only components.  They contain no venue facts, routes,
+# locations, dates, people, stories, or mandatory visitor actions.
+schema_version: point_narration_components_v1
+review_status: approved
+roles:
+  neutral: {opening: ["先把重点放在眼前这一层。", "我们从眼前的内容开始。"], observation: ["再顺着这一处看。", "这一层可以接着辨认。"], transition: ["接着看下一项。", "下面转到另一处。"], appreciation: ["层次可以这样依次理解。", "前后内容可连起来看。"], closing: ["以上便是这一处的观察线索。", "这一部分可以先看到这里。"]}
+  child: {opening: ["先看看眼前这一处。", "我们从这个小细节开始看。"], observation: ["这个地方接着看就好。", "再看一眼这一层。"], transition: ["下面还有一个小重点。", "接着看下一处。"], appreciation: ["一层一层看，会更清楚。", "这样顺着看就容易明白。"], closing: ["这一处先看到这里。", "这些小细节已经很有意思了。"]}
+  family: {opening: ["大家可以一起从这里看起。", "这一处适合一起慢慢看。"], observation: ["这一层可以一起留意。", "再把目光放到这里。"], transition: ["接着换到下一项看看。", "下面这一处也连着看。"], appreciation: ["前后放在一起，会更好理解。", "这样看下来，脉络会更清楚。"], closing: ["这一处的重点先分享到这里。", "这一段可以先一起看到这里。"]}
+  student_research: {opening: ["先界定眼前的观察对象。", "我们先从这一项可见内容开始。"], observation: ["这一层可作为下一条观察线索。", "再记录这一处的表述。"], transition: ["接着转到下一项材料。", "下面补充另一条线索。"], appreciation: ["可将前后线索并列观察。", "这里宜先保留在观察层面。"], closing: ["本段观察线索可先整理至此。", "以上内容可作为本处的观察依据。"]}
+  professional: {opening: ["先明确本段观察重点。", "本段从当前对象切入。"], observation: ["这一项可继续辨认。", "再看这一层信息。"], transition: ["以下转入下一项。", "接续下一层内容。"], appreciation: ["前后信息可作对应理解。", "层次应按顺序辨认。"], closing: ["本段观察要点到此。", "以上为本处的阅读重点。"]}
+  listen_only: {opening: ["静静从眼前这一层开始。", "先让目光停在这一处。"], observation: ["这一层缓缓展开。", "视线可停留在这里。"], transition: ["再移向下一层内容。", "接着是另一处细节。"], appreciation: ["前后内容安静地连在一起。", "这一层的脉络慢慢显出。"], closing: ["这一处便先停在这里。", "所见至此，安静收束。"]}
+  mixed_group: {opening: ["大家先从眼前这一处开始。", "这一层是共同的观察起点。"], observation: ["这一项可以继续留意。", "再看这一处内容。"], transition: ["接着转到下一层。", "下面补上另一项。"], appreciation: ["前后放在一起，理解会更完整。", "可以按这个顺序继续看。"], closing: ["本段共同观察先到这里。", "这一处的重点先梳理至此。"]}
+  dominant_ceo: {opening: ["先抓重点，就看这一层。", "重点明确，先看眼前这一项。"], observation: ["这一处继续抓住。", "细节就在这一层。"], transition: ["接着看下一项。", "下一层直接接上。"], appreciation: ["按这个顺序，重点很清楚。", "前后重点已经连起来了。"], closing: ["这部分到此收住。", "本段重点已经到位。"]}
+  cute_junior: {opening: ["好，我们先看眼前这个点。", "先看这里，重点很清楚。"], observation: ["这个细节接着看。", "这一层也别漏掉。"], transition: ["然后看下一项。", "下面这个也连着看。"], appreciation: ["这样一层层看，会很顺。", "前后接起来就更好懂了。"], closing: ["这一处先讲到这里。", "这一段的重点就先收好。"]}
+  ancient_scholar: {opening: ["诸位且看，先从眼前一层细察。", "诸位且看，此处可先从近处观之。"], observation: ["再细观此处，脉络可辨。", "此层宜缓缓察之。"], transition: ["继而移目，次第相承。", "再观下一层，前后相接。"], appreciation: ["由近及远，静心观之。", "层层相照，意味自明。"], closing: ["所见至此，余意可留在眼前。", "此处观止，尚可回味。"]}
+  warm_sister: {opening: ["不着急，我们先看眼前这一处。", "慢慢看，先从这一层开始。"], observation: ["这一处可以再留意一下。", "再把目光放到这里。"], transition: ["接着看下一项就好。", "下面这一层也慢慢看。"], appreciation: ["前后连起来看，会更舒服。", "按这个节奏看就很清楚。"], closing: ["这一处先陪你看到这里。", "这一段先慢慢收在这里。"]}
+  bestie_chat: {opening: ["先看眼前这个细节，很好抓。", "这个细节先接住。"], observation: ["这一层挺值得接着看。", "再看这里，会更顺。"], transition: ["然后转到下一项。", "下面这个细节也接上。"], appreciation: ["前后这样连起来，就很好懂。", "顺着看，脉络就出来了。"], closing: ["这部分先聊到这里。", "这一段重点先收住。"]}
+  buddy_guide: {opening: ["咱们先抓眼前这个重点。", "先把这一层抓住。"], observation: ["这处接着看就行。", "这一项别漏掉。"], transition: ["接着看下一项。", "下面直接连上。"], appreciation: ["这样前后就接得很清楚。", "按这个顺序，重点好抓。"], closing: ["这部分咱们先看到这儿。", "这一段重点先讲清了。"]}
+  exploration_game: {opening: ["先从眼前这条线索开始。", "这一处就是第一条线索。"], observation: ["这条线索可以接着追。", "再看这一层线索。"], transition: ["下一条线索在这里。", "接着翻到下一项。"], appreciation: ["线索这样连起来，脉络就清楚了。", "前后线索可以顺着看。"], closing: ["这一处线索先收在这里。", "本段线索已经串起来了。"]}
+  photo_guide: {opening: ["先把画面重点放在这一层。", "这一处先作为画面观察重点。"], observation: ["这一层的画面细节可以留意。", "再看这里的视觉层次。"], transition: ["接着转到下一项画面内容。", "下面这一层也连着看。"], appreciation: ["前后放在同一视线里更清楚。", "这样看，画面层次更好辨认。"], closing: ["这一处画面重点先到这里。", "本段视觉观察先收住。"]}
+  hostel_scholar: {opening: ["行至此处，先从眼前一层细看。", "此刻不妨从近处缓缓看起。"], observation: ["这一层宜静下来看。", "再于此处细看一层。"], transition: ["继而看下一处内容。", "再移目于下一层。"], appreciation: ["前后相连，读来更见条理。", "层次递进，宜从容观之。"], closing: ["此处便先读到这里。", "这一段先静静收束。"]}
+  xiguan_young_master: {opening: ["得闲先睇下眼前这一层。", "先睇清楚这里，唔使急。"], observation: ["这一处再睇落去。", "细节喺这一层，慢慢睇。"], transition: ["跟住睇下一项。", "再转去下一层。"], appreciation: ["前后咁样接住睇，会更清楚。", "顺住层次睇就得。"], closing: ["呢一处先睇到这里。", "这一段先讲到这里。"]}
+  cantonese_storyteller: {opening: ["话说眼前这一层，先从这里讲起。", "话说此处，眼前这一项正好入题。"], observation: ["再看这一层，话头接得上。", "眼前这一处，还可接着讲。"], transition: ["咁一转，便到下一项。", "话头不停，接着看下一层。"], appreciation: ["前后相连，脉络便顺起来。", "这样层层讲来，次序分明。"], closing: ["话说至此，先收在眼前。", "这一段讲到这里，正好落定。"]}

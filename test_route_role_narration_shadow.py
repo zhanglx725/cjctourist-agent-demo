@@ -89,6 +89,26 @@ class RouteRoleNarrationShadowTests(unittest.TestCase):
         self.assertTrue(planning["public_text"].endswith(legacy))
         self.assertTrue(opening["public_text"].endswith(legacy))
 
+    def test_every_reviewed_style_has_a_distinct_safe_route_opening(self):
+        legacy = "路线已确认。第一站为前院中部。"
+        roles = (
+            "neutral", "family", "student_research", "professional", "mixed_group",
+            "dominant_ceo", "cute_junior", "warm_sister", "bestie_chat", "buddy_guide",
+            "exploration_game", "photo_guide", "hostel_scholar", "xiguan_young_master",
+            "cantonese_storyteller",
+        )
+        for role in roles:
+            with self.subTest(role=role):
+                candidate = build_route_role_text_candidate(
+                    scene_kind="route_opening", role_mode=role, legacy_text=legacy,
+                )
+                result = validate_route_role_text_candidate(
+                    candidate, plan=_plan("route_opening", role), legacy_text=legacy,
+                )
+                self.assertEqual(result["validation_status"], "accepted")
+                self.assertNotEqual(candidate["public_text"], legacy)
+                self.assertTrue(candidate["public_text"].endswith(legacy))
+
     def test_internal_fields_and_invalid_schema_fail_closed(self):
         legacy = "路线已确认。"
         invalid = {

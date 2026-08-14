@@ -1,0 +1,555 @@
+{
+  "schema_version": "role_narration_stop_guidance_evaluation_result_v1",
+  "generated_at": "2026-08-13T08:24:13.667108+00:00",
+  "evaluation_entry": "production_role_narration_graph_segment",
+  "full_stop_guidance_session": false,
+  "tracing_requested": true,
+  "base_dataset": "D:\\nuo\\agent项目\\cjctourist_agent-main\\cjctourist_agent-main\\data\\chen_clan_academy\\evaluation\\langsmith\\role_narration_stop_guidance_v1.jsonl",
+  "fault_dataset": null,
+  "summary": {
+    "base_case_count": 15,
+    "fault_case_count": 0,
+    "batches": [
+      {
+        "batch": 1,
+        "style_ids": [
+          "neutral",
+          "child",
+          "family",
+          "student_research",
+          "professional",
+          "listen_only",
+          "mixed_group"
+        ],
+        "case_count": 0,
+        "deterministic_pass_count": 0,
+        "deterministic_passed": false
+      },
+      {
+        "batch": 2,
+        "style_ids": [
+          "dominant_ceo",
+          "cute_junior",
+          "ancient_scholar",
+          "warm_sister",
+          "bestie_chat",
+          "buddy_guide"
+        ],
+        "case_count": 0,
+        "deterministic_pass_count": 0,
+        "deterministic_passed": false
+      },
+      {
+        "batch": 3,
+        "style_ids": [
+          "exploration_game",
+          "photo_guide",
+          "hostel_scholar",
+          "xiguan_young_master",
+          "cantonese_storyteller"
+        ],
+        "case_count": 15,
+        "deterministic_pass_count": 15,
+        "deterministic_passed": true
+      }
+    ],
+    "quality": {
+      "scored_case_count": 15,
+      "required_scored_case_count": 15,
+      "metric_minimum": 1,
+      "metric_average": 1.817,
+      "gate": "each metric >= 1; all 54 cases scored; overall metric average >= 1.5",
+      "passed": true
+    },
+    "gates": {
+      "deterministic_54_of_54": false,
+      "base_matrix_complete_54_of_54": false,
+      "style_quality": true,
+      "fault_fallback_12_of_12": false,
+      "release_eligible": false
+    }
+  },
+  "base_records": [
+    {
+      "case_id": "role_stop_v1_exploration_game_building",
+      "style_id": "exploration_game",
+      "point_type": "building",
+      "failure_type": null,
+      "validation_status": "accepted",
+      "validation_reason_codes": [],
+      "commit_decision": "role_candidate_published",
+      "active_takeover": true,
+      "fallback_used": false,
+      "assertions": {
+        "scene_kind_matches": true,
+        "approved_fact_verbatim": true,
+        "no_internal_field_leak": true,
+        "state_writes_empty": true,
+        "active_or_fallback_decision_matches": true,
+        "fallback_contract_present": true,
+        "coverage_commit_count_matches": true,
+        "coverage_has_no_duplicates": true,
+        "validation_is_consistent_with_publication": true
+      },
+      "style_quality": {
+        "status": "scored",
+        "schema_version": "role_narration_style_judge_v1",
+        "role_fit": 2,
+        "naturalness": 2,
+        "distinctiveness": 1,
+        "readability": 2,
+        "rationale": "表达简洁，但线索感稍弱，与常见导游差异不大。",
+        "average_score": 1.75
+      }
+    },
+    {
+      "case_id": "role_stop_v1_exploration_game_craft",
+      "style_id": "exploration_game",
+      "point_type": "craft",
+      "failure_type": null,
+      "validation_status": "accepted",
+      "validation_reason_codes": [],
+      "commit_decision": "role_candidate_published",
+      "active_takeover": true,
+      "fallback_used": false,
+      "assertions": {
+        "scene_kind_matches": true,
+        "approved_fact_verbatim": true,
+        "no_internal_field_leak": true,
+        "state_writes_empty": true,
+        "active_or_fallback_decision_matches": true,
+        "fallback_contract_present": true,
+        "coverage_commit_count_matches": true,
+        "coverage_has_no_duplicates": true,
+        "validation_is_consistent_with_publication": true
+      },
+      "style_quality": {
+        "status": "scored",
+        "schema_version": "role_narration_style_judge_v1",
+        "role_fit": 2,
+        "naturalness": 2,
+        "distinctiveness": 2,
+        "readability": 2,
+        "rationale": "表达贴合人设，自然流畅，线索式引导有辨识度，易读。",
+        "average_score": 2.0
+      }
+    },
+    {
+      "case_id": "role_stop_v1_exploration_game_ornament",
+      "style_id": "exploration_game",
+      "point_type": "ornament",
+      "failure_type": null,
+      "validation_status": "accepted",
+      "validation_reason_codes": [],
+      "commit_decision": "role_candidate_published",
+      "active_takeover": true,
+      "fallback_used": false,
+      "assertions": {
+        "scene_kind_matches": true,
+        "approved_fact_verbatim": true,
+        "no_internal_field_leak": true,
+        "state_writes_empty": true,
+        "active_or_fallback_decision_matches": true,
+        "fallback_contract_present": true,
+        "coverage_commit_count_matches": true,
+        "coverage_has_no_duplicates": true,
+        "validation_is_consistent_with_publication": true
+      },
+      "style_quality": {
+        "status": "scored",
+        "schema_version": "role_narration_style_judge_v1",
+        "role_fit": 2,
+        "naturalness": 2,
+        "distinctiveness": 1,
+        "readability": 2,
+        "rationale": "表达自然，但线索感稍弱，与常见导游差异不大。",
+        "average_score": 1.75
+      }
+    },
+    {
+      "case_id": "role_stop_v1_photo_guide_building",
+      "style_id": "photo_guide",
+      "point_type": "building",
+      "failure_type": null,
+      "validation_status": "accepted",
+      "validation_reason_codes": [],
+      "commit_decision": "role_candidate_published",
+      "active_takeover": true,
+      "fallback_used": false,
+      "assertions": {
+        "scene_kind_matches": true,
+        "approved_fact_verbatim": true,
+        "no_internal_field_leak": true,
+        "state_writes_empty": true,
+        "active_or_fallback_decision_matches": true,
+        "fallback_contract_present": true,
+        "coverage_commit_count_matches": true,
+        "coverage_has_no_duplicates": true,
+        "validation_is_consistent_with_publication": true
+      },
+      "style_quality": {
+        "status": "scored",
+        "schema_version": "role_narration_style_judge_v1",
+        "role_fit": 2,
+        "naturalness": 2,
+        "distinctiveness": 1,
+        "readability": 2,
+        "rationale": "表达贴合人设，自然流畅，但风格与常见导游差异不大，辨识度一般。",
+        "average_score": 1.75
+      }
+    },
+    {
+      "case_id": "role_stop_v1_photo_guide_craft",
+      "style_id": "photo_guide",
+      "point_type": "craft",
+      "failure_type": null,
+      "validation_status": "accepted",
+      "validation_reason_codes": [],
+      "commit_decision": "role_candidate_published",
+      "active_takeover": true,
+      "fallback_used": false,
+      "assertions": {
+        "scene_kind_matches": true,
+        "approved_fact_verbatim": true,
+        "no_internal_field_leak": true,
+        "state_writes_empty": true,
+        "active_or_fallback_decision_matches": true,
+        "fallback_contract_present": true,
+        "coverage_commit_count_matches": true,
+        "coverage_has_no_duplicates": true,
+        "validation_is_consistent_with_publication": true
+      },
+      "style_quality": {
+        "status": "scored",
+        "schema_version": "role_narration_style_judge_v1",
+        "role_fit": 2,
+        "naturalness": 2,
+        "distinctiveness": 1,
+        "readability": 2,
+        "rationale": "表达贴合人设，但风格较通用，缺乏独特辨识度。",
+        "average_score": 1.75
+      }
+    },
+    {
+      "case_id": "role_stop_v1_photo_guide_ornament",
+      "style_id": "photo_guide",
+      "point_type": "ornament",
+      "failure_type": null,
+      "validation_status": "accepted",
+      "validation_reason_codes": [],
+      "commit_decision": "role_candidate_published",
+      "active_takeover": true,
+      "fallback_used": false,
+      "assertions": {
+        "scene_kind_matches": true,
+        "approved_fact_verbatim": true,
+        "no_internal_field_leak": true,
+        "state_writes_empty": true,
+        "active_or_fallback_decision_matches": true,
+        "fallback_contract_present": true,
+        "coverage_commit_count_matches": true,
+        "coverage_has_no_duplicates": true,
+        "validation_is_consistent_with_publication": true
+      },
+      "style_quality": {
+        "status": "scored",
+        "schema_version": "role_narration_style_judge_v1",
+        "role_fit": 2,
+        "naturalness": 2,
+        "distinctiveness": 1,
+        "readability": 2,
+        "rationale": "表达贴合人设，自然流畅；但风格与常见导游差异不大，辨识度一般。",
+        "average_score": 1.75
+      }
+    },
+    {
+      "case_id": "role_stop_v1_hostel_scholar_building",
+      "style_id": "hostel_scholar",
+      "point_type": "building",
+      "failure_type": null,
+      "validation_status": "accepted",
+      "validation_reason_codes": [],
+      "commit_decision": "role_candidate_published",
+      "active_takeover": true,
+      "fallback_used": false,
+      "assertions": {
+        "scene_kind_matches": true,
+        "approved_fact_verbatim": true,
+        "no_internal_field_leak": true,
+        "state_writes_empty": true,
+        "active_or_fallback_decision_matches": true,
+        "fallback_contract_present": true,
+        "coverage_commit_count_matches": true,
+        "coverage_has_no_duplicates": true,
+        "validation_is_consistent_with_publication": true
+      },
+      "style_quality": {
+        "status": "scored",
+        "schema_version": "role_narration_style_judge_v1",
+        "role_fit": 2,
+        "naturalness": 2,
+        "distinctiveness": 1,
+        "readability": 2,
+        "rationale": "表达贴合人设，自然流畅，但书卷气不足，与常见导游区分度一般。",
+        "average_score": 1.75
+      }
+    },
+    {
+      "case_id": "role_stop_v1_hostel_scholar_craft",
+      "style_id": "hostel_scholar",
+      "point_type": "craft",
+      "failure_type": null,
+      "validation_status": "accepted",
+      "validation_reason_codes": [],
+      "commit_decision": "role_candidate_published",
+      "active_takeover": true,
+      "fallback_used": false,
+      "assertions": {
+        "scene_kind_matches": true,
+        "approved_fact_verbatim": true,
+        "no_internal_field_leak": true,
+        "state_writes_empty": true,
+        "active_or_fallback_decision_matches": true,
+        "fallback_contract_present": true,
+        "coverage_commit_count_matches": true,
+        "coverage_has_no_duplicates": true,
+        "validation_is_consistent_with_publication": true
+      },
+      "style_quality": {
+        "status": "scored",
+        "schema_version": "role_narration_style_judge_v1",
+        "role_fit": 2,
+        "naturalness": 2,
+        "distinctiveness": 1,
+        "readability": 2,
+        "rationale": "表达简洁，但书卷气不足，缺乏辨识度。",
+        "average_score": 1.75
+      }
+    },
+    {
+      "case_id": "role_stop_v1_hostel_scholar_ornament",
+      "style_id": "hostel_scholar",
+      "point_type": "ornament",
+      "failure_type": null,
+      "validation_status": "accepted",
+      "validation_reason_codes": [],
+      "commit_decision": "role_candidate_published",
+      "active_takeover": true,
+      "fallback_used": false,
+      "assertions": {
+        "scene_kind_matches": true,
+        "approved_fact_verbatim": true,
+        "no_internal_field_leak": true,
+        "state_writes_empty": true,
+        "active_or_fallback_decision_matches": true,
+        "fallback_contract_present": true,
+        "coverage_commit_count_matches": true,
+        "coverage_has_no_duplicates": true,
+        "validation_is_consistent_with_publication": true
+      },
+      "style_quality": {
+        "status": "scored",
+        "schema_version": "role_narration_style_judge_v1",
+        "role_fit": 2,
+        "naturalness": 1,
+        "distinctiveness": 1,
+        "readability": 2,
+        "rationale": "表达符合人设，但“审核事实”生硬，缺乏书卷气，区分度不足。",
+        "average_score": 1.5
+      }
+    },
+    {
+      "case_id": "role_stop_v1_xiguan_young_master_building",
+      "style_id": "xiguan_young_master",
+      "point_type": "building",
+      "failure_type": null,
+      "validation_status": "accepted",
+      "validation_reason_codes": [],
+      "commit_decision": "role_candidate_published",
+      "active_takeover": true,
+      "fallback_used": false,
+      "assertions": {
+        "scene_kind_matches": true,
+        "approved_fact_verbatim": true,
+        "no_internal_field_leak": true,
+        "state_writes_empty": true,
+        "active_or_fallback_decision_matches": true,
+        "fallback_contract_present": true,
+        "coverage_commit_count_matches": true,
+        "coverage_has_no_duplicates": true,
+        "validation_is_consistent_with_publication": true
+      },
+      "style_quality": {
+        "status": "scored",
+        "schema_version": "role_narration_style_judge_v1",
+        "role_fit": 2,
+        "naturalness": 2,
+        "distinctiveness": 2,
+        "readability": 2,
+        "rationale": "表达自然，粤语词适量，符合人设，无越界。",
+        "average_score": 2.0
+      }
+    },
+    {
+      "case_id": "role_stop_v1_xiguan_young_master_craft",
+      "style_id": "xiguan_young_master",
+      "point_type": "craft",
+      "failure_type": null,
+      "validation_status": "accepted",
+      "validation_reason_codes": [],
+      "commit_decision": "role_candidate_published",
+      "active_takeover": true,
+      "fallback_used": false,
+      "assertions": {
+        "scene_kind_matches": true,
+        "approved_fact_verbatim": true,
+        "no_internal_field_leak": true,
+        "state_writes_empty": true,
+        "active_or_fallback_decision_matches": true,
+        "fallback_contract_present": true,
+        "coverage_commit_count_matches": true,
+        "coverage_has_no_duplicates": true,
+        "validation_is_consistent_with_publication": true
+      },
+      "style_quality": {
+        "status": "scored",
+        "schema_version": "role_narration_style_judge_v1",
+        "role_fit": 2,
+        "naturalness": 2,
+        "distinctiveness": 2,
+        "readability": 2,
+        "rationale": "表达自然，粤语词适量，符合人设，无越界。",
+        "average_score": 2.0
+      }
+    },
+    {
+      "case_id": "role_stop_v1_xiguan_young_master_ornament",
+      "style_id": "xiguan_young_master",
+      "point_type": "ornament",
+      "failure_type": null,
+      "validation_status": "accepted",
+      "validation_reason_codes": [],
+      "commit_decision": "role_candidate_published",
+      "active_takeover": true,
+      "fallback_used": false,
+      "assertions": {
+        "scene_kind_matches": true,
+        "approved_fact_verbatim": true,
+        "no_internal_field_leak": true,
+        "state_writes_empty": true,
+        "active_or_fallback_decision_matches": true,
+        "fallback_contract_present": true,
+        "coverage_commit_count_matches": true,
+        "coverage_has_no_duplicates": true,
+        "validation_is_consistent_with_publication": true
+      },
+      "style_quality": {
+        "status": "scored",
+        "schema_version": "role_narration_style_judge_v1",
+        "role_fit": 2,
+        "naturalness": 2,
+        "distinctiveness": 2,
+        "readability": 2,
+        "rationale": "表达自然贴合人设，粤语词适量且语义清晰，收束礼貌，无明显问题。",
+        "average_score": 2.0
+      }
+    },
+    {
+      "case_id": "role_stop_v1_cantonese_storyteller_building",
+      "style_id": "cantonese_storyteller",
+      "point_type": "building",
+      "failure_type": null,
+      "validation_status": "accepted",
+      "validation_reason_codes": [],
+      "commit_decision": "role_candidate_published",
+      "active_takeover": true,
+      "fallback_used": false,
+      "assertions": {
+        "scene_kind_matches": true,
+        "approved_fact_verbatim": true,
+        "no_internal_field_leak": true,
+        "state_writes_empty": true,
+        "active_or_fallback_decision_matches": true,
+        "fallback_contract_present": true,
+        "coverage_commit_count_matches": true,
+        "coverage_has_no_duplicates": true,
+        "validation_is_consistent_with_publication": true
+      },
+      "style_quality": {
+        "status": "scored",
+        "schema_version": "role_narration_style_judge_v1",
+        "role_fit": 2,
+        "naturalness": 1,
+        "distinctiveness": 2,
+        "readability": 2,
+        "rationale": "表达贴合人设，但重复事实略显机械，节奏感不足。",
+        "average_score": 1.75
+      }
+    },
+    {
+      "case_id": "role_stop_v1_cantonese_storyteller_craft",
+      "style_id": "cantonese_storyteller",
+      "point_type": "craft",
+      "failure_type": null,
+      "validation_status": "accepted",
+      "validation_reason_codes": [],
+      "commit_decision": "role_candidate_published",
+      "active_takeover": true,
+      "fallback_used": false,
+      "assertions": {
+        "scene_kind_matches": true,
+        "approved_fact_verbatim": true,
+        "no_internal_field_leak": true,
+        "state_writes_empty": true,
+        "active_or_fallback_decision_matches": true,
+        "fallback_contract_present": true,
+        "coverage_commit_count_matches": true,
+        "coverage_has_no_duplicates": true,
+        "validation_is_consistent_with_publication": true
+      },
+      "style_quality": {
+        "status": "scored",
+        "schema_version": "role_narration_style_judge_v1",
+        "role_fit": 2,
+        "naturalness": 1,
+        "distinctiveness": 2,
+        "readability": 2,
+        "rationale": "表达符合人设，但“审核事实”生硬，缺乏讲古韵味。",
+        "average_score": 1.75
+      }
+    },
+    {
+      "case_id": "role_stop_v1_cantonese_storyteller_ornament",
+      "style_id": "cantonese_storyteller",
+      "point_type": "ornament",
+      "failure_type": null,
+      "validation_status": "accepted",
+      "validation_reason_codes": [],
+      "commit_decision": "role_candidate_published",
+      "active_takeover": true,
+      "fallback_used": false,
+      "assertions": {
+        "scene_kind_matches": true,
+        "approved_fact_verbatim": true,
+        "no_internal_field_leak": true,
+        "state_writes_empty": true,
+        "active_or_fallback_decision_matches": true,
+        "fallback_contract_present": true,
+        "coverage_commit_count_matches": true,
+        "coverage_has_no_duplicates": true,
+        "validation_is_consistent_with_publication": true
+      },
+      "style_quality": {
+        "status": "scored",
+        "schema_version": "role_narration_style_judge_v1",
+        "role_fit": 2,
+        "naturalness": 2,
+        "distinctiveness": 2,
+        "readability": 2,
+        "rationale": "表达贴合粤语讲古人设，节奏自然，无明显问题。",
+        "average_score": 2.0
+      }
+    }
+  ],
+  "fault_records": []
+}

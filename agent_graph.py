@@ -602,10 +602,21 @@ def _invoke_role_narration_model(prompt: str) -> str:
         raise ValueError("ROLE_NARRATION_MAX_TOKENS must be an integer") from exc
     if not 512 <= max_tokens <= 8192:
         raise ValueError("ROLE_NARRATION_MAX_TOKENS must be between 512 and 8192")
+    try:
+        timeout_seconds = float(os.getenv("ROLE_NARRATION_TIMEOUT_SECONDS", "45"))
+    except ValueError as exc:
+        raise ValueError("ROLE_NARRATION_TIMEOUT_SECONDS must be a number") from exc
+    if not 5 <= timeout_seconds <= 120:
+        raise ValueError("ROLE_NARRATION_TIMEOUT_SECONDS must be between 5 and 120")
     model = ChatDeepSeek(
         model=model_name,
         temperature=0,
         max_tokens=max_tokens,
+        # A role candidate is non-authoritative.  Bound one provider request
+        # and disable SDK retries so an unavailable endpoint reaches the
+        # deterministic legacy fallback instead of leaving Studio waiting.
+        timeout=timeout_seconds,
+        max_retries=0,
         # DeepSeek V4 defaults to thinking mode. Role realization is a bounded
         # transcription task, so reasoning only consumes the output budget and
         # can cause the final JSON to be truncated. Put provider-specific
@@ -2986,6 +2997,7 @@ def narration_content_plan_node(state: AgentState) -> dict[str, Any]:
         render_audit=state.get("active_narration_render_audit"),
         visitor_profile=state.get("visitor_profile"),
         narration_coverage=state.get("narration_coverage"),
+        request_text=_latest_human_text(state),
     )
     return {
         "narration_content_plan": plan.to_dict(),
@@ -3106,6 +3118,16 @@ def narration_validation_node(state: AgentState, config: RunnableConfig = None) 
     legacy_text = str(latest.content or "") if isinstance(latest, AIMessage) else ""
     candidate_text = candidate.public_text if candidate else ""
     role_mode = state.get("role_mode_shadow") or {}
+    style_quality_reason_codes = [
+        reason for reason in validation["reason_codes"]
+        if reason in {
+            "style_mismatch", "style_prohibited_pattern",
+            "style_marker_missing", "style_forbidden_marker",
+            "style_rhythm_mismatch", "style_interaction_contract_violation",
+            "listen_only_interaction_violation", "unbounded_role_connectors",
+            "style_coverage_incomplete",
+        }
+    ]
     record = {
         "thread_id": _rollout_thread_id(config),
         "capability": ROLE_NARRATION,
@@ -3119,6 +3141,11 @@ def narration_validation_node(state: AgentState, config: RunnableConfig = None) 
         "applicability": role_mode.get("applicability", {}),
         "presentation_strategy": role_mode.get("presentation_strategy", {}),
         "style_schema_version": "narration_style_v2",
+        # The commit node only consumes validation_status. These fields make
+        # the positive role-quality gate and any fallback cause observable
+        # without granting commit a second validation responsibility.
+        "style_quality_passed": validation["role_consistent"],
+        "style_quality_reason_codes": style_quality_reason_codes,
         "candidate_fact_ids": [fact.fact_id for fact in plan.facts] if plan else [],
         "used_fact_ids": list(candidate.used_fact_ids) if candidate else [],
         "omitted_fact_ids": list(candidate.omitted_fact_ids) if candidate else [],
@@ -3193,6 +3220,8 @@ def narration_commit_node(state: AgentState) -> dict[str, Any]:
         **(state.get("active_role_narration_audit") or {}),
         "active_takeover": True, "fallback_used": False,
         "legacy_message_preserved": False, "same_public_message": False,
+        "commit_decision": "role_candidate_published",
+        "commit_validation_status": validation.get("validation_status"),
         "coverage_commit": commit_audit,
     }
     presentation = state.get("tour_presentation")
@@ -3218,6 +3247,7 @@ def narration_commit_node(state: AgentState) -> dict[str, Any]:
 def deterministic_narration_fallback_node(state: AgentState) -> dict[str, Any]:
     """Keep the authoritative legacy message and submit its Coverage once."""
     pending = state.get("pending_role_narration_commit") or {}
+    validation = state.get("narration_validation") or {}
     legacy_text = public_visitor_message_or_fallback(
         str(pending.get("legacy_public_message") or "")
     )
@@ -3229,6 +3259,8 @@ def deterministic_narration_fallback_node(state: AgentState) -> dict[str, Any]:
         **(state.get("active_role_narration_audit") or {}),
         "active_takeover": False, "fallback_used": True,
         "legacy_message_preserved": True, "same_public_message": True,
+        "commit_decision": "legacy_fallback_published",
+        "commit_validation_status": validation.get("validation_status"),
         "coverage_commit": commit_audit,
     }
     return {

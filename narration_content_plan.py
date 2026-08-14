@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 
-PLAN_SCHEMA_VERSION = "narration_content_plan_v1"
+PLAN_SCHEMA_VERSION = "narration_content_plan_v2"
 _SECTION = re.compile(r"【([^】]+)】\s*(.*?)(?=\n\s*【|\Z)", re.DOTALL)
 
 
@@ -43,6 +43,7 @@ class NarrationContentPlan:
     already_covered: tuple[str, ...]
     must_not_claim: tuple[str, ...]
     interaction_allowed: bool
+    requested_scope: str = "whole_stop"
     # Authoritative duration already allocated by the reviewed E5 renderer.
     # Role realization may spend only the remaining duration on connective
     # prose; approved fact text must not be rejected by a second char-count
@@ -66,6 +67,7 @@ class NarrationContentPlan:
             "already_covered": list(self.already_covered),
             "must_not_claim": list(self.must_not_claim),
             "interaction_allowed": self.interaction_allowed,
+            "requested_scope": self.requested_scope,
             "allocated_content_seconds": self.allocated_content_seconds,
         }
 
@@ -110,11 +112,13 @@ def _naturalize_reviewed_statement(value: str) -> str:
     return _REVIEWED_OBSERVATION.sub(replace_observation, result)
 
 
-def _rejected(reason: str, *, stop_id: str = "", style_id: str = "neutral") -> NarrationContentPlan:
+def _rejected(
+    reason: str, *, stop_id: str = "", style_id: str = "neutral", requested_scope: str = "whole_stop",
+) -> NarrationContentPlan:
     return NarrationContentPlan(
         stop_id=stop_id, style_id=style_id, language="zh",
         budget_seconds=0, facts=(), must_include=(), already_covered=(),
-        must_not_claim=(), interaction_allowed=False,
+        must_not_claim=(), interaction_allowed=False, requested_scope=requested_scope,
         status="rejected", reason_codes=(reason,),
     )
 
@@ -126,6 +130,7 @@ def build_narration_content_plan(
     render_audit: Mapping[str, Any] | None,
     visitor_profile: Mapping[str, Any] | None,
     narration_coverage: Mapping[str, Any] | None,
+    request_text: str = "",
 ) -> NarrationContentPlan:
     """Build one immutable role-realization plan or a fail-closed rejection."""
     if not isinstance(stop_program, Mapping) or not isinstance(render_audit, Mapping):
@@ -140,14 +145,42 @@ def build_narration_content_plan(
         for item in stop_program.get("selected_items", [])
         if isinstance(item, Mapping) and item.get("ornament_id") and item.get("name")
     }
+    request = str(request_text or "")
+    asks_craft = any(token in request for token in ("工艺", "灰塑", "石雕", "木雕", "陶塑", "砖雕"))
+    asks_ornament = any(token in request for token in ("纹样", "图案", "装饰", "独角狮", "福运", "花卉"))
+    asks_space = any(token in request for token in ("建筑空间", "空间", "院落", "布局", "建筑"))
+    requested_scope = (
+        "craft" if asks_craft and not asks_ornament else
+        "ornament" if asks_ornament and not asks_craft else
+        "space" if asks_space and not (asks_craft or asks_ornament) else
+        "whole_stop"
+    )
+
+    def atomic_statement(value: str) -> str:
+        """One requested topic gets one approved atomic statement only."""
+        cleaned = _naturalize_reviewed_statement(value)
+        pieces = [part.strip() for part in re.split(r"(?<=[。！？])", cleaned) if part.strip()]
+        return pieces[0] if pieces else cleaned
+
     facts: list[NarrationFact] = []
+    if requested_scope == "space":
+        # Stop identity is already authoritative tour state.  It permits a
+        # bounded answer to an architecture-space request without inventing
+        # structural, historical, or visual details that were not reviewed.
+        display_name = str(stop_program.get("display_name") or "当前点位").strip()
+        facts.append(NarrationFact(
+            f"space:{stop_id}", "space_identity", f"当前讲解点位为{display_name}。",
+        ))
     for craft_id in render_audit.get("rendered_craft_ids", []):
         statement = _naturalize_reviewed_statement(
             sections.get(f"工艺背景：{craft_id}", "")
         )
         if not statement:
             return _rejected("craft_section_mismatch", stop_id=stop_id, style_id=style_id)
-        facts.append(NarrationFact(f"craft:{craft_id}", "craft_background", statement))
+        if requested_scope == "craft":
+            statement = atomic_statement(statement)
+        if requested_scope in {"whole_stop", "craft"}:
+            facts.append(NarrationFact(f"craft:{craft_id}", "craft_background", statement))
     for ornament_id in render_audit.get("rendered_ornament_ids", []):
         object_name = items.get(str(ornament_id))
         statement = (
@@ -158,9 +191,12 @@ def build_narration_content_plan(
         )
         if not statement:
             return _rejected("ornament_section_mismatch", stop_id=stop_id, style_id=style_id)
-        facts.append(NarrationFact(f"ornament:{ornament_id}", "object_detail", statement))
+        if requested_scope == "ornament":
+            statement = atomic_statement(statement)
+        if requested_scope in {"whole_stop", "ornament"}:
+            facts.append(NarrationFact(f"ornament:{ornament_id}", "object_detail", statement))
     if not facts:
-        return _rejected("no_approved_facts", stop_id=stop_id, style_id=style_id)
+        return _rejected("requested_scope_unavailable", stop_id=stop_id, style_id=style_id, requested_scope=requested_scope)
     profile = dict(visitor_profile or {})
     interaction_allowed = style_id != "listen_only"
     introduced = narration_coverage or {}
@@ -185,6 +221,7 @@ def build_narration_content_plan(
             "absolute_ranking", "official_certification",
         ),
         interaction_allowed=interaction_allowed,
+        requested_scope=requested_scope,
         allocated_content_seconds=max(
             0, int(render_audit.get("allocated_content_seconds") or 0),
         ),
@@ -209,6 +246,7 @@ def narration_content_plan_from_dict(value: Mapping[str, Any] | None) -> Narrati
             already_covered=tuple(value.get("already_covered", [])),
             must_not_claim=tuple(value.get("must_not_claim", [])),
             interaction_allowed=bool(value.get("interaction_allowed")),
+            requested_scope=str(value.get("requested_scope") or "whole_stop"),
             allocated_content_seconds=max(
                 0, int(value.get("allocated_content_seconds") or 0),
             ),
