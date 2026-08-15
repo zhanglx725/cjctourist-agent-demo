@@ -1,8 +1,14 @@
 # 参赛版本完成度、功能实现范围与展示范围标杆
 
+> **历史冻结快照**
+>
+> 本比赛资料已于 2026-08-15 冻结，冻结代码基线为 `5ffa38a`，完整回归记录为 `1170/1170 passed_by_operator`。项目此后转入完整产品功能开发；新增功能、产品能力范围和后续测试结果不再回写本文，也不得据此覆盖当时的参赛事实。只有修正错别字、失效链接或可证明的历史事实错误时才允许修改，并须保留修订说明。
+
 ## 1. 文档目的与使用规则
 
 本文是当前参赛版本的统一事实口径，供路演稿、PPT、演示视频、答辩材料和队友交接使用。凡涉及“已经实现”“比赛可展示”“仍在验证”“暂未开放”等表述，均以本文和对应提交中的实际代码、测试为准。
+
+自冻结日起，本文中的“当前”仅指冻结时的参赛版本，不代表后续产品版本现状。冻结范围包括参赛提交文档、答辩与交接材料、演示截图和视频素材、比赛测试输出以及比赛文档生成脚本；运行时代码和自动化测试继续随产品开发演进。
 
 - 当前文档描述的是可复现的比赛演示版本，不等同于面向所有场馆、语言、角色和场景的生产级全面开放。
 - 历史 handoff 只记录阶段过程；若与本文冲突，以本文所列基线提交为准。
@@ -17,11 +23,14 @@
 
 ```text
 branch: experiment/agent-orchestration-v2
-baseline_commit: 4f18971
+baseline_commit: 5ffa38a
+document_status: frozen_historical_snapshot
+frozen_on: 2026-08-15
+post_competition_development: full_product_functionality
 competition_tag: not_created
-remote_sync_status: synced_with_origin/experiment/agent-orchestration-v2_at_4f18971
-workspace_status: baseline_code_committed_and_synced; local_documentation_updates_uncommitted
-full_regression: 1118/1118 passed_by_operator
+remote_sync_status: synced_with_origin/experiment/agent-orchestration-v2_at_5ffa38a
+workspace_status_at_freeze: baseline_code_committed_and_synced
+full_regression: 1170/1170 passed_by_operator (2026-08-15; 99.014s)
 latest_active_targeted_validation: 59/59 passed_by_operator
 p0_matrix: 3/3 passed_by_operator (latest recorded P0 matrix)
 automated_18_style_validation: 54/54 deterministic_matrix_passed; shadow_quality=eligible_for_limited_active
@@ -152,7 +161,7 @@ flowchart TD
 
 | 验证项 | 结果 | 证据性质 |
 |---|---|---|
-| 完整回归 | `1118/1118 passed` | 操作者提供的本地完整回归结果 |
+| 完整回归 | `1170/1170 passed`（99.014 秒） | 2026-08-15 操作者提供的本地完整回归结果 |
 | 最新 Active 定向测试 | `59/59 passed` | 操作者提供的定向测试结果 |
 | P0 安全/游客输出矩阵 | `3/3 passed` | 最近一次已记录 P0 结果 |
 | 18 风格点位自动化矩阵 | `54/54 passed` | 18 风格 × 建筑空间/工艺/纹样构件；事实、风格、安全、预算与 Coverage 幂等 |
@@ -162,6 +171,7 @@ flowchart TD
 | 古风点位 Coverage | `committed` | narration_commit 审计；无重复提交证据 |
 | 角色问答 Shadow | child / professional / listen_only 通过 | `active_takeover=false`、`same_fact_boundary=true` |
 | 故障回退 | 自动化通过 | 超时、非法 JSON、事实漂移、预算、内部泄漏 |
+| 长点位角色预算回退 | 自动化通过 | 角色 scaffold 超出剩余预算时保留完整旧链正文，`fallback_used=true`、零状态写入 |
 
 尚待补充的验证不计入已完成口径：当前 Python 环境缺少 `langchain_core`，图工作流定向测试需在项目完整依赖环境中执行；全量 18 风格 Studio 人工矩阵亦待操作者完成。
 
@@ -181,7 +191,7 @@ manual_validation: passed_by_operator
 - “18 种已审核风格已在白名单审核点位开放有限 Active；问答、引路和结束语仍未角色化接管。”
 - “角色化问答已完成计划、生成、校验和审计链路，目前以 Shadow 方式运行。”
 - “所有事实、路线和游览状态由确定性系统控制，角色模型只改变表达。”
-- “既有完整回归记录为 1118/1118；本次 18 风格扩展的可运行定向矩阵已通过，角色失败会自动回退旧版安全正文。”
+- “当前完整回归记录为 1170/1170；本次 18 风格扩展的可运行定向矩阵已通过，角色失败或长点位角色 scaffold 超出剩余预算时会自动回退旧版安全正文。”
 
 ### 禁止使用
 
