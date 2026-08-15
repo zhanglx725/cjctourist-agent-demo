@@ -150,7 +150,11 @@ from narration_validation import (
     validate_qa_role_narration,
     validate_stop_guidance_role_narration,
 )
-from qa_role_shadow import build_qa_content_plan, qa_content_plan_from_dict
+from qa_role_shadow import (
+    apply_qa_role_scaffold,
+    build_qa_content_plan,
+    qa_content_plan_from_dict,
+)
 from state_transition_adapter import dry_run_transition
 from policy_gate import evaluate_policy
 from reviewed_read_tools import answer_reviewed_controlled_knowledge
@@ -891,7 +895,19 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
                 status="not_needed", reason="empty_input", model_called=False,
             ),
         }
-    candidate = recognize_semantic_candidate(raw_text, _invoke_semantic_model)
+    semantic_model_failure: str | None = None
+
+    def invoke_semantic_with_audit(prompt: str) -> str:
+        nonlocal semantic_model_failure
+        try:
+            return _invoke_semantic_model(prompt)
+        except Exception as exc:
+            # The recognizer deliberately converts provider failure to an
+            # empty candidate. Capture only the exception class for audit.
+            semantic_model_failure = f"semantic_model_unavailable:{type(exc).__name__}"
+            raise
+
+    candidate = recognize_semantic_candidate(raw_text, invoke_semantic_with_audit)
     if candidate.candidate_type == "arrival" and not is_safe_arrival_candidate(raw_text, candidate):
         candidate = type(candidate)()
     canonical = canonical_control_text(candidate)
@@ -949,7 +965,9 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
             "requires_confirmation": False,
             "evidence_span": candidate.evidence_span,
         })
-    envelope = build_intent_envelope(raw_text, intent_value_list, model_called=True)
+    envelope = build_intent_envelope(
+        raw_text, intent_value_list, model_called=semantic_model_failure is None,
+    )
     arbitration = arbitrate_intents(envelope, state)
     return {
         **role_shadow,
@@ -985,7 +1003,8 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
             knowledge_question_type=(
                 knowledge_plan.question_type if knowledge_plan is not None else None
             ),
-            model_called=True,
+            model_called=semantic_model_failure is None,
+            failure_reason=semantic_model_failure,
         ),
     }
 
@@ -4344,10 +4363,14 @@ def qa_role_narration_generation_node(state: AgentState) -> dict[str, Any]:
             narration_plan.style_id, "role_qa_rollout_off",
         )
     else:
-        candidate = generate_role_narration(
+        brief = compile_style_brief(narration_plan.style_id)
+        candidate_value = generate_role_narration(
             narration_plan,
-            compile_style_brief(narration_plan.style_id),
+            brief,
             _invoke_role_narration_model,
+        )
+        candidate = apply_qa_role_scaffold(
+            candidate_value, qa_plan, brief,
         ).to_dict()
     return {
         "qa_role_narration_candidate": candidate,
@@ -4389,10 +4412,18 @@ def qa_role_narration_validation_node(
             compile_style_brief(narration_plan.style_id),
         ).to_dict()
     role_mode = state.get("role_mode_shadow") or {}
+    thread_id = _rollout_thread_id(config)
+    active_allowed = bool(
+        qa_plan is not None and narration_plan is not None
+        and product_role_active_allowed(
+            narration_plan.style_id, qa_plan.scene_kind,
+            thread_id=thread_id, capability=ROLE_QA,
+        )
+    )
     record = {
-        "thread_id": _rollout_thread_id(config),
+        "thread_id": thread_id,
         "capability": ROLE_QA,
-        "mode": "shadow",
+        "mode": "active" if active_allowed else "shadow",
         "scene_kind": qa_plan.scene_kind if qa_plan else None,
         "style_id": narration_plan.style_id if narration_plan else None,
         "role_mode_status": role_mode.get("status", "not_requested"),
@@ -4423,6 +4454,50 @@ def qa_role_narration_validation_node(
             reason_codes=validation["reason_codes"], model_called=False,
         ),
     }
+
+
+def qa_role_narration_commit_node(state: AgentState) -> dict[str, Any]:
+    """Publish one accepted QA expression without changing QA or tour state."""
+    qa_plan = qa_content_plan_from_dict(state.get("qa_content_plan"))
+    candidate = role_narration_candidate_from_dict(state.get("qa_role_narration_candidate"))
+    validation = state.get("qa_role_narration_validation") or {}
+    audit = state.get("active_qa_role_narration_audit") or {}
+    latest = state.get("messages", [])[-1] if state.get("messages") else None
+    allowed = bool(
+        qa_plan and candidate and isinstance(latest, AIMessage)
+        and validation.get("validation_status") == "accepted"
+        and product_role_active_allowed(
+            qa_plan.narration_plan.style_id, qa_plan.scene_kind,
+            thread_id=str(audit.get("thread_id") or ""), capability=ROLE_QA,
+        )
+    )
+    if not allowed:
+        return qa_role_narration_fallback_node(state)
+    updated_audit = {
+        **audit, "active_takeover": True, "fallback_used": False,
+        "legacy_message_preserved": False, "same_public_message": False,
+        "candidate_is_non_authoritative": False,
+        "commit_decision": "qa_role_candidate_published",
+    }
+    return {
+        "messages": [AIMessage(
+            id=latest.id, content=candidate.public_text,
+            additional_kwargs={**latest.additional_kwargs, "qa_role_narration": True},
+        )],
+        "active_qa_role_narration_audit": updated_audit,
+    }
+
+
+def qa_role_narration_fallback_node(state: AgentState) -> dict[str, Any]:
+    """Keep the already-published deterministic QA answer unchanged."""
+    audit = {
+        **(state.get("active_qa_role_narration_audit") or {}),
+        "active_takeover": False, "fallback_used": True,
+        "legacy_message_preserved": True, "same_public_message": True,
+        "candidate_is_non_authoritative": True,
+        "commit_decision": "legacy_qa_preserved",
+    }
+    return {"active_qa_role_narration_audit": audit}
 
 
 def rag_tool_node(state: AgentState) -> dict[str, Any]:
@@ -4639,8 +4714,7 @@ def route_initial_request(state: AgentState) -> str:
         return "clarification"
     role_record = state.get("role_mode_shadow") or {}
     if (
-        (state.get("tour_state") or {}).get("route_status") == "touring"
-        and role_record.get("status") == "selected"
+        role_record.get("status") == "selected"
         and role_record.get("source") == "explicit_request"
         and classify_tour_intent(
             raw_text, state.get("tour_state"), state.get("tour_interaction_state")
@@ -5003,6 +5077,17 @@ def route_after_narration_continuation_control(state: AgentState) -> str:
     )
 
 
+def route_after_qa_role_narration_validation(state: AgentState) -> str:
+    audit = state.get("active_qa_role_narration_audit") or {}
+    if audit.get("mode") != "active":
+        return "atomic_read_plan_shadow"
+    return (
+        "qa_role_narration_commit"
+        if (state.get("qa_role_narration_validation") or {}).get("validation_status") == "accepted"
+        else "qa_role_narration_fallback"
+    )
+
+
 def route_after_journey_mode_selection(state: AgentState) -> str:
     selection = state.get("journey_mode_selection") or {}
     return "profile_collection" if selection.get("status") == "selected" else END
@@ -5144,6 +5229,8 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("qa_content_plan", qa_content_plan_node)
     workflow.add_node("qa_role_narration_generation", qa_role_narration_generation_node)
     workflow.add_node("qa_role_narration_validation", qa_role_narration_validation_node)
+    workflow.add_node("qa_role_narration_commit", qa_role_narration_commit_node)
+    workflow.add_node("qa_role_narration_fallback", qa_role_narration_fallback_node)
     workflow.add_node("direct_route", direct_route_node)
     workflow.add_node("profile_collection", profile_collection_node)
     workflow.add_node("journey_mode_selection", journey_mode_selection_node)
@@ -5191,7 +5278,16 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_edge("qa_follow_up_detail", "qa_content_plan")
     workflow.add_edge("qa_content_plan", "qa_role_narration_generation")
     workflow.add_edge("qa_role_narration_generation", "qa_role_narration_validation")
-    workflow.add_edge("qa_role_narration_validation", "atomic_read_plan_shadow")
+    workflow.add_conditional_edges(
+        "qa_role_narration_validation", route_after_qa_role_narration_validation,
+        {
+            "qa_role_narration_commit": "qa_role_narration_commit",
+            "qa_role_narration_fallback": "qa_role_narration_fallback",
+            "atomic_read_plan_shadow": "atomic_read_plan_shadow",
+        },
+    )
+    workflow.add_edge("qa_role_narration_commit", "atomic_read_plan_shadow")
+    workflow.add_edge("qa_role_narration_fallback", "atomic_read_plan_shadow")
     workflow.add_edge("direct_route", "route_proposal_shadow")
     workflow.add_edge("route_proposal_shadow", "atomic_read_plan_shadow")
     workflow.add_conditional_edges(

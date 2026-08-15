@@ -316,12 +316,13 @@ def product_role_active_allowed(
  environ: Mapping[str, str] | None = None,
  *,
  thread_id: str | None = None,
+ capability: str = ROLE_NARRATION,
 ) -> bool:
  """Require mature rollout and the fail-closed product capability policy."""
 
  rollout = rollout_from_environment(environ)
  return bool(
-  rollout.enabled(ROLE_NARRATION)
+  rollout.enabled(capability)
   and product_capability_policy_from_environment(environ).allows(
    style_id, scene_kind, thread_id=thread_id,
   )
