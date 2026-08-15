@@ -110,7 +110,7 @@ from controlled_rollout import (
     ROLE_QA,
     PRESENTATION_CONTENT_PLAN,
     RolloutMode,
-    competition_role_active_allowed,
+    product_role_active_allowed,
     evaluation_record,
     rollout_from_environment,
 )
@@ -132,9 +132,14 @@ from role_mode_shadow import ROLE_MODE_IDS, resolve_role_mode
 from presentation_content_plan import build_presentation_content_plan
 from route_role_narration_shadow import (
     build_route_role_text_candidate,
+    validate_closing_role_narration,
+    validate_navigation_role_narration,
     validate_route_role_text_candidate,
 )
-from narration_validation import validate_role_narration
+from narration_validation import (
+    validate_qa_role_narration,
+    validate_stop_guidance_role_narration,
+)
 from qa_role_shadow import build_qa_content_plan, qa_content_plan_from_dict
 from state_transition_adapter import dry_run_transition
 from policy_gate import evaluate_policy
@@ -2892,9 +2897,12 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
     # Unknown, conflicting, or otherwise unresolved role requests must not
     # silently become the neutral Active control path.
     selected_style = _competition_stop_guidance_style(role_mode)
+    rollout_thread_id = _rollout_thread_id(config)
     role_active = bool(
         selected_style
-        and competition_role_active_allowed(selected_style, "stop_guidance")
+        and product_role_active_allowed(
+            selected_style, "stop_guidance", thread_id=rollout_thread_id,
+        )
     )
     if role_active and result.get("status") == "guided_e5":
         coverage_after = load_narration_coverage(state.get("narration_coverage"))
@@ -3107,13 +3115,16 @@ def narration_validation_node(state: AgentState, config: RunnableConfig = None) 
             "layout_passed": False, "layout_reason_codes": ["layout_not_continuous"],
         }
     else:
-        validation = validate_role_narration(
+        validation = validate_stop_guidance_role_narration(
             candidate, plan, compile_style_brief(plan.style_id),
         ).to_dict()
     rollout = rollout_from_environment()
+    rollout_thread_id = _rollout_thread_id(config)
     active_mode = bool(
         plan is not None
-        and competition_role_active_allowed(plan.style_id, "stop_guidance")
+        and product_role_active_allowed(
+            plan.style_id, "stop_guidance", thread_id=rollout_thread_id,
+        )
     )
     latest = state.get("messages", [])[-1] if state.get("messages") else None
     legacy_text = str(latest.content or "") if isinstance(latest, AIMessage) else ""
@@ -3133,7 +3144,7 @@ def narration_validation_node(state: AgentState, config: RunnableConfig = None) 
         }
     ]
     record = {
-        "thread_id": _rollout_thread_id(config),
+        "thread_id": rollout_thread_id,
         "capability": ROLE_NARRATION,
         "mode": "active" if active_mode else "shadow",
         "active_takeover": False,
@@ -3196,13 +3207,18 @@ def narration_commit_node(state: AgentState) -> dict[str, Any]:
         if plan is not None
         else str((state.get("active_role_narration_audit") or {}).get("style_id") or "")
     )
+    rollout_thread_id = str(
+        (state.get("active_role_narration_audit") or {}).get("thread_id") or ""
+    )
     latest = state.get("messages", [])[-1] if state.get("messages") else None
     if (
         candidate is None
         or validation.get("validation_status") != "accepted"
         or not isinstance(latest, AIMessage)
         or not pending
-        or not competition_role_active_allowed(style_id, "stop_guidance")
+        or not product_role_active_allowed(
+            style_id, "stop_guidance", thread_id=rollout_thread_id,
+        )
     ):
         return deterministic_narration_fallback_node(state)
     # Publish exactly the text accepted by narration_validation.  Appending a
@@ -3660,7 +3676,7 @@ def _route_role_narration_shadow_update(
     *,
     presentation_plan: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Audit a route candidate and publish it only through the competition gate.
+    """Audit a route candidate and publish it only through the product gate.
 
     This intentionally has no model invocation, tool call, or operational
     state write.  The candidate can only add a reviewed role lead-in before
@@ -3687,14 +3703,19 @@ def _route_role_narration_shadow_update(
         } and legacy_text
         else None
     )
-    validation = validate_route_role_text_candidate(
-        candidate, plan=plan, legacy_text=legacy_text,
+    scene_validator = {
+        "navigation": validate_navigation_role_narration,
+        "tour_closing": validate_closing_role_narration,
+    }.get(scene_kind, validate_route_role_text_candidate)
+    validation = scene_validator(candidate, plan=plan, legacy_text=legacy_text)
+    rollout_thread_id = _rollout_thread_id(config)
+    active_allowed = product_role_active_allowed(
+        role_mode, scene_kind, thread_id=rollout_thread_id,
     )
-    active_allowed = competition_role_active_allowed(role_mode, scene_kind)
     accepted = validation.get("validation_status") == "accepted"
     active_takeover = bool(active_allowed and accepted and candidate)
     record = {
-        "thread_id": _rollout_thread_id(config),
+        "thread_id": rollout_thread_id,
         "capability": ROLE_NARRATION,
         "mode": "active" if active_allowed else "shadow",
         "active_takeover": active_takeover,
@@ -4248,7 +4269,7 @@ def qa_role_narration_validation_node(
             "public_message_safe": False,
         }
     else:
-        validation = validate_role_narration(
+        validation = validate_qa_role_narration(
             candidate,
             narration_plan,
             compile_style_brief(narration_plan.style_id),
@@ -4908,7 +4929,12 @@ def route_after_narration_validation(state: AgentState) -> str:
         if plan is not None
         else str((state.get("active_role_narration_audit") or {}).get("style_id") or "")
     )
-    if not competition_role_active_allowed(style_id, "stop_guidance"):
+    rollout_thread_id = str(
+        (state.get("active_role_narration_audit") or {}).get("thread_id") or ""
+    )
+    if not product_role_active_allowed(
+        style_id, "stop_guidance", thread_id=rollout_thread_id,
+    ):
         return "deterministic_narration_fallback"
     validation = state.get("narration_validation") or {}
     return (

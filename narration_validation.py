@@ -199,10 +199,12 @@ class NarrationValidationResult:
         }
 
 
-def validate_role_narration(
+def _validate_role_narration_contract(
     candidate: RoleNarrationCandidate,
     plan: NarrationContentPlan,
     brief: StyleBrief,
+    *,
+    require_point_style_coverage: bool,
 ) -> NarrationValidationResult:
     reasons: list[str] = []
     allowed_ids = {fact.fact_id for fact in plan.facts}
@@ -258,7 +260,7 @@ def validate_role_narration(
     # not contain space/craft/ornament fact units.  Applying the point gate to
     # them makes every otherwise-safe QA Shadow candidate fail with
     # ``style_coverage_incomplete``.
-    if not plan.stop_id.startswith("qa:"):
+    if require_point_style_coverage:
         reasons.extend(_point_style_coverage_reasons(candidate, plan, brief))
     if any(pattern and pattern in candidate.public_text for pattern in brief.prohibited_patterns):
         reasons.append("style_prohibited_pattern")
@@ -318,3 +320,49 @@ def validate_role_narration(
         layout_passed=not layout_reasons,
         layout_reason_codes=tuple(dict.fromkeys(layout_reasons)),
     )
+
+
+def validate_stop_guidance_role_narration(
+    candidate: RoleNarrationCandidate,
+    plan: NarrationContentPlan,
+    brief: StyleBrief,
+) -> NarrationValidationResult:
+    """Validate point narration, including typed component coverage."""
+    if plan.stop_id.startswith("qa:"):
+        return NarrationValidationResult(
+            validation_status="rejected",
+            reason_codes=("stop_guidance_plan_required",),
+        )
+    return _validate_role_narration_contract(
+        candidate, plan, brief, require_point_style_coverage=True,
+    )
+
+
+def validate_qa_role_narration(
+    candidate: RoleNarrationCandidate,
+    plan: NarrationContentPlan,
+    brief: StyleBrief,
+) -> NarrationValidationResult:
+    """Validate QA narration without applying point-component requirements."""
+    if not plan.stop_id.startswith("qa:"):
+        return NarrationValidationResult(
+            validation_status="rejected",
+            reason_codes=("qa_plan_required",),
+        )
+    return _validate_role_narration_contract(
+        candidate, plan, brief, require_point_style_coverage=False,
+    )
+
+
+def validate_role_narration(
+    candidate: RoleNarrationCandidate,
+    plan: NarrationContentPlan,
+    brief: StyleBrief,
+) -> NarrationValidationResult:
+    """Compatibility dispatcher for historical callers and frozen tests."""
+    validator = (
+        validate_qa_role_narration
+        if plan.stop_id.startswith("qa:")
+        else validate_stop_guidance_role_narration
+    )
+    return validator(candidate, plan, brief)

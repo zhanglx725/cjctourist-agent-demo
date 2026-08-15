@@ -253,8 +253,88 @@ def validate_route_role_text_candidate(
     }
 
 
+def _validate_route_scene_candidate(
+    expected_scene: str,
+    candidate: Mapping[str, Any] | None,
+    *,
+    plan: PresentationContentPlan | Mapping[str, Any] | None,
+    legacy_text: str,
+) -> dict[str, Any]:
+    scene_kind = (
+        plan.scene_kind if isinstance(plan, PresentationContentPlan)
+        else str((plan or {}).get("scene_kind") or "unknown")
+    )
+    if scene_kind != expected_scene:
+        role_mode = (
+            plan.role_mode if isinstance(plan, PresentationContentPlan)
+            else str((plan or {}).get("role_mode") or "standard")
+        )
+        return _rejected_record(
+            scene_kind=scene_kind, role_mode=role_mode, legacy_text=legacy_text,
+            reason_codes=[f"{expected_scene}_plan_required"], candidate=candidate,
+        )
+    return validate_route_role_text_candidate(
+        candidate, plan=plan, legacy_text=legacy_text,
+    )
+
+
+def validate_navigation_role_narration(
+    candidate: Mapping[str, Any] | None,
+    *,
+    plan: PresentationContentPlan | Mapping[str, Any] | None,
+    legacy_text: str,
+) -> dict[str, Any]:
+    """Validate only navigation role text against its legacy route boundary."""
+    return _validate_route_scene_candidate(
+        "navigation", candidate, plan=plan, legacy_text=legacy_text,
+    )
+
+
+def validate_closing_role_narration(
+    candidate: Mapping[str, Any] | None,
+    *,
+    plan: PresentationContentPlan | Mapping[str, Any] | None,
+    legacy_text: str,
+) -> dict[str, Any]:
+    """Validate only closing role text against its legacy summary boundary."""
+    return _validate_route_scene_candidate(
+        "tour_closing", candidate, plan=plan, legacy_text=legacy_text,
+    )
+
+
+def validate_replan_presentation(
+    candidate_text: str | None,
+    *,
+    legacy_text: str,
+) -> dict[str, Any]:
+    """Validate replan wording without granting authority over route state."""
+    reasons: list[str] = []
+    if not legacy_text:
+        reasons.append("legacy_message_unavailable")
+    if not isinstance(candidate_text, str) or candidate_text != legacy_text:
+        reasons.append("legacy_replan_boundary_changed")
+    public_safe = bool(candidate_text) and (
+        not _INTERNAL.search(candidate_text or "")
+        and public_visitor_message_or_fallback(candidate_text or "") == candidate_text
+    )
+    if not public_safe:
+        reasons.append("public_message_boundary_rejected")
+    return {
+        "scene_kind": "replan_presentation",
+        "validation_status": "accepted" if not reasons else "rejected",
+        "reason_codes": list(dict.fromkeys(reasons)),
+        "state_writes": [],
+        "legacy_message_preserved": candidate_text == legacy_text,
+        "route_diff": [],
+        "public_output_safe": public_safe,
+    }
+
+
 __all__ = [
     "ROUTE_ROLE_TEXT_CANDIDATE_SCHEMA_VERSION",
     "build_route_role_text_candidate",
+    "validate_closing_role_narration",
+    "validate_navigation_role_narration",
+    "validate_replan_presentation",
     "validate_route_role_text_candidate",
 ]
