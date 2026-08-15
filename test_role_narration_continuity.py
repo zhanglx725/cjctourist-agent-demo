@@ -24,7 +24,11 @@ from agent_graph import (
     visit_summary_node,
 )
 from role_mode_shadow import ROLE_MODE_SURFACES, resolve_role_mode
-from role_narration_generation import RoleNarrationCandidate
+from narration_style_policy import compile_style_brief
+from role_narration_generation import (
+    RoleNarrationCandidate,
+    apply_point_narration_scaffold,
+)
 
 
 ROLE_CASES = {
@@ -62,10 +66,9 @@ class RoleNarrationContinuityTests(unittest.TestCase):
 
     @staticmethod
     def _accepted_stop_candidate(plan, style_id):
-        public_text = "\n\n".join(fact.statement for fact in plan.facts)
-        return RoleNarrationCandidate(
+        token_candidate = RoleNarrationCandidate(
             style_id=style_id,
-            public_text=public_text,
+            public_text="".join(fact.statement for fact in plan.facts),
             used_fact_ids=tuple(fact.fact_id for fact in plan.facts),
             omitted_fact_ids=(),
             self_check={
@@ -75,6 +78,9 @@ class RoleNarrationContinuityTests(unittest.TestCase):
             },
             model_called=True,
             latency_ms=1,
+        )
+        return apply_point_narration_scaffold(
+            token_candidate, plan, compile_style_brief(style_id),
         )
 
     def test_role_applicability_contract_lists_all_five_surfaces(self):
@@ -192,9 +198,14 @@ class RoleNarrationContinuityTests(unittest.TestCase):
                 )
                 self.assertEqual(
                     [record["validation_status"] for record in records],
-                    ["accepted"] * 5,
+                    ["accepted", "accepted", "rejected", "accepted", "accepted"],
                     records,
                 )
+                self.assertIn(
+                    "style_scaffold_budget_exceeded", stop_record["reason_codes"],
+                )
+                self.assertTrue(stop_record["fallback_used"])
+                self.assertTrue(stop_record["legacy_message_preserved"])
                 self.assertTrue(all(record["active_takeover"] is False for record in records))
                 self.assertTrue(all(record["state_writes"] == [] for record in records))
                 self.assertEqual(state["role_mode_shadow"]["selected_style_id"], role_id)

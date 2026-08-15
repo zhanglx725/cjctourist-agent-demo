@@ -253,7 +253,13 @@ def validate_role_narration(
     reasons.extend(layout_reasons)
     if _has_duplicate_connector_sentence(connector):
         reasons.append("repeated_role_expression")
-    reasons.extend(_point_style_coverage_reasons(candidate, plan, brief))
+    # Typed component coverage belongs to the stop-guidance contract.  QA
+    # plans deliberately wrap one already-approved answer as ``qa:*`` and do
+    # not contain space/craft/ornament fact units.  Applying the point gate to
+    # them makes every otherwise-safe QA Shadow candidate fail with
+    # ``style_coverage_incomplete``.
+    if not plan.stop_id.startswith("qa:"):
+        reasons.extend(_point_style_coverage_reasons(candidate, plan, brief))
     if any(pattern and pattern in candidate.public_text for pattern in brief.prohibited_patterns):
         reasons.append("style_prohibited_pattern")
     reasons.extend(_style_acceptance_reasons(connector, brief))
