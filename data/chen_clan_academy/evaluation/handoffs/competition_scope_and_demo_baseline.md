@@ -17,10 +17,10 @@
 
 ```text
 branch: experiment/agent-orchestration-v2
-baseline_commit: pending_local_role_narration_18_style_expansion
+baseline_commit: 4f18971
 competition_tag: not_created
-remote_sync_status: pending_push_after_18_style_expansion
-workspace_status: local_changes_uncommitted; 18_style_stop_guidance_expansion
+remote_sync_status: synced_with_origin/experiment/agent-orchestration-v2_at_4f18971
+workspace_status: baseline_code_committed_and_synced; local_documentation_updates_uncommitted
 full_regression: 1118/1118 passed_by_operator
 latest_active_targeted_validation: 59/59 passed_by_operator
 p0_matrix: 3/3 passed_by_operator (latest recorded P0 matrix)
