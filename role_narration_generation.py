@@ -98,6 +98,8 @@ def apply_point_narration_scaffold(
     candidate: RoleNarrationCandidate,
     plan: NarrationContentPlan,
     brief: StyleBrief,
+    *,
+    compact: bool | None = None,
 ) -> RoleNarrationCandidate:
     """Interleave immutable facts with reviewed persona-only components.
 
@@ -128,17 +130,18 @@ def apply_point_narration_scaffold(
                 parts.append(intro)
                 previous_component = intro
         parts.append(fact.statement)
-        if index < len(ordered_facts) - 1:
+        if not compact and index < len(ordered_facts) - 1:
             next_fact = ordered_facts[index + 1]
             kind = "observation" if next_fact.unit_id == fact.unit_id else "transition"
             bridge = _component(brief, f"{fact.topic_kind}_{kind}", index)
             if bridge and bridge != previous_component:
                 parts.append(bridge)
                 previous_component = bridge
-    appreciation = _component(brief, "appreciation", len(ordered_facts))
-    if appreciation and appreciation != previous_component:
-        parts.append(appreciation)
-        previous_component = appreciation
+    if not compact:
+        appreciation = _component(brief, "appreciation", len(ordered_facts))
+        if appreciation and appreciation != previous_component:
+            parts.append(appreciation)
+            previous_component = appreciation
     closing = _component(brief, "closing", len(ordered_facts))
     if closing and closing != previous_component:
         parts.append(closing)
@@ -431,6 +434,8 @@ def generate_role_narration(
     plan: NarrationContentPlan,
     brief: StyleBrief,
     invoke_model: Callable[[str], str],
+    *,
+    compact: bool = False,
 ) -> RoleNarrationCandidate:
     if plan.status != "ready" or brief.style_id != plan.style_id:
         return _failed(plan.style_id, "plan_or_style_not_ready")
@@ -460,7 +465,10 @@ def generate_role_narration(
     # and could make a bad first response look safe after its prose vanished.
     if _requires_unmodified_validation(candidate, plan, brief):
         return candidate
-    return apply_point_narration_scaffold(candidate, plan, brief)
+    return apply_point_narration_scaffold(
+        candidate, plan, brief,
+        compact=plan.scaffold_mode == "compact" if compact is None else compact,
+    )
 
 
 def role_narration_candidate_from_dict(value: Mapping[str, Any] | None) -> RoleNarrationCandidate | None:

@@ -61,6 +61,7 @@ class NarrationContentPlan:
     # prose; approved fact text must not be rejected by a second char-count
     # estimate that disagrees with E5.
     allocated_content_seconds: int = 0
+    scaffold_mode: str = "full"
     status: str = "ready"
     reason_codes: tuple[str, ...] = ()
     schema_version: str = PLAN_SCHEMA_VERSION
@@ -81,6 +82,7 @@ class NarrationContentPlan:
             "interaction_allowed": self.interaction_allowed,
             "requested_scope": self.requested_scope,
             "allocated_content_seconds": self.allocated_content_seconds,
+            "scaffold_mode": self.scaffold_mode,
         }
 
 
@@ -213,6 +215,8 @@ def build_narration_content_plan(
 def narration_content_plan_from_dict(value: Mapping[str, Any] | None) -> NarrationContentPlan | None:
     if not isinstance(value, Mapping) or value.get("schema_version") != PLAN_SCHEMA_VERSION:
         return None
+    if str(value.get("scaffold_mode") or "full") not in {"full", "compact"}:
+        return None
     try:
         facts = tuple(
             NarrationFact(
@@ -232,6 +236,7 @@ def narration_content_plan_from_dict(value: Mapping[str, Any] | None) -> Narrati
             allocated_content_seconds=max(
                 0, int(value.get("allocated_content_seconds") or 0),
             ),
+            scaffold_mode=str(value.get("scaffold_mode") or "full"),
             status=str(value.get("status") or "rejected"),
             reason_codes=tuple(value.get("reason_codes", [])),
         )

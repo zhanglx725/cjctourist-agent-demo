@@ -123,6 +123,16 @@ from narration_content_plan import (
     build_narration_content_plan,
     narration_content_plan_from_dict,
 )
+from narration_budget import (
+    NarrationBudgetMode,
+    advance_continuation,
+    classify_continuation_action,
+    continuation_from_decision,
+    decide_narration_budget,
+    narration_continuation_from_dict,
+    plan_for_budget_decision,
+    resume_plan_from_continuation,
+)
 from narration_style_policy import compile_style_brief
 from role_narration_generation import (
     generate_role_narration,
@@ -326,6 +336,10 @@ class AgentState(TypedDict, total=False):
     last_role_mode_confirmation: dict[str, Any] | None
     role_narration_candidate: dict[str, Any] | None
     narration_validation: dict[str, Any] | None
+    narration_budget_decision: dict[str, Any] | None
+    narration_continuation: dict[str, Any] | None
+    pending_narration_continuation: dict[str, Any] | None
+    narration_continuation_commit: dict[str, Any] | None
     active_role_narration_audit: dict[str, Any] | None
     role_narration_evaluations: list[dict[str, Any]]
     # QA role expression is always non-authoritative.  It is deliberately
@@ -2807,6 +2821,18 @@ def _commit_stop_guidance_coverage(
         ("ornament", subject_id) for subject_id in render_audit.get("rendered_ornament_ids", [])
     })
     used_source_ids = set(render_audit.get("used_source_ids", []))
+    selected_subjects: set[tuple[str, str]] | None = None
+    if introduced_by == "narration_commit":
+        decision = state.get("narration_budget_decision") or {}
+        selected_fact_ids = decision.get("selected_fact_ids", [])
+        selected_subjects = set() if selected_fact_ids else None
+        for fact_id in selected_fact_ids:
+            raw_fact_id = str(fact_id)
+            prefix, separator, suffix = raw_fact_id.rpartition(":")
+            unit_id = prefix if separator and suffix.isdigit() else raw_fact_id
+            parts = unit_id.split(":", 1)
+            if len(parts) == 2 and parts[0] in {"craft", "ornament"}:
+                selected_subjects.add((parts[0], parts[1]))
     turn_id = f"{introduced_by}:{current_node}:{len(state.get('messages', [])) + 1}"
     try:
         records: list[IntroductionRecord] = []
@@ -2823,6 +2849,7 @@ def _commit_stop_guidance_coverage(
             )
             if (
                 key not in rendered
+                or (selected_subjects is not None and key not in selected_subjects)
                 or candidate.get("evidence_kind") != expected_evidence_kind
                 or not actual_sources
                 or not public_message.strip()
@@ -3019,6 +3046,47 @@ def narration_content_plan_node(state: AgentState) -> dict[str, Any]:
     }
 
 
+def _narration_continuation_freshness(state: AgentState, style_id: str) -> str:
+    tour_state = state.get("tour_state") or {}
+    return ":".join((
+        str(tour_state.get("selected_route_id") or ""),
+        str(tour_state.get("current_stop_id") or ""),
+        style_id,
+    ))
+
+
+def narration_continuation_control_node(state: AgentState) -> dict[str, Any]:
+    """Resume or cancel reviewed pending facts without inferring new content."""
+    action = classify_continuation_action(_latest_user_text(state))
+    continuation = narration_continuation_from_dict(state.get("narration_continuation"))
+    if action == "skip":
+        return {
+            "narration_continuation": None,
+            "narration_continuation_commit": None,
+            "pending_narration_continuation": None,
+            "messages": [AIMessage(content="已跳过当前点位剩余讲解。")],
+        }
+    if continuation is None or not continuation.is_fresh(
+        stop_id=str((state.get("tour_state") or {}).get("current_stop_id") or ""),
+        style_id=continuation.style_id,
+        freshness_token=_narration_continuation_freshness(state, continuation.style_id),
+    ):
+        return {
+            "narration_continuation": None,
+            "narration_continuation_commit": None,
+            "messages": [AIMessage(content="上一段待讲内容已失效，请按当前点位重新发起讲解。")],
+        }
+    plan = resume_plan_from_continuation(continuation, action=str(action or ""))
+    if plan is None:
+        return {"messages": [AIMessage(content="当前没有符合条件的待讲内容。")]}
+    return {
+        "narration_content_plan": plan.to_dict(),
+        "pending_role_narration_commit": state.get("narration_continuation_commit"),
+        "role_narration_candidate": None,
+        "narration_validation": None,
+    }
+
+
 def role_narration_generation_node(state: AgentState) -> dict[str, Any]:
     """Generate one non-authoritative candidate only in explicit Shadow mode."""
     started = time.perf_counter()
@@ -3039,6 +3107,8 @@ def role_narration_generation_node(state: AgentState) -> dict[str, Any]:
             interaction_allowed=selected_role != "listen_only",
         )
     rollout = rollout_from_environment()
+    budget_decision = None
+    continuation = None
     if plan is None or plan.status != "ready":
         candidate = {
             "schema_version": "role_narration_candidate_v1",
@@ -3084,12 +3154,46 @@ def role_narration_generation_node(state: AgentState) -> dict[str, Any]:
         }
     else:
         brief = compile_style_brief(plan.style_id)
-        candidate = generate_role_narration(
-            plan, brief, _invoke_role_narration_model,
-        ).to_dict()
+        budget_decision = decide_narration_budget(plan, brief)
+        source_plan = plan
+        turn_plan = plan_for_budget_decision(plan, budget_decision)
+        if turn_plan is None:
+            candidate = {
+                "schema_version": "role_narration_candidate_v1",
+                "generation_status": "rejected",
+                "reason_code": "narration_budget_fallback",
+                "style_id": plan.style_id, "public_text": "",
+                "used_fact_ids": [], "omitted_fact_ids": [], "self_check": {},
+                "model_called": False, "latency_ms": 0,
+            }
+        else:
+            plan = turn_plan
+            candidate = generate_role_narration(
+                plan, brief, _invoke_role_narration_model,
+            ).to_dict()
+            existing_continuation = narration_continuation_from_dict(
+                state.get("narration_continuation")
+            )
+            continuation_value = (
+                advance_continuation(existing_continuation, budget_decision.selected_fact_ids)
+                if existing_continuation is not None
+                else continuation_from_decision(
+                    source_plan, budget_decision,
+                    freshness_token=_narration_continuation_freshness(state, plan.style_id),
+                )
+            )
+            continuation = continuation_value.to_dict() if continuation_value else None
     return {
         "narration_content_plan": plan.to_dict() if plan is not None else state.get("narration_content_plan"),
         "role_narration_candidate": candidate,
+        "narration_budget_decision": (
+            budget_decision.to_dict() if budget_decision is not None else None
+        ),
+        "pending_narration_continuation": continuation,
+        "narration_continuation_commit": (
+            dict(state.get("pending_role_narration_commit") or {})
+            if continuation is not None else None
+        ),
         "performance_metrics": _append_metric(
             state, "role_narration_generation", time.perf_counter() - started,
             status=candidate["generation_status"],
@@ -3115,8 +3219,10 @@ def narration_validation_node(state: AgentState, config: RunnableConfig = None) 
             "layout_passed": False, "layout_reason_codes": ["layout_not_continuous"],
         }
     else:
+        decision = state.get("narration_budget_decision") or {}
         validation = validate_stop_guidance_role_narration(
             candidate, plan, compile_style_brief(plan.style_id),
+            compact=decision.get("mode") in {"compact", "split"},
         ).to_dict()
     rollout = rollout_from_environment()
     rollout_thread_id = _rollout_thread_id(config)
@@ -3254,6 +3360,9 @@ def narration_commit_node(state: AgentState) -> dict[str, Any]:
         "narration_coverage": coverage_after.to_dict(),
         "active_role_narration_audit": audit,
         "pending_role_narration_commit": None,
+        "narration_continuation": state.get("pending_narration_continuation"),
+        "pending_narration_continuation": None,
+        "narration_continuation_commit": state.get("narration_continuation_commit"),
     }
 
 
@@ -3280,6 +3389,11 @@ def deterministic_narration_fallback_node(state: AgentState) -> dict[str, Any]:
         "narration_coverage": coverage_after.to_dict(),
         "active_role_narration_audit": audit,
         "pending_role_narration_commit": None,
+        "pending_narration_continuation": None,
+        "narration_continuation_commit": (
+            state.get("narration_continuation_commit")
+            if state.get("narration_continuation") else None
+        ),
     }
 
 
@@ -4513,6 +4627,11 @@ def route_initial_request(state: AgentState) -> str:
     # venue fact.  Keep it out of RAG in both pre-tour and active-tour modes.
     if is_identity_document_civil_service_request(raw_text):
         return "tour_qa"
+    if (
+        state.get("narration_continuation")
+        and classify_continuation_action(raw_text) is not None
+    ):
+        return "narration_continuation_control"
     # Role conflicts are deterministic, non-mutating controls.  They must be
     # clarified before onboarding/profile/LLM fallbacks, while the previously
     # accepted role and the current navigation target remain untouched.
@@ -4875,6 +4994,15 @@ def route_after_profile_collection(state: AgentState) -> str:
     return "direct_route" if collection.get("status") == "ready" else END
 
 
+def route_after_narration_continuation_control(state: AgentState) -> str:
+    return (
+        "role_narration_generation"
+        if narration_content_plan_from_dict(state.get("narration_content_plan")) is not None
+        and state.get("pending_role_narration_commit")
+        else "atomic_read_plan_shadow"
+    )
+
+
 def route_after_journey_mode_selection(state: AgentState) -> str:
     selection = state.get("journey_mode_selection") or {}
     return "profile_collection" if selection.get("status") == "selected" else END
@@ -5037,6 +5165,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("show_replan_time", show_replan_time_node)
     workflow.add_node("stop_guidance", stop_guidance_node)
     workflow.add_node("narration_content_plan", narration_content_plan_node)
+    workflow.add_node("narration_continuation_control", narration_continuation_control_node)
     workflow.add_node("role_narration_generation", role_narration_generation_node)
     workflow.add_node("narration_validation", narration_validation_node)
     workflow.add_node("narration_commit", narration_commit_node)
@@ -5052,7 +5181,7 @@ def build_agent_graph(with_checkpointer: bool = True):
         route_initial_request,
         {
             "direct_rag": "direct_rag", "controlled_knowledge_rollout": "controlled_knowledge_rollout", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "visitor_onboarding": "visitor_onboarding", "journey_mode_selection": "journey_mode_selection", "inactive_tour_end": "inactive_tour_end", "tour_opening": "tour_opening", "visit_summary": "visit_summary", "post_visit_title_blessing": "post_visit_title_blessing", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "role_mode_confirmation": "role_mode_confirmation", "tour_event": "tour_event",
-            "clarification": "clarification", "prepare_replan": "prepare_replan", "prepare_replan_candidate": "prepare_replan_candidate", "prepare_duration_replan": "prepare_duration_replan",
+            "narration_continuation_control": "narration_continuation_control", "clarification": "clarification", "prepare_replan": "prepare_replan", "prepare_replan_candidate": "prepare_replan_candidate", "prepare_duration_replan": "prepare_duration_replan",
             "confirm_replan": "confirm_replan", "confirm_replan_and_next": "confirm_replan_and_next", "cancel_replan": "cancel_replan", "show_replan": "show_replan", "show_replan_time": "show_replan_time", "llm_think": "llm_think",
         },
     )
@@ -5114,6 +5243,10 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_edge("show_replan_time", "replan_proposal_shadow")
     workflow.add_edge("replan_proposal_shadow", "atomic_read_plan_shadow")
     workflow.add_edge("stop_guidance", "narration_content_plan")
+    workflow.add_conditional_edges(
+        "narration_continuation_control", route_after_narration_continuation_control,
+        {"role_narration_generation": "role_narration_generation", "atomic_read_plan_shadow": "atomic_read_plan_shadow"},
+    )
     workflow.add_edge("narration_content_plan", "role_narration_generation")
     workflow.add_edge("role_narration_generation", "narration_validation")
     workflow.add_conditional_edges(

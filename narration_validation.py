@@ -173,6 +173,29 @@ def _point_style_coverage_reasons(
     return list(dict.fromkeys(reasons))
 
 
+def _compact_point_style_coverage_reasons(
+    candidate: RoleNarrationCandidate,
+    plan: NarrationContentPlan,
+    brief: StyleBrief,
+) -> list[str]:
+    segments = _fact_connector_segments(candidate.public_text, plan)
+    components = brief.point_narration_components
+    if segments is None:
+        return ["style_coverage_incomplete"]
+    if not any(value in segments[0] for value in components.get("opening", ())):
+        return ["style_coverage_incomplete"]
+    if not any(value in segments[-1] for value in components.get("closing", ())):
+        return ["style_coverage_incomplete"]
+    for index, fact in enumerate(plan.facts):
+        is_start = index == 0 or plan.facts[index - 1].unit_id != fact.unit_id
+        if is_start and not any(
+            value in segments[index]
+            for value in components.get(f"{fact.topic_kind}_intro", ())
+        ):
+            return ["style_coverage_incomplete"]
+    return []
+
+
 @dataclass(frozen=True)
 class NarrationValidationResult:
     validation_status: str
@@ -205,6 +228,7 @@ def _validate_role_narration_contract(
     brief: StyleBrief,
     *,
     require_point_style_coverage: bool,
+    compact: bool = False,
 ) -> NarrationValidationResult:
     reasons: list[str] = []
     allowed_ids = {fact.fact_id for fact in plan.facts}
@@ -261,7 +285,11 @@ def _validate_role_narration_contract(
     # them makes every otherwise-safe QA Shadow candidate fail with
     # ``style_coverage_incomplete``.
     if require_point_style_coverage:
-        reasons.extend(_point_style_coverage_reasons(candidate, plan, brief))
+        coverage_validator = (
+            _compact_point_style_coverage_reasons
+            if compact else _point_style_coverage_reasons
+        )
+        reasons.extend(coverage_validator(candidate, plan, brief))
     if any(pattern and pattern in candidate.public_text for pattern in brief.prohibited_patterns):
         reasons.append("style_prohibited_pattern")
     reasons.extend(_style_acceptance_reasons(connector, brief))
@@ -326,6 +354,8 @@ def validate_stop_guidance_role_narration(
     candidate: RoleNarrationCandidate,
     plan: NarrationContentPlan,
     brief: StyleBrief,
+    *,
+    compact: bool = False,
 ) -> NarrationValidationResult:
     """Validate point narration, including typed component coverage."""
     if plan.stop_id.startswith("qa:"):
@@ -334,7 +364,7 @@ def validate_stop_guidance_role_narration(
             reason_codes=("stop_guidance_plan_required",),
         )
     return _validate_role_narration_contract(
-        candidate, plan, brief, require_point_style_coverage=True,
+        candidate, plan, brief, require_point_style_coverage=True, compact=compact,
     )
 
 

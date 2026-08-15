@@ -20,8 +20,8 @@ blocked      存在已记录的外部或技术阻塞
 ## 当前产品基线
 
 ```text
-baseline_commit: 806d5cb
-regression_baseline: 1180/1180 passed_by_operator
+baseline_commit: f914498
+regression_baseline: 1210/1210 passed_by_operator
 baseline_date: 2026-08-15
 development_mode: full_product_functionality
 competition_materials: frozen
@@ -37,9 +37,9 @@ competition_materials: frozen
 | 审核路线规划 | implemented | 陈家祠审核路线 | 产品配置和多场馆数据模型 |
 | TourState | implemented | 到达、完成、跳过、下一站和结束 | 定位候选与地图一致性 |
 | 受控重规划 | implemented | Proposal、确认和 freshness | 角色化说明 Active |
-| 点位确定性讲解 | verified | E5、审核事实和 Coverage | 长讲解分轮输出 |
+| 点位确定性讲解 | verified | E5、审核事实、Coverage 和分轮原子提交 | 真实长讲解人工验收 |
 | 产品级角色能力策略 | verified | 严格产品配置、旧变量兼容、Thread 稳定灰度、kill switch 和失败关闭 | 接入配置文件与运营后台 |
-| 18 风格点位讲解 | active | 产品策略控制；失败回退旧链 | 长讲解预算自适应 |
+| 18 风格点位讲解 | active | 产品策略控制；支持 full/compact/split/fallback | 全风格长讲解人工验收 |
 | 角色化路线规划 | active | 产品策略与场景配置控制 | 全角色人工验收 |
 | 角色化路线开场 | active | 产品策略与场景配置控制 | 全角色人工验收 |
 | 角色化问答 | shadow | QA 专用校验、候选和审计；不接管正文 | Active commit |
@@ -47,7 +47,7 @@ competition_materials: frozen
 | 角色化结束语 | shadow | 结束语专用校验与只读角色候选 | Coverage 与 Active commit |
 | 角色化重规划说明 | shadow | 独立正文边界校验；Proposal 审计不改路线 | freshness 与 Active commit |
 | 全流程角色连续性 | implemented | 核心角色自动化覆盖；fallback 保留角色 | 全 18 风格和真实 Thread 人工验收 |
-| 长讲解预算自适应 | planned | 超预算时安全回退 | full/compact/split/fallback 矩阵 |
+| 长讲解预算自适应 | active | 生成前预算预检、事实单元分轮、continuation、逐轮 Coverage；失败回退旧链 | 控制台真实模型与现场节奏验收 |
 | 语音导游 | planned | 尚未接入 | TTS、ASR、中断和续播测试 |
 | 二维码/NFC 定位 | planned | 尚未接入 | 到达候选和 TourState 校验 |
 | 可视化地图 | planned | 审核空间图已存在 | 地图状态与路线同步 |
@@ -70,7 +70,7 @@ competition_materials: frozen
 |---|---|---|
 | 阶段 0：固定产品开发基线 | verified | 冻结提交、路线图、状态矩阵和远端标签均已固化 |
 | 阶段 1：产品级能力配置与场景校验重构 | verified | 产品策略和五类隔离校验入口完成；1180 项完整回归通过 |
-| 阶段 2：长讲解预算自适应与分轮输出 | planned | 依赖阶段 1 场景合同 |
+| 阶段 2：长讲解预算自适应与分轮输出 | verified | 四级预算策略、分轮控制、freshness 和逐轮 Coverage 完成；1210 项完整回归通过 |
 | 阶段 3：角色化问答 Active | planned | 依赖 QA 专用校验器 |
 | 阶段 4：引路、结束语与重规划说明 Active | planned | 依赖产品策略和场景校验器 |
 | 阶段 5：角色连续性与语音 | planned | 依赖完整角色链 |
@@ -87,3 +87,4 @@ competition_materials: frozen
 
 - 2026-08-15：以 `92cb458` 和 `1170/1170` 回归结果建立产品状态矩阵。
 - 2026-08-15：完成阶段 1 产品能力策略与五类场景校验重构；定向测试 `77/77`、完整回归 `1180/1180` 均由操作者验证通过。
+- 2026-08-15：完成阶段 2 长讲解预算预检、full/compact/split/fallback、continuation 与逐轮 Coverage；完整回归 `1210/1210` 由操作者验证通过。
