@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import json
+import math
 import unittest
 
 from narration_budget import (
@@ -12,10 +14,13 @@ from narration_budget import (
     continuation_from_decision,
     decide_narration_budget,
     narration_continuation_from_dict,
+    plan_for_budget_decision,
     resume_plan_from_continuation,
 )
 from narration_content_plan import NarrationContentPlan, NarrationFact
-from narration_style_policy import StyleBrief
+from narration_style_policy import StyleBrief, compile_style_brief
+from narration_validation import validate_stop_guidance_role_narration
+from role_narration_generation import generate_role_narration, role_connector_text
 
 
 def _brief() -> StyleBrief:
@@ -84,6 +89,67 @@ class NarrationBudgetTests(unittest.TestCase):
             decision.deferred_fact_ids,
             tuple(fact.fact_id for fact in plan.facts[1:]),
         )
+
+    def test_child_multi_unit_preflight_matches_rendered_scaffold_budget(self):
+        facts = tuple(
+            [
+                NarrationFact(
+                    f"craft:stucco:{index:03d}", "craft_detail",
+                    f"审核工艺事实第{index + 1}句保持原文。",
+                )
+                for index in range(4)
+            ]
+            + [
+                NarrationFact(
+                    f"ornament:{unit_id}:{index:03d}", "object_detail",
+                    f"审核对象{unit_label}第{index + 1}句保持原文。",
+                )
+                for unit_id, unit_label in (("orn_005", "甲"), ("orn_008", "乙"))
+                for index in range(4)
+            ]
+        )
+        source_plan = NarrationContentPlan(
+            stop_id="front", style_id="child", language="zh",
+            budget_seconds=60, facts=facts, must_include=(),
+            already_covered=(), must_not_claim=(), interaction_allowed=True,
+            allocated_content_seconds=45,
+        )
+        brief = compile_style_brief("child")
+        decision = decide_narration_budget(source_plan, brief)
+        self.assertEqual(decision.mode, NarrationBudgetMode.COMPACT)
+        turn_plan = plan_for_budget_decision(source_plan, decision)
+        self.assertIsNotNone(turn_plan)
+        assert turn_plan is not None
+        response = json.dumps({
+            "schema_version": "role_narration_candidate_v1",
+            "style_id": "child",
+            "public_text": "".join(
+                f"[[FACT_{index:03d}]]" for index in range(len(facts))
+            ),
+            "used_fact_ids": [fact.fact_id for fact in facts],
+            "omitted_fact_ids": [],
+            "self_check": {
+                "added_new_facts": False,
+                "role_consistent": True,
+                "within_budget": True,
+            },
+        }, ensure_ascii=False)
+        candidate = generate_role_narration(turn_plan, brief, lambda _: response)
+        self.assertEqual(candidate.generation_status, "generated")
+        validation = validate_stop_guidance_role_narration(
+            candidate, turn_plan, brief, compact=True,
+        )
+        self.assertEqual(
+            validation.validation_status, "accepted", validation.to_dict(),
+        )
+        self.assertEqual(sum(
+            value in candidate.public_text
+            for value in brief.point_narration_components["ornament_intro"]
+        ), 2)
+        connector_chars = len("".join(role_connector_text(
+            candidate.public_text, turn_plan,
+        ).split()))
+        self.assertEqual(decision.connector_seconds, math.ceil(connector_chars / 4))
 
     def test_continuation_tracks_only_published_and_deferred_facts(self):
         plan = _plan(3, 25)

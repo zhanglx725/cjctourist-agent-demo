@@ -229,6 +229,7 @@ def _validate_role_narration_contract(
     *,
     require_point_style_coverage: bool,
     compact: bool = False,
+    preserve_fact_layout: bool = False,
 ) -> NarrationValidationResult:
     reasons: list[str] = []
     allowed_ids = {fact.fact_id for fact in plan.facts}
@@ -249,7 +250,8 @@ def _validate_role_narration_contract(
     }
     if any(actual_statement_counts[value] != count for value, count in expected_statement_counts.items()):
         reasons.append("approved_statement_not_preserved")
-    if _fact_connector_segments(candidate.public_text, plan) is None:
+    connector_segments = _fact_connector_segments(candidate.public_text, plan)
+    if connector_segments is None:
         reasons.append("approved_statement_order_changed")
     connector = role_connector_text(candidate.public_text, plan)
     if len(connector) > role_connector_character_limit(plan):
@@ -268,13 +270,24 @@ def _validate_role_narration_contract(
     layout_reasons: list[str] = []
     if malformed_punctuation:
         layout_reasons.append("malformed_punctuation")
-    if _LAYOUT_HEADING.search(candidate.public_text):
+    # Stop guidance owns the complete visitor layout, so its whole candidate
+    # must be continuous. QA wraps an already-published, immutable answer; its
+    # existing paragraph breaks are part of that approved fact block. In QA,
+    # audit only prose added around the fact so the role layer cannot introduce
+    # headings, Markdown or new spacing while the legacy answer stays exact.
+    layout_segments = (
+        connector_segments
+        if preserve_fact_layout and connector_segments is not None
+        else [candidate.public_text]
+    )
+    layout_text = "".join(layout_segments)
+    if any(_LAYOUT_HEADING.search(segment) for segment in layout_segments):
         layout_reasons.append("layout_heading_leak")
-    if _LAYOUT_MARKDOWN.search(candidate.public_text):
+    if any(_LAYOUT_MARKDOWN.search(segment) for segment in layout_segments):
         layout_reasons.append("layout_markdown_leak")
-    if _LAYOUT_SPACING.search(candidate.public_text):
+    if any(_LAYOUT_SPACING.search(segment) for segment in layout_segments):
         layout_reasons.append("layout_spacing_invalid")
-    if "\n" in candidate.public_text or not candidate.public_text.strip().endswith(("。", "！", "？")):
+    if "\n" in layout_text or not candidate.public_text.strip().endswith(("。", "！", "？")):
         layout_reasons.append("layout_not_continuous")
     reasons.extend(layout_reasons)
     if _has_duplicate_connector_sentence(connector):
@@ -380,7 +393,11 @@ def validate_qa_role_narration(
             reason_codes=("qa_plan_required",),
         )
     return _validate_role_narration_contract(
-        candidate, plan, brief, require_point_style_coverage=False,
+        candidate,
+        plan,
+        brief,
+        require_point_style_coverage=False,
+        preserve_fact_layout=True,
     )
 
 

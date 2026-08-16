@@ -6,11 +6,14 @@ from unittest.mock import patch
 
 from agent_graph import (
     qa_content_plan_node,
+    qa_role_narration_generation_node,
     qa_role_narration_commit_node,
     qa_role_narration_fallback_node,
     qa_role_narration_validation_node,
     route_after_qa_role_narration_validation,
 )
+from langchain_core.messages import AIMessage
+from role_narration_generation import RoleNarrationCandidate
 from test_qa_role_shadow import QaRoleShadowTests
 
 
@@ -59,6 +62,78 @@ class QaRoleActiveTests(unittest.TestCase):
         state, _ = self._accepted(follow_up=True)
         self.assertEqual(state["active_qa_role_narration_audit"]["scene_kind"], "qa_follow_up_detail")
         self.assertEqual(route_after_qa_role_narration_validation(state), "qa_role_narration_commit")
+
+    def test_multiline_legacy_answer_keeps_layout_and_publishes_role_candidate(self):
+        fixture = QaRoleShadowTests()
+        state = fixture.state("child")
+        approved = (
+            "灰塑是珠江三角洲传统建筑中广泛使用的装饰艺术。\n\n"
+            "在材料与制作上，艺人以石灰为主料。\n\n"
+            "现场可见情况请以实际为准。"
+        )
+        state["messages"] = [AIMessage(
+            content=approved,
+            additional_kwargs={"tour_qa_answer": True},
+        )]
+        planned = {**state, **qa_content_plan_node(state)}
+        narration_plan = planned["qa_content_plan"]["narration_plan"]
+        raw_candidate = RoleNarrationCandidate(
+            style_id="child",
+            public_text=approved,
+            used_fact_ids=("qa:approved_answer",),
+            omitted_fact_ids=(),
+            self_check={
+                "added_new_facts": False,
+                "role_consistent": True,
+                "within_budget": True,
+            },
+            model_called=True,
+            latency_ms=1,
+        )
+        with patch.dict(os.environ, ACTIVE_ENV, clear=False), patch(
+            "agent_graph.generate_role_narration", return_value=raw_candidate,
+        ):
+            generated = qa_role_narration_generation_node(planned)
+            merged = {**planned, **generated}
+            validated = qa_role_narration_validation_node(
+                merged, {"configurable": {"thread_id": "qa-active-multiline"}},
+            )
+            committed = qa_role_narration_commit_node({**merged, **validated})
+
+        validation = validated["qa_role_narration_validation"]
+        self.assertEqual(validation["validation_status"], "accepted")
+        self.assertTrue(validation["layout_passed"])
+        self.assertEqual(validation["layout_reason_codes"], [])
+        self.assertEqual(
+            committed["messages"][0].content.count(approved), 1,
+        )
+        self.assertTrue(committed["active_qa_role_narration_audit"]["active_takeover"])
+        self.assertFalse(committed["active_qa_role_narration_audit"]["fallback_used"])
+        self.assertEqual(
+            committed["active_qa_role_narration_audit"]["commit_decision"],
+            "qa_role_candidate_published",
+        )
+        self.assertEqual(validation["state_writes"], [])
+
+    def test_newline_added_by_role_connector_is_rejected(self):
+        fixture = QaRoleShadowTests()
+        state = fixture.state("child")
+        planned = {**state, **qa_content_plan_node(state)}
+        narration_plan = planned["qa_content_plan"]["narration_plan"]
+        approved = narration_plan["facts"][0]["statement"]
+        candidate = fixture.generated("child", f"先看这里。\n{approved}本次回答到这里。")
+        merged = {
+            **planned,
+            "qa_role_narration_candidate": candidate.to_dict(),
+        }
+        with patch.dict(os.environ, ACTIVE_ENV, clear=False):
+            validated = qa_role_narration_validation_node(
+                merged, {"configurable": {"thread_id": "qa-active-newline"}},
+            )
+        validation = validated["qa_role_narration_validation"]
+        self.assertEqual(validation["validation_status"], "rejected")
+        self.assertIn("layout_not_continuous", validation["reason_codes"])
+        self.assertTrue(validated["active_qa_role_narration_audit"]["fallback_used"])
 
     def test_rejection_and_kill_switch_preserve_legacy_answer(self):
         state, _ = self._accepted()

@@ -129,6 +129,27 @@ class VisitorWelcomeTests(unittest.TestCase):
         }
         self.assertEqual(route_initial_request(state), "visitor_onboarding")
 
+    def test_active_onboarding_role_selection_does_not_preempt_missing_profile_fields(self):
+        state = {
+            "messages": [HumanMessage(content="选择中性清晰风格")],
+            "visitor_welcome_program": {
+                "schema_version": "visitor_welcome_v1",
+                "status": "awaiting_language",
+            },
+            "role_mode_shadow": {
+                "status": "selected",
+                "selected_style_id": "neutral",
+                "source": "explicit_request",
+            },
+            "performance_metrics": [],
+        }
+        self.assertEqual(route_initial_request(state), "visitor_onboarding")
+        result = visitor_onboarding_node(state)
+        self.assertEqual(result["visitor_welcome_program"]["status"], "awaiting_language")
+        self.assertEqual(result["visitor_profile"]["explanation_style"], "neutral")
+        self.assertEqual(result["messages"][0].content, LANGUAGE_REQUIRED_PROMPT)
+        self.assertNotIn("tour_state", result)
+
     def test_existing_thread_is_migrated_without_replaying_welcome(self):
         result = visitor_welcome_node({
             "messages": [
@@ -231,6 +252,7 @@ class VisitorWelcomeTests(unittest.TestCase):
         self.assertEqual(result["profile_collection"]["status"], "ready")
         self.assertIsNone(result["profile_collection"]["next_missing_field"])
         self.assertEqual(route_after_visitor_onboarding(result), "direct_route")
+        self.assertNotIn("messages", result)
 
     def test_language_classic_mode_and_duration_in_one_turn_are_ready(self):
         state = {

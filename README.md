@@ -146,8 +146,12 @@ LangGraph 配置位于 `langgraph.json`，主图入口为 `agent_graph.py:studio
 ### 4. 启动比赛演示前端
 
 ```powershell
-.\.venv\Scripts\streamlit.exe run webapp.py
+.\.venv\Scripts\python.exe -m streamlit run demo\streamlit_app.py `
+  --server.address 127.0.0.1 `
+  --server.port 8502
 ```
+
+`webapp.py` 是 Agent Server 应用，不是 Streamlit 页面。完整部署配置见 `demo/README_DEPLOY.md`。
 
 ## 角色能力开关
 
@@ -168,13 +172,17 @@ $env:CJC_READ_ONLY_ROLLOUT_CAPABILITIES = "role_narration"
 
 ```powershell
 $env:CJC_READ_ONLY_ROLLOUT_MODE = "read_only_active"
-$env:CJC_READ_ONLY_ROLLOUT_CAPABILITIES = "role_narration"
-$env:ROLE_ACTIVE_ENABLED = "true"
-$env:ROLE_ACTIVE_STYLES = "ancient_scholar"
-$env:ROLE_ACTIVE_SCENES = "route_planning,route_opening,stop_guidance"
+$env:CJC_READ_ONLY_ROLLOUT_CAPABILITIES = "role_narration,role_qa"
+$env:PRODUCT_ROLE_ACTIVE_ENABLED = "true"
+$env:PRODUCT_ROLE_ACTIVE_STYLES = "child,ancient_scholar"
+$env:PRODUCT_ROLE_ACTIVE_SCENES = "route_planning,route_opening,stop_guidance,tour_qa,qa_follow_up_detail"
+$env:PRODUCT_ROLE_ROLLOUT_PERCENTAGE = "100"
+$env:PRODUCT_ROLE_KILL_SWITCH = "false"
+$env:PRODUCT_ROLE_VALIDATION_LEVEL = "strict"
+$env:PRODUCT_ROLE_FALLBACK_POLICY = "legacy"
 ```
 
-实际演示前应根据已经验收的风格和场景设置最小白名单。任何配置不完整、未知风格或未知场景都会失败关闭。
+实际演示前应根据已经验收的风格和场景设置最小白名单。18 风格全矩阵验收的完整列表见 `demo/README_DEPLOY.md`。任何配置不完整、未知风格或未知场景都会失败关闭。修改 Active 配置后必须重启 Streamlit 并新建会话。
 
 ## 测试
 

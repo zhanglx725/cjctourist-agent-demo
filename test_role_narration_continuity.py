@@ -23,7 +23,7 @@ from agent_graph import (
     tour_opening_node,
     visit_summary_node,
 )
-from role_mode_shadow import ROLE_MODE_SURFACES, resolve_role_mode
+from role_mode_shadow import ROLE_MODE_IDS, ROLE_MODE_SURFACES, resolve_role_mode
 from narration_style_policy import compile_style_brief
 from role_narration_generation import (
     RoleNarrationCandidate,
@@ -63,6 +63,27 @@ class RoleNarrationContinuityTests(unittest.TestCase):
             },
         })
         return {**route, "role_mode_shadow": role_record}
+
+    def test_every_reviewed_role_can_be_confirmed_with_its_catalog_name(self):
+        self.assertEqual(len(ROLE_MODE_IDS), 18)
+        for style_id in sorted(ROLE_MODE_IDS):
+            with self.subTest(style_id=style_id):
+                result = role_mode_confirmation_node({
+                    "role_mode_shadow": {
+                        "status": "selected",
+                        "selected_style_id": style_id,
+                    },
+                    "performance_metrics": [],
+                })
+                self.assertTrue(result["last_role_mode_confirmation"]["ok"])
+                self.assertEqual(
+                    result["last_role_mode_confirmation"]["selected_style_id"],
+                    style_id,
+                )
+                self.assertIn(
+                    compile_style_brief(style_id).display_name,
+                    result["messages"][0].content,
+                )
 
     @staticmethod
     def _accepted_stop_candidate(plan, style_id):

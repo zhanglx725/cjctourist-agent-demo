@@ -100,22 +100,66 @@ def _fact_seconds(plan: NarrationContentPlan, facts: Iterable[NarrationFact]) ->
 
 
 def _component_chars(brief: StyleBrief, facts: tuple[NarrationFact, ...], *, compact: bool) -> int:
+    """Count the exact deterministic scaffold selected by the renderer.
+
+    Budget preflight must use the same component index, transition placement,
+    duplicate suppression, and compact/full rules as
+    ``apply_point_narration_scaffold``.  The former implementation used the
+    shortest value in each component family and did not count transitions
+    between fact units.  A plan could therefore pass preflight and then fail
+    after the model call with ``style_scaffold_budget_exceeded``.
+    """
     components = brief.point_narration_components
-    keys = ["opening", "closing"]
-    if facts:
-        previous_unit = ""
-        for fact in facts:
-            if fact.unit_id != previous_unit:
-                keys.append(f"{fact.topic_kind}_intro")
-                previous_unit = fact.unit_id
-            elif not compact:
-                keys.append(f"{fact.topic_kind}_observation")
-        if not compact:
-            keys.append("appreciation")
-    return sum(
-        min((_visible(str(value)) for value in components.get(key, ()) if value), default=0)
-        for key in keys
-    )
+
+    def selected(kind: str, index: int, *, previous: str = "") -> str:
+        values = components.get(kind, ())
+        if not values:
+            return ""
+        normalized = tuple(str(value).strip() for value in values if str(value).strip())
+        if not normalized:
+            return ""
+        for offset in range(len(normalized)):
+            value = normalized[(index + offset) % len(normalized)]
+            if value != previous:
+                return value
+        return normalized[index % len(normalized)]
+
+    selected_components: list[str] = []
+    opening = selected("opening", 0)
+    if opening:
+        selected_components.append(opening)
+    previous_component = opening
+    for index, fact in enumerate(facts):
+        is_unit_start = index == 0 or facts[index - 1].unit_id != fact.unit_id
+        if is_unit_start:
+            intro = selected(
+                f"{fact.topic_kind}_intro", index,
+                previous=previous_component,
+            )
+            if intro and intro != previous_component:
+                selected_components.append(intro)
+                previous_component = intro
+        if not compact and index < len(facts) - 1:
+            next_fact = facts[index + 1]
+            kind = "observation" if next_fact.unit_id == fact.unit_id else "transition"
+            bridge = selected(
+                f"{fact.topic_kind}_{kind}", index,
+                previous=previous_component,
+            )
+            if bridge and bridge != previous_component:
+                selected_components.append(bridge)
+                previous_component = bridge
+    if not compact:
+        appreciation = selected(
+            "appreciation", len(facts), previous=previous_component,
+        )
+        if appreciation and appreciation != previous_component:
+            selected_components.append(appreciation)
+            previous_component = appreciation
+    closing = selected("closing", len(facts), previous=previous_component)
+    if closing and closing != previous_component:
+        selected_components.append(closing)
+    return sum(_visible(value) for value in selected_components)
 
 
 def _connector_seconds(brief: StyleBrief, facts: tuple[NarrationFact, ...], *, compact: bool) -> int:

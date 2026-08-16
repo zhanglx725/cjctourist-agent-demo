@@ -73,9 +73,10 @@ class DemoPublicAdapterTests(unittest.TestCase):
         document = (Path(__file__).resolve().parent / "demo" / "README_DEPLOY.md").read_text(encoding="utf-8")
         for value in (
             "CJC_READ_ONLY_ROLLOUT_MODE = \"read_only_active\"",
-            "ROLE_ACTIVE_ENABLED = \"true\"",
-            "ROLE_ACTIVE_STYLES = \"neutral,child,ancient_scholar\"",
-            "ROLE_ACTIVE_SCENES = \"route_planning,route_opening,stop_guidance\"",
+            "CJC_READ_ONLY_ROLLOUT_CAPABILITIES = \"role_narration,role_qa\"",
+            "PRODUCT_ROLE_ACTIVE_ENABLED = \"true\"",
+            "PRODUCT_ROLE_ACTIVE_SCENES = \"route_planning,route_opening,stop_guidance,tour_qa,qa_follow_up_detail\"",
+            "PRODUCT_ROLE_ROLLOUT_PERCENTAGE = \"100\"",
             "“我到了”",
         ):
             self.assertIn(value, document)

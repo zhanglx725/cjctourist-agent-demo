@@ -1397,8 +1397,16 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
             f"{interest_note}{depth_note}"
         )
     total_minutes = total_seconds / 60
+    role_confirmation = ""
+    if profile.explanation_style in ROLE_MODE_IDS:
+        role_name = compile_style_brief(profile.explanation_style).display_name
+        role_confirmation = (
+            f"已采用“{role_name}”讲解角色，接下来的路线开场与点位讲解"
+            "将使用这一风格。\n\n"
+        )
     message = (
-        f"为您推荐“{plan.display_name}”。预计总时长约 {total_minutes:.0f} 分钟"
+        role_confirmation
+        + f"为您推荐“{plan.display_name}”。预计总时长约 {total_minutes:.0f} 分钟"
         f"（可用时间 {minutes} 分钟）。路线已结合您的时间、兴趣和讲解深度安排。\n\n"
         "讲解停留顺序：\n"
         + "\n".join(stop_lines)
@@ -1882,6 +1890,7 @@ def visitor_onboarding_node(state: AgentState) -> dict[str, Any]:
         "qa_context": clear_qa_context(state.get("qa_context")),
         "pending_ornament_clarification": None,
     }
+    route_ready = False
     if status not in {"awaiting_ready", "awaiting_language", "awaiting_mode"}:
         return {}
 
@@ -1944,6 +1953,7 @@ def visitor_onboarding_node(state: AgentState) -> dict[str, Any]:
             if all(field in resolved for field in required_fields)
             else "collecting"
         )
+        route_ready = collection_status == "ready"
         updates["journey_mode_selection"] = {
             "status": "selected", "selected_mode": selected,
         }
@@ -1965,16 +1975,21 @@ def visitor_onboarding_node(state: AgentState) -> dict[str, Any]:
         )
         outcome = "completed"
     updates.update({
-        "messages": [AIMessage(
-            content=message,
-            additional_kwargs={"visitor_onboarding_prompt": True},
-        )],
         "visitor_welcome_program": program,
         "performance_metrics": _append_metric(
             state, "visitor_onboarding", time.perf_counter() - started,
             status=outcome, model_called=False,
         ),
     })
+    # A complete composite onboarding submission continues to direct_route in
+    # the same graph turn. Do not publish a standalone acknowledgement that
+    # would compete with the actual route response. Incomplete onboarding
+    # still emits the precise next-question prompt as before.
+    if not route_ready:
+        updates["messages"] = [AIMessage(
+            content=message,
+            additional_kwargs={"visitor_onboarding_prompt": True},
+        )]
     return updates
 
 
@@ -2178,11 +2193,11 @@ def role_mode_confirmation_node(state: AgentState) -> dict[str, Any]:
     updated_profile = update_visitor_profile(profile, **profile_patch).to_dict()
     interaction = state.get("tour_interaction_state") or {}
     phase = interaction.get("stop_phase")
-    public_role_name = {
-        "ancient_scholar": "古风书生",
-        "child": "儿童友好",
-        "listen_only": "静听模式",
-    }[selected]
+    # ``selected`` has already been checked against the complete reviewed
+    # catalog above.  Use that catalog for the visitor-facing name as well;
+    # a partial hard-coded label map would make otherwise valid styles such
+    # as ``neutral`` fail during confirmation.
+    public_role_name = compile_style_brief(selected).display_name
     base_message = f"已确认使用“{public_role_name}”讲解角色。"
     updates: dict[str, Any] = {
         "visitor_profile": updated_profile,
@@ -4712,15 +4727,12 @@ def route_initial_request(state: AgentState) -> str:
     # accepted role and the current navigation target remain untouched.
     if (state.get("pending_role_mode_clarification") or {}).get("status") == "clarification":
         return "clarification"
-    role_record = state.get("role_mode_shadow") or {}
-    if (
-        role_record.get("status") == "selected"
-        and role_record.get("source") == "explicit_request"
-        and classify_tour_intent(
-            raw_text, state.get("tour_state"), state.get("tour_interaction_state")
-        ).route_kind == "other"
-    ):
-        return "role_mode_confirmation"
+    # During onboarding, one submission may legitimately contain the language,
+    # journey mode, route preferences, and an explicit reviewed role.  Let the
+    # onboarding collector consume that composite request atomically before a
+    # role-only control can terminate the turn.  Once onboarding is complete,
+    # the existing role confirmation path remains authoritative and cannot
+    # restart or mutate an active route.
     onboarding_status = (state.get("visitor_welcome_program") or {}).get("status")
     onboarding_profile_control = parse_extended_profile_control(raw_text)
     if (
@@ -4730,6 +4742,15 @@ def route_initial_request(state: AgentState) -> str:
         if onboarding_profile_control.kind != "none":
             return "extended_profile_control"
         return "visitor_onboarding"
+    role_record = state.get("role_mode_shadow") or {}
+    if (
+        role_record.get("status") == "selected"
+        and role_record.get("source") == "explicit_request"
+        and classify_tour_intent(
+            raw_text, state.get("tour_state"), state.get("tour_interaction_state")
+        ).route_kind == "other"
+    ):
+        return "role_mode_confirmation"
     completed_tour = (state.get("tour_state") or {}).get("route_status") == "completed"
     if (
         isinstance(state.get("post_visit_nearby_offer"), dict)

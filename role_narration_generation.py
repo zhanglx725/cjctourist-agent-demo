@@ -87,11 +87,24 @@ def role_connector_character_limit(plan: NarrationContentPlan) -> int:
     return _plan_output_limits(plan)[1]
 
 
-def _component(brief: StyleBrief, kind: str, index: int) -> str:
+def _component(
+    brief: StyleBrief,
+    kind: str,
+    index: int,
+    *,
+    previous: str = "",
+) -> str:
     values = brief.point_narration_components.get(kind, ())
     if not values:
         return ""
-    return str(values[index % len(values)]).strip()
+    normalized = tuple(str(value).strip() for value in values if str(value).strip())
+    if not normalized:
+        return ""
+    for offset in range(len(normalized)):
+        selected = normalized[(index + offset) % len(normalized)]
+        if selected != previous:
+            return selected
+    return normalized[index % len(normalized)]
 
 
 def apply_point_narration_scaffold(
@@ -125,7 +138,10 @@ def apply_point_narration_scaffold(
     for index, fact in enumerate(ordered_facts):
         is_unit_start = index == 0 or ordered_facts[index - 1].unit_id != fact.unit_id
         if is_unit_start:
-            intro = _component(brief, f"{fact.topic_kind}_intro", index)
+            intro = _component(
+                brief, f"{fact.topic_kind}_intro", index,
+                previous=previous_component,
+            )
             if intro and intro != previous_component:
                 parts.append(intro)
                 previous_component = intro
@@ -133,16 +149,24 @@ def apply_point_narration_scaffold(
         if not compact and index < len(ordered_facts) - 1:
             next_fact = ordered_facts[index + 1]
             kind = "observation" if next_fact.unit_id == fact.unit_id else "transition"
-            bridge = _component(brief, f"{fact.topic_kind}_{kind}", index)
+            bridge = _component(
+                brief, f"{fact.topic_kind}_{kind}", index,
+                previous=previous_component,
+            )
             if bridge and bridge != previous_component:
                 parts.append(bridge)
                 previous_component = bridge
     if not compact:
-        appreciation = _component(brief, "appreciation", len(ordered_facts))
+        appreciation = _component(
+            brief, "appreciation", len(ordered_facts),
+            previous=previous_component,
+        )
         if appreciation and appreciation != previous_component:
             parts.append(appreciation)
             previous_component = appreciation
-    closing = _component(brief, "closing", len(ordered_facts))
+    closing = _component(
+        brief, "closing", len(ordered_facts), previous=previous_component,
+    )
     if closing and closing != previous_component:
         parts.append(closing)
     public_text = "".join(part for part in parts if part)
@@ -435,7 +459,7 @@ def generate_role_narration(
     brief: StyleBrief,
     invoke_model: Callable[[str], str],
     *,
-    compact: bool = False,
+    compact: bool | None = None,
 ) -> RoleNarrationCandidate:
     if plan.status != "ready" or brief.style_id != plan.style_id:
         return _failed(plan.style_id, "plan_or_style_not_ready")

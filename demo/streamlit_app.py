@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+import logging
 from pathlib import Path
 
 import streamlit as st
@@ -15,10 +16,27 @@ if str(ROOT) not in sys.path:
 from demo.demo_adapter import DemoAdapter
 
 
+LOGGER = logging.getLogger(__name__)
+
 STYLES = {
     "中性清晰": "neutral",
     "儿童友好": "child",
+    "亲子共游": "family",
+    "研学观察": "student_research",
+    "专业讲解": "professional",
+    "静听模式": "listen_only",
+    "混合群体": "mixed_group",
+    "霸道总裁": "dominant_ceo",
+    "奶气学弟": "cute_junior",
     "古风书生": "ancient_scholar",
+    "知心姐姐": "warm_sister",
+    "闺蜜唠嗑": "bestie_chat",
+    "兄弟搭子": "buddy_guide",
+    "探秘闯关": "exploration_game",
+    "打卡出片": "photo_guide",
+    "祠中宿生": "hostel_scholar",
+    "西关少爷（粤语）": "xiguan_young_master",
+    "粤派讲古（粤语）": "cantonese_storyteller",
 }
 INTERESTS = ["灰塑", "木雕", "石雕", "陶塑", "故事", "吉祥", "工艺", "建筑装饰"]
 QUICK_ACTIONS = ["我到了", "再讲详细一点", "完成本点"]
@@ -40,18 +58,89 @@ def _secret(name: str, default: str = "") -> str:
         return os.getenv(name, default)
 
 
-def _configure_environment() -> None:
-    # Secrets take precedence for this process only. They are never rendered or logged.
+def _runtime_setting(name: str, default: str = "") -> str:
+    """Prefer this process' explicit rollout setting over deployment Secrets."""
+    if name in os.environ:
+        return os.environ[name]
+    try:
+        return str(st.secrets.get(name, default))
+    except Exception:
+        return default
+
+
+def _role_rollout_startup_audit(environ: dict[str, str] | None = None) -> dict[str, object]:
+    """Return a secret-free audit of the effective role rollout configuration."""
+    from controlled_rollout import (
+        ROLE_NARRATION,
+        ROLE_QA,
+        product_capability_policy_from_environment,
+        rollout_from_environment,
+    )
+
+    values = os.environ if environ is None else environ
+    rollout = rollout_from_environment(values)
+    policy = product_capability_policy_from_environment(values)
+    policy_audit = policy.to_audit()
+    return {
+        "rollout_mode": rollout.mode.value,
+        "enabled_capabilities": sorted(rollout.enabled_capabilities),
+        "product_policy_enabled": policy.enabled,
+        "product_policy_source": policy.source,
+        "product_policy_reason_code": policy.reason_code,
+        "active_styles": policy_audit["styles"],
+        "active_scenes": policy_audit["scenes"],
+        "rollout_percentage": policy.rollout_percentage,
+        "kill_switch": policy.kill_switch,
+        "validation_level": policy.validation_level,
+        "fallback_policy": policy.fallback_policy,
+        "point_role_active_configured": bool(
+            rollout.enabled(ROLE_NARRATION)
+            and policy.enabled
+            and not policy.kill_switch
+            and "stop_guidance" in policy.scenes
+        ),
+        "qa_role_active_configured": bool(
+            rollout.enabled(ROLE_QA)
+            and policy.enabled
+            and not policy.kill_switch
+            and {"tour_qa", "qa_follow_up_detail"}.issubset(policy.scenes)
+        ),
+    }
+
+
+_ROLLOUT_AUDIT_LOGGED = False
+
+
+def _configure_environment() -> dict[str, object]:
+    # API/model Secrets remain deployment-owned and are never rendered or logged.
     for key in (
         "DEEPSEEK_API_KEY", "DEEPSEEK_MODEL", "ROLE_NARRATION_MODEL",
-        "CJC_READ_ONLY_ROLLOUT_MODE", "CJC_READ_ONLY_ROLLOUT_CAPABILITIES",
-        "ROLE_ACTIVE_ENABLED", "ROLE_ACTIVE_STYLES", "ROLE_ACTIVE_SCENES",
     ):
         value = _secret(key)
         if value:
             os.environ[key] = value
+    # Explicit environment variables win for runtime rollout controls so a
+    # local PowerShell acceptance run cannot be silently narrowed by stale
+    # Streamlit Secrets. Missing values may still come from deployment Secrets.
+    for key in (
+        "CJC_READ_ONLY_ROLLOUT_MODE", "CJC_READ_ONLY_ROLLOUT_CAPABILITIES",
+        "ROLE_ACTIVE_ENABLED", "ROLE_ACTIVE_STYLES", "ROLE_ACTIVE_SCENES",
+        "PRODUCT_ROLE_ACTIVE_ENABLED", "PRODUCT_ROLE_ACTIVE_STYLES",
+        "PRODUCT_ROLE_ACTIVE_SCENES", "PRODUCT_ROLE_ROLLOUT_PERCENTAGE",
+        "PRODUCT_ROLE_KILL_SWITCH", "PRODUCT_ROLE_VALIDATION_LEVEL",
+        "PRODUCT_ROLE_FALLBACK_POLICY",
+    ):
+        value = _runtime_setting(key)
+        if value:
+            os.environ[key] = value
     os.environ.setdefault("LANGCHAIN_TRACING_V2", "false")
     os.environ.setdefault("LANGSMITH_TRACING", "false")
+    audit = _role_rollout_startup_audit()
+    global _ROLLOUT_AUDIT_LOGGED
+    if not _ROLLOUT_AUDIT_LOGGED:
+        LOGGER.info("role_rollout_startup_audit=%s", audit)
+        _ROLLOUT_AUDIT_LOGGED = True
+    return audit
 
 
 @st.cache_resource(show_spinner=False)

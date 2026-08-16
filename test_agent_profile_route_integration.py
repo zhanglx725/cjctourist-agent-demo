@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
 from agent_graph import (
     build_agent_graph,
@@ -12,10 +13,14 @@ from agent_graph import (
     profile_collection_node,
     route_after_profile_collection,
     route_initial_request,
+    tour_event_node,
 )
 from guide_program_planner import plan_stop_program
+from narration_style_policy import compile_style_brief
+from role_mode_shadow import ROLE_MODE_IDS
 from route_planner import plan_template
 from tour_state import start_tour
+from visitor_profile import create_visitor_profile
 
 
 def _state(text: str, initial: dict | None = None) -> dict:
@@ -50,6 +55,72 @@ class AgentProfileRouteIntegrationTests(unittest.TestCase):
         self.assertEqual(result["tour_state"]["available_minutes"], 30)
         self.assertEqual(result["tour_state"]["interests"], ["灰塑"])
         self.assertEqual(result["tour_state"]["detail_level"], "standard")
+
+    @patch(
+        "agent_graph._invoke_semantic_model",
+        return_value='{"candidates":[],"ambiguity_reason":"no_candidate"}',
+    )
+    def test_complete_onboarding_with_role_returns_route_instead_of_role_only(self, _semantic):
+        text = "中文，定制模式，30分钟，我喜欢灰塑，标准讲解，选择中性清晰风格"
+        state = _state(text, {
+            "visitor_welcome_program": {
+                "schema_version": "visitor_welcome_v1",
+                "status": "awaiting_language",
+            },
+        })
+        graph = build_agent_graph(with_checkpointer=False)
+        result = graph.invoke(state)
+
+        answer = result["messages"][-1].content
+        self.assertEqual(
+            len([message for message in result["messages"] if isinstance(message, AIMessage)]),
+            1,
+        )
+        self.assertIn("已采用“中性清晰”讲解角色", answer)
+        self.assertIn("为您推荐“", answer)
+        self.assertIn("讲解停留顺序", answer)
+        self.assertNotEqual(
+            answer,
+            "已确认使用“中性清晰”讲解角色。后续讲解将使用这一角色，当前路线和进度保持不变。",
+        )
+        self.assertEqual(result["profile_collection"]["status"], "ready")
+        self.assertEqual(result["visitor_profile"]["explanation_style"], "neutral")
+        self.assertEqual(result["selected_route_id"], "highlights_30")
+        self.assertEqual(result["tour_state"]["route_status"], "not_started")
+        self.assertTrue(result["tour_interaction_state"]["pending_stop_id"])
+        node_names = [item["node"] for item in result["performance_metrics"]]
+        self.assertIn("visitor_onboarding", node_names)
+        self.assertIn("direct_route", node_names)
+        self.assertNotIn("role_mode_confirmation", node_names)
+
+        arrival = tour_event_node({
+            **result,
+            "messages": [HumanMessage(content="我到了")],
+        })
+        self.assertTrue(arrival["last_tour_event"]["ok"])
+        self.assertEqual(arrival["last_tour_event"]["event"], "arrive_at_stop")
+
+    def test_all_reviewed_roles_are_confirmed_inside_successful_route_text(self):
+        self.assertEqual(len(ROLE_MODE_IDS), 18)
+        for style_id in sorted(ROLE_MODE_IDS):
+            with self.subTest(style_id=style_id):
+                profile = create_visitor_profile(
+                    available_minutes=30,
+                    interests=["灰塑"],
+                    detail_level="standard",
+                    explanation_style=style_id,
+                    language="zh",
+                )
+                route = direct_route_node(_state(
+                    "生成路线",
+                    {"visitor_profile": profile.to_dict()},
+                ))
+                self.assertIn(
+                    f"已采用“{compile_style_brief(style_id).display_name}”讲解角色",
+                    route["messages"][0].content,
+                )
+                self.assertIn("为您推荐“", route["messages"][0].content)
+                self.assertEqual(route["tour_state"]["route_status"], "not_started")
 
     def test_english_minute_route_input_starts_same_thirty_minute_route(self):
         graph = build_agent_graph(with_checkpointer=False)
@@ -122,6 +193,7 @@ class AgentProfileRouteIntegrationTests(unittest.TestCase):
         self.assertNotIn("tour_state", result)
         self.assertNotIn("active_route_plan", result)
         self.assertIn("画像无效", result["messages"][0].content)
+        self.assertNotIn("接下来的路线开场", result["messages"][0].content)
 
     def test_legacy_direct_route_without_profile_remains_safe(self):
         result = direct_route_node(_state("我有30分钟，帮我规划路线"))
