@@ -39,6 +39,8 @@ class RoleNarrationLangSmithRunnerTests(unittest.TestCase):
         self.assertTrue(result["commit_audit"]["active_takeover"])
         self.assertEqual(result["commit_audit"]["commit_decision"], "role_candidate_published")
         self.assertIn(inputs["approved_fact"], result["final_visitor_message"])
+        self.assertIn("讲解结束后，您可确认是否完成本点参观。", result["final_visitor_message"])
+        self.assertIn("完成本点后，下一站：月台", result["final_visitor_message"])
         self.assertNotIn("【下一步】", result["final_visitor_message"])
         self.assertTrue(all(result["assertions"].values()))
 

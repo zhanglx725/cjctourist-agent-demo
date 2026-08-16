@@ -847,12 +847,30 @@ LangSmith 证据：点位 child 新 Thread 已证明 mode=active、generation_st
 下一步：先完成 3B.1 点位发布完整性，再补 3C 紧凑型组件库和 3D 最低覆盖/预算/continuation 合同，然后执行 18 风格矩阵
 ```
 
+```text
+日期：2026-08-16
+工作包：阶段 3B.1 点位发布完整性与服务尾部单元
+状态：verified（代码、自动回归、Streamlit 游客正文与 LangSmith Active 提交证据均已验收通过）
+修改文件：narration_service_tail.py、narration_rendering.py、agent_graph.py、role_narration_langsmith_runner.py、test_narration_service_tail.py、test_role_narration_graph.py、test_role_narration_style_matrix.py、test_narration_continuation_commit.py、test_role_narration_langsmith_runner.py
+实现内容：将 completion_prompt、next_stop、可选 photo_guidance 建模为确定性 PointServiceUnit；成功角色正文与已验证服务尾部合成为单一 validated_public_message；提交节点只发布该验证结果，不再追加或重算服务文本；路线状态与拍照计划指纹变化会使旧尾部失效；标题、Markdown、异常标点、内部字段或安全边界失败时继续完整回退旧链正文
+续讲合同：分段讲解的中间段不发布服务尾部，只在最终段发布，避免重复“完成本点/下一点”
+定向测试：56/56 OK
+完整回归：1239/1239 OK（LANGSMITH_TRACING=false、HF_HUB_OFFLINE=1）
+LangSmith Thread/Trace：2026-08-16 Streamlit 新 Thread（thread_id 前缀 streamlit-demo-4ef96e7f-7c27-4321-ba4，Turn 3）已确认 stop_guidance → narration_content_plan → role_narration_generation → narration_validation → narration_commit；commit_decision=role_candidate_published、commit_validation_status=accepted、validation_status=accepted、active_takeover=true、legacy_message_preserved=false
+服务尾部证据：service_tail_passed=true、service_tail_reason_codes=[]、service_unit_kinds=[completion_prompt,next_stop,photo_guidance]、state_writes=[]；public_message_safe=true、same_fact_boundary=true、role_consistent=true、style_quality_passed=true、within_budget=true
+游客可见结果：成功 narration_commit 连续显示角色化正文、完成确认、下一点“月台”导航和已触发的安全拍照建议；没有显示【下一步】/【打卡姿势建议】标题，摄影安全限制完整保留
+fallback 证据：服务尾部缺失、过期、顺序错误、公开文本越界或整体验证失败均进入 deterministic_narration_fallback，legacy_message_preserved=true，state_writes=[]
+验收边界：真实 Streamlit/LangSmith 已覆盖正常点位、拍照触发与成功 Active commit；分段续讲只在最终段发布尾部、故障时完整回退旧链由自动测试覆盖，本轮未额外执行人工故障注入
+未完成项：3B.1 无阻断项；正文中段角色辨识度与 18 风格组件扩充转入阶段 3C，最低覆盖、预算和 continuation 联合合同转入阶段 3D
+下一执行人：继续实施 3C 紧凑型贯穿表达组件库，再进入 3D 最低中段覆盖与预算合同
+```
+
 ---
 
 ## 10. 推荐执行顺序
 
 1. 阶段 3A 已验收通过，保留提交节点与游客正文证据；
-2. 实施 3B.1，恢复成功角色路径中的完成确认、下一点位和安全打卡建议；
+2. 阶段 3B.1 已通过自动回归和 Streamlit/LangSmith 人工发布完整性验收，保持 verified；
 3. 补充 3C 紧凑型贯穿表达组件库，先审核 child/ancient_scholar/dominant_ceo，再扩展全部 18 风格；
 4. 实施 3D 按事实单元预算、最低中段覆盖、continuation 与服务尾部联合验证；
 5. 实施 3E，使 QA 由“整块首尾风格”升级为“事实单元间风格”；

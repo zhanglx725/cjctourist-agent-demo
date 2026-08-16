@@ -22,8 +22,11 @@ from agent_graph import (
 )
 from narration_content_plan import NarrationContentPlan, NarrationFact
 from narration_coverage import empty_narration_coverage
+from narration_service_tail import build_stop_service_tail
 from role_narration_generation import RoleNarrationCandidate
 from role_narration_style_evaluator import evaluate_role_narration_style
+from route_planner import plan_template
+from tour_state import start_tour
 
 
 @contextmanager
@@ -63,8 +66,12 @@ def _state(inputs: Mapping[str, Any]) -> dict[str, Any]:
     fact_id = str(inputs["fact_id"])
     style_id = str(inputs["style_id"])
     legacy = _legacy_message(fact)
+    fixture_stop_id = "stop_front_courtyard_center"
+    tour_state = start_tour(plan_template("highlights_30"))
+    tour_state["current_stop_id"] = fixture_stop_id
+    service_tail = build_stop_service_tail(tour_state=tour_state)
     plan = NarrationContentPlan(
-        stop_id="langsmith_fixture_stop", style_id=style_id, language="zh",
+        stop_id=fixture_stop_id, style_id=style_id, language="zh",
         budget_seconds=60, allocated_content_seconds=12,
         facts=(NarrationFact(fact_id, "evaluation_fact", fact),),
         must_include=(), already_covered=(), must_not_claim=(),
@@ -82,7 +89,7 @@ def _state(inputs: Mapping[str, Any]) -> dict[str, Any]:
         coverage_candidates = [{
             "subject_kind": "craft", "subject_id": subject_id,
             "source_ids": ["S10"], "evidence_kind": "craft_overview",
-            "node_id": "langsmith_fixture_stop",
+            "node_id": fixture_stop_id,
         }]
     elif fact_id.startswith("ornament:"):
         subject_id = fact_id.removeprefix("ornament:")
@@ -90,7 +97,7 @@ def _state(inputs: Mapping[str, Any]) -> dict[str, Any]:
         coverage_candidates = [{
             "subject_kind": "ornament", "subject_id": subject_id,
             "source_ids": ["S11"], "evidence_kind": "ornament_detail",
-            "node_id": "langsmith_fixture_stop",
+            "node_id": fixture_stop_id,
         }]
     return {
         "messages": [AIMessage(id="langsmith-fixture-message", content=legacy)],
@@ -100,16 +107,17 @@ def _state(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "source": "langsmith_dataset", "confidence": 1.0,
         },
         "narration_coverage": empty_narration_coverage().to_dict(),
-        "tour_state": {"current_stop_id": "langsmith_fixture_stop"},
+        "tour_state": tour_state,
         "pending_role_narration_commit": {
             "status": "guided_e5", "legacy_public_message": legacy,
             "coverage_candidates": coverage_candidates,
             "narration_render_audit": {
-                "node_id": "langsmith_fixture_stop",
+                "node_id": fixture_stop_id,
                 "rendered_craft_ids": rendered_crafts,
                 "rendered_ornament_ids": rendered_ornaments,
                 "used_source_ids": ["S10", "S11"],
             },
+            "service_tail": service_tail.to_dict(),
         },
         "tour_presentation": {"message": legacy, "ok": True},
     }
@@ -172,6 +180,14 @@ def _deterministic_assertions(
         "validation_is_consistent_with_publication": (
             validation["validation_status"] == "accepted"
         ) == bool(audit.get("active_takeover")),
+        "successful_service_tail_is_complete": (
+            bool(audit.get("fallback_used"))
+            or (
+                "讲解结束后，您可确认是否完成本点参观。" in final_message
+                and "完成本点后，下一站：月台" in final_message
+                and "【下一步】" not in final_message
+            )
+        ),
     }
 
 

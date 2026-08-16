@@ -17,9 +17,12 @@ from controlled_rollout import (
 from narration_content_plan import NarrationContentPlan, NarrationFact
 from narration_coverage import commit_introductions, empty_narration_coverage
 from narration_style_policy import approved_style_ids, compile_style_brief
+from narration_service_tail import build_stop_service_tail, compose_stop_presentation
 from narration_validation import validate_role_narration
 from role_narration_generation import RoleNarrationCandidate, apply_point_narration_scaffold
 from role_narration_quality import evaluate_role_narration_shadow
+from route_planner import plan_template
+from tour_state import start_tour
 
 
 ACTIVE_ENV = {
@@ -39,7 +42,7 @@ POINT_FACTS = (
 
 def _plan(style_id: str, fact: NarrationFact) -> NarrationContentPlan:
     return NarrationContentPlan(
-        stop_id="front", style_id=style_id, language="zh", budget_seconds=60,
+        stop_id="stop_front_courtyard_center", style_id=style_id, language="zh", budget_seconds=60,
         allocated_content_seconds=12, facts=(fact,), must_include=(),
         already_covered=(), must_not_claim=(),
         interaction_allowed=style_id != "listen_only",
@@ -87,18 +90,33 @@ class RoleNarrationStyleMatrixTests(unittest.TestCase):
                     self.assertNotRegex(candidate.public_text, r"(?m)【[^】]+】|^\s*(?:#|[-*+]\s|\d+[.)、]\s)")
                     self.assertNotRegex(candidate.public_text, r"～|。。|，，|source_id|node_id")
                     legacy = "【工艺背景】旧链原文。【下一步】旧链提示。"
+                    tour_state = start_tour(plan_template("highlights_30"))
+                    tour_state["current_stop_id"] = "stop_front_courtyard_center"
+                    service_tail = build_stop_service_tail(tour_state=tour_state)
+                    validation = {
+                        **result.to_dict(),
+                        "service_tail_validation": {
+                            "validation_status": "accepted", "reason_codes": [],
+                        },
+                        "validated_public_message": compose_stop_presentation(
+                            candidate.public_text,
+                            " ".join(unit.public_text for unit in service_tail.units),
+                        ),
+                    }
                     with patch.dict(os.environ, ACTIVE_ENV, clear=False):
                         committed = narration_commit_node({
                             "messages": [AIMessage(id="legacy", content=legacy)],
+                            "tour_state": tour_state,
                             "narration_content_plan": _plan(style_id, fact).to_dict(),
                             "role_narration_candidate": candidate.to_dict(),
-                            "narration_validation": result.to_dict(),
+                            "narration_validation": validation,
                             "active_role_narration_audit": {
                                 "style_id": style_id, "state_writes": [],
                             },
                             "pending_role_narration_commit": {
                                 "status": "guided_e5", "legacy_public_message": legacy,
                                 "coverage_candidates": [], "narration_render_audit": {},
+                                "service_tail": service_tail.to_dict(),
                             },
                             "narration_coverage": empty_narration_coverage().to_dict(),
                         })

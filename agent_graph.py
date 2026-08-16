@@ -8,7 +8,7 @@ import re
 import time
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Mapping
 
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
@@ -74,6 +74,12 @@ from research_card_retrieval import is_explicit_research_question
 from comparison_retrieval import is_explicit_comparison_question
 from photo_spot_runtime import is_explicit_photo_request, is_unsafe_photo_request
 from proactive_photo_guidance import maybe_trigger_photo_guidance
+from narration_service_tail import (
+    build_stop_service_tail,
+    compose_stop_presentation,
+    stop_service_tail_from_dict,
+    validate_stop_service_tail,
+)
 from nearby_poi_runtime import (
     POST_VISIT_NEARBY_PROMPT,
     is_explicit_nearby_request,
@@ -2953,6 +2959,18 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
         public_message = public_visitor_message_or_fallback(
             f"{public_message}\n\n{photo_guidance['message']}"
         )
+    service_tail = build_stop_service_tail(
+        tour_state=state.get("tour_state"),
+        photo_guidance_message=(
+            str(photo_guidance.get("message") or "")
+            if photo_guidance.get("triggered") else None
+        ),
+        photo_spot_id=(
+            str(photo_guidance.get("photo_spot_id") or "")
+            if photo_guidance.get("triggered") else None
+        ),
+        photo_plan=(photo_guidance.get("plan") if photo_guidance.get("triggered") else None),
+    )
     rollout = rollout_from_environment()
     role_mode = state.get("role_mode_shadow") or {}
     # Unknown, conflicting, or otherwise unresolved role requests must not
@@ -2998,6 +3016,7 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
                 "legacy_public_message": public_message,
                 "coverage_candidates": result.get("coverage_candidates", []),
                 "narration_render_audit": result.get("narration_render_audit"),
+                "service_tail": service_tail.to_dict(),
             }
             if role_active and result.get("status") == "guided_e5"
             else None
@@ -3258,6 +3277,33 @@ def narration_validation_node(state: AgentState, config: RunnableConfig = None) 
             candidate, plan, compile_style_brief(plan.style_id),
             compact=decision.get("mode") in {"compact", "split"},
         ).to_dict()
+    pending = state.get("pending_role_narration_commit") or {}
+    continuation = state.get("pending_narration_continuation")
+    publish_service_tail = not isinstance(continuation, Mapping) or (
+        continuation.get("status") == "completed"
+    )
+    service_validation = validate_stop_service_tail(
+        stop_service_tail_from_dict(pending.get("service_tail")),
+        tour_state=state.get("tour_state"),
+        photo_plan=state.get("proactive_photo_guidance"),
+        publish=publish_service_tail,
+    ).to_dict()
+    if service_validation["validation_status"] != "accepted":
+        validation["validation_status"] = "rejected"
+        validation["reason_codes"] = list(dict.fromkeys((
+            *validation.get("reason_codes", []),
+            *service_validation["reason_codes"],
+        )))
+        validation["public_message_safe"] = False
+    validation["service_tail_validation"] = service_validation
+    validation["validated_public_message"] = (
+        compose_stop_presentation(
+            candidate.public_text if candidate is not None else "",
+            service_validation["public_text"],
+        )
+        if validation["validation_status"] == "accepted"
+        else ""
+    )
     rollout = rollout_from_environment()
     rollout_thread_id = _rollout_thread_id(config)
     active_mode = bool(
@@ -3304,6 +3350,9 @@ def narration_validation_node(state: AgentState, config: RunnableConfig = None) 
         "candidate_fact_ids": [fact.fact_id for fact in plan.facts] if plan else [],
         "fact_unit_ids": list(dict.fromkeys(fact.unit_id for fact in plan.facts)) if plan else [],
         "fact_unit_topic_kinds": list(dict.fromkeys(fact.topic_kind for fact in plan.facts)) if plan else [],
+        "service_tail_passed": service_validation["validation_status"] == "accepted",
+        "service_tail_reason_codes": list(service_validation["reason_codes"]),
+        "service_unit_kinds": list(service_validation["service_unit_kinds"]),
         "used_fact_ids": list(candidate.used_fact_ids) if candidate else [],
         "omitted_fact_ids": list(candidate.omitted_fact_ids) if candidate else [],
         **validation,
@@ -3354,6 +3403,7 @@ def narration_commit_node(state: AgentState) -> dict[str, Any]:
     if (
         candidate is None
         or validation.get("validation_status") != "accepted"
+        or (validation.get("service_tail_validation") or {}).get("validation_status") != "accepted"
         or not isinstance(latest, AIMessage)
         or not pending
         or not product_role_active_allowed(
@@ -3361,10 +3411,14 @@ def narration_commit_node(state: AgentState) -> dict[str, Any]:
         )
     ):
         return deterministic_narration_fallback_node(state)
-    # Publish exactly the text accepted by narration_validation.  Appending a
-    # legacy section here would bypass the single validation gate and leak
-    # headings such as 【下一步】 into the continuous-layout success path.
-    final_text = public_visitor_message_or_fallback(candidate.public_text)
+    # Publish exactly the complete text accepted by narration_validation.
+    # Commit never appends legacy prose or recalculates route/photo content.
+    validated_public_message = str(validation.get("validated_public_message") or "")
+    if not validated_public_message:
+        return deterministic_narration_fallback_node(state)
+    final_text = public_visitor_message_or_fallback(validated_public_message)
+    if final_text != validated_public_message.strip():
+        return deterministic_narration_fallback_node(state)
     coverage_after, commit_audit = _commit_stop_guidance_coverage(
         state, dict(pending), public_message=final_text,
         introduced_by="narration_commit",

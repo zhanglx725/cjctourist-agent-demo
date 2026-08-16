@@ -17,6 +17,7 @@ from guidance_evidence_bundle import CoverageCandidate, EvidencePacket, Guidance
 from guidance_policy import GuidancePolicy
 from guide_program_planner import StopProgram
 from narration_style_policy import NarrationStylePolicy, STYLE_SCHEMA_VERSION, compile_narration_style
+from narration_service_tail import COMPLETION_PROMPT
 from ornament_detail_runtime import build_object_evidence_view, render_object_detail
 
 
@@ -431,7 +432,7 @@ def render_guidance_evidence(
     # The completion instruction is deliberately a peer section, rather than
     # the last line of an object or observation section.
     lines.append("【下一步】")
-    lines.append("讲解结束后，您可确认是否完成本点参观。")
+    lines.append(COMPLETION_PROMPT)
     allocated = sum(item.planned_seconds for item in rendered_items)
     return NarrationRenderResult(
         visitor_message="\n\n".join(lines),
