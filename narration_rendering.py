@@ -160,7 +160,7 @@ def _resolve_style(policy: GuidancePolicy | None) -> tuple[NarrationStylePolicy 
 def _style_frame(style_id: str) -> str | None:
     """Non-factual, deterministic framing controlled by approved style metadata."""
     frames = {
-        "child": "我们用简单的办法，一步步看看这里的装饰。",
+        "child": "别着急，我们一起慢慢看看，像找宝藏一样发现藏在建筑里的小线索。",
         "family": "可以一起留意这些构件的造型和细节。",
         "student_research": "可把工艺、构图与下列证据分开观察。",
         "professional": "以下按工艺、构图与题材信息组织观察。",
@@ -246,6 +246,9 @@ def _definition_slot(craft: str, sentence: str) -> str:
 
 _RAW_LIST_PREFIX = re.compile(r"^\s*(?:[-*+]\s+|\d+[.)]\s+)")
 _RAW_BOLD_LABEL_PREFIX = re.compile(r"^\*\*[^*]+\*\*\s*[：:]\s*")
+_INTERNAL_OBJECT_GUIDANCE = (
+    "审核关联", "可结合现场标识", "构件位置辨认", "存在审核", "未核验",
+)
 
 
 def _visitor_craft_sentence(sentence: str) -> str:
@@ -257,6 +260,38 @@ def _visitor_craft_sentence(sentence: str) -> str:
     """
     cleaned = _RAW_LIST_PREFIX.sub("", sentence.strip())
     return _RAW_BOLD_LABEL_PREFIX.sub("", cleaned).strip()
+
+
+def _child_role_fact_statements(
+    statements: tuple[str, ...], *, topic_kind: str,
+) -> tuple[str, ...]:
+    """Select a concise, visitor-safe reviewed subset for child role prose.
+
+    The deterministic fallback keeps the complete rendered evidence. This
+    narrower list is only the immutable fact contract supplied to the child
+    role layer, so audit wording and a long folklore paragraph do not become
+    mandatory child narration merely because they aid the evidence view.
+    """
+    cleaned = tuple(
+        statement.strip()
+        for statement in statements
+        if statement.strip()
+        and not any(marker in statement for marker in _INTERNAL_OBJECT_GUIDANCE)
+    )
+    if topic_kind == "craft":
+        return cleaned[:2]
+    if not cleaned:
+        return ()
+
+    identity = cleaned[0]
+    details = cleaned[1:]
+    visual = [
+        statement for statement in details
+        if any(marker in statement for marker in ORNAMENT_SHAPE_MARKERS)
+    ]
+    candidates = visual or list(details)
+    selected = min(candidates, key=len) if candidates else None
+    return (identity, selected) if selected and selected != identity else (identity,)
 
 
 def _craft_segment(
@@ -367,16 +402,24 @@ def render_guidance_evidence(
             packet = bundle.craft_overviews.get(craft)
             if packet and packet.evidence:
                 segment, sources, complete, warning, statements = _craft_segment(craft, packet, style, style_id)
-                # Use a plain-text section label instead of Markdown list
-                # syntax.  Studio renders wrapped list items with a deep
-                # hanging indent on narrow screens.
-                lines.append(f"【工艺背景：{craft}】")
-                lines.extend(segment)
+                role_statements = (
+                    _child_role_fact_statements(statements, topic_kind="craft")
+                    if style_id == "child" else statements
+                )
+                if style_id == "child":
+                    lines.append(f"第一条小线索，是一种叫作“{craft}”的传统工艺。")
+                    lines.extend(role_statements)
+                else:
+                    # Use a plain-text section label instead of Markdown list
+                    # syntax. Studio renders wrapped list items with a deep
+                    # hanging indent on narrow screens.
+                    lines.append(f"【工艺背景：{craft}】")
+                    lines.extend(segment)
                 if statements:
                     fact_units.append({
                         "unit_id": f"craft:{craft}",
                         "topic_kind": "craft",
-                        "statements": list(statements),
+                        "statements": list(role_statements),
                         "required": True,
                     })
                 used_sources.update(sources)
@@ -399,16 +442,23 @@ def render_guidance_evidence(
         segment, sources, complete, warning, statements = _ornament_segment(
             item, packet, bundle.location_evidence.get(item.ornament_id), first=first, style=style, style_id=style_id
         )
-        # Keep every reviewed object in its own flat section.  In particular,
-        # never prefix these paragraphs with '-' or '*' because a wrapped
-        # visitor sentence then becomes a nested-looking hanging indent.
-        lines.append(f"【观察对象：{item.name}】")
-        lines.extend(segment)
+        role_statements = (
+            _child_role_fact_statements(statements, topic_kind="ornament")
+            if style_id == "child" else statements
+        )
+        if style_id == "child":
+            lines.append(f"接着和{item.name}这位新朋友打个招呼。")
+            lines.extend(role_statements)
+        else:
+            # Keep every reviewed object in its own flat section. In
+            # particular, never prefix these paragraphs with '-' or '*'.
+            lines.append(f"【观察对象：{item.name}】")
+            lines.extend(segment)
         if statements:
             fact_units.append({
                 "unit_id": f"ornament:{item.ornament_id}",
                 "topic_kind": "ornament",
-                "statements": list(statements),
+                "statements": list(role_statements),
                 "required": True,
             })
         rendered_ornaments.append(item.ornament_id)
@@ -431,8 +481,12 @@ def render_guidance_evidence(
         lines.append("您可以留意其中一处造型细部；无需回答也不影响继续导览。")
     # The completion instruction is deliberately a peer section, rather than
     # the last line of an object or observation section.
-    lines.append("【下一步】")
-    lines.append(COMPLETION_PROMPT)
+    if style_id != "child":
+        lines.append("【下一步】")
+    lines.append(
+        "这一站的小秘密先看到这里。您想再仔细看看，或者准备好后完成本点都可以。"
+        if style_id == "child" else COMPLETION_PROMPT
+    )
     allocated = sum(item.planned_seconds for item in rendered_items)
     return NarrationRenderResult(
         visitor_message="\n\n".join(lines),

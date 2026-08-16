@@ -865,6 +865,33 @@ fallback 证据：服务尾部缺失、过期、顺序错误、公开文本越�
 下一执行人：继续实施 3C 紧凑型贯穿表达组件库，再进入 3D 最低中段覆盖与预算合同
 ```
 
+```text
+日期：2026-08-16
+工作包：阶段 3C 紧凑型贯穿表达组件库（三角色试点）
+状态：implemented（定向测试与兼容性回归通过，等待游客可见文本验收）
+修改文件：point_narration_components_v1.yaml、narration_style_policy.py、role_narration_generation.py、narration_budget.py、narration_validation.py、test_compact_role_components.py
+实现内容：为 child、ancient_scholar、dominant_ceo 增加完整 compact 组件组，每组至少 3 个审核候选；compact 渲染改为使用专用开场/收束，在每个事实单元末尾插入同类型 micro observation，并在单元切换处插入 micro transition；预算预检与校验使用相同的确定性选择、位置和轮换规则；未配置新组件的其余 15 风格保持旧 compact 合同
+安全边界：组件加载拒绝部分配置、空候选、内部引用、年份断言、标题、Markdown、换行和异常标点；模型仍只输出事实令牌，所有新增表达由服务端确定性渲染
+静态检查：git diff --check 通过，仅保留既有 CRLF 提示
+定向测试：44/44 OK（test_compact_role_components、test_narration_budget、test_role_narration_generation，由操作者执行）
+兼容性回归：31/31 OK（test_role_narration_style_matrix、test_role_narration_continuity、test_narration_continuation_commit，由操作者执行）
+下一步：人工比较三角色 compact 多单元正文，再决定扩展全部 18 风格或先调整组件文案
+```
+
+```text
+日期：2026-08-16
+工作包：阶段 3C 自然话语试点（事实锚点 + 受限连接语）
+状态：implemented（合同测试通过，等待 Graph 兼容性回归和 LangSmith 人工验收）
+修改文件：role_discourse.py、role_narration_generation.py、narration_validation.py、agent_graph.py、test_role_discourse.py
+实现内容：新增 RoleDiscoursePlan，将事实间关系标注为 same_unit_continuation、same_topic_new_unit 或 topic_transition；模型只生成 opening、逐槽 bridge 和 closing，服务端按原字、原序、原次数插入审核事实；三角色 compact 由 PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED 显式开关控制，默认关闭；自然候选失败或模型异常时丢弃模型文本并使用确定性 compact 组件 fallback
+安全校验：严格 JSON Schema、bridge ID 和顺序、连接语预算、事实复述、事实触发词、内部字段、危险表达、布局、禁用表达、互动边界、自检和角色最低标记；最终正文继续经过原有事实边界、公共消息、预算和服务尾部验证
+去重记忆：成功 Active commit 后只保存最多 12 条纯表达片段，不保存事实、游客问题、路线或资料；模型提示会收到 recent_expressions_to_avoid，原样复用会失败关闭
+定向测试：9/9 OK（test_role_discourse，由操作者执行）
+兼容性回归：104/104 OK；另行复测角色连续性 9/9 OK（接口兼容修复后，由操作者执行）
+运行配置：PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED 已接入 Streamlit 环境/Secrets 与无密钥启动审计；默认关闭，仅人工试点时开启
+下一步：验证 Streamlit 启动配置，再开启试点开关执行真实模型和 LangSmith 人工验收
+```
+
 ---
 
 ## 10. 推荐执行顺序

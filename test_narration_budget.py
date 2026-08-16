@@ -144,7 +144,7 @@ class NarrationBudgetTests(unittest.TestCase):
         )
         self.assertEqual(sum(
             value in candidate.public_text
-            for value in brief.point_narration_components["ornament_intro"]
+            for value in brief.point_narration_components["ornament_micro_observation"]
         ), 2)
         connector_chars = len("".join(role_connector_text(
             candidate.public_text, turn_plan,

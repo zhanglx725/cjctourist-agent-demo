@@ -225,6 +225,39 @@ class NarrationRenderingTests(unittest.TestCase):
         self.assertNotIn("任务", result.visitor_message)
         self.assertNotIn("说说", result.visitor_message)
 
+    def test_child_role_fact_units_are_concise_and_hide_audit_wording(self):
+        profile = create_visitor_profile(
+            interests=["灰塑"], detail_level="standard", explanation_style="child",
+        )
+        result = render_guidance_evidence(
+            self.program, self._bundle(), build_guidance_policy(profile),
+        )
+
+        ornament_units = [
+            unit for unit in result.fact_units if unit["topic_kind"] == "ornament"
+        ]
+        self.assertTrue(ornament_units)
+        self.assertTrue(all(len(unit["statements"]) <= 2 for unit in ornament_units))
+        role_facts = "".join(
+            statement
+            for unit in result.fact_units
+            for statement in unit["statements"]
+        )
+        self.assertNotIn("审核关联", role_facts)
+        self.assertNotIn("可结合现场标识", role_facts)
+        self.assertIn(self.primary.name, role_facts)
+        self.assertIn("独角", role_facts)
+        self.assertNotIn("【工艺背景", result.visitor_message)
+        self.assertNotIn("【观察对象", result.visitor_message)
+        self.assertNotIn("【下一步】", result.visitor_message)
+        self.assertNotIn("审核关联", result.visitor_message)
+        self.assertNotIn("可结合现场标识", result.visitor_message)
+        self.assertNotIn("给村民带来严重灾害", result.visitor_message)
+        self.assertIn("像找宝藏一样", result.visitor_message)
+        self.assertIn("小线索", result.visitor_message)
+        self.assertIn("新朋友", result.visitor_message)
+        self.assertIn("我们慢慢来", result.visitor_message)
+
     def test_paths_are_hidden_sources_are_only_used_when_rendered_and_inputs_are_unchanged(self):
         bundle = self._bundle()
         before_program = self.program.to_dict()

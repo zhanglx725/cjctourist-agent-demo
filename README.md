@@ -180,9 +180,10 @@ $env:PRODUCT_ROLE_ROLLOUT_PERCENTAGE = "100"
 $env:PRODUCT_ROLE_KILL_SWITCH = "false"
 $env:PRODUCT_ROLE_VALIDATION_LEVEL = "strict"
 $env:PRODUCT_ROLE_FALLBACK_POLICY = "legacy"
+$env:PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED = "true"
 ```
 
-实际演示前应根据已经验收的风格和场景设置最小白名单。18 风格全矩阵验收的完整列表见 `demo/README_DEPLOY.md`。任何配置不完整、未知风格或未知场景都会失败关闭。修改 Active 配置后必须重启 Streamlit 并新建会话。
+`PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED` 当前只对 `child`、`ancient_scholar`、`dominant_ceo` 的 compact 点位讲解生效；默认关闭，失败时回退已审核确定性组件。实际演示前应根据已经验收的风格和场景设置最小白名单。18 风格全矩阵验收的完整列表见 `demo/README_DEPLOY.md`。任何配置不完整、未知风格或未知场景都会失败关闭。修改 Active 配置后必须重启 Streamlit 并新建会话。
 
 ## 测试
 

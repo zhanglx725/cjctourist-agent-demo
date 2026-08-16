@@ -21,6 +21,7 @@ ACTIVE_ENV = {
     "PRODUCT_ROLE_KILL_SWITCH": "false",
     "PRODUCT_ROLE_VALIDATION_LEVEL": "strict",
     "PRODUCT_ROLE_FALLBACK_POLICY": "legacy",
+    "PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED": "true",
 }
 
 
@@ -49,6 +50,7 @@ class StreamlitRolloutStartupTests(unittest.TestCase):
             self.assertIn("stop_guidance", os.environ["PRODUCT_ROLE_ACTIVE_SCENES"])
         self.assertTrue(audit["point_role_active_configured"])
         self.assertTrue(audit["qa_role_active_configured"])
+        self.assertTrue(audit["natural_discourse_enabled"])
 
     def test_complete_deployment_secrets_fill_missing_runtime_settings(self):
         with patch.dict(os.environ, {}, clear=True), patch.object(
@@ -60,6 +62,7 @@ class StreamlitRolloutStartupTests(unittest.TestCase):
         self.assertEqual(len(audit["active_styles"]), 18)
         self.assertTrue(audit["point_role_active_configured"])
         self.assertTrue(audit["qa_role_active_configured"])
+        self.assertTrue(audit["natural_discourse_enabled"])
 
     def test_incomplete_product_policy_fails_closed_and_audit_has_no_secrets(self):
         incomplete = {
@@ -77,6 +80,7 @@ class StreamlitRolloutStartupTests(unittest.TestCase):
         self.assertEqual(audit["product_policy_reason_code"], "incomplete_product_policy")
         self.assertFalse(audit["point_role_active_configured"])
         self.assertFalse(audit["qa_role_active_configured"])
+        self.assertFalse(audit["natural_discourse_enabled"])
         rendered = repr(audit)
         self.assertNotIn("must-not-appear", rendered)
         self.assertNotIn("API_KEY", rendered)

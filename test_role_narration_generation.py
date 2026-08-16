@@ -355,7 +355,10 @@ class RoleNarrationGenerationTests(unittest.TestCase):
                     lambda _: self.response(style_id, "[[FACT_000]][[FACT_001]][[FACT_002]]", ["fact:a", "fact:b", "fact:c"]),
                 )
                 result = validate_role_narration(candidate, plan, brief)
-                self.assertEqual(result.validation_status, "accepted")
+                self.assertEqual(
+                    result.validation_status, "accepted",
+                    {"validation": result.to_dict(), "candidate": candidate.to_dict()},
+                )
                 for fact in plan.facts:
                     self.assertEqual(candidate.public_text.count(fact.statement), 1)
                 self.assertTrue(any(value in candidate.public_text for value in brief.point_narration_components["opening"]))

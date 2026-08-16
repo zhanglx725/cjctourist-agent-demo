@@ -142,6 +142,7 @@ from narration_budget import (
 from narration_style_policy import compile_style_brief
 from role_narration_generation import (
     generate_role_narration,
+    role_connector_text,
     role_narration_candidate_from_dict,
 )
 from role_mode_shadow import ROLE_MODE_IDS, resolve_role_mode
@@ -351,6 +352,7 @@ class AgentState(TypedDict, total=False):
     pending_narration_continuation: dict[str, Any] | None
     narration_continuation_commit: dict[str, Any] | None
     active_role_narration_audit: dict[str, Any] | None
+    role_discourse_recent_expressions: list[str]
     role_narration_evaluations: list[dict[str, Any]]
     # QA role expression is always non-authoritative.  It is deliberately
     # isolated from stop-guidance Coverage and Active commit state.
@@ -3221,8 +3223,16 @@ def role_narration_generation_node(state: AgentState) -> dict[str, Any]:
             }
         else:
             plan = turn_plan
+            recent_discourse_expressions = tuple(
+                state.get("role_discourse_recent_expressions", [])[-12:]
+            )
+            generation_options = (
+                {"recent_discourse_expressions": recent_discourse_expressions}
+                if recent_discourse_expressions else {}
+            )
             candidate = generate_role_narration(
                 plan, brief, _invoke_role_narration_model,
+                **generation_options,
             ).to_dict()
             existing_continuation = narration_continuation_from_dict(
                 state.get("narration_continuation")
@@ -3432,6 +3442,13 @@ def narration_commit_node(state: AgentState) -> dict[str, Any]:
         "coverage_commit": commit_audit,
     }
     presentation = state.get("tour_presentation")
+    recent_expressions = list(state.get("role_discourse_recent_expressions", []))
+    if candidate.reason_code == "natural_discourse_generated" and plan is not None:
+        from role_discourse import remember_discourse_expressions
+        recent_expressions = list(remember_discourse_expressions(
+            role_connector_text(candidate.public_text, plan),
+            tuple(recent_expressions),
+        ))
     return {
         "messages": [AIMessage(
             id=latest.id, content=final_text,
@@ -3447,6 +3464,7 @@ def narration_commit_node(state: AgentState) -> dict[str, Any]:
         ),
         "narration_coverage": coverage_after.to_dict(),
         "active_role_narration_audit": audit,
+        "role_discourse_recent_expressions": recent_expressions,
         "pending_role_narration_commit": None,
         "narration_continuation": state.get("pending_narration_continuation"),
         "pending_narration_continuation": None,

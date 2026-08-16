@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import time
 from dataclasses import dataclass
@@ -133,11 +134,15 @@ def apply_point_narration_scaffold(
     ordered_facts = [fact for fact in plan.facts if fact.fact_id in candidate.used_fact_ids]
     if not ordered_facts:
         return _failed(plan.style_id, "no_used_facts_for_scaffold", candidate.latency_ms, model_called=True)
-    parts = [_component(brief, "opening", 0)]
+    compact_components = bool(brief.point_narration_components.get("compact_opening"))
+    opening_key = "compact_opening" if compact and compact_components else "opening"
+    closing_key = "compact_closing" if compact and compact_components else "closing"
+    parts = [_component(brief, opening_key, 0)]
     previous_component = parts[0]
+    compact_transition_emitted = False
     for index, fact in enumerate(ordered_facts):
         is_unit_start = index == 0 or ordered_facts[index - 1].unit_id != fact.unit_id
-        if is_unit_start:
+        if is_unit_start and not (compact and compact_components):
             intro = _component(
                 brief, f"{fact.topic_kind}_intro", index,
                 previous=previous_component,
@@ -146,7 +151,26 @@ def apply_point_narration_scaffold(
                 parts.append(intro)
                 previous_component = intro
         parts.append(fact.statement)
-        if not compact and index < len(ordered_facts) - 1:
+        if compact and compact_components:
+            is_unit_end = index == len(ordered_facts) - 1 or ordered_facts[index + 1].unit_id != fact.unit_id
+            if is_unit_end:
+                observation = _component(
+                    brief, f"{fact.topic_kind}_micro_observation", index,
+                    previous=previous_component,
+                )
+                if observation and observation != previous_component:
+                    parts.append(observation)
+                    previous_component = observation
+            if is_unit_end and index < len(ordered_facts) - 1 and not compact_transition_emitted:
+                transition = _component(
+                    brief, f"{fact.topic_kind}_micro_transition", index,
+                    previous=previous_component,
+                )
+                if transition and transition != previous_component:
+                    parts.append(transition)
+                    previous_component = transition
+                    compact_transition_emitted = True
+        elif not compact and index < len(ordered_facts) - 1:
             next_fact = ordered_facts[index + 1]
             kind = "observation" if next_fact.unit_id == fact.unit_id else "transition"
             bridge = _component(
@@ -165,7 +189,7 @@ def apply_point_narration_scaffold(
             parts.append(appreciation)
             previous_component = appreciation
     closing = _component(
-        brief, "closing", len(ordered_facts), previous=previous_component,
+        brief, closing_key, len(ordered_facts), previous=previous_component,
     )
     if closing and closing != previous_component:
         parts.append(closing)
@@ -180,6 +204,7 @@ def apply_point_narration_scaffold(
         self_check=candidate.self_check,
         model_called=candidate.model_called,
         latency_ms=candidate.latency_ms,
+        reason_code=candidate.reason_code,
     )
 
 
@@ -460,6 +485,7 @@ def generate_role_narration(
     invoke_model: Callable[[str], str],
     *,
     compact: bool | None = None,
+    recent_discourse_expressions: tuple[str, ...] = (),
 ) -> RoleNarrationCandidate:
     if plan.status != "ready" or brief.style_id != plan.style_id:
         return _failed(plan.style_id, "plan_or_style_not_ready")
@@ -471,14 +497,86 @@ def generate_role_narration(
         allocated_seconds = math.ceil(approved_fact_characters / 4)
     if plan.budget_seconds <= 0 or allocated_seconds > plan.budget_seconds:
         return _failed(plan.style_id, "fact_budget_infeasible")
+    use_natural_discourse = (
+        os.getenv("PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED", "").strip().lower()
+        in {"1", "true", "yes", "on"}
+        and plan.scaffold_mode == "compact"
+        and plan.style_id in {"child", "ancient_scholar", "dominant_ceo"}
+    )
     started = time.perf_counter()
-    prompt = role_narration_prompt(plan, brief)
+    discourse_plan = None
+    if use_natural_discourse:
+        from role_discourse import build_role_discourse_plan, role_discourse_prompt
+        discourse_plan = build_role_discourse_plan(
+            plan, recent_expressions=recent_discourse_expressions,
+        )
+        prompt = (
+            role_discourse_prompt(discourse_plan, brief)
+            if discourse_plan is not None else role_narration_prompt(plan, brief)
+        )
+    else:
+        prompt = role_narration_prompt(plan, brief)
     try:
         raw = invoke_model(prompt)
     except Exception as exc:
         latency = int((time.perf_counter() - started) * 1000)
+        if discourse_plan is not None:
+            fallback_seed = RoleNarrationCandidate(
+                style_id=plan.style_id,
+                public_text="".join(fact.statement for fact in plan.facts),
+                used_fact_ids=tuple(fact.fact_id for fact in plan.facts),
+                omitted_fact_ids=(),
+                self_check={
+                    "added_new_facts": False,
+                    "role_consistent": True,
+                    "within_budget": True,
+                },
+                model_called=True,
+                latency_ms=latency,
+                reason_code=f"natural_discourse_fallback:model_unavailable:{type(exc).__name__}",
+            )
+            return apply_point_narration_scaffold(
+                fallback_seed, plan, brief, compact=True,
+            )
         return _failed(plan.style_id, f"model_unavailable:{type(exc).__name__}", latency, model_called=True)
     latency = int((time.perf_counter() - started) * 1000)
+    if discourse_plan is not None:
+        from role_discourse import compose_role_discourse, parse_and_validate_role_discourse
+        discourse_candidate = parse_and_validate_role_discourse(
+            raw, discourse_plan, brief,
+            interaction_allowed=plan.interaction_allowed,
+        )
+        if discourse_candidate.status == "generated":
+            return RoleNarrationCandidate(
+                style_id=plan.style_id,
+                public_text=compose_role_discourse(discourse_candidate, discourse_plan),
+                used_fact_ids=tuple(fact.fact_id for fact in plan.facts),
+                omitted_fact_ids=(),
+                self_check=dict(discourse_candidate.self_check),
+                model_called=True,
+                latency_ms=latency,
+                reason_code="natural_discourse_generated",
+            )
+        fallback_seed = RoleNarrationCandidate(
+            style_id=plan.style_id,
+            public_text="".join(fact.statement for fact in plan.facts),
+            used_fact_ids=tuple(fact.fact_id for fact in plan.facts),
+            omitted_fact_ids=(),
+            self_check={
+                "added_new_facts": False,
+                "role_consistent": True,
+                "within_budget": True,
+            },
+            model_called=True,
+            latency_ms=latency,
+            reason_code=(
+                "natural_discourse_fallback:"
+                + ",".join(discourse_candidate.reason_codes)
+            ),
+        )
+        return apply_point_narration_scaffold(
+            fallback_seed, plan, brief, compact=True,
+        )
     candidate = validate_candidate_shape(
         _decode(raw), expected_style_id=plan.style_id, latency_ms=latency,
     )

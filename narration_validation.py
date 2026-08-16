@@ -182,17 +182,36 @@ def _compact_point_style_coverage_reasons(
     components = brief.point_narration_components
     if segments is None:
         return ["style_coverage_incomplete"]
-    if not any(value in segments[0] for value in components.get("opening", ())):
+    compact_components = bool(components.get("compact_opening"))
+    opening_key = "compact_opening" if compact_components else "opening"
+    closing_key = "compact_closing" if compact_components else "closing"
+    if not any(value in segments[0] for value in components.get(opening_key, ())):
         return ["style_coverage_incomplete"]
-    if not any(value in segments[-1] for value in components.get("closing", ())):
+    if not any(value in segments[-1] for value in components.get(closing_key, ())):
         return ["style_coverage_incomplete"]
+    unit_count = sum(
+        index == 0 or plan.facts[index - 1].unit_id != fact.unit_id
+        for index, fact in enumerate(plan.facts)
+    )
     for index, fact in enumerate(plan.facts):
         is_start = index == 0 or plan.facts[index - 1].unit_id != fact.unit_id
-        if is_start and not any(
+        if not compact_components and is_start and not any(
             value in segments[index]
             for value in components.get(f"{fact.topic_kind}_intro", ())
         ):
             return ["style_coverage_incomplete"]
+        is_unit_end = index == len(plan.facts) - 1 or plan.facts[index + 1].unit_id != fact.unit_id
+        if compact_components and is_unit_end and not any(
+            value in segments[index + 1]
+            for value in components.get(f"{fact.topic_kind}_micro_observation", ())
+        ):
+            return [f"{fact.topic_kind}_compact_middle_coverage_incomplete", "style_coverage_incomplete"]
+    if compact_components and unit_count > 1 and not any(
+        value in "".join(segments)
+        for topic in ("space", "craft", "ornament")
+        for value in components.get(f"{topic}_micro_transition", ())
+    ):
+        return ["compact_transition_incomplete", "style_coverage_incomplete"]
     return []
 
 
@@ -297,7 +316,7 @@ def _validate_role_narration_contract(
     # not contain space/craft/ornament fact units.  Applying the point gate to
     # them makes every otherwise-safe QA Shadow candidate fail with
     # ``style_coverage_incomplete``.
-    if require_point_style_coverage:
+    if require_point_style_coverage and candidate.reason_code != "natural_discourse_generated":
         coverage_validator = (
             _compact_point_style_coverage_reasons
             if compact else _point_style_coverage_reasons

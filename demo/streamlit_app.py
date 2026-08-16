@@ -93,6 +93,10 @@ def _role_rollout_startup_audit(environ: dict[str, str] | None = None) -> dict[s
         "kill_switch": policy.kill_switch,
         "validation_level": policy.validation_level,
         "fallback_policy": policy.fallback_policy,
+        "natural_discourse_enabled": (
+            str(values.get("PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED", ""))
+            .strip().lower() in {"1", "true", "yes", "on"}
+        ),
         "point_role_active_configured": bool(
             rollout.enabled(ROLE_NARRATION)
             and policy.enabled
@@ -129,6 +133,7 @@ def _configure_environment() -> dict[str, object]:
         "PRODUCT_ROLE_ACTIVE_SCENES", "PRODUCT_ROLE_ROLLOUT_PERCENTAGE",
         "PRODUCT_ROLE_KILL_SWITCH", "PRODUCT_ROLE_VALIDATION_LEVEL",
         "PRODUCT_ROLE_FALLBACK_POLICY",
+        "PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED",
     ):
         value = _runtime_setting(key)
         if value:

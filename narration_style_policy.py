@@ -11,6 +11,12 @@ from guidance_policy import GuidancePolicy
 STYLE_FILE = Path(__file__).parent / "data" / "chen_clan_academy" / "narration_styles" / "styles_v1.yaml"
 ROLE_FILE = Path(__file__).parent / "data" / "chen_clan_academy" / "narration_styles" / "style_roles_v2.yaml"
 POINT_COMPONENT_FILE = Path(__file__).parent / "data" / "chen_clan_academy" / "narration_styles" / "point_narration_components_v1.yaml"
+COMPACT_COMPONENT_KEYS = frozenset({
+    "compact_opening", "compact_appreciation", "compact_closing",
+    *(f"{topic}_micro_{kind}" for topic in ("space", "craft", "ornament")
+      for kind in ("observation", "transition")),
+    "definition_bridge", "process_bridge", "object_bridge", "story_bridge",
+})
 STYLE_SCHEMA_VERSION = "narration_style_v2"
 REQUIRED = frozenset(("schema_version", "style_id", "display_name", "applicable_policy_conditions", "vocabulary_level", "sentence_length", "narrative_pacing", "craft_explanation_style", "ornament_explanation_style", "interaction_patterns", "observation_prompt_patterns", "allowed_devices", "prohibited_patterns", "fallback_style_id", "templates"))
 TEMPLATE_KEYS = frozenset(("first_craft_intro_style", "repeat_craft_style", "first_ornament_intro_style", "repeat_ornament_style"))
@@ -185,14 +191,21 @@ def _load_point_narration_components() -> dict[str, dict[str, tuple[str, ...]]]:
             raise ValueError("point narration components are not approved")
         result: dict[str, dict[str, tuple[str, ...]]] = {}
         for style_id, raw in payload["roles"].items():
-            if not isinstance(style_id, str) or not isinstance(raw, dict) or set(raw) != required:
+            raw_keys = set(raw) if isinstance(raw, dict) else set()
+            if (
+                not isinstance(style_id, str)
+                or not isinstance(raw, dict)
+                or not required.issubset(raw_keys)
+                or raw_keys - required - COMPACT_COMPONENT_KEYS
+                or (raw_keys & COMPACT_COMPONENT_KEYS and not COMPACT_COMPONENT_KEYS.issubset(raw_keys))
+            ):
                 raise ValueError("invalid point narration component entry")
             components: dict[str, tuple[str, ...]] = {}
-            for key in required:
+            for key in raw_keys:
                 values = raw[key]
                 if (
                     not isinstance(values, list)
-                    or len(values) < 2
+                    or len(values) < (3 if key in COMPACT_COMPONENT_KEYS else 2)
                     or not all(isinstance(value, str) and value.strip() for value in values)
                 ):
                     raise ValueError("incomplete point narration component")

@@ -125,13 +125,17 @@ def _component_chars(brief: StyleBrief, facts: tuple[NarrationFact, ...], *, com
         return normalized[index % len(normalized)]
 
     selected_components: list[str] = []
-    opening = selected("opening", 0)
+    compact_components = bool(components.get("compact_opening"))
+    opening_key = "compact_opening" if compact and compact_components else "opening"
+    closing_key = "compact_closing" if compact and compact_components else "closing"
+    opening = selected(opening_key, 0)
     if opening:
         selected_components.append(opening)
     previous_component = opening
+    compact_transition_emitted = False
     for index, fact in enumerate(facts):
         is_unit_start = index == 0 or facts[index - 1].unit_id != fact.unit_id
-        if is_unit_start:
+        if is_unit_start and not (compact and compact_components):
             intro = selected(
                 f"{fact.topic_kind}_intro", index,
                 previous=previous_component,
@@ -139,7 +143,26 @@ def _component_chars(brief: StyleBrief, facts: tuple[NarrationFact, ...], *, com
             if intro and intro != previous_component:
                 selected_components.append(intro)
                 previous_component = intro
-        if not compact and index < len(facts) - 1:
+        if compact and compact_components:
+            is_unit_end = index == len(facts) - 1 or facts[index + 1].unit_id != fact.unit_id
+            if is_unit_end:
+                observation = selected(
+                    f"{fact.topic_kind}_micro_observation", index,
+                    previous=previous_component,
+                )
+                if observation and observation != previous_component:
+                    selected_components.append(observation)
+                    previous_component = observation
+            if is_unit_end and index < len(facts) - 1 and not compact_transition_emitted:
+                transition = selected(
+                    f"{fact.topic_kind}_micro_transition", index,
+                    previous=previous_component,
+                )
+                if transition and transition != previous_component:
+                    selected_components.append(transition)
+                    previous_component = transition
+                    compact_transition_emitted = True
+        elif not compact and index < len(facts) - 1:
             next_fact = facts[index + 1]
             kind = "observation" if next_fact.unit_id == fact.unit_id else "transition"
             bridge = selected(
@@ -156,7 +179,7 @@ def _component_chars(brief: StyleBrief, facts: tuple[NarrationFact, ...], *, com
         if appreciation and appreciation != previous_component:
             selected_components.append(appreciation)
             previous_component = appreciation
-    closing = selected("closing", len(facts), previous=previous_component)
+    closing = selected(closing_key, len(facts), previous=previous_component)
     if closing and closing != previous_component:
         selected_components.append(closing)
     return sum(_visible(value) for value in selected_components)

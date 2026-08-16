@@ -20,9 +20,9 @@ blocked      存在已记录的外部或技术阻塞
 ## 当前产品基线
 
 ```text
-baseline_commit: f914498
-regression_baseline: 1210/1210 passed_by_operator
-baseline_date: 2026-08-15
+baseline_commit: 763dc20
+regression_baseline: 1239/1239 passed_by_operator
+baseline_date: 2026-08-16
 development_mode: full_product_functionality
 competition_materials: frozen
 ```
@@ -42,7 +42,7 @@ competition_materials: frozen
 | 18 风格点位讲解 | active | 产品策略控制；支持 full/compact/split/fallback | 全风格长讲解人工验收 |
 | 角色化路线规划 | active | 产品策略与场景配置控制 | 全角色人工验收 |
 | 角色化路线开场 | active | 产品策略与场景配置控制 | 全角色人工验收 |
-| 角色化问答 | shadow | QA 专用校验、候选和审计；不接管正文 | Active commit |
+| 角色化问答 | active | child 已有真实 Active commit；其余风格仍需矩阵验收 | 18 风格与追问人工验收 |
 | 角色化引路 | shadow | 导航专用校验与只读角色候选 | Active commit |
 | 角色化结束语 | shadow | 结束语专用校验与只读角色候选 | Coverage 与 Active commit |
 | 角色化重规划说明 | shadow | 独立正文边界校验；Proposal 审计不改路线 | freshness 与 Active commit |
@@ -71,7 +71,7 @@ competition_materials: frozen
 | 阶段 0：固定产品开发基线 | verified | 冻结提交、路线图、状态矩阵和远端标签均已固化 |
 | 阶段 1：产品级能力配置与场景校验重构 | verified | 产品策略和五类隔离校验入口完成；1180 项完整回归通过 |
 | 阶段 2：长讲解预算自适应与分轮输出 | verified | 四级预算策略、分轮控制、freshness 和逐轮 Coverage 完成；1210 项完整回归通过 |
-| 阶段 3：角色化问答 Active | planned | 依赖 QA 专用校验器 |
+| 阶段 3：角色化问答 Active | active | 3A 与 3B.1 verified；3C 三角色紧凑组件已实现、待测试，3D～3F 未完成 |
 | 阶段 4：引路、结束语与重规划说明 Active | planned | 依赖产品策略和场景校验器 |
 | 阶段 5：角色连续性与语音 | planned | 依赖完整角色链 |
 | 阶段 6：定位与地图 | planned | 可在阶段 5 后并行拆分 |
@@ -88,3 +88,5 @@ competition_materials: frozen
 - 2026-08-15：以 `92cb458` 和 `1170/1170` 回归结果建立产品状态矩阵。
 - 2026-08-15：完成阶段 1 产品能力策略与五类场景校验重构；定向测试 `77/77`、完整回归 `1180/1180` 均由操作者验证通过。
 - 2026-08-15：完成阶段 2 长讲解预算预检、full/compact/split/fallback、continuation 与逐轮 Coverage；完整回归 `1210/1210` 由操作者验证通过。
+- 2026-08-16：完成阶段 3A 真实 Active 基线和阶段 3B.1 点位服务尾部；完整回归 `1239/1239`，Streamlit/LangSmith 人工验收通过。
+- 2026-08-16：实现阶段 3C 的 child、ancient_scholar、dominant_ceo 紧凑型中段组件试点；因本机 Python 解释器不可用，保持 implemented，等待自动测试与真实输出验收。
