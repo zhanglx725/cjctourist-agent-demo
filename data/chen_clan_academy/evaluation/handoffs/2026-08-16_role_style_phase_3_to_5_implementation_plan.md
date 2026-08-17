@@ -905,6 +905,25 @@ fallback 证据：服务尾部缺失、过期、顺序错误、公开文本越�
 下一步：先完成 child 剩余五项并以 ancient_scholar 主线做回归；随后按 3C→3D→3E→3F 的顺序扩展，不直接开放 18 风格全场景 Active。
 ```
 
+```text
+日期：2026-08-17
+工作包：18 风格 stop_guidance 快速 Active 试运行
+状态：active（已扩展本地白名单；待自动矩阵与游客正文快速审阅）
+配置：PRODUCT_ROLE_ACTIVE_STYLES 已改为全部 18 个审核 style_id；PRODUCT_ROLE_ACTIVE_SCENES 仍严格限定为 stop_guidance，PRODUCT_ROLE_VALIDATION_LEVEL=strict、100% 灰度、kill switch=false 保持不变。
+边界：不使用“默认通过”。每种风格仍必须经过相同事实、布局、风格、安全、预算与服务尾部校验；失败自动显示旧链 fallback。人工验收只审阅最终游客正文，不要求逐条展开 LangSmith 节点。
+待执行：在可用项目 .venv 中运行 test_role_narration_style_matrix.py 与当前角色定向回归；重启 LangGraph 后，以每种风格各一条到站输入快速审阅游客可见正文；发现不自然、重复、后台术语或回退时记录该 style_id，再做定向修复。
+不包含：route_planning、route_opening、tour_qa、qa_follow_up_detail、navigation、tour_closing、replan_presentation 的 18 风格 Active 扩张。
+```
+
+```text
+日期：2026-08-17
+工作包：18 风格全场景 Active 探索性扩张
+状态：active（本地人工测试开关；不等同于阶段 3/4 verified）
+配置变更：CJC_READ_ONLY_ROLLOUT_CAPABILITIES=role_narration,role_qa；PRODUCT_ROLE_ACTIVE_SCENES=route_planning,route_opening,stop_guidance,tour_qa,qa_follow_up_detail,navigation,tour_closing,replan_presentation；全部 18 个 style_id 继续保留在产品白名单。
+安全边界：严格 validation、事实边界、预算、服务尾部、freshness、状态零写入与 legacy fallback 保持启用；未通过的单一场景必须回退旧链，不得因测试配置默认发布。
+验收方式：重启服务并使用新 Thread；按完整游客流程观察最终正文，先不要求逐节点人工审计。若某场景风格缺失、出现后台术语、路线/状态错误或明显回退，记录“style_id + 场景 + 最终正文”后定向修复；正式 verified 状态仍须补自动回归和必要的 Active 证据。
+```
+
 ---
 
 ## 10. 推荐执行顺序
