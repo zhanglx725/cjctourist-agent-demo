@@ -90,6 +90,23 @@ class RoleDiscourseTests(unittest.TestCase):
         self.assertIn("完整而自然的角色讲解", prompt)
         self.assertIn("轻微童话感", prompt)
         self.assertIn("同一个短句在整组连接语中只能出现一次", prompt)
+        for fact in plan().facts:
+            self.assertNotIn(fact.fact_id, prompt)
+            self.assertNotIn(fact.statement, prompt)
+        self.assertIn('"fact_slots"', prompt)
+
+    def test_prompt_includes_fact_free_expression_palette_without_fact_text(self):
+        source = plan("bestie_chat")
+        discourse = build_role_discourse_plan(source)
+        assert discourse is not None
+        brief = compile_style_brief("bestie_chat")
+        prompt = role_discourse_prompt(discourse, brief)
+
+        self.assertIn('"expression_palette"', prompt)
+        self.assertIn(brief.point_narration_components["opening"][0], prompt)
+        self.assertIn("不得逐句照抄", prompt)
+        for fact in source.facts:
+            self.assertNotIn(fact.statement, prompt)
 
     def test_schema_order_budget_fact_and_interaction_fail_closed(self):
         for name, mutate, expected in (

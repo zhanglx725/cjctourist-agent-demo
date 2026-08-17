@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -60,8 +59,19 @@ def _style_acceptance_reasons(connector: str, brief: StyleBrief) -> list[str]:
     )
     if any(marker in connector for marker in forbidden):
         reasons.append("style_forbidden_marker")
-    sentence_length = profile.get("rhythm", {}).get("sentence_length")
-    limit = _SENTENCE_LIMITS.get(sentence_length)
+    rhythm = profile.get("rhythm", {})
+    sentence_length = rhythm.get("sentence_length")
+    default_limit = _SENTENCE_LIMITS.get(sentence_length)
+    # A few conversational roles need room for one natural observation turn.
+    # This remains a bounded style rule, not a general relaxation: roles must
+    # opt in through their reviewed profile and all fact/safety gates still
+    # run before publication.
+    configured_limit = rhythm.get("max_sentence_characters")
+    limit = (
+        configured_limit
+        if isinstance(configured_limit, int) and 1 <= configured_limit <= 120
+        else default_limit
+    )
     sentences = [
         re.sub(r"\s+", "", value)
         for value in re.split(r"[。！？!?；;\n]+", connector)
@@ -275,7 +285,10 @@ def _validate_role_narration_contract(
     if connector_segments is None:
         reasons.append("approved_statement_order_changed")
     connector = role_connector_text(candidate.public_text, plan)
-    if len(connector) > role_connector_character_limit(plan):
+    # Paragraph separators are presentation-only. Generation budgets connector
+    # prose after whitespace normalization, so validation must use the same
+    # measure rather than charging a semantic blank line as content.
+    if len(re.sub(r"\s+", "", connector)) > role_connector_character_limit(plan):
         reasons.append("unbounded_role_connectors")
     # Triggers already present in an approved statement are harmless. Only
     # inspect model-added connective prose for new factual assertions.
@@ -331,20 +344,15 @@ def _validate_role_narration_contract(
         or re.search(r"(?:请你|试着|任务|回答|拍照|跟着做)", candidate.public_text)
     ):
         reasons.append("listen_only_interaction_violation")
-    # E5 has already budgeted the immutable approved facts.  Estimate only
-    # model-added connective prose here, otherwise the same content is charged
-    # twice and valid plans are globally rejected before style realization.
+    # Generation has already proved the reviewed fact allocation fits the
+    # stop budget.  Validate the identical connector cap here; estimating
+    # seconds again would create a second, stricter budget and reject a
+    # scaffold that generation has just accepted.
     connector_length = len(re.sub(r"\s+", "", connector))
-    allocated_seconds = plan.allocated_content_seconds
-    if allocated_seconds <= 0:
-        fact_characters = sum(
-            len(re.sub(r"\s+", "", fact.statement)) for fact in plan.facts
-        )
-        allocated_seconds = math.ceil(fact_characters / 4)
     within_budget = (
         candidate.generation_status == "generated"
         and plan.budget_seconds > 0
-        and allocated_seconds + math.ceil(connector_length / 4) <= plan.budget_seconds
+        and connector_length <= role_connector_character_limit(plan)
     )
     if not within_budget:
         reasons.append("content_budget_exceeded")

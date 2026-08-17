@@ -300,8 +300,10 @@ class NarrationRenderingTests(unittest.TestCase):
         result = render_guidance_evidence(self.program, self._bundle())
         message = result.visitor_message
         for item in self.program.selected_items:
-            self.assertIn(f"【观察对象：{item.name}】\n\n{item.name}是一件", message)
-        self.assertIn("【下一步】\n\n讲解结束后，您可确认是否完成本点参观。", message)
+            self.assertIn(f"{item.name}是一件", message)
+        self.assertNotIn("【", message)
+        self.assertNotIn("】", message)
+        self.assertIn("讲解结束后，您可确认是否完成本点参观。", message)
         self.assertFalse(any(line.startswith(("- ", "* ", "  - ", "  * ")) for line in message.splitlines()))
 
 

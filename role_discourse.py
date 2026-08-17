@@ -62,6 +62,7 @@ class RoleDiscoursePlan:
     style_id: str
     fact_ids: tuple[str, ...]
     fact_statements: tuple[str, ...]
+    fact_topics: tuple[str, ...]
     bridge_slots: tuple[DiscourseBridgeSlot, ...]
     max_connector_characters: int
     recent_expressions: tuple[str, ...] = ()
@@ -69,9 +70,13 @@ class RoleDiscoursePlan:
     def to_prompt_dict(self) -> dict[str, Any]:
         return {
             "style_id": self.style_id,
-            "facts": [
-                {"fact_id": fact_id, "statement": statement}
-                for fact_id, statement in zip(self.fact_ids, self.fact_statements)
+            # The real claims and identifiers deliberately stay server-side.
+            # The model needs only a neutral observation rhythm for each slot;
+            # passing reviewed prose here tempted it to paraphrase or embellish
+            # names, positions, and object traits outside the fact boundary.
+            "fact_slots": [
+                {"position": index + 1, "topic_kind": topic}
+                for index, topic in enumerate(self.fact_topics)
             ],
             "bridge_slots": [slot.to_dict() for slot in self.bridge_slots],
             "max_connector_characters": self.max_connector_characters,
@@ -137,6 +142,7 @@ def build_role_discourse_plan(
         style_id=plan.style_id,
         fact_ids=tuple(fact.fact_id for fact in plan.facts),
         fact_statements=tuple(fact.statement for fact in plan.facts),
+        fact_topics=tuple(fact.topic_kind for fact in plan.facts),
         bridge_slots=tuple(slots),
         max_connector_characters=role_connector_character_limit(plan),
         recent_expressions=tuple(
@@ -150,6 +156,19 @@ def role_discourse_prompt(
     discourse_plan: RoleDiscoursePlan,
     brief: StyleBrief,
 ) -> str:
+    # The deterministic component library is also a reviewed voice reference.
+    # Keep it fact-free and small: it should widen the model's phrasing range,
+    # not become another template to copy.
+    palette_keys = (
+        "opening", "space_intro", "craft_intro", "ornament_intro",
+        "appreciation", "closing",
+    )
+    expression_palette = [
+        phrase
+        for key in palette_keys
+        for phrase in brief.point_narration_components.get(key, ())[:3]
+        if isinstance(phrase, str) and phrase.strip()
+    ]
     payload = {
         "discourse_plan": discourse_plan.to_prompt_dict(),
         "style_brief": {
@@ -158,8 +177,14 @@ def role_discourse_prompt(
             "generation_policy": brief.generation_policy,
             "acceptance_profile": brief.acceptance_profile,
             "prohibited_patterns": list(brief.prohibited_patterns),
+            "expression_palette": expression_palette,
         },
     }
+    palette_rule = """
+expression_palette 是已审核、且不含事实的声音灵感库。可借鉴其观察动作、节奏和收束方式，但不得逐句照抄；
+每次至少用一个具体观察动作来组织表达（例如收近视线、对照、连起关系、回到整体）。避免流水线式重复
+“有意思”“抓重点”“找到线索”等口头禅。
+"""
     child_expression_rule = """
 儿童风格可以使用“像、仿佛、好像、可以把它想成”等明显属于比喻的表达，营造温柔、陪伴、探索和轻微童话感。
 这些表达只能描述观看感受或探索节奏，不能新增真实人物、年代、事件、用途、空间关系或传说细节；
@@ -169,8 +194,9 @@ def role_discourse_prompt(
 你负责把它们组织成游客愿意听下去的、完整而自然的角色讲解。
 opening 放在第一条事实之前；bridges 必须逐一对应 bridge_slots；closing 放在最后一条事实之后。
 relation=same_unit_continuation 时应自然承接同一对象或工艺，不得提前切换主题；
-relation=topic_transition 时才可以转入新的内容类型。连接语不得复述、改写或补充任何事实，
-不得增加人物、年代、故事、寓意、评价、位置、路线、现场状态或官方背书。
+relation=topic_transition 时才可以转入新的内容类型。输入中没有事实原文、专名或位置；
+连接语只可写观察动作、注意顺序、角色关系、节奏和无事实收束。不得猜测或描述任何实体的
+名称、位置、颜色、形状、材料、用途、年代、人物、故事、寓意、价值、路线或现场状态。
 整组连接语必须自然连贯：让 opening 建立角色与眼前观察目标，让 bridges 解释“为什么现在看下一项”，
 让 closing 自然收束。不要逐句评价、机械总结、审核术语和重复口头禅。不要只把角色称谓塞进第一句；
 StyleBrief 中的 persona、generation_policy、acceptance_profile 和 few_shot_examples 是本轮角色合同，
@@ -181,7 +207,7 @@ recent_expressions_to_avoid 是当前 Thread 最近已发布的纯表达片段�
 输出严格一行 JSON，只能包含 schema_version、style_id、opening、bridges、closing、self_check。
 schema_version 必须为 role_discourse_candidate_v1；bridges 每项只能包含 slot_id 和 text，顺序不得改变。
 self_check 只能包含 added_new_facts、role_consistent、within_budget 三个布尔值。不要输出代码块。
-""" + child_expression_rule + "输入：" + json.dumps(
+""" + palette_rule + child_expression_rule + "输入：" + json.dumps(
         payload, ensure_ascii=False, separators=(",", ":")
     )
 

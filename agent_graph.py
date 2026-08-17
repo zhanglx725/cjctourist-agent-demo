@@ -234,6 +234,9 @@ class PublicMessage:
     scene_kind: str
     text: str
     active_takeover: bool
+    # Visitor-safe operational guidance rendered separately from the narration.
+    # It never carries graph state, IDs, or model instructions.
+    service_text: str = ""
 
 
 @dataclass(frozen=True)
@@ -625,11 +628,6 @@ def _invoke_role_narration_model(prompt: str) -> str:
         return "{injected-invalid-json"
     if injected_failure == "invalid_schema":
         return json.dumps({"unexpected": True})
-    if not os.getenv("DEEPSEEK_API_KEY"):
-        raise RuntimeError("DEEPSEEK_API_KEY is not set.")
-    model_name = os.getenv(
-        "ROLE_NARRATION_MODEL", os.getenv("DEEPSEEK_MODEL", DEFAULT_DEEPSEEK_MODEL)
-    )
     # The candidate must preserve every required reviewed statement verbatim
     # and then wrap it in the strict JSON envelope. 1800 tokens was too close
     # to a four-minute Chinese guidance payload and caused the OpenAI parser to
@@ -657,25 +655,70 @@ def _invoke_role_narration_model(prompt: str) -> str:
         raise ValueError("ROLE_NARRATION_TEMPERATURE must be a number") from exc
     if not 0 <= role_temperature <= 0.8:
         raise ValueError("ROLE_NARRATION_TEMPERATURE must be between 0 and 0.8")
-    model = ChatDeepSeek(
-        model=model_name,
-        temperature=role_temperature,
-        max_tokens=max_tokens,
-        # A role candidate is non-authoritative.  Bound one provider request
-        # and disable SDK retries so an unavailable endpoint reaches the
-        # deterministic legacy fallback instead of leaving Studio waiting.
-        timeout=timeout_seconds,
-        max_retries=0,
-        # DeepSeek V4 defaults to thinking mode. Role realization is a bounded
-        # transcription task, so reasoning only consumes the output budget and
-        # can cause the final JSON to be truncated. Put provider-specific
-        # controls in extra_body: OpenAI merges them into the HTTP request,
-        # while LangChain does not switch to chat.completions.parse().
-        extra_body={
-            "thinking": {"type": "disabled"},
-            "response_format": {"type": "json_object"},
-        },
-    )
+    provider = os.getenv("ROLE_NARRATION_PROVIDER", "deepseek").strip().lower()
+    if provider == "deepseek":
+        if not os.getenv("DEEPSEEK_API_KEY"):
+            raise RuntimeError("DEEPSEEK_API_KEY is not set.")
+        model_name = os.getenv(
+            "ROLE_NARRATION_MODEL", os.getenv("DEEPSEEK_MODEL", DEFAULT_DEEPSEEK_MODEL)
+        )
+        model = ChatDeepSeek(
+            model=model_name,
+            temperature=role_temperature,
+            max_tokens=max_tokens,
+            # A role candidate is non-authoritative. Bound one provider request
+            # and disable SDK retries so an unavailable endpoint reaches the
+            # deterministic legacy fallback instead of leaving Studio waiting.
+            timeout=timeout_seconds,
+            max_retries=0,
+            extra_body={
+                "thinking": {"type": "disabled"},
+                "response_format": {"type": "json_object"},
+            },
+        )
+    elif provider in {"ark", "doubao"}:
+        ark_key = os.getenv("ARK_API_KEY", "").strip()
+        if not ark_key:
+            raise RuntimeError("ARK_API_KEY is not set for ROLE_NARRATION_PROVIDER=ark.")
+        # Import lazily so existing DeepSeek-only installations and unit tests
+        # remain runnable until the optional Ark adapter dependency is added.
+        try:
+            from langchain_openai import ChatOpenAI
+        except ImportError as exc:
+            raise RuntimeError(
+                "langchain-openai is required for ROLE_NARRATION_PROVIDER=ark; "
+                "install requirements.txt again."
+            ) from exc
+        ark_base_url = os.getenv(
+            "ARK_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3"
+        )
+        default_ark_model = (
+            "doubao-seed-2.0-pro"
+            if "/api/coding/" in ark_base_url.rstrip("/") + "/"
+            else "doubao-seed-2-0-lite-260215"
+        )
+        model_name = os.getenv(
+            "ROLE_NARRATION_MODEL",
+            os.getenv("ARK_ROLE_NARRATION_MODEL", default_ark_model),
+        )
+        model = ChatOpenAI(
+            model=model_name,
+            # Use the current ChatOpenAI constructor names. They map directly
+            # to the OpenAI client call verified against Ark; older alias
+            # names can be silently ignored by newer LangChain versions.
+            api_key=ark_key,
+            base_url=ark_base_url,
+            temperature=role_temperature,
+            max_tokens=max_tokens,
+            timeout=timeout_seconds,
+            max_retries=0,
+            model_kwargs={"response_format": {"type": "json_object"}},
+            extra_body={"thinking": {"type": "disabled"}},
+        )
+    else:
+        raise ValueError(
+            "ROLE_NARRATION_PROVIDER must be deepseek or ark (doubao is an alias)."
+        )
     response = model.invoke([
         {
             "role": "system",
@@ -3262,12 +3305,25 @@ def role_narration_generation_node(state: AgentState) -> dict[str, Any]:
                 state.get("narration_continuation")
             )
             is_detail_request = bool((state.get("pending_role_narration_commit") or {}).get("is_detail_request"))
+            current_freshness = _narration_continuation_freshness(
+                state, plan.style_id,
+            )
+            # A continuation belongs to one exact route stop.  Reaching the
+            # next stop must not inherit an unfinished previous-stop payload,
+            # otherwise service-tail and follow-up state can be suppressed on
+            # the new point.
+            if existing_continuation is not None and not existing_continuation.is_fresh(
+                stop_id=plan.stop_id,
+                style_id=plan.style_id,
+                freshness_token=current_freshness,
+            ):
+                existing_continuation = None
             continuation_value = None if is_detail_request else (
                 advance_continuation(existing_continuation, budget_decision.selected_fact_ids)
                 if existing_continuation is not None
                 else continuation_from_decision(
                     source_plan, budget_decision,
-                    freshness_token=_narration_continuation_freshness(state, plan.style_id),
+                    freshness_token=current_freshness,
                 )
             )
             continuation = continuation_value.to_dict() if continuation_value else None
@@ -3465,6 +3521,13 @@ def narration_commit_node(state: AgentState) -> dict[str, Any]:
     audit = {
         **(state.get("active_role_narration_audit") or {}),
         "active_takeover": True, "fallback_used": False,
+        # Distinct from fallback_used: Active prose was published, but its
+        # natural connector failed and reviewed components supplied the voice.
+        "natural_component_fallback_used": bool(
+            candidate.reason_code and candidate.reason_code.startswith(
+                "natural_discourse_fallback:"
+            )
+        ),
         "legacy_message_preserved": False, "same_public_message": False,
         "commit_decision": "role_candidate_published",
         "commit_validation_status": validation.get("validation_status"),
@@ -3478,6 +3541,9 @@ def narration_commit_node(state: AgentState) -> dict[str, Any]:
             role_connector_text(candidate.public_text, plan),
             tuple(recent_expressions),
         ))
+    service_text = str(
+        (validation.get("service_tail_validation") or {}).get("public_text") or ""
+    ).strip()
     return {
         "messages": [AIMessage(
             id=latest.id, content=final_text,
@@ -3485,6 +3551,7 @@ def narration_commit_node(state: AgentState) -> dict[str, Any]:
                 "stop_guidance": True,
                 "role_narration": True,
                 "public_scene_kind": "stop_guidance",
+                "stop_service_text": service_text,
             },
         )],
         "tour_presentation": (
@@ -4027,7 +4094,7 @@ def atomic_read_plan_shadow_node(state: AgentState, config: RunnableConfig) -> d
         updates.update(_presentation_content_plan_shadow_update(state, config))
         plan = updates.get("presentation_content_plan")
         if isinstance(plan, dict) and plan.get("scene_kind") in {
-            "route_planning", "navigation", "tour_closing",
+            "route_planning", "route_opening", "navigation", "tour_closing",
         }:
             updates.update(
                 _route_role_narration_shadow_update(
@@ -5267,6 +5334,10 @@ def route_after_tour_event(state: AgentState) -> str:
         and (state.get("tour_opening_program") or {}).get("status") == "pending"
     ):
         return "tour_opening"
+    # A planned arrival confirms the location and then immediately starts the
+    # current-point explanation. The first-arrival opening remains handled by
+    # the dedicated branch above; later arrivals must not require a second
+    # visitor action before their approved point body is rendered.
     if event.get("ok") and (
         (event.get("event") == "arrive_at_stop" and event.get("code") == "arrived")
         or (event.get("event") == "request_stop_detail" and event.get("code") == "detail_requested")
@@ -5610,14 +5681,31 @@ def _public_turn_from_result(result: dict[str, Any], *, after_last_human: bool) 
             or _PUBLIC_TEXT_FORBIDDEN.search(content)
         ):
             continue
+        service_text = ""
+        public_text = content.strip()
+        candidate_service_text = metadata.get("stop_service_text")
+        if (
+            scene_kind == "stop_guidance"
+            and isinstance(candidate_service_text, str)
+            and candidate_service_text.strip()
+        ):
+            normalized_service = candidate_service_text.strip()
+            suffix = f"\n\n{normalized_service}"
+            # Only split an exact, already-committed service suffix. If a
+            # legacy or malformed message does not carry that boundary, leave
+            # its public content intact rather than guessing from prose.
+            if public_text.endswith(suffix):
+                public_text = public_text[:-len(suffix)].rstrip()
+                service_text = normalized_service
         public_messages.append(PublicMessage(
             message_id=message_id,
             scene_kind=scene_kind,
-            text=content.strip(),
+            text=public_text,
             active_takeover=bool(
                 metadata.get("route_role_narration")
                 or metadata.get("role_narration")
             ),
+            service_text=service_text,
         ))
     return PublicTurnResult(tuple(public_messages), _public_tour_summary(result))
 

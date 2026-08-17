@@ -317,5 +317,7 @@ def validate_stop_service_tail(
 
 
 def compose_stop_presentation(narration_text: str, service_text: str) -> str:
-    """Compose the already-validated visitor response without adding prose."""
-    return " ".join(value.strip() for value in (narration_text, service_text) if value.strip())
+    """Keep narration and operational service as readable separate sections."""
+    return "\n\n".join(
+        value.strip() for value in (narration_text, service_text) if value.strip()
+    )

@@ -39,6 +39,38 @@ UNAPPROVED_CONNECTOR_FACT_TRIGGER = re.compile(
 )
 
 
+def _provider_failure_reason(exc: Exception) -> str:
+    """Return a compact, secret-free provider failure marker for evaluation.
+
+    A bare exception class made an API rejection indistinguishable from a
+    timeout or a model outage in saved snapshots.  Keep existing class-only
+    markers for ordinary failures (including deterministic test fixtures),
+    but append an HTTP/API error code when the client exposes one.  Never
+    record the request, prompt, response body, or credentials.
+    """
+    marker = type(exc).__name__
+    status_code = getattr(exc, "status_code", None)
+    body = getattr(exc, "body", None)
+    error_code = body.get("code") if isinstance(body, Mapping) else None
+    error_message = body.get("message") if isinstance(body, Mapping) else None
+    safe_parts = [marker]
+    if isinstance(status_code, int):
+        safe_parts.append(str(status_code))
+    if isinstance(error_code, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,96}", error_code):
+        safe_parts.append(error_code)
+    # Provider error messages explain request-shape failures, but may not be
+    # copied verbatim: collapse whitespace, exclude credential-like strings,
+    # and bound the diagnostic to a short internal marker.
+    if isinstance(error_message, str):
+        normalized_message = re.sub(r"\s+", "_", error_message).strip("_")
+        if (
+            normalized_message
+            and not re.search(r"(?i)(api[_-]?key|authorization|bearer|sk-[A-Za-z0-9])", normalized_message)
+        ):
+            safe_parts.append(normalized_message[:160])
+    return ":".join(safe_parts)
+
+
 def role_connector_text(
     public_text: str,
     plan: NarrationContentPlan,
@@ -73,12 +105,25 @@ def _plan_output_limits(plan: NarrationContentPlan) -> tuple[int, int]:
         # Live plans carry E5's authoritative allocated duration.
         allocated_seconds = math.ceil(approved_fact_characters / 4)
     remaining_seconds = max(0, plan.budget_seconds - allocated_seconds)
-    # A point narration needs a short role phrase before, between, and after
-    # immutable fact blocks.  The former whole-message cap often left room for
-    # only an opening, so long explanations became generic after sentence one.
-    # This remains bounded by the authoritative time budget.
-    structured_cap = min(360, 20 + 24 * (len(plan.facts) + 3))
-    max_connector_characters = max(0, min(structured_cap, remaining_seconds * 4))
+    # A point narration needs a role phrase before, between, and after
+    # immutable fact blocks.  Keep a deliberately wider expression allowance
+    # than the former template-era quota: natural observation guidance needs
+    # enough room to name an action and make a real transition, not merely add
+    # a catchphrase.  This relaxes style expression only; the authoritative
+    # time budget, immutable fact-token boundary, public-safety checks and
+    # state-write prohibition remain unchanged.
+    structured_cap = min(360, 28 + 36 * (len(plan.facts) + 3))
+    # Compact mode has a small, deterministic structural overhead: opening,
+    # per-unit micro observations, one transition and closing.  These are
+    # approved style components rather than model-added facts.  Reserve a
+    # bounded six-second allowance so a valid multi-object compact scaffold
+    # is not rejected solely because its mandatory glue is counted against
+    # the fact allocation a second time.
+    compact_structure_allowance = 24 if plan.scaffold_mode == "compact" else 0
+    max_connector_characters = max(
+        0,
+        min(structured_cap, remaining_seconds * 4 + compact_structure_allowance),
+    )
     max_public_characters = approved_fact_characters + max_connector_characters
     return max_public_characters, max_connector_characters
 
@@ -212,6 +257,13 @@ def apply_point_narration_scaffold(
     if closing and closing != previous_component:
         parts.append(closing)
     public_text = "".join(part for part in parts if part)
+    # The component fallback remains a visitor-facing narration, not a compact
+    # machine string. Keep every immutable fact in its own visual paragraph.
+    for fact in ordered_facts:
+        public_text = public_text.replace(
+            fact.statement, f"\n\n{fact.statement}\n\n", 1,
+        )
+    public_text = re.sub(r"\n{3,}", "\n\n", public_text).strip()
     if len(re.sub(r"\s+", "", role_connector_text(public_text, plan))) > role_connector_character_limit(plan):
         return _failed(plan.style_id, "style_scaffold_budget_exceeded", candidate.latency_ms, model_called=True)
     return RoleNarrationCandidate(
@@ -555,12 +607,21 @@ def generate_role_narration(
                 },
                 model_called=True,
                 latency_ms=latency,
-                reason_code=f"natural_discourse_fallback:model_unavailable:{type(exc).__name__}",
+                reason_code=(
+                    "natural_discourse_fallback:model_unavailable:"
+                    + _provider_failure_reason(exc)
+                ),
             )
             return apply_point_narration_scaffold(
-                fallback_seed, plan, brief, compact=True,
+                fallback_seed, plan, brief,
+                compact=plan.scaffold_mode == "compact" if compact is None else compact,
             )
-        return _failed(plan.style_id, f"model_unavailable:{type(exc).__name__}", latency, model_called=True)
+        return _failed(
+            plan.style_id,
+            f"model_unavailable:{_provider_failure_reason(exc)}",
+            latency,
+            model_called=True,
+        )
     latency = int((time.perf_counter() - started) * 1000)
     if discourse_plan is not None:
         # Development and offline callers can still supply the established
@@ -615,7 +676,8 @@ def generate_role_narration(
             ),
         )
         return apply_point_narration_scaffold(
-            fallback_seed, plan, brief, compact=True,
+            fallback_seed, plan, brief,
+            compact=plan.scaffold_mode == "compact" if compact is None else compact,
         )
     candidate = validate_candidate_shape(
         _decode(raw), expected_style_id=plan.style_id, latency_ms=latency,

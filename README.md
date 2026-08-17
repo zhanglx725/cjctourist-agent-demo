@@ -105,6 +105,7 @@ P0 游客输出与安全矩阵：3/3 passed_by_operator
 - Python 3.11+
 - LangGraph / LangChain
 - DeepSeek Chat Model
+- 火山方舟（豆包）可选角色成文模型
 - ChromaDB
 - Sentence Transformers / BGE
 - BM25 + RRF
@@ -122,6 +123,19 @@ py -3.11 -m venv .venv
 ```
 
 不要提交本地 `.env`。至少按实际运行目标配置模型密钥；需要 LangSmith 观测时再配置相应 tracing 环境变量。
+
+### 角色讲解切换为豆包（火山方舟）
+
+仅角色化点位讲解支持单独切换；问答、检索和翻译仍使用原有 DeepSeek 配置。将以下内容填入根目录 `.env`。若购买的是 **Coding Plan 个人版**，应使用其专用地址和套餐模型名：
+
+```dotenv
+ARK_API_KEY=请填写你的方舟_API_Key
+ROLE_NARRATION_PROVIDER=ark
+ROLE_NARRATION_MODEL=doubao-seed-2.0-pro
+ARK_BASE_URL=https://ark.cn-beijing.volces.com/api/coding/v3
+```
+
+普通方舟按量模型服务则使用 `https://ark.cn-beijing.volces.com/api/v3` 和控制台已开通的标准模型 ID（例如 `doubao-seed-2-0-lite-260215`）。安装新增依赖并重启 Streamlit/Studio 后生效。`ROLE_NARRATION_PROVIDER=deepseek` 或删除该项即可立即切回 DeepSeek。
 
 ### 2. 构建本地知识索引
 
@@ -181,9 +195,10 @@ $env:PRODUCT_ROLE_KILL_SWITCH = "false"
 $env:PRODUCT_ROLE_VALIDATION_LEVEL = "strict"
 $env:PRODUCT_ROLE_FALLBACK_POLICY = "legacy"
 $env:PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED = "true"
+$env:PRODUCT_ROLE_NATURAL_FULL_NARRATION_ENABLED = "true"
 ```
 
-`PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED` 当前只对 `child`、`ancient_scholar`、`dominant_ceo` 的 compact 点位讲解生效；默认关闭，失败时回退已审核确定性组件。实际演示前应根据已经验收的风格和场景设置最小白名单。18 风格全矩阵验收的完整列表见 `demo/README_DEPLOY.md`。任何配置不完整、未知风格或未知场景都会失败关闭。修改 Active 配置后必须重启 Streamlit 并新建会话。
+完整自然成文需要同时启用 `PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED` 与 `PRODUCT_ROLE_NATURAL_FULL_NARRATION_ENABLED`；缺少后者时，系统保持旧版确定性组件路径。失败时仍回退已审核确定性组件。实际演示前应根据已经验收的风格和场景设置最小白名单。18 风格全矩阵验收的完整列表见 `demo/README_DEPLOY.md`。任何配置不完整、未知风格或未知场景都会失败关闭。修改 Active 配置后必须重启 Streamlit 并新建会话。
 
 ## 测试
 

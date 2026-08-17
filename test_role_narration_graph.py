@@ -403,6 +403,7 @@ class RoleNarrationGraphTests(unittest.TestCase):
             "DEEPSEEK_API_KEY": "test-key",
             "CJC_ROLE_NARRATION_TEST_FAILURE": "",
             "ROLE_NARRATION_MAX_TOKENS": "4096",
+            "ROLE_NARRATION_TEMPERATURE": "0.55",
         }, clear=False), patch("agent_graph.ChatDeepSeek") as model_cls:
             response = model_cls.return_value.invoke.return_value
             response.response_metadata = {"finish_reason": "stop"}
@@ -415,7 +416,7 @@ class RoleNarrationGraphTests(unittest.TestCase):
             )
             model_cls.assert_called_once_with(
                 model=os.getenv("ROLE_NARRATION_MODEL", os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")),
-                temperature=0,
+                temperature=0.55,
                 max_tokens=4096,
                 timeout=45.0,
                 max_retries=0,

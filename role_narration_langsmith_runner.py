@@ -194,9 +194,24 @@ def _deterministic_assertions(
 def run_role_narration_example(
     inputs: Mapping[str, Any], expected_outputs: Mapping[str, Any] | None = None,
     *, enable_tracing: bool = False, evaluate_style_quality: bool = False,
+    natural_full: bool = False,
+    recent_discourse_expressions: tuple[str, ...] = (),
 ) -> dict[str, Any]:
-    """Run the production graph segment and return only evaluation-safe audit fields."""
+    """Run the production graph segment and return only evaluation-safe audit fields.
+
+    The reviewed fault dataset defaults to the legacy candidate protocol so
+    that a simulated model outage proves the deterministic fallback path even
+    when a developer shell has natural-full narration enabled. Callers that
+    intentionally evaluate real natural prose must opt in explicitly.
+    """
     state = _state(inputs)
+    # Snapshot callers can model consecutive stops in one visitor thread.
+    # Production already supplies this state through the graph itself.
+    state["role_discourse_recent_expressions"] = [
+        value.strip()
+        for value in recent_discourse_expressions[-12:]
+        if isinstance(value, str) and value.strip()
+    ]
     outputs = dict(expected_outputs or {})
     failure_type = str(inputs.get("failure_type") or "")
     injected_failure = {
@@ -206,6 +221,8 @@ def run_role_narration_example(
     with _temporary_environment({
         **_active_environment(str(inputs["style_id"])),
         "CJC_ROLE_NARRATION_TEST_FAILURE": injected_failure,
+        "PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED": "true" if natural_full else None,
+        "PRODUCT_ROLE_NATURAL_FULL_NARRATION_ENABLED": "true" if natural_full else None,
         # Dataset runners enable tracing explicitly. Direct unit calls remain
         # offline and deterministic even when a developer's .env enables it.
         "LANGSMITH_TRACING": None if enable_tracing else "false",
@@ -239,6 +256,9 @@ def run_role_narration_example(
         "commit_audit": audit,
         "final_visitor_message": final_message,
         "coverage": published["narration_coverage"],
+        "role_discourse_recent_expressions": published.get(
+            "role_discourse_recent_expressions", []
+        ),
     }
     result["assertions"] = _deterministic_assertions(inputs, outputs, result)
     result["style_quality"] = (

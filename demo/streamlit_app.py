@@ -136,6 +136,7 @@ def _configure_environment() -> dict[str, object]:
         "PRODUCT_ROLE_KILL_SWITCH", "PRODUCT_ROLE_VALIDATION_LEVEL",
         "PRODUCT_ROLE_FALLBACK_POLICY",
         "PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED",
+        "PRODUCT_ROLE_NATURAL_FULL_NARRATION_ENABLED",
     ):
         value = _runtime_setting(key)
         if value:
@@ -192,6 +193,7 @@ def _send(adapter: DemoAdapter, message: str) -> None:
                 "role": "assistant",
                 "content": public_message.text,
                 "scene_kind": public_message.scene_kind,
+                "service_text": public_message.service_text,
                 "error": reply.is_error,
             }
         )
@@ -206,6 +208,7 @@ def _start_session(adapter: DemoAdapter) -> None:
                 "role": "assistant",
                 "content": public_message.text,
                 "scene_kind": public_message.scene_kind,
+                "service_text": public_message.service_text,
                 "error": reply.is_error,
             }
         )
@@ -273,6 +276,10 @@ def main() -> None:
             if item["role"] == "assistant" and item.get("scene_kind") in SCENE_LABELS:
                 st.caption(SCENE_LABELS[item["scene_kind"]])
             st.markdown(item["content"])
+            if item["role"] == "assistant" and item.get("service_text"):
+                with st.container(border=True):
+                    st.caption("下一步提示")
+                    st.write(item["service_text"])
     columns = st.columns(3)
     for column, action in zip(columns, QUICK_ACTIONS):
         if column.button(action, use_container_width=True):

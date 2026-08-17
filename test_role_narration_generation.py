@@ -248,6 +248,23 @@ class RoleNarrationGenerationTests(unittest.TestCase):
         self.assertEqual(result.validation_status, "accepted")
         self.assertTrue(result.within_budget)
 
+    def test_full_mode_natural_discourse_fallback_keeps_full_component_contract(self):
+        source = self.plan("ancient_scholar")
+        self.assertEqual(source.scaffold_mode, "full")
+        with patch.dict(os.environ, {
+            "PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED": "true",
+            "PRODUCT_ROLE_NATURAL_FULL_NARRATION_ENABLED": "true",
+        }, clear=False):
+            candidate = generate_role_narration(
+                source, compile_style_brief("ancient_scholar"),
+                lambda _: "not-json",
+            )
+        validation = validate_role_narration(
+            candidate, source, compile_style_brief("ancient_scholar"),
+        )
+        self.assertTrue(candidate.reason_code.startswith("natural_discourse_fallback:"))
+        self.assertEqual(validation.validation_status, "accepted", validation.to_dict())
+
     def test_rejected_empty_candidate_is_not_reported_within_budget(self):
         plan = self.plan("neutral")
         candidate = generate_role_narration(

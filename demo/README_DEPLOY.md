@@ -19,6 +19,11 @@ streamlit run demo/streamlit_app.py
 
 ```toml
 DEEPSEEK_API_KEY = "由部署者填写"
+# 仅将角色化点位讲解切换到豆包时填写以下四项；此处是 Coding Plan 个人版配置，主问答仍使用 DeepSeek。
+ARK_API_KEY = "由部署者填写"
+ROLE_NARRATION_PROVIDER = "ark"
+ROLE_NARRATION_MODEL = "doubao-seed-2.0-pro"
+ARK_BASE_URL = "https://ark.cn-beijing.volces.com/api/coding/v3"
 DEMO_MODE = "true"
 DEMO_MAX_TURNS = "20"
 DEMO_MAX_INPUT_CHARS = "200"
@@ -36,6 +41,7 @@ PRODUCT_ROLE_KILL_SWITCH = "false"
 PRODUCT_ROLE_VALIDATION_LEVEL = "strict"
 PRODUCT_ROLE_FALLBACK_POLICY = "legacy"
 PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED = "true"
+PRODUCT_ROLE_NATURAL_FULL_NARRATION_ENABLED = "true"
 ```
 
 Streamlit 与 Studio 必须由项目同一套配置解析器读取上述 Active 环境变量；不要在前端另建 Active 规则。本地 PowerShell 中显式设置的 rollout 变量优先于部署 Secrets，避免旧 Secrets 将点位误降为 Shadow。API Key 仍优先从 Secrets 读取，且不会进入启动审计。切勿提交真实密钥或 `secrets.toml`。
@@ -55,6 +61,7 @@ $env:PRODUCT_ROLE_KILL_SWITCH = "false"
 $env:PRODUCT_ROLE_VALIDATION_LEVEL = "strict"
 $env:PRODUCT_ROLE_FALLBACK_POLICY = "legacy"
 $env:PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED = "true"
+$env:PRODUCT_ROLE_NATURAL_FULL_NARRATION_ENABLED = "true"
 
 & .\.venv\Scripts\python.exe -m streamlit run demo\streamlit_app.py `
   --server.address 127.0.0.1 `

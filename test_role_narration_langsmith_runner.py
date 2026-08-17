@@ -61,6 +61,23 @@ class RoleNarrationLangSmithRunnerTests(unittest.TestCase):
                 self.assertEqual(result["commit_audit"]["commit_decision"], "legacy_fallback_published")
                 self.assertTrue(all(result["assertions"].values()), result["assertions"])
 
+    def test_fault_runner_isolated_from_natural_full_shell_flags(self):
+        inputs = {
+            "style_id": "cute_junior", "scene_kind": "stop_guidance",
+            "fact_id": "craft:灰塑", "approved_fact": "审核事实：该构件采用灰塑工艺。",
+            "interaction_allowed": True, "failure_type": "model_failure",
+        }
+        with patch.dict("os.environ", {
+            "PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED": "true",
+            "PRODUCT_ROLE_NATURAL_FULL_NARRATION_ENABLED": "true",
+        }, clear=False):
+            result = run_role_narration_example(inputs, {
+                "expected_coverage_commit_count": 1,
+                "expected_fallback_on_validation_failure": True,
+            })
+        self.assertTrue(result["commit_audit"]["fallback_used"])
+        self.assertEqual(result["commit_audit"]["commit_decision"], "legacy_fallback_published")
+
 
 if __name__ == "__main__":
     unittest.main()

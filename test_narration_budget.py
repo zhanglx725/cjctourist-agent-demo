@@ -90,6 +90,27 @@ class NarrationBudgetTests(unittest.TestCase):
             tuple(fact.fact_id for fact in plan.facts[1:]),
         )
 
+    def test_split_with_craft_and_ornament_keeps_first_object_in_arrival_turn(self):
+        facts = (
+            NarrationFact("craft:grey:000", "craft_background", "审核工艺事实。"),
+            NarrationFact("ornament:lion:000", "object_detail", "审核文物事实。"),
+            NarrationFact("ornament:lion:001", "object_detail", "审核文物造型事实。"),
+            NarrationFact("ornament:bat:000", "object_detail", "后续审核文物事实。"),
+        )
+        plan = NarrationContentPlan(
+            stop_id="front", style_id="neutral", language="zh",
+            budget_seconds=30, facts=facts, must_include=(), already_covered=(),
+            must_not_claim=(), interaction_allowed=True,
+            allocated_content_seconds=31,
+        )
+        decision = decide_narration_budget(plan, _brief())
+        self.assertEqual(decision.mode, NarrationBudgetMode.SPLIT)
+        self.assertEqual(
+            decision.selected_fact_ids,
+            tuple(fact.fact_id for fact in facts[:3]),
+        )
+        self.assertEqual(decision.reason_code, "first_object_scope_fits")
+
     def test_child_multi_unit_preflight_matches_rendered_scaffold_budget(self):
         facts = tuple(
             [

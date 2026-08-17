@@ -527,10 +527,10 @@ def render_guidance_evidence(
                     lines.append(lead_in)
                     lines.extend(role_statements)
                 else:
-                    # Use a plain-text section label instead of Markdown list
-                    # syntax. Studio renders wrapped list items with a deep
-                    # hanging indent on narrow screens.
-                    lines.append(f"【工艺背景：{craft}】")
+                    # Deterministic narration must read as one guided walk,
+                    # not as a stack of catalogue cards.  Keep the reviewed
+                    # facts, but let the first factual sentence introduce the
+                    # craft naturally instead of printing a bracketed label.
                     lines.extend(segment)
                 if statements:
                     unit = {
@@ -572,9 +572,9 @@ def render_guidance_evidence(
             lines.append(lead_in)
             lines.extend(role_statements)
         else:
-            # Keep every reviewed object in its own flat section. In
-            # particular, never prefix these paragraphs with '-' or '*'.
-            lines.append(f"【观察对象：{item.name}】")
+            # Keep every reviewed object as plain prose.  The object's first
+            # factual sentence names it, so a separate bracketed heading is
+            # redundant and makes the guide sound like a database export.
             lines.extend(segment)
         if statements:
             unit = {
@@ -601,12 +601,9 @@ def render_guidance_evidence(
     if omitted:
         warnings.append("本站预算优先保留核心对象，后续对象留待需要时再展开")
     if policy and policy.interaction_mode != "listen_only" and policy.interaction_task_enabled:
-        lines.append("【观察提示】")
         lines.append("您可以留意其中一处造型细部；无需回答也不影响继续导览。")
-    # The completion instruction is deliberately a peer section, rather than
-    # the last line of an object or observation section.
-    if style_id != "child":
-        lines.append("【下一步】")
+    # The completion instruction is deliberately a peer paragraph, rather
+    # than the last line of an object or observation paragraph.
     lines.append(
         "这一站的小秘密先看到这里。我们慢慢来，您想再仔细看看，"
         "或者准备好后完成本点都可以。"

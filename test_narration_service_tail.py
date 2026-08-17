@@ -109,17 +109,17 @@ class NarrationServiceTailTests(unittest.TestCase):
         self.assertEqual(validation.public_text, "")
         self.assertEqual(validation.service_unit_kinds, ())
 
-    def test_composition_keeps_main_narration_and_service_text_continuous(self):
+    def test_composition_separates_main_narration_and_service_text(self):
         text = compose_stop_presentation(
             "先看眼前这处。 审核事实。",
             f"{COMPLETION_PROMPT} 完成本点后，下一站：月台。",
         )
         self.assertEqual(
             text,
-            "先看眼前这处。 审核事实。 "
+            "先看眼前这处。 审核事实。\n\n"
             f"{COMPLETION_PROMPT} 完成本点后，下一站：月台。",
         )
-        self.assertNotIn("\n", text)
+        self.assertIn("\n\n", text)
 
 
 if __name__ == "__main__":

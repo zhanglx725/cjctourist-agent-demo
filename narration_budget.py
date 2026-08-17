@@ -209,13 +209,78 @@ def decide_narration_budget(
             full_connector, all_ids, (), "full_scaffold_fits",
         )
     compact_connector = _connector_seconds(brief, all_facts, compact=True)
-    if facts_seconds + compact_connector <= plan.budget_seconds:
+    # ``allocated_content_seconds`` is the reviewed E5 allocation for the
+    # facts themselves.  Compact connectors are deliberately short and must
+    # not make us throw away approved objects merely because they are counted
+    # a second time by this role-only estimator.  Keep the stricter arithmetic
+    # check for unallocated/synthetic plans, while allowing a compact complete
+    # render when E5 already fits the stop budget.
+    approved_fact_allocation_fits = (
+        plan.allocated_content_seconds > 0
+        and plan.allocated_content_seconds <= plan.budget_seconds
+    )
+    if (
+        facts_seconds + compact_connector <= plan.budget_seconds
+        or approved_fact_allocation_fits
+    ):
         return NarrationBudgetDecision(
             NarrationBudgetMode.COMPACT, plan.budget_seconds, facts_seconds,
-            compact_connector, all_ids, (), "compact_scaffold_fits",
+            compact_connector, all_ids, (),
+            (
+                "compact_scaffold_fits"
+                if facts_seconds + compact_connector <= plan.budget_seconds
+                else "approved_facts_compact_connectors_reserved"
+            ),
         )
     first_unit = all_facts[0].unit_id
     selected = tuple(fact for fact in all_facts if fact.unit_id == first_unit)
+    # A stop narration may introduce a craft before its objects, but the
+    # visitor must never receive that craft overview as the entire first
+    # arrival.  When an approved ornament unit is present, keep the complete
+    # prefix through the first such unit together.  This prevents a budget
+    # split from hiding all actual objects behind a continuation button.
+    first_ornament_index = next(
+        (index for index, fact in enumerate(all_facts)
+         if fact.topic_kind == "ornament"),
+        None,
+    )
+    if all_facts[0].topic_kind == "craft" and first_ornament_index is not None:
+        first_ornament_unit = all_facts[first_ornament_index].unit_id
+        last_required_index = max(
+            index for index, fact in enumerate(all_facts)
+            if fact.unit_id == first_ornament_unit
+        )
+        object_prefix = all_facts[:last_required_index + 1]
+        object_prefix_fact_seconds = _fact_seconds(plan, object_prefix)
+        object_prefix_connector = _connector_seconds(
+            brief, object_prefix, compact=True,
+        )
+        object_prefix_ids = tuple(fact.fact_id for fact in object_prefix)
+        object_prefix_deferred = tuple(
+            fact.fact_id for fact in all_facts
+            if fact.fact_id not in object_prefix_ids
+        )
+        if (
+            object_prefix_deferred
+            and object_prefix_fact_seconds + object_prefix_connector
+            <= plan.budget_seconds
+        ):
+            return NarrationBudgetDecision(
+                NarrationBudgetMode.SPLIT, plan.budget_seconds,
+                object_prefix_fact_seconds, object_prefix_connector,
+                object_prefix_ids, object_prefix_deferred,
+                "first_object_scope_fits",
+            )
+        # Publishing only a craft is worse than retaining the deterministic
+        # E5 narration, which already contains the approved object details.
+        # Fail closed to that complete fallback when a craft-plus-object prefix
+        # itself cannot fit this turn.
+        if object_prefix_deferred:
+            return NarrationBudgetDecision(
+                NarrationBudgetMode.FALLBACK, plan.budget_seconds,
+                object_prefix_fact_seconds, object_prefix_connector,
+                (), all_ids, "first_object_scope_exceeds_budget",
+            )
     split_fact_seconds = _fact_seconds(plan, selected)
     split_connector = _connector_seconds(brief, selected, compact=True)
     selected_ids = tuple(fact.fact_id for fact in selected)

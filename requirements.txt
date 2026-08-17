@@ -4,6 +4,7 @@ python-dotenv
 langchain
 langchain-core
 langchain-deepseek
+langchain-openai
 # Local LangGraph Studio development server (in-memory, development only)
 langgraph-cli[inmem]
 
