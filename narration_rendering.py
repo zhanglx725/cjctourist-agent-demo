@@ -249,6 +249,15 @@ _RAW_BOLD_LABEL_PREFIX = re.compile(r"^\*\*[^*]+\*\*\s*[：:]\s*")
 _INTERNAL_OBJECT_GUIDANCE = (
     "审核关联", "可结合现场标识", "构件位置辨认", "存在审核", "未核验",
 )
+_CHILD_STORY_MARKERS = ("传说", "民间故事", "人们说")
+_CHILD_CRAFT_NAME = re.compile(r"^([^，。；：]{1,16}?)(?:是|又称)")
+_CHILD_STORY_ORIGIN = re.compile(
+    r"^(?:这种)?(?P<name>[^，。；]{1,24}?)(?:造型|形象)是根据"
+    r"(?P<origin>[^，。；]+?)(?:传说|故事)而来的。?$"
+)
+_CHILD_STORY_THEME = re.compile(
+    r"^(?:这个)?题材源自(?P<origin>[^，。；]+?)(?:，寓意(?P<meaning>[^。]+))?。?$"
+)
 
 
 def _visitor_craft_sentence(sentence: str) -> str:
@@ -262,9 +271,45 @@ def _visitor_craft_sentence(sentence: str) -> str:
     return _RAW_BOLD_LABEL_PREFIX.sub("", cleaned).strip()
 
 
-def _child_role_fact_statements(
+def _child_friendly_fact_statement(
+    statement: str,
+    *,
+    topic_kind: str,
+) -> str:
+    """Render a reviewed child-safe summary with an auditable source sentence.
+
+    This is deliberately a small, deterministic rewrite vocabulary rather
+    than an unconstrained model paraphrase.  It gives the role layer facts a
+    child-readable shape while keeping every summary tied one-to-one to the
+    reviewed sentence selected below.  The model remains free only to add
+    non-factual imagery around these bounded statements.
+    """
+    source = statement.strip()
+    if topic_kind == "craft":
+        match = _CHILD_CRAFT_NAME.match(source)
+        if match and "装饰" in source:
+            name = match.group(1).strip("“”\"")
+            alias = re.search(r"民间称[“\"](?P<alias>[^”\"]+)[”\"]", source)
+            summary = f"{name}是一门传统装饰手艺。"
+            if alias:
+                summary += f"人们也叫它“{alias.group('alias')}”。"
+            return summary
+    if topic_kind == "ornament":
+        story = _CHILD_STORY_ORIGIN.match(source)
+        if story:
+            name = story.group("name").strip()
+            origin = story.group("origin").strip("，、 ")
+            return f"传说里，{name}的模样来自{origin}传说。"
+        theme = _CHILD_STORY_THEME.match(source)
+        if theme:
+            origin = theme.group("origin").strip("，、 ")
+            return f"传说里，这个题材来自{origin}。"
+    return source
+
+
+def _child_role_fact_pairs(
     statements: tuple[str, ...], *, topic_kind: str,
-) -> tuple[str, ...]:
+) -> tuple[tuple[str, str], ...]:
     """Select a concise, visitor-safe reviewed subset for child role prose.
 
     The deterministic fallback keeps the complete rendered evidence. This
@@ -279,19 +324,86 @@ def _child_role_fact_statements(
         and not any(marker in statement for marker in _INTERNAL_OBJECT_GUIDANCE)
     )
     if topic_kind == "craft":
-        return cleaned[:2]
+        # The normal craft definition often contains a long list of building
+        # positions.  Keep one auditable origin sentence and render its
+        # deterministic child summary instead of making that list mandatory.
+        selected = cleaned[:1]
+        return tuple(
+            (_child_friendly_fact_statement(statement, topic_kind=topic_kind), statement)
+            for statement in selected
+        )
     if not cleaned:
         return ()
 
     identity = cleaned[0]
     details = cleaned[1:]
+    story = [
+        statement for statement in details
+        if any(marker in statement for marker in _CHILD_STORY_MARKERS)
+    ]
     visual = [
         statement for statement in details
         if any(marker in statement for marker in ORNAMENT_SHAPE_MARKERS)
     ]
-    candidates = visual or list(details)
+    # A short reviewed story is the most valuable second beat for child
+    # narration.  Use a visible detail when no story exists; never force a
+    # long object dossier merely to fill the slot.
+    candidates = story or visual or list(details)
     selected = min(candidates, key=len) if candidates else None
-    return (identity, selected) if selected and selected != identity else (identity,)
+    selected_statements = (
+        (identity, selected)
+        if selected and selected != identity else (identity,)
+    )
+    return tuple(
+        (_child_friendly_fact_statement(statement, topic_kind=topic_kind), statement)
+        for statement in selected_statements
+    )
+
+
+@dataclass(frozen=True)
+class _RoleFactPresentation:
+    """One style's public fact text and its reviewed source boundary.
+
+    Every role enters the same content-plan / generation / validation / commit
+    path.  Most styles present the reviewed statements verbatim; ``child``
+    selects a smaller deterministic, source-traceable presentation.  Keeping
+    that distinction in this single value object prevents a child-only
+    rendering branch from becoming a second narration architecture.
+    """
+
+    statements: tuple[str, ...]
+    source_statements: tuple[str, ...]
+
+
+def _role_fact_presentation(
+    statements: tuple[str, ...], *, topic_kind: str, style_id: str,
+) -> _RoleFactPresentation:
+    """Return the public fact contract for any role style.
+
+    The default identity strategy deliberately preserves the existing mature
+    ancient-scholar and other-role behavior.  Child is the only current
+    controlled-summary strategy, but it produces the same two fields so new
+    styles can add a presentation policy without bypassing common contracts.
+    """
+    source_statements = tuple(statement.strip() for statement in statements if statement.strip())
+    if style_id != "child":
+        return _RoleFactPresentation(source_statements, source_statements)
+    pairs = _child_role_fact_pairs(source_statements, topic_kind=topic_kind)
+    return _RoleFactPresentation(
+        tuple(summary for summary, _ in pairs),
+        tuple(source for _, source in pairs),
+    )
+
+
+def _role_unit_lead_in(*, style_id: str, topic_kind: str, name: str) -> str | None:
+    """Return a fact-free lead-in, if this presentation policy uses one."""
+    if style_id != "child":
+        return None
+    if topic_kind == "craft":
+        return f"第一条小线索，是一种叫作“{name}”的传统工艺。"
+    if topic_kind == "ornament":
+        return f"接着和{name}这位新朋友打个招呼。"
+    return None
 
 
 def _craft_segment(
@@ -402,12 +514,14 @@ def render_guidance_evidence(
             packet = bundle.craft_overviews.get(craft)
             if packet and packet.evidence:
                 segment, sources, complete, warning, statements = _craft_segment(craft, packet, style, style_id)
-                role_statements = (
-                    _child_role_fact_statements(statements, topic_kind="craft")
-                    if style_id == "child" else statements
+                presentation = _role_fact_presentation(
+                    statements, topic_kind="craft", style_id=style_id,
                 )
-                if style_id == "child":
-                    lines.append(f"第一条小线索，是一种叫作“{craft}”的传统工艺。")
+                role_statements = presentation.statements
+                if lead_in := _role_unit_lead_in(
+                    style_id=style_id, topic_kind="craft", name=craft,
+                ):
+                    lines.append(lead_in)
                     lines.extend(role_statements)
                 else:
                     # Use a plain-text section label instead of Markdown list
@@ -416,12 +530,14 @@ def render_guidance_evidence(
                     lines.append(f"【工艺背景：{craft}】")
                     lines.extend(segment)
                 if statements:
-                    fact_units.append({
+                    unit = {
                         "unit_id": f"craft:{craft}",
                         "topic_kind": "craft",
                         "statements": list(role_statements),
                         "required": True,
-                    })
+                    }
+                    unit["source_statements"] = list(presentation.source_statements)
+                    fact_units.append(unit)
                 used_sources.update(sources)
                 if complete and (candidate := eligible_by_subject.get(("craft", craft))):
                     eligible.append(candidate)
@@ -442,12 +558,14 @@ def render_guidance_evidence(
         segment, sources, complete, warning, statements = _ornament_segment(
             item, packet, bundle.location_evidence.get(item.ornament_id), first=first, style=style, style_id=style_id
         )
-        role_statements = (
-            _child_role_fact_statements(statements, topic_kind="ornament")
-            if style_id == "child" else statements
+        presentation = _role_fact_presentation(
+            statements, topic_kind="ornament", style_id=style_id,
         )
-        if style_id == "child":
-            lines.append(f"接着和{item.name}这位新朋友打个招呼。")
+        role_statements = presentation.statements
+        if lead_in := _role_unit_lead_in(
+            style_id=style_id, topic_kind="ornament", name=item.name,
+        ):
+            lines.append(lead_in)
             lines.extend(role_statements)
         else:
             # Keep every reviewed object in its own flat section. In
@@ -455,12 +573,14 @@ def render_guidance_evidence(
             lines.append(f"【观察对象：{item.name}】")
             lines.extend(segment)
         if statements:
-            fact_units.append({
+            unit = {
                 "unit_id": f"ornament:{item.ornament_id}",
                 "topic_kind": "ornament",
                 "statements": list(role_statements),
                 "required": True,
-            })
+            }
+            unit["source_statements"] = list(presentation.source_statements)
+            fact_units.append(unit)
         rendered_ornaments.append(item.ornament_id)
         used_sources.update(sources)
         if complete and (candidate := eligible_by_subject.get(("ornament", item.ornament_id))):
@@ -484,7 +604,8 @@ def render_guidance_evidence(
     if style_id != "child":
         lines.append("【下一步】")
     lines.append(
-        "这一站的小秘密先看到这里。您想再仔细看看，或者准备好后完成本点都可以。"
+        "这一站的小秘密先看到这里。我们慢慢来，您想再仔细看看，"
+        "或者准备好后完成本点都可以。"
         if style_id == "child" else COMPLETION_PROMPT
     )
     allocated = sum(item.planned_seconds for item in rendered_items)

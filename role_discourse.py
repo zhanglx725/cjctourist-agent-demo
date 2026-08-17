@@ -161,6 +161,13 @@ def role_discourse_prompt(
             "prohibited_patterns": list(brief.prohibited_patterns),
         },
     }
+    child_expression_rule = ""
+    if discourse_plan.style_id == "child":
+        child_expression_rule = """
+儿童风格可以使用“像、仿佛、好像、可以把它想成”等明显属于比喻的表达，营造温柔、陪伴、探索和轻微童话感。
+这些表达只能描述观看感受或探索节奏，不能新增真实人物、年代、事件、用途、空间关系或传说细节；
+不要机械重复“小线索”“新朋友”等口头禅，同一个短句在整组连接语中只能出现一次。
+"""
     return """你是受控导游的表达规划器。审核事实由服务端持有并原样插入，你只能生成事实之间的自然连接语。
 opening 放在第一条事实之前；bridges 必须逐一对应 bridge_slots；closing 放在最后一条事实之后。
 relation=same_unit_continuation 时应自然承接同一对象或工艺，不得提前切换主题；
@@ -173,7 +180,9 @@ recent_expressions_to_avoid 是当前 Thread 最近已发布的纯表达片段�
 输出严格一行 JSON，只能包含 schema_version、style_id、opening、bridges、closing、self_check。
 schema_version 必须为 role_discourse_candidate_v1；bridges 每项只能包含 slot_id 和 text，顺序不得改变。
 self_check 只能包含 added_new_facts、role_consistent、within_budget 三个布尔值。不要输出代码块。
-输入：""" + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+""" + child_expression_rule + "输入：" + json.dumps(
+        payload, ensure_ascii=False, separators=(",", ":")
+    )
 
 
 def _rejected(style_id: str, *reasons: str) -> RoleDiscourseCandidate:
@@ -249,6 +258,18 @@ def parse_and_validate_role_discourse(
     normalized = [re.sub(r"\s+", "", text) for text in texts]
     if len(normalized) != len(set(normalized)):
         reasons.append("repeated_discourse_slot")
+    # A slot can contain multiple sentences, so comparing only whole slots
+    # misses the duplicate refrain that later causes narration_validation to
+    # reject an otherwise safe Active candidate.  Catch it here and let the
+    # deterministic scaffold select distinct reviewed components instead.
+    sentences = [
+        re.sub(r"\s+", "", sentence)
+        for text in texts
+        for sentence in re.split(r"[。！？!?]+", text)
+        if re.sub(r"\s+", "", sentence)
+    ]
+    if len(sentences) != len(set(sentences)):
+        reasons.append("repeated_discourse_sentence")
     recent = {
         re.sub(r"\s+", "", value)
         for value in discourse_plan.recent_expressions

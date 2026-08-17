@@ -28,6 +28,17 @@ from tour_state import start_tour
 class RoleNarrationGraphTests(unittest.TestCase):
     STOP_ID = "stop_front_courtyard_center"
 
+    def setUp(self):
+        # Product-level rollout variables are intentionally strict and take
+        # precedence over legacy variables.  Isolate these legacy-compatibility
+        # tests from a developer's Studio shell, which may have child-only
+        # PRODUCT_ROLE_* values exported for a manual Active run.
+        self._environment = patch.dict(os.environ, {}, clear=True)
+        self._environment.start()
+
+    def tearDown(self):
+        self._environment.stop()
+
     def state(self):
         legacy = "【工艺背景：灰塑】\n\n屋脊可见灰塑。\n\n【下一步】\n\n讲解结束后可继续。"
         tour_state = start_tour(plan_template("highlights_30"))

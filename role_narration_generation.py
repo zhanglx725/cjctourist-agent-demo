@@ -94,6 +94,7 @@ def _component(
     index: int,
     *,
     previous: str = "",
+    used: frozenset[str] = frozenset(),
 ) -> str:
     values = brief.point_narration_components.get(kind, ())
     if not values:
@@ -101,6 +102,13 @@ def _component(
     normalized = tuple(str(value).strip() for value in values if str(value).strip())
     if not normalized:
         return ""
+    for offset in range(len(normalized)):
+        selected = normalized[(index + offset) % len(normalized)]
+        if selected != previous and selected not in used:
+            return selected
+    # A short component library can be exhausted on a long stop.  Preserve
+    # required typed coverage in that case; the child library supplies enough
+    # distinct phrases for its reviewed stop size.
     for offset in range(len(normalized)):
         selected = normalized[(index + offset) % len(normalized)]
         if selected != previous:
@@ -137,14 +145,25 @@ def apply_point_narration_scaffold(
     compact_components = bool(brief.point_narration_components.get("compact_opening"))
     opening_key = "compact_opening" if compact and compact_components else "opening"
     closing_key = "compact_closing" if compact and compact_components else "closing"
-    parts = [_component(brief, opening_key, 0)]
+    used_components: dict[str, set[str]] = {}
+
+    def component(kind: str, index: int, *, previous: str = "") -> str:
+        used = used_components.setdefault(kind, set())
+        selected = _component(
+            brief, kind, index, previous=previous, used=frozenset(used),
+        )
+        if selected:
+            used.add(selected)
+        return selected
+
+    parts = [component(opening_key, 0)]
     previous_component = parts[0]
     compact_transition_emitted = False
     for index, fact in enumerate(ordered_facts):
         is_unit_start = index == 0 or ordered_facts[index - 1].unit_id != fact.unit_id
         if is_unit_start and not (compact and compact_components):
-            intro = _component(
-                brief, f"{fact.topic_kind}_intro", index,
+            intro = component(
+                f"{fact.topic_kind}_intro", index,
                 previous=previous_component,
             )
             if intro and intro != previous_component:
@@ -154,16 +173,16 @@ def apply_point_narration_scaffold(
         if compact and compact_components:
             is_unit_end = index == len(ordered_facts) - 1 or ordered_facts[index + 1].unit_id != fact.unit_id
             if is_unit_end:
-                observation = _component(
-                    brief, f"{fact.topic_kind}_micro_observation", index,
+                observation = component(
+                    f"{fact.topic_kind}_micro_observation", index,
                     previous=previous_component,
                 )
                 if observation and observation != previous_component:
                     parts.append(observation)
                     previous_component = observation
             if is_unit_end and index < len(ordered_facts) - 1 and not compact_transition_emitted:
-                transition = _component(
-                    brief, f"{fact.topic_kind}_micro_transition", index,
+                transition = component(
+                    f"{fact.topic_kind}_micro_transition", index,
                     previous=previous_component,
                 )
                 if transition and transition != previous_component:
@@ -173,23 +192,22 @@ def apply_point_narration_scaffold(
         elif not compact and index < len(ordered_facts) - 1:
             next_fact = ordered_facts[index + 1]
             kind = "observation" if next_fact.unit_id == fact.unit_id else "transition"
-            bridge = _component(
-                brief, f"{fact.topic_kind}_{kind}", index,
+            bridge = component(
+                f"{fact.topic_kind}_{kind}", index,
                 previous=previous_component,
             )
             if bridge and bridge != previous_component:
                 parts.append(bridge)
                 previous_component = bridge
     if not compact:
-        appreciation = _component(
-            brief, "appreciation", len(ordered_facts),
-            previous=previous_component,
+        appreciation = component(
+            "appreciation", len(ordered_facts), previous=previous_component,
         )
         if appreciation and appreciation != previous_component:
             parts.append(appreciation)
             previous_component = appreciation
-    closing = _component(
-        brief, closing_key, len(ordered_facts), previous=previous_component,
+    closing = component(
+        closing_key, len(ordered_facts), previous=previous_component,
     )
     if closing and closing != previous_component:
         parts.append(closing)

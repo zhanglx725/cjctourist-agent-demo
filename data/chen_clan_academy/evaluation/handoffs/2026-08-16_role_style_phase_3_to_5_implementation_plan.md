@@ -892,6 +892,19 @@ fallback 证据：服务尾部缺失、过期、顺序错误、公开文本越�
 下一步：验证 Streamlit 启动配置，再开启试点开关执行真实模型和 LangSmith 人工验收
 ```
 
+```text
+日期：2026-08-17
+工作包：child 点位讲解 Active 收尾与现状同步
+状态：active（stop_guidance 已有真实发布证据；儿童全链路尚未完成）
+修改文件：narration_rendering.py、role_discourse.py、role_narration_generation.py、data/chen_clan_academy/narration_styles/point_narration_components_v1.yaml、相关定向测试
+已解决：此前 child 候选因 repeated_role_expression 被 narration_validation 拒绝并回退旧链；当前新的 LangSmith Thread 已记录 validation_status=accepted，narration_commit.commit_decision=role_candidate_published，narration_commit.active_takeover=true，fallback_used=false。儿童与古风书生现共用“事实呈现 → ContentPlan → generation → validation → commit/fallback”主链；儿童只作为受控摘要呈现策略，且与所有风格一样保留 source_statements 审计边界，不另建发布链。
+已验证：role_narration_generation 的 model_called=true；事实边界与公共消息安全通过；首次到站 proactive_photo_triggered=false，未自动拼接拍照卡；visitor_localization 的 api_called=false 属于 source_already_target（原文已是简体中文），不是角色模型未调用。
+当前本机配置：PRODUCT_ROLE_ACTIVE_STYLES=child，PRODUCT_ROLE_ACTIVE_SCENES=stop_guidance，CJC_READ_ONLY_ROLLOUT_CAPABILITIES=role_narration。因此本轮证据只覆盖 child 的点位讲解，不覆盖 route_planning、route_opening、tour_qa 或 qa_follow_up_detail。
+未完成项：1) 在最新去重与儿童事实组织改动后重新运行角色相关 unittest；2) 复测 full、compact、split/continuation 的多事实单元，确认不再出现 repeated_role_expression；3) 在新 Thread 中启用并验收 child 的 route_planning、route_opening、tour_qa、qa_follow_up_detail；4) 对模型异常/校验失败执行一次儿童 fallback 人工证据；5) 决定并文档化儿童“受控摘要/比喻”与本计划第 3.1 节“事实原字”合同的兼容规则；6) child 完成前，不把 18 风格整体或阶段 3 标记为 verified。
+整体进度：3A 与 3B.1 保持既有 verified 记录；3C 仍为三角色试点加本次 child 修复，尚未扩展为 18 风格验收；3D（最低中段覆盖、预算与 continuation 联合合同）、3E（QA 事实单元贯穿）、3F（role_revision 与旧候选失效）未完成；阶段 4 的 navigation、tour_closing、replan_presentation 仍保持 Shadow/计划状态。
+下一步：先完成 child 剩余五项并以 ancient_scholar 主线做回归；随后按 3C→3D→3E→3F 的顺序扩展，不直接开放 18 风格全场景 Active。
+```
+
 ---
 
 ## 10. 推荐执行顺序

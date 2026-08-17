@@ -71,6 +71,37 @@ class RoleNarrationGenerationTests(unittest.TestCase):
             for closing in brief.point_narration_components["closing"]
         ))
 
+    def test_child_full_scaffold_uses_distinct_object_components(self):
+        plan = NarrationContentPlan(
+            stop_id="front", style_id="child", language="zh", budget_seconds=240,
+            facts=(
+                NarrationFact("craft:stucco:000", "craft_background", "灰塑是一门传统装饰手艺。"),
+                NarrationFact("ornament:lion:000", "object_detail", "独角狮是一件灰塑装饰。"),
+                NarrationFact("ornament:lion:001", "object_detail", "传说里，独角狮的模样来自民间故事。"),
+                NarrationFact("ornament:fortune:000", "object_detail", "福禄寿是一件灰塑装饰。"),
+                NarrationFact("ornament:fortune:001", "object_detail", "福禄寿的模样有鲜明层次。"),
+            ),
+            must_include=(), already_covered=(), must_not_claim=(),
+            interaction_allowed=True,
+        )
+        brief = compile_style_brief("child")
+        value = json.dumps({
+            "schema_version": "role_narration_candidate_v1",
+            "style_id": "child",
+            "public_text": "".join(f"[[FACT_{index:03d}]]" for index in range(5)),
+            "used_fact_ids": [fact.fact_id for fact in plan.facts],
+            "omitted_fact_ids": [],
+            "self_check": {
+                "added_new_facts": False,
+                "role_consistent": True,
+                "within_budget": True,
+            },
+        }, ensure_ascii=False)
+        candidate = generate_role_narration(plan, brief, lambda _: value)
+        result = validate_role_narration(candidate, plan, brief)
+        self.assertEqual(result.validation_status, "accepted", result.to_dict())
+        self.assertNotIn("repeated_role_expression", result.reason_codes)
+
     def test_style_forbidden_marker_rejects_candidate_connector_only(self):
         plan = self.plan("ancient_scholar")
         brief = compile_style_brief(plan.style_id)

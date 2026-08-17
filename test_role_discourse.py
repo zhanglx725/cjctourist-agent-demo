@@ -88,6 +88,8 @@ class RoleDiscourseTests(unittest.TestCase):
         self.assertIn("same_unit_continuation", prompt)
         self.assertIn("topic_transition", prompt)
         self.assertIn("只能生成事实之间的自然连接语", prompt)
+        self.assertIn("轻微童话感", prompt)
+        self.assertIn("同一个短句在整组连接语中只能出现一次", prompt)
 
     def test_schema_order_budget_fact_and_interaction_fail_closed(self):
         for name, mutate, expected in (
@@ -159,6 +161,34 @@ class RoleDiscourseTests(unittest.TestCase):
             ).validation_status,
             "accepted",
         )
+
+    def test_repeated_sentence_uses_distinct_component_fallback(self):
+        source = plan()
+        brief = compile_style_brief("child")
+        repeated = response()
+        repeated["bridges"][0]["text"] = "制作脉络接着展开。制作脉络接着展开。"
+        discourse = build_role_discourse_plan(source)
+        assert discourse is not None
+        parsed = parse_and_validate_role_discourse(
+            repeated, discourse, brief, interaction_allowed=True,
+        )
+        self.assertEqual(parsed.status, "rejected")
+        self.assertIn("repeated_discourse_sentence", parsed.reason_codes)
+        with patch.dict(os.environ, {
+            "PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED": "true",
+        }, clear=False):
+            candidate = generate_role_narration(
+                source, brief,
+                lambda _: json.dumps(repeated, ensure_ascii=False),
+            )
+        self.assertTrue(candidate.reason_code.startswith(
+            "natural_discourse_fallback:repeated_discourse_sentence"
+        ))
+        result = validate_stop_guidance_role_narration(
+            candidate, source, brief, compact=True,
+        )
+        self.assertEqual(result.validation_status, "accepted", result.to_dict())
+        self.assertNotIn("repeated_role_expression", result.reason_codes)
 
     def test_recent_expression_is_rejected_and_memory_is_bounded(self):
         source = plan()

@@ -245,6 +245,20 @@ class NarrationRenderingTests(unittest.TestCase):
         )
         self.assertNotIn("审核关联", role_facts)
         self.assertNotIn("可结合现场标识", role_facts)
+        self.assertIn("灰塑是一门传统装饰手艺。", role_facts)
+        self.assertNotIn("珠江三角洲传统建筑中广泛使用", role_facts)
+        self.assertIn("传说里，这个题材来自民间传说。", role_facts)
+        self.assertTrue(all(
+            "source_statements" in unit
+            for unit in result.fact_units
+        ))
+        source_statements = "".join(
+            statement
+            for unit in result.fact_units
+            for statement in unit["source_statements"]
+        )
+        self.assertIn("灰塑", source_statements)
+        self.assertIn("民间传说", source_statements)
         self.assertIn(self.primary.name, role_facts)
         self.assertIn("独角", role_facts)
         self.assertNotIn("【工艺背景", result.visitor_message)
@@ -257,6 +271,18 @@ class NarrationRenderingTests(unittest.TestCase):
         self.assertIn("小线索", result.visitor_message)
         self.assertIn("新朋友", result.visitor_message)
         self.assertIn("我们慢慢来", result.visitor_message)
+
+    def test_all_role_fact_units_keep_a_source_boundary(self):
+        profile = create_visitor_profile(
+            interests=["灰塑"], detail_level="standard", explanation_style="ancient_scholar",
+        )
+        result = render_guidance_evidence(
+            self.program, self._bundle(), build_guidance_policy(profile),
+        )
+
+        self.assertTrue(result.fact_units)
+        for unit in result.fact_units:
+            self.assertEqual(unit["source_statements"], unit["statements"])
 
     def test_paths_are_hidden_sources_are_only_used_when_rendered_and_inputs_are_unchanged(self):
         bundle = self._bundle()
