@@ -150,6 +150,7 @@ from role_mode_shadow import ROLE_MODE_IDS, resolve_role_mode
 from presentation_content_plan import build_presentation_content_plan
 from route_role_narration_shadow import (
     build_route_role_text_candidate,
+    generate_route_role_text_candidate,
     validate_closing_role_narration,
     validate_navigation_role_narration,
     validate_route_role_text_candidate,
@@ -646,9 +647,19 @@ def _invoke_role_narration_model(prompt: str) -> str:
         raise ValueError("ROLE_NARRATION_TIMEOUT_SECONDS must be a number") from exc
     if not 5 <= timeout_seconds <= 120:
         raise ValueError("ROLE_NARRATION_TIMEOUT_SECONDS must be between 5 and 120")
+    # Expression is now genuinely model-authored inside a reviewed knowledge
+    # boundary.  A small, bounded temperature prevents eighteen personas from
+    # collapsing into the same deterministic template while validation still
+    # owns every fact, state and safety decision.
+    try:
+        role_temperature = float(os.getenv("ROLE_NARRATION_TEMPERATURE", "0.55"))
+    except ValueError as exc:
+        raise ValueError("ROLE_NARRATION_TEMPERATURE must be a number") from exc
+    if not 0 <= role_temperature <= 0.8:
+        raise ValueError("ROLE_NARRATION_TEMPERATURE must be between 0 and 0.8")
     model = ChatDeepSeek(
         model=model_name,
-        temperature=0,
+        temperature=role_temperature,
         max_tokens=max_tokens,
         # A role candidate is non-authoritative.  Bound one provider request
         # and disable SDK retries so an unavailable endpoint reaches the
@@ -669,8 +680,8 @@ def _invoke_role_narration_model(prompt: str) -> str:
         {
             "role": "system",
             "content": (
-                "你只实现审核事实的角色化表达。事实原文必须保留，不得检索、补写事实、"
-                "输出内部字段或提出任何状态修改。"
+                "你是成熟的实地导游。请以角色的关系感、观察顺序和叙事节奏完整组织游客讲解；"
+                "但只能使用请求中已审核的事实边界，不得检索、补写事实、输出内部字段或提出任何状态修改。"
             ),
         },
         {"role": "user", "content": prompt},
@@ -2860,7 +2871,9 @@ def _commit_stop_guidance_coverage(
         "status": "not_attempted", "submitted_subject_ids": [],
         "committed_subject_ids": [],
     }
-    if result.get("status") != "guided_e5":
+    # A detail request reuses approved evidence for reading, but it is not a
+    # new stop visit and must never alter coverage or the final visit summary.
+    if result.get("status") != "guided_e5" or result.get("is_detail_request"):
         return coverage_after, commit_audit
     render_audit = result.get("narration_render_audit") or {}
     current_node = (state.get("tour_state") or {}).get("current_stop_id")
@@ -2947,12 +2960,13 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
     """Generate sourced current-stop guidance without advancing TourState."""
     started = time.perf_counter()
     last_event = state.get("last_tour_event", {})
+    is_detail_request = last_event.get("event") == "request_stop_detail"
     result = build_stop_guidance(
         state.get("tour_state"),
         state.get("tour_interaction_state"),
         lambda retrieval_query: str(chen_clan_academy_rag_search.invoke({"query": retrieval_query})),
         current_program=state.get("active_stop_program"),
-        detailed=last_event.get("event") == "request_stop_detail",
+        detailed=is_detail_request,
         visitor_profile=state.get("visitor_profile"),
         narration_coverage=state.get("narration_coverage"),
     )
@@ -2962,7 +2976,7 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
         existing_plan=state.get("proactive_photo_guidance"),
         last_tour_event=last_event,
         visitor_profile=state.get("visitor_profile"),
-        detailed=last_event.get("event") == "request_stop_detail",
+        detailed=is_detail_request,
     )
     if photo_guidance["triggered"]:
         public_message = public_visitor_message_or_fallback(
@@ -2979,7 +2993,8 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
             if photo_guidance.get("triggered") else None
         ),
         photo_plan=(photo_guidance.get("plan") if photo_guidance.get("triggered") else None),
-    )
+    ) if not is_detail_request else None
+    result = {**result, "is_detail_request": is_detail_request}
     rollout = rollout_from_environment()
     role_mode = state.get("role_mode_shadow") or {}
     # Unknown, conflicting, or otherwise unresolved role requests must not
@@ -3025,7 +3040,8 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
                 "legacy_public_message": public_message,
                 "coverage_candidates": result.get("coverage_candidates", []),
                 "narration_render_audit": result.get("narration_render_audit"),
-                "service_tail": service_tail.to_dict(),
+                "service_tail": service_tail.to_dict() if service_tail is not None else None,
+                "is_detail_request": is_detail_request,
             }
             if role_active and result.get("status") == "guided_e5"
             else None
@@ -3038,6 +3054,7 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
             evidence_count=len(result["evidence"]),
             selected_item_count=len((result.get("stop_program") or {}).get("selected_items", [])),
             proactive_photo_triggered=photo_guidance["triggered"],
+            is_detail_request=is_detail_request,
             proactive_photo_spot_id=photo_guidance.get("photo_spot_id"),
             fallback_reason=(result.get("narration") or {}).get("e5_fallback_reason")
             or (result.get("narration") or {}).get("fallback_reason"),
@@ -3244,7 +3261,8 @@ def role_narration_generation_node(state: AgentState) -> dict[str, Any]:
             existing_continuation = narration_continuation_from_dict(
                 state.get("narration_continuation")
             )
-            continuation_value = (
+            is_detail_request = bool((state.get("pending_role_narration_commit") or {}).get("is_detail_request"))
+            continuation_value = None if is_detail_request else (
                 advance_continuation(existing_continuation, budget_decision.selected_fact_ids)
                 if existing_continuation is not None
                 else continuation_from_decision(
@@ -3299,12 +3317,16 @@ def narration_validation_node(state: AgentState, config: RunnableConfig = None) 
     publish_service_tail = not isinstance(continuation, Mapping) or (
         continuation.get("status") == "completed"
     )
-    service_validation = validate_stop_service_tail(
-        stop_service_tail_from_dict(pending.get("service_tail")),
-        tour_state=state.get("tour_state"),
-        photo_plan=state.get("proactive_photo_guidance"),
-        publish=publish_service_tail,
-    ).to_dict()
+    is_detail_request = bool(pending.get("is_detail_request"))
+    service_validation = (
+        {"validation_status": "accepted", "reason_codes": [], "public_text": "", "service_unit_kinds": []}
+        if is_detail_request else validate_stop_service_tail(
+            stop_service_tail_from_dict(pending.get("service_tail")),
+            tour_state=state.get("tour_state"),
+            photo_plan=state.get("proactive_photo_guidance"),
+            publish=publish_service_tail,
+        ).to_dict()
+    )
     if service_validation["validation_status"] != "accepted":
         validation["validation_status"] = "rejected"
         validation["reason_codes"] = list(dict.fromkeys((
@@ -3921,24 +3943,40 @@ def _route_role_narration_shadow_update(
     plan = presentation_plan or state.get("presentation_content_plan")
     scene_kind = str(plan.get("scene_kind") or "unknown") if isinstance(plan, dict) else "unknown"
     role_mode = str(plan.get("role_mode") or "standard") if isinstance(plan, dict) else "standard"
+    rollout_thread_id = _rollout_thread_id(config)
+    active_allowed = product_role_active_allowed(
+        role_mode, scene_kind, thread_id=rollout_thread_id,
+    )
+    natural_route_enabled = (
+        os.getenv("PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED", "").strip().lower()
+        in {"1", "true", "yes", "on"}
+        and os.getenv("PRODUCT_ROLE_NATURAL_FULL_NARRATION_ENABLED", "").strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
+    supported_scene = scene_kind in {
+        "route_planning", "route_opening", "navigation", "tour_closing",
+    }
+    # Shadow mode remains deterministic and cheap.  In Active mode the model
+    # receives only opaque, immutable route sentences and can author the
+    # visitor-facing role flow around them; malformed output falls back to the
+    # existing safe deterministic candidate.
+    candidate_from_model = bool(active_allowed and natural_route_enabled and supported_scene and legacy_text)
     candidate = (
-        build_route_role_text_candidate(
+        generate_route_role_text_candidate(
+            scene_kind=scene_kind, role_mode=role_mode,
+            legacy_text=legacy_text, invoke_model=_invoke_role_narration_model,
+        )
+        if candidate_from_model else None
+    )
+    if candidate is None and supported_scene and legacy_text:
+        candidate = build_route_role_text_candidate(
             scene_kind=scene_kind, role_mode=role_mode, legacy_text=legacy_text,
         )
-        if scene_kind in {
-            "route_planning", "route_opening", "navigation", "tour_closing",
-        } and legacy_text
-        else None
-    )
     scene_validator = {
         "navigation": validate_navigation_role_narration,
         "tour_closing": validate_closing_role_narration,
     }.get(scene_kind, validate_route_role_text_candidate)
     validation = scene_validator(candidate, plan=plan, legacy_text=legacy_text)
-    rollout_thread_id = _rollout_thread_id(config)
-    active_allowed = product_role_active_allowed(
-        role_mode, scene_kind, thread_id=rollout_thread_id,
-    )
     accepted = validation.get("validation_status") == "accepted"
     active_takeover = bool(active_allowed and accepted and candidate)
     record = {
@@ -3956,6 +3994,7 @@ def _route_role_narration_shadow_update(
         ),
         "public_message_safe": bool(validation.get("public_output_safe")),
         "within_budget": bool(validation.get("budget_consistent")),
+        "model_called": bool(candidate_from_model),
     }
     updates: dict[str, Any] = {
         "route_role_narration_evaluations": [
@@ -4822,6 +4861,16 @@ def route_initial_request(state: AgentState) -> str:
             return "extended_profile_control"
         return "visitor_onboarding"
     role_record = state.get("role_mode_shadow") or {}
+    collection_for_role = state.get("profile_collection") or {}
+    # During custom-profile collection, a Chinese role name is an answer to
+    # the current C2 question, not an out-of-band role-switch command.  The
+    # former ordering confirmed the role but left explanation_style unresolved,
+    # so the same selector was asked again and testers had to say “跳过”.
+    if (
+        collection_for_role.get("status") == "collecting"
+        and collection_for_role.get("next_missing_field") == "explanation_style"
+    ):
+        return "profile_collection"
     if (
         role_record.get("status") == "selected"
         and role_record.get("source") == "explicit_request"

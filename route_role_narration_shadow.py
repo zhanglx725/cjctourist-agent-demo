@@ -9,11 +9,13 @@ fact, route, and safety boundary without exposing route IDs or evidence IDs.
 
 from __future__ import annotations
 
+import json
 import re
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from controlled_knowledge_query import public_visitor_message_or_fallback
 from presentation_content_plan import PresentationContentPlan, presentation_content_plan_from_dict
+from narration_style_policy import compile_style_brief
 
 
 ROUTE_ROLE_TEXT_CANDIDATE_SCHEMA_VERSION = "route_role_text_candidate_v1"
@@ -27,6 +29,7 @@ ROLE_MODES = frozenset({
     "hostel_scholar", "xiguan_young_master", "cantonese_storyteller",
 })
 _CANDIDATE_FIELDS = frozenset({"schema_version", "scene_kind", "role_mode", "public_text"})
+_ROUTE_TOKEN = re.compile(r"\[\[ROUTE_\d{3}\]\]")
 _INTERNAL = re.compile(
     r"(?:https?://|file://|[A-Za-z]:\\|source[_ ]?ids?|node[_ ]?id|route[_ ]?id|"
     r"object[_ ]?id|raw[_ ]?chunk|rag_tool|llm_think|tourstate|visitorprofile)",
@@ -141,6 +144,88 @@ def build_route_role_text_candidate(
     }
 
 
+def _route_units(legacy_text: str) -> tuple[str, ...]:
+    """Split public route prose into immutable visitor-safe sentence units."""
+    units = tuple(
+        unit.strip()
+        for unit in re.findall(r"[^。！？!?]+[。！？!?]|[^。！？!?]+$", legacy_text)
+        if unit.strip()
+    )
+    return units or ((legacy_text.strip(),) if legacy_text.strip() else ())
+
+
+def route_role_narration_prompt(
+    *, scene_kind: str, role_mode: str, legacy_text: str,
+) -> str:
+    """Ask the model to organise route facts, never to rewrite them."""
+    units = _route_units(legacy_text)
+    brief = compile_style_brief(role_mode)
+    payload = {
+        "scene_kind": scene_kind,
+        "style_brief": brief.to_dict(),
+        "immutable_route_units": [
+            {"token": f"[[ROUTE_{index:03d}]]", "text": value}
+            for index, value in enumerate(units)
+        ],
+    }
+    example = {
+        "schema_version": ROUTE_ROLE_TEXT_CANDIDATE_SCHEMA_VERSION,
+        "scene_kind": scene_kind,
+        "role_mode": role_mode,
+        "public_text": "".join(f"[[ROUTE_{index:03d}]]" for index in range(len(units))),
+    }
+    return """你是成熟的实地导游，需要把已确认的路线信息讲得自然、有角色感、易阅读。
+你可以自由写角色化开场、事实之间的承接和收束，并用自然短段组织内容；不要只加一句口头禅。
+但 immutable_route_units 中的每个 token 代表一条不可改写的路线事实。所有 token 必须按给定顺序且各出现一次。
+不得添加或改写任何站点、时长、方向、路线、对象、安全说明、开放状态或游客已完成情况；不得遗漏 token。
+style_brief 是角色合同：在称呼、节奏、观察方法、关系感和收束中持续体现角色，避免重复口头禅。
+不得出现审核、证据、节点、关联、项目编辑、未核验、ID、工具、URL、文件路径等后台内容。
+interaction_contract.mode=none 时不得新增问题、任务、拍照或动作要求。
+输出严格一行 JSON，只能包含 schema_version、scene_kind、role_mode、public_text；不要 Markdown。
+合法形状示例：\n""" + json.dumps(example, ensure_ascii=False, separators=(",", ":")) + "\n输入：" + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+
+
+def generate_route_role_text_candidate(
+    *,
+    scene_kind: str,
+    role_mode: str,
+    legacy_text: str,
+    invoke_model: Callable[[str], str],
+) -> dict[str, Any] | None:
+    """Generate a role-organised route candidate with immutable route units."""
+    units = _route_units(legacy_text)
+    if not units or role_mode not in ROLE_MODES or scene_kind not in SCENE_KINDS:
+        return None
+    try:
+        raw = json.loads(invoke_model(route_role_narration_prompt(
+            scene_kind=scene_kind, role_mode=role_mode, legacy_text=legacy_text,
+        )))
+    except Exception:
+        return None
+    if (
+        not isinstance(raw, Mapping)
+        or frozenset(raw) != _CANDIDATE_FIELDS
+        or raw.get("schema_version") != ROUTE_ROLE_TEXT_CANDIDATE_SCHEMA_VERSION
+        or raw.get("scene_kind") != scene_kind
+        or raw.get("role_mode") != role_mode
+        or not isinstance(raw.get("public_text"), str)
+    ):
+        return None
+    token_text = raw["public_text"].strip()
+    expected = [f"[[ROUTE_{index:03d}]]" for index in range(len(units))]
+    if _ROUTE_TOKEN.findall(token_text) != expected:
+        return None
+    hydrated = token_text
+    for token, unit in zip(expected, units):
+        hydrated = hydrated.replace(token, unit, 1)
+    return {
+        "schema_version": ROUTE_ROLE_TEXT_CANDIDATE_SCHEMA_VERSION,
+        "scene_kind": scene_kind,
+        "role_mode": role_mode,
+        "public_text": hydrated,
+    }
+
+
 def validate_route_role_text_candidate(
     candidate: Mapping[str, Any] | None,
     *,
@@ -193,8 +278,28 @@ def validate_route_role_text_candidate(
     expected_text = f"{_style_prefix(scene_kind, role_mode)}{legacy_text}"
     if role_mode not in ROLE_MODES:
         reasons.append("invalid_role_mode")
-    if candidate_text != expected_text:
-        reasons.append("legacy_boundary_or_role_template_mismatch")
+    # Accept either the legacy-compatible fixed candidate or a model-written
+    # candidate that preserves every reviewed route sentence in order.  The
+    # latter may insert paragraph boundaries and fact-free role prose, so the
+    # complete legacy string need not remain contiguous.
+    units = _route_units(legacy_text)
+    cursor = 0
+    route_segments: list[str] = []
+    for unit in units:
+        position = candidate_text.find(unit, cursor)
+        if position < 0 or candidate_text.count(unit) != 1:
+            reasons.append("legacy_boundary_or_role_template_mismatch")
+            break
+        route_segments.append(candidate_text[cursor:position])
+        cursor = position + len(unit)
+    route_segments.append(candidate_text[cursor:])
+    model_route_candidate = candidate_text != expected_text
+    connector_text = "".join(route_segments)
+    if model_route_candidate and re.search(
+        r"(?:\d{1,4}\s*(?:分钟|秒|米|站)|第[一二三四五六七八九十\d]+站|向[东西南北]|传说|审核|证据|关联|项目编辑|未核验)",
+        connector_text,
+    ):
+        reasons.append("unapproved_route_connector_fact")
     if _INTERNAL.search(candidate_text):
         reasons.append("internal_field_leak")
     if public_visitor_message_or_fallback(candidate_text) != candidate_text:
@@ -217,7 +322,12 @@ def validate_route_role_text_candidate(
     )
     if not within_budget:
         reasons.append("content_budget_exceeded")
-    fact_boundary_ok = candidate_text == expected_text
+    fact_boundary_ok = not any(
+        reason in reasons for reason in (
+            "legacy_boundary_or_role_template_mismatch",
+            "unapproved_route_connector_fact",
+        )
+    )
     public_safe = not bool(_INTERNAL.search(candidate_text)) and (
         public_visitor_message_or_fallback(candidate_text) == candidate_text
     )
@@ -241,8 +351,8 @@ def validate_route_role_text_candidate(
         "reason_codes": [],
         "candidate": dict(candidate),
         "legacy_message_present": True,
-        "legacy_message_preserved": True,
-        "candidate_is_non_authoritative": True,
+        "legacy_message_preserved": candidate_text == expected_text,
+        "candidate_is_non_authoritative": candidate_text == expected_text,
         "state_writes": [],
         "fact_diff": [] if fact_boundary_ok else ["legacy_message_not_preserved"],
         "route_diff": [] if fact_boundary_ok else ["legacy_message_not_preserved"],

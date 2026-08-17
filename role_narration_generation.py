@@ -1,8 +1,8 @@
 """Bounded role narration candidate generation.
 
-The model receives a minimal reviewed StyleBrief and a source-free claim plan.
-It cannot retrieve, call tools, or write state. Approved fact statements must
-remain verbatim; the model may only arrange them and add bounded role phrasing.
+The model receives a reviewed StyleBrief and a bounded, reviewed claim plan.
+It cannot retrieve, call tools, or write state. Facts remain server-controlled,
+while the model owns the natural visitor-facing organisation around them.
 """
 
 from __future__ import annotations
@@ -518,8 +518,12 @@ def generate_role_narration(
     use_natural_discourse = (
         os.getenv("PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED", "").strip().lower()
         in {"1", "true", "yes", "on"}
-        and plan.scaffold_mode == "compact"
-        and plan.style_id in {"child", "ancient_scholar", "dominant_ceo"}
+        # ``...NATURAL_DISCOURSE_ENABLED`` was the original pilot switch and
+        # is already present in many test/dev shells.  Full, all-role prose is
+        # a new wire protocol, so it needs an explicit migration gate instead
+        # of reinterpreting old mocked candidate envelopes as discourse JSON.
+        and os.getenv("PRODUCT_ROLE_NATURAL_FULL_NARRATION_ENABLED", "").strip().lower()
+        in {"1", "true", "yes", "on"}
     )
     started = time.perf_counter()
     discourse_plan = None
@@ -559,6 +563,24 @@ def generate_role_narration(
         return _failed(plan.style_id, f"model_unavailable:{type(exc).__name__}", latency, model_called=True)
     latency = int((time.perf_counter() - started) * 1000)
     if discourse_plan is not None:
+        # Development and offline callers can still supply the established
+        # token-candidate envelope.  Treat it as the strict legacy protocol
+        # rather than misclassifying it as a malformed natural-discourse
+        # object solely because the process has the new rollout flag enabled.
+        # This preserves fail-closed validation of every token/fact boundary;
+        # live natural calls use the distinct discourse schema below.
+        decoded = _decode(raw)
+        if isinstance(decoded, Mapping) and frozenset(decoded) == _MODEL_CANDIDATE_FIELDS:
+            candidate = validate_candidate_shape(
+                decoded, expected_style_id=plan.style_id, latency_ms=latency,
+            )
+            candidate = _hydrate_fact_tokens(candidate, plan)
+            if _requires_unmodified_validation(candidate, plan, brief):
+                return candidate
+            return apply_point_narration_scaffold(
+                candidate, plan, brief,
+                compact=plan.scaffold_mode == "compact" if compact is None else compact,
+            )
         from role_discourse import compose_role_discourse, parse_and_validate_role_discourse
         discourse_candidate = parse_and_validate_role_discourse(
             raw, discourse_plan, brief,

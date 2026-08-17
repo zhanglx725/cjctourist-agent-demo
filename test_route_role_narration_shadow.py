@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import unittest
 from copy import deepcopy
 from unittest.mock import patch
@@ -19,6 +20,7 @@ from narration_coverage import empty_narration_coverage
 from presentation_content_plan import build_presentation_content_plan
 from route_role_narration_shadow import (
     build_route_role_text_candidate,
+    generate_route_role_text_candidate,
     validate_route_role_text_candidate,
 )
 from tour_state import finish_tour
@@ -43,6 +45,28 @@ def _plan(scene: str, role: str):
 
 
 class RouteRoleNarrationShadowTests(unittest.TestCase):
+    def test_model_route_candidate_can_add_role_paragraphs_without_changing_route_units(self):
+        legacy = "总时长30分钟。第一站为前院中部。请以现场安排为准。"
+        candidate = generate_route_role_text_candidate(
+            scene_kind="route_planning", role_mode="bestie_chat", legacy_text=legacy,
+            invoke_model=lambda _: json.dumps({
+                "schema_version": "route_role_text_candidate_v1",
+                "scene_kind": "route_planning", "role_mode": "bestie_chat",
+                "public_text": (
+                    "咱们先把这一程的重点理顺。\n\n[[ROUTE_000]]"
+                    "\n\n接下来就顺着这条线慢慢逛。[[ROUTE_001]]\n\n[[ROUTE_002]]"
+                ),
+            }, ensure_ascii=False),
+        )
+        self.assertIsNotNone(candidate)
+        assert candidate is not None
+        self.assertIn("咱们先把这一程的重点理顺", candidate["public_text"])
+        result = validate_route_role_text_candidate(
+            candidate, plan=_plan("route_planning", "bestie_chat"), legacy_text=legacy,
+        )
+        self.assertEqual(result["validation_status"], "accepted", result)
+        self.assertFalse(result["legacy_message_preserved"])
+
     def test_all_reviewed_roles_generate_valid_candidates_for_all_surfaces(self):
         legacy = "路线主题已确定。第一站为前院中部。请以现场安排为准。"
         for scene in SOURCES:

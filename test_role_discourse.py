@@ -87,7 +87,7 @@ class RoleDiscourseTests(unittest.TestCase):
         prompt = role_discourse_prompt(discourse, compile_style_brief("child"))
         self.assertIn("same_unit_continuation", prompt)
         self.assertIn("topic_transition", prompt)
-        self.assertIn("只能生成事实之间的自然连接语", prompt)
+        self.assertIn("完整而自然的角色讲解", prompt)
         self.assertIn("轻微童话感", prompt)
         self.assertIn("同一个短句在整组连接语中只能出现一次", prompt)
 
@@ -112,17 +112,40 @@ class RoleDiscourseTests(unittest.TestCase):
                 self.assertEqual(candidate.status, "rejected")
                 self.assertIn(expected, candidate.reason_codes)
 
-    def test_non_pilot_or_full_plan_does_not_enable_discourse(self):
-        self.assertIsNone(build_role_discourse_plan(plan("neutral")))
+    def test_every_approved_style_and_full_plan_can_use_discourse(self):
+        style_ids = (
+            "neutral", "child", "family", "student_research", "professional",
+            "listen_only", "mixed_group", "dominant_ceo", "cute_junior",
+            "ancient_scholar", "warm_sister", "bestie_chat", "buddy_guide",
+            "exploration_game", "photo_guide", "hostel_scholar",
+            "xiguan_young_master", "cantonese_storyteller",
+        )
+        for style_id in style_ids:
+            with self.subTest(style_id=style_id):
+                self.assertIsNotNone(build_role_discourse_plan(plan(style_id)))
+                self.assertEqual(compile_style_brief(style_id).style_id, style_id)
         full = plan()
         object.__setattr__(full, "scaffold_mode", "full")
-        self.assertIsNone(build_role_discourse_plan(full))
+        self.assertIsNotNone(build_role_discourse_plan(full))
+
+    def test_composed_discourse_uses_semantic_paragraphs(self):
+        source = plan()
+        discourse = build_role_discourse_plan(source)
+        assert discourse is not None
+        candidate = parse_and_validate_role_discourse(
+            response(), discourse, compile_style_brief("child"),
+            interaction_allowed=True,
+        )
+        text = compose_role_discourse(candidate, discourse)
+        self.assertIn("\n\n", text)
+        self.assertNotIn("【", text)
 
     def test_enabled_generation_publishes_natural_discourse_candidate(self):
         source = plan()
         brief = compile_style_brief("child")
         with patch.dict(os.environ, {
             "PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED": "true",
+            "PRODUCT_ROLE_NATURAL_FULL_NARRATION_ENABLED": "true",
         }, clear=False):
             candidate = generate_role_narration(
                 source, brief,
@@ -144,6 +167,7 @@ class RoleDiscourseTests(unittest.TestCase):
         unsafe["opening"] = "传说这里有故事。"
         with patch.dict(os.environ, {
             "PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED": "true",
+            "PRODUCT_ROLE_NATURAL_FULL_NARRATION_ENABLED": "true",
         }, clear=False):
             candidate = generate_role_narration(
                 source, brief,
@@ -176,6 +200,7 @@ class RoleDiscourseTests(unittest.TestCase):
         self.assertIn("repeated_discourse_sentence", parsed.reason_codes)
         with patch.dict(os.environ, {
             "PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED": "true",
+            "PRODUCT_ROLE_NATURAL_FULL_NARRATION_ENABLED": "true",
         }, clear=False):
             candidate = generate_role_narration(
                 source, brief,
@@ -215,6 +240,7 @@ class RoleDiscourseTests(unittest.TestCase):
         brief = compile_style_brief("child")
         with patch.dict(os.environ, {
             "PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED": "true",
+            "PRODUCT_ROLE_NATURAL_FULL_NARRATION_ENABLED": "true",
         }, clear=False):
             candidate = generate_role_narration(
                 source, brief,

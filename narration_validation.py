@@ -29,7 +29,9 @@ _SENTENCE_LIMITS = {"short": 42, "compact": 60, "medium": 80}
 _MALFORMED_PUNCTUATION = re.compile(r"(?:[。！？]{2,}|[，、]{2,}|[，。！？]\s*[，。！？]|～)")
 _LAYOUT_HEADING = re.compile(r"【[^】]+】")
 _LAYOUT_MARKDOWN = re.compile(r"(?m)^\s*(?:#{1,6}\s+|[-*+]\s+|\d+[.)、]\s+)")
-_LAYOUT_SPACING = re.compile(r"\n\s*\n|\n{3,}")
+# A single blank line is the approved semantic paragraph boundary.  Reject
+# only excessive empty space; the prior rule rejected all readable narration.
+_LAYOUT_SPACING = re.compile(r"\n(?:\s*\n){2,}|\n{3,}")
 
 
 def _style_acceptance_reasons(connector: str, brief: StyleBrief) -> list[str]:
@@ -289,11 +291,9 @@ def _validate_role_narration_contract(
     layout_reasons: list[str] = []
     if malformed_punctuation:
         layout_reasons.append("malformed_punctuation")
-    # Stop guidance owns the complete visitor layout, so its whole candidate
-    # must be continuous. QA wraps an already-published, immutable answer; its
-    # existing paragraph breaks are part of that approved fact block. In QA,
-    # audit only prose added around the fact so the role layer cannot introduce
-    # headings, Markdown or new spacing while the legacy answer stays exact.
+    # Stop guidance owns the complete visitor layout.  A controlled blank line
+    # is now a semantic paragraph boundary, not a validation failure. QA wraps
+    # an already-published answer and still audits only model-added prose.
     layout_segments = (
         connector_segments
         if preserve_fact_layout and connector_segments is not None
@@ -306,8 +306,8 @@ def _validate_role_narration_contract(
         layout_reasons.append("layout_markdown_leak")
     if any(_LAYOUT_SPACING.search(segment) for segment in layout_segments):
         layout_reasons.append("layout_spacing_invalid")
-    if "\n" in layout_text or not candidate.public_text.strip().endswith(("。", "！", "？")):
-        layout_reasons.append("layout_not_continuous")
+    if not candidate.public_text.strip().endswith(("。", "！", "？")):
+        layout_reasons.append("layout_terminal_punctuation_missing")
     reasons.extend(layout_reasons)
     if _has_duplicate_connector_sentence(connector):
         reasons.append("repeated_role_expression")

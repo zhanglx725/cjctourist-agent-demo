@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import unittest
+import os
+from unittest.mock import patch
 
 from narration_content_plan import build_narration_content_plan
 from narration_style_policy import compile_style_brief
@@ -10,6 +12,16 @@ from role_narration_generation import RoleNarrationCandidate, generate_role_narr
 
 
 class ContinuousPointNarrationTests(unittest.TestCase):
+    def setUp(self):
+        self._natural_env = patch.dict(os.environ, {
+            "PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED": "false",
+            "PRODUCT_ROLE_NATURAL_FULL_NARRATION_ENABLED": "false",
+        }, clear=False)
+        self._natural_env.start()
+
+    def tearDown(self):
+        self._natural_env.stop()
+
     def plan(self, request_text: str = ""):
         return build_narration_content_plan(
             public_message="【工艺背景：木雕】旧链栏目正文。",

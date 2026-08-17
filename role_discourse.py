@@ -20,9 +20,10 @@ from role_narration_generation import (
 
 
 DISCOURSE_SCHEMA_VERSION = "role_discourse_candidate_v1"
-PILOT_DISCOURSE_STYLES = frozenset({
-    "child", "ancient_scholar", "dominant_ceo",
-})
+# Natural discourse is a platform capability, not a privilege granted to three
+# early pilot personas.  Every approved role gets the same fact boundary and
+# safety checks; only the reviewed StyleBrief changes its voice.
+PILOT_DISCOURSE_STYLES: frozenset[str] = frozenset()
 _CANDIDATE_FIELDS = frozenset({
     "schema_version", "style_id", "opening", "bridges", "closing", "self_check",
 })
@@ -115,8 +116,6 @@ def build_role_discourse_plan(
 ) -> RoleDiscoursePlan | None:
     if (
         plan.status != "ready"
-        or plan.scaffold_mode != "compact"
-        or plan.style_id not in PILOT_DISCOURSE_STYLES
         or not plan.facts
     ):
         return None
@@ -161,19 +160,21 @@ def role_discourse_prompt(
             "prohibited_patterns": list(brief.prohibited_patterns),
         },
     }
-    child_expression_rule = ""
-    if discourse_plan.style_id == "child":
-        child_expression_rule = """
+    child_expression_rule = """
 儿童风格可以使用“像、仿佛、好像、可以把它想成”等明显属于比喻的表达，营造温柔、陪伴、探索和轻微童话感。
 这些表达只能描述观看感受或探索节奏，不能新增真实人物、年代、事件、用途、空间关系或传说细节；
 不要机械重复“小线索”“新朋友”等口头禅，同一个短句在整组连接语中只能出现一次。
-"""
-    return """你是受控导游的表达规划器。审核事实由服务端持有并原样插入，你只能生成事实之间的自然连接语。
+""" if discourse_plan.style_id == "child" else ""
+    return """你是成熟的实地导游，而不是模板拼接器。审核事实由服务端持有并原样插入，
+你负责把它们组织成游客愿意听下去的、完整而自然的角色讲解。
 opening 放在第一条事实之前；bridges 必须逐一对应 bridge_slots；closing 放在最后一条事实之后。
 relation=same_unit_continuation 时应自然承接同一对象或工艺，不得提前切换主题；
 relation=topic_transition 时才可以转入新的内容类型。连接语不得复述、改写或补充任何事实，
 不得增加人物、年代、故事、寓意、评价、位置、路线、现场状态或官方背书。
-整组连接语必须自然连贯，避免逐句评价、机械总结、审核术语和重复口头禅。
+整组连接语必须自然连贯：让 opening 建立角色与眼前观察目标，让 bridges 解释“为什么现在看下一项”，
+让 closing 自然收束。不要逐句评价、机械总结、审核术语和重复口头禅。不要只把角色称谓塞进第一句；
+StyleBrief 中的 persona、generation_policy、acceptance_profile 和 few_shot_examples 是本轮角色合同，
+请在整组表达的称呼、节奏、观察动作和收束中持续兑现它。
 recent_expressions_to_avoid 是当前 Thread 最近已发布的纯表达片段，不含事实；不得原样复用。
 不得输出事实原文、事实令牌、Markdown、换行、内部字段、URL 或文件路径。
 全部连接语总字符数不得超过 discourse_plan.max_connector_characters。
@@ -300,13 +301,17 @@ def compose_role_discourse(
 ) -> str:
     if candidate.status != "generated" or candidate.style_id != discourse_plan.style_id:
         return ""
-    parts = [candidate.opening]
+    # Paragraphs are part of meaning: visitors need to see the current focus,
+    # then each observation, then a clean close.  Do not collapse an entire
+    # stop into the old card-like wall of text.
+    paragraphs = [candidate.opening]
     for index, statement in enumerate(discourse_plan.fact_statements):
-        parts.append(statement)
+        paragraph = statement
         if index < len(candidate.bridges):
-            parts.append(candidate.bridges[index][1])
-    parts.append(candidate.closing)
-    return "".join(parts)
+            paragraph += candidate.bridges[index][1]
+        paragraphs.append(paragraph)
+    paragraphs.append(candidate.closing)
+    return "\n\n".join(part for part in paragraphs if part)
 
 
 def remember_discourse_expressions(

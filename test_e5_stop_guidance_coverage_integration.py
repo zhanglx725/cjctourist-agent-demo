@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import json
+import os
 import unittest
 from unittest.mock import patch
 
@@ -23,6 +24,18 @@ def _state(text: str, initial: dict | None = None) -> dict:
 
 
 class StopGuidanceCoverageIntegrationTests(unittest.TestCase):
+    def setUp(self):
+        # Coverage tests assert the deterministic owner path.  They must be
+        # independent from whichever Active rollout flags a local UI uses.
+        self._rollout_env = patch.dict(os.environ, {
+            "PRODUCT_ROLE_ACTIVE_ENABLED": "false",
+            "CJC_READ_ONLY_ROLLOUT_MODE": "off",
+        }, clear=False)
+        self._rollout_env.start()
+
+    def tearDown(self):
+        self._rollout_env.stop()
+
     def _arrived(self) -> dict:
         started = direct_route_node(_state("我有30分钟，喜欢灰塑，帮我规划路线"))
         arrived = tour_event_node(_state("我到前院中部了", started))

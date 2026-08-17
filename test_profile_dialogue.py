@@ -154,6 +154,28 @@ class ProfileDialogueTests(unittest.TestCase):
                 self.assertIn("explanation_style", fields)
                 self.assertNotIn("interests", patch)
 
+    def test_all_display_names_resolve_when_the_style_question_is_active(self):
+        cases = {
+            "中性清晰": "neutral", "儿童友好": "child", "亲子共游": "family",
+            "研学观察": "student_research", "专业讲解": "professional",
+            "静听模式": "listen_only", "混合群体": "mixed_group",
+            "霸道总裁": "dominant_ceo", "奶气学弟": "cute_junior",
+            "古风书生": "ancient_scholar", "知心姐姐": "warm_sister",
+            "闺蜜唠嗑": "bestie_chat", "兄弟搭子": "buddy_guide",
+            "探秘闯关": "exploration_game", "打卡出片": "photo_guide",
+            "祠中宿生": "hostel_scholar", "西关少爷": "xiguan_young_master",
+            "粤派讲古": "cantonese_storyteller",
+        }
+        for display_name, style_id in cases.items():
+            with self.subTest(display_name=display_name):
+                result = collect_profile_input(
+                    None, display_name, start_collection=True,
+                    required_fields=("explanation_style",),
+                )
+                assert result is not None
+                self.assertEqual(result.status, "ready")
+                self.assertEqual(result.collection.profile.explanation_style, style_id)
+
     def test_new_style_conflict_requires_clarification(self):
         patch, fields, issue = extract_profile_patch("选择古风书生风格和打卡出片风格")
         self.assertEqual(patch, {})

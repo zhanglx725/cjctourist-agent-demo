@@ -446,6 +446,7 @@ def _ornament_segment(
     location: Any,
     *,
     first: bool,
+    detailed: bool,
     style: NarrationStylePolicy | None,
     style_id: str,
 ) -> tuple[list[str], tuple[str, ...], bool, str | None, tuple[str, ...]]:
@@ -461,7 +462,7 @@ def _ornament_segment(
     rendered = render_object_detail(
         view,
         first=first,
-        detailed=False,
+        detailed=detailed,
         listen_only=style_id == "listen_only",
     )
     lines = list(rendered.paragraphs)
@@ -485,6 +486,8 @@ def render_guidance_evidence(
     program: StopProgram,
     bundle: GuidanceEvidenceBundle,
     guidance_policy: GuidancePolicy | dict[str, Any] | None = None,
+    *,
+    detailed: bool = False,
 ) -> NarrationRenderResult:
     """Render only evidence supplied by E5-A2; never write session state."""
     if bundle.node_id != program.node_id:
@@ -556,7 +559,8 @@ def render_guidance_evidence(
             continue
         first = bundle.coverage_status["ornament"].get(item.ornament_id) == "first_introduction"
         segment, sources, complete, warning, statements = _ornament_segment(
-            item, packet, bundle.location_evidence.get(item.ornament_id), first=first, style=style, style_id=style_id
+            item, packet, bundle.location_evidence.get(item.ornament_id), first=first,
+            detailed=detailed, style=style, style_id=style_id,
         )
         presentation = _role_fact_presentation(
             statements, topic_kind="ornament", style_id=style_id,

@@ -81,6 +81,15 @@ class AgentStopGuidanceTests(unittest.TestCase):
                     detailed = stop_guidance_node(continued)
                 self.assertEqual(detailed_event["tour_state"]["visited_stop_ids"], [])
                 self.assertIn("再看细一点", detailed["messages"][0].content)
+                # Detail is a read-only re-presentation: it neither records a
+                # new introduction nor appends completion/navigation service
+                # content that could be mistaken for the next-stop state.
+                self.assertEqual(detailed["narration_coverage"], first["narration_coverage"])
+                self.assertFalse(detailed["performance_metrics"][-1]["proactive_photo_triggered"])
+                self.assertEqual(
+                    detailed["active_stop_program"]["node_id"],
+                    detailed_event["tour_state"]["current_stop_id"],
+                )
 
 
 if __name__ == "__main__":

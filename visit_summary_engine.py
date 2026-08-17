@@ -138,7 +138,9 @@ def build_visit_summary(
         coverage = load_narration_coverage(narration_coverage)
         accepted_records = [
             record for record in coverage.introduction_records
-            if record.introduced_by == "stop_guidance" and record.node_id in visited
+            if record.introduced_by in {
+                "stop_guidance", "narration_commit", "deterministic_narration_fallback",
+            } and record.node_id in visited
         ]
     except NarrationCoverageError:
         coverage_status = "unavailable"

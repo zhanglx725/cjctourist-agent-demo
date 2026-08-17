@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import unittest
+from unittest.mock import patch
 
 from narration_content_plan import NarrationContentPlan, NarrationFact
 from narration_style_policy import approved_style_ids, compile_style_brief
@@ -15,6 +17,19 @@ from role_narration_generation import (
 
 
 class RoleNarrationGenerationTests(unittest.TestCase):
+    def setUp(self):
+        # These unit fixtures exercise the established token protocol.  Do
+        # not let a developer's Streamlit rollout environment reinterpret
+        # them as the separate natural-discourse wire protocol.
+        self._natural_env = patch.dict(os.environ, {
+            "PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED": "false",
+            "PRODUCT_ROLE_NATURAL_FULL_NARRATION_ENABLED": "false",
+        }, clear=False)
+        self._natural_env.start()
+
+    def tearDown(self):
+        self._natural_env.stop()
+
     def plan(self, style_id="ancient_scholar"):
         return NarrationContentPlan(
             stop_id="front", style_id=style_id, language="zh", budget_seconds=60,
