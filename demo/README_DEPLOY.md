@@ -30,12 +30,12 @@ CJC_READ_ONLY_ROLLOUT_MODE = "read_only_active"
 CJC_READ_ONLY_ROLLOUT_CAPABILITIES = "role_narration,role_qa"
 PRODUCT_ROLE_ACTIVE_ENABLED = "true"
 PRODUCT_ROLE_ACTIVE_STYLES = "neutral,child,family,student_research,professional,listen_only,mixed_group,dominant_ceo,cute_junior,ancient_scholar,warm_sister,bestie_chat,buddy_guide,exploration_game,photo_guide,hostel_scholar,xiguan_young_master,cantonese_storyteller"
-PRODUCT_ROLE_ACTIVE_SCENES = "route_planning,route_opening,stop_guidance,tour_qa,qa_follow_up_detail"
+PRODUCT_ROLE_ACTIVE_SCENES = "route_planning,route_opening,stop_guidance,tour_qa,qa_follow_up_detail,navigation,tour_closing,replan_presentation"
 PRODUCT_ROLE_ROLLOUT_PERCENTAGE = "100"
 PRODUCT_ROLE_KILL_SWITCH = "false"
 PRODUCT_ROLE_VALIDATION_LEVEL = "strict"
 PRODUCT_ROLE_FALLBACK_POLICY = "legacy"
-PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED = "false"
+PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED = "true"
 ```
 
 Streamlit 与 Studio 必须由项目同一套配置解析器读取上述 Active 环境变量；不要在前端另建 Active 规则。本地 PowerShell 中显式设置的 rollout 变量优先于部署 Secrets，避免旧 Secrets 将点位误降为 Shadow。API Key 仍优先从 Secrets 读取，且不会进入启动审计。切勿提交真实密钥或 `secrets.toml`。
@@ -49,7 +49,7 @@ $env:CJC_READ_ONLY_ROLLOUT_MODE = "read_only_active"
 $env:CJC_READ_ONLY_ROLLOUT_CAPABILITIES = "role_narration,role_qa"
 $env:PRODUCT_ROLE_ACTIVE_ENABLED = "true"
 $env:PRODUCT_ROLE_ACTIVE_STYLES = "neutral,child,family,student_research,professional,listen_only,mixed_group,dominant_ceo,cute_junior,ancient_scholar,warm_sister,bestie_chat,buddy_guide,exploration_game,photo_guide,hostel_scholar,xiguan_young_master,cantonese_storyteller"
-$env:PRODUCT_ROLE_ACTIVE_SCENES = "route_planning,route_opening,stop_guidance,tour_qa,qa_follow_up_detail"
+$env:PRODUCT_ROLE_ACTIVE_SCENES = "route_planning,route_opening,stop_guidance,tour_qa,qa_follow_up_detail,navigation,tour_closing,replan_presentation"
 $env:PRODUCT_ROLE_ROLLOUT_PERCENTAGE = "100"
 $env:PRODUCT_ROLE_KILL_SWITCH = "false"
 $env:PRODUCT_ROLE_VALIDATION_LEVEL = "strict"
@@ -61,7 +61,7 @@ $env:PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED = "true"
   --server.port 8502
 ```
 
-自然话语开关当前只允许 `child`、`ancient_scholar`、`dominant_ceo` 的 compact 点位讲解试点；正式部署默认保持 `false`，人工验收时才显式开启。配置修改后必须重启 Streamlit 并新建会话。启动日志会输出 `role_rollout_startup_audit`，其中只包含能力、场景、风格、灰度、kill switch 和自然话语开关，不包含 API Key。
+交接基线已对 18 种风格和全部 8 个场景启用自然话语。配置修改后必须重启 Streamlit 和 LangGraph，并在两端各新建 Thread。Streamlit 启动日志会输出 `role_rollout_startup_audit`，其公共调用也会附带 `role_runtime_fingerprint` metadata；LangSmith/Studio 的结果状态中会保存同一份 `runtime_contract_audit`。两处指纹必须一致后再比较回答。指纹由能力、场景、风格、灰度、回退策略、自然话语和模型名计算，不包含 API Key 或其他密钥。
 
 ## 比赛演示检查
 

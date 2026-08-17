@@ -117,6 +117,7 @@ from controlled_rollout import (
     PRESENTATION_CONTENT_PLAN,
     RolloutMode,
     product_role_active_allowed,
+    role_runtime_contract,
     evaluation_record,
     rollout_from_environment,
 )
@@ -270,6 +271,7 @@ class AgentState(TypedDict, total=False):
     tool_loops: int
     retrieved_evidence: list[dict[str, Any]]
     performance_metrics: list[dict[str, Any]]
+    runtime_contract_audit: dict[str, Any]
     selected_route_id: str
     active_route_plan: dict[str, Any]
     tour_state: dict[str, Any]
@@ -423,6 +425,11 @@ def _append_metric(
         **details,
     }
     return [*state.get("performance_metrics", []), metric]
+
+
+def runtime_contract_audit_node(state: AgentState) -> dict[str, Any]:
+    """Persist the effective non-secret runtime contract for Studio comparison."""
+    return {"runtime_contract_audit": role_runtime_contract()}
 
 
 def _read_only_resume_target(state: AgentState) -> str | None:
@@ -5305,6 +5312,7 @@ def build_agent_graph(with_checkpointer: bool = True):
     the command-line ``chat`` helper retains MemorySaver for local conversations.
     """
     workflow = StateGraph(AgentState)
+    workflow.add_node("runtime_contract_audit", runtime_contract_audit_node)
     workflow.add_node("visitor_welcome", visitor_welcome_node)
     workflow.add_node("visitor_onboarding", visitor_onboarding_node)
     workflow.add_node("visitor_onboarding_resume", visitor_onboarding_resume_node)
@@ -5351,7 +5359,8 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_node("narration_commit", narration_commit_node)
     workflow.add_node("deterministic_narration_fallback", deterministic_narration_fallback_node)
     workflow.add_node("clarification", clarification_node)
-    workflow.add_edge(START, "visitor_welcome")
+    workflow.add_edge(START, "runtime_contract_audit")
+    workflow.add_edge("runtime_contract_audit", "visitor_welcome")
     workflow.add_conditional_edges(
         "visitor_welcome", route_after_visitor_welcome,
         {"semantic_normalization": "semantic_normalization", END: END},
@@ -5573,7 +5582,7 @@ def start_public_session(thread_id: str = "default") -> PublicTurnResult:
             "retrieved_evidence": [],
             "performance_metrics": [],
         },
-        config={"configurable": {"thread_id": thread_id}},
+        config=_public_graph_config(thread_id),
     )
     return _public_turn_from_result(result, after_last_human=False)
 
@@ -5587,9 +5596,17 @@ def chat_public_turn(user_text: str, thread_id: str = "default") -> PublicTurnRe
             "retrieved_evidence": [],
             "performance_metrics": [],
         },
-        config={"configurable": {"thread_id": thread_id}},
+        config=_public_graph_config(thread_id),
     )
     return _public_turn_from_result(result, after_last_human=True)
+
+
+def _public_graph_config(thread_id: str) -> RunnableConfig:
+    """Attach the effective non-secret runtime fingerprint to public runs."""
+    return {
+        "configurable": {"thread_id": thread_id},
+        "metadata": {"role_runtime_fingerprint": role_runtime_contract()["fingerprint"]},
+    }
 
 
 def chat_with_profile(user_text: str, thread_id: str = "profile") -> tuple[str, list[dict[str, Any]]]:

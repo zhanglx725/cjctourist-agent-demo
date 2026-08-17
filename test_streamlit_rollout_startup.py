@@ -15,7 +15,8 @@ ACTIVE_ENV = {
     "PRODUCT_ROLE_ACTIVE_ENABLED": "true",
     "PRODUCT_ROLE_ACTIVE_STYLES": ALL_STYLES,
     "PRODUCT_ROLE_ACTIVE_SCENES": (
-        "route_planning,route_opening,stop_guidance,tour_qa,qa_follow_up_detail"
+        "route_planning,route_opening,stop_guidance,tour_qa,qa_follow_up_detail,"
+        "navigation,tour_closing,replan_presentation"
     ),
     "PRODUCT_ROLE_ROLLOUT_PERCENTAGE": "100",
     "PRODUCT_ROLE_KILL_SWITCH": "false",
@@ -84,6 +85,14 @@ class StreamlitRolloutStartupTests(unittest.TestCase):
         rendered = repr(audit)
         self.assertNotIn("must-not-appear", rendered)
         self.assertNotIn("API_KEY", rendered)
+
+    def test_runtime_fingerprint_changes_with_model_but_never_contains_a_secret(self):
+        with patch.dict(os.environ, {**ACTIVE_ENV, "DEEPSEEK_API_KEY": "must-not-appear"}, clear=True):
+            baseline = streamlit_app._role_rollout_startup_audit()
+        with patch.dict(os.environ, {**ACTIVE_ENV, "DEEPSEEK_MODEL": "another-model"}, clear=True):
+            changed_model = streamlit_app._role_rollout_startup_audit()
+        self.assertNotEqual(baseline["runtime_fingerprint"], changed_model["runtime_fingerprint"])
+        self.assertNotIn("must-not-appear", repr(baseline))
 
 
 if __name__ == "__main__":

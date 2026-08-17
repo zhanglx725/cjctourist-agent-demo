@@ -74,6 +74,7 @@ def _role_rollout_startup_audit(environ: dict[str, str] | None = None) -> dict[s
         ROLE_NARRATION,
         ROLE_QA,
         product_capability_policy_from_environment,
+        role_runtime_contract,
         rollout_from_environment,
     )
 
@@ -109,6 +110,7 @@ def _role_rollout_startup_audit(environ: dict[str, str] | None = None) -> dict[s
             and not policy.kill_switch
             and {"tour_qa", "qa_follow_up_detail"}.issubset(policy.scenes)
         ),
+        "runtime_fingerprint": role_runtime_contract(values)["fingerprint"],
     }
 
 

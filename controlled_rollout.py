@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 import hashlib
+import json
 import os
 from typing import Any, Mapping
 
@@ -327,6 +328,35 @@ def product_role_active_allowed(
    style_id, scene_kind, thread_id=thread_id,
   )
  )
+
+
+def role_runtime_contract(
+ environ: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+ """Return the non-secret settings that determine role-response behavior."""
+
+ values = os.environ if environ is None else environ
+ rollout = rollout_from_environment(values)
+ policy = product_capability_policy_from_environment(values)
+ contract = {
+  "rollout_mode": rollout.mode.value,
+  "enabled_capabilities": sorted(rollout.enabled_capabilities),
+  "product_policy": policy.to_audit(),
+  "natural_discourse_enabled": _strict_bool(
+   values.get("PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED", "false")
+  ) is True,
+  "models": {
+   "default": values.get("DEEPSEEK_MODEL", "deepseek-v4-flash"),
+   "role_narration": values.get(
+    "ROLE_NARRATION_MODEL", values.get("DEEPSEEK_MODEL", "deepseek-v4-flash"),
+   ),
+   "visitor_translation": values.get(
+    "VISITOR_TRANSLATION_MODEL", values.get("DEEPSEEK_MODEL", "deepseek-v4-flash"),
+   ),
+  },
+ }
+ canonical = json.dumps(contract, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+ return {**contract, "fingerprint": hashlib.sha256(canonical.encode("utf-8")).hexdigest()}
 
 
 def evaluation_record(thread_id: str, legacy: Mapping[str, Any], candidate: Mapping[str, Any] | None, *, mode: RolloutMode, outcome: str)->dict[str, Any]:
