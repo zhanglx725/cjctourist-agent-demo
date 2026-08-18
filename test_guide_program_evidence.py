@@ -51,7 +51,7 @@ class GuideProgramEvidenceTests(unittest.TestCase):
         result = build_stop_guidance(self.tour, self.interaction, lambda _: json.dumps({"evidence": []}))
         self.assertEqual(result["status"], "guided_without_evidence")
         self.assertEqual(result["evidence"], [])
-        self.assertIn("未检索到可引用的事实资料", result["message"])
+        self.assertIn("题材或故事先不急着下结论", result["message"])
 
     def test_detail_reuses_the_same_deterministic_stop_program_and_keeps_phase(self):
         first = build_stop_guidance(self.tour, self.interaction, self._rag)
@@ -76,7 +76,7 @@ class GuideProgramEvidenceTests(unittest.TestCase):
         )
         self.assertEqual(result["status"], "guided_without_evidence")
         self.assertIsNotNone(result["stop_program"])
-        self.assertIn("不据名称扩写", result["message"])
+        self.assertIn("题材或故事先不急着下结论", result["message"])
 
 
 if __name__ == "__main__":

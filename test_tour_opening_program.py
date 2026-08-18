@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import csv
 import unittest
+from pathlib import Path
+from types import SimpleNamespace
 
 from langchain_core.messages import HumanMessage
 
@@ -19,9 +22,99 @@ from tour_opening_program import (
     is_tour_start_entry,
     opening_action,
 )
+from tour_interaction import handle_tour_event, initialize_interaction
+from tour_state import ENTRY_NODE_ID, start_tour
+
+
+ROUTE_CATALOG = Path("data/chen_clan_academy/routes/route_stop_catalog_v1.csv")
 
 
 class TourOpeningProgramTests(unittest.TestCase):
+    def test_every_approved_stop_arrival_automatically_reaches_guidance(self):
+        """Every reviewed guide node has the same arrival-to-guidance contract.
+
+        The first arrival may play the one-off route opening, but that opening
+        must continue to ``stop_guidance`` in the same graph turn.  No node is
+        allowed to end at an arrival confirmation that asks the visitor to
+        start the point explanation manually.
+        """
+        with ROUTE_CATALOG.open(encoding="utf-8-sig", newline="") as handle:
+            approved_stop_ids = [
+                row["node_id"]
+                for row in csv.DictReader(handle)
+                if row.get("route_eligible") == "true"
+            ]
+
+        self.assertEqual(len(approved_stop_ids), 12)
+        for node_id in approved_stop_ids:
+            with self.subTest(node_id=node_id):
+                plan = SimpleNamespace(
+                    route_id=f"arrival_contract_{node_id}",
+                    target_minutes=30,
+                    stop_ids=(ENTRY_NODE_ID, node_id),
+                )
+                tour = start_tour(plan)
+                interaction = initialize_interaction(tour)
+                arrived = handle_tour_event(
+                    tour, interaction, "arrive_at_stop", node_id=node_id,
+                )
+                self.assertTrue(arrived["ok"])
+                self.assertEqual(arrived["code"], "arrived")
+                self.assertEqual(arrived["tour_state"]["current_stop_id"], node_id)
+                self.assertEqual(arrived["interaction_state"]["stop_phase"], "explaining")
+
+                arrival_state = {
+                    "last_tour_event": {
+                        "ok": True, "event": "arrive_at_stop", "code": "arrived",
+                    },
+                    "tour_opening_program": initialize_tour_opening(),
+                }
+                self.assertEqual(route_after_tour_event(arrival_state), "tour_opening")
+                self.assertEqual(
+                    route_after_tour_opening({
+                        "last_tour_opening_action": {"continue_to_stop_guidance": True},
+                    }),
+                    "stop_guidance",
+                )
+
+    def test_every_post_opening_stop_arrival_routes_directly_to_guidance(self):
+        """After the one-off opening, no reviewed stop may require a second click."""
+        with ROUTE_CATALOG.open(encoding="utf-8-sig", newline="") as handle:
+            approved_stop_ids = [
+                row["node_id"]
+                for row in csv.DictReader(handle)
+                if row.get("route_eligible") == "true"
+            ]
+        tour = start_tour(SimpleNamespace(
+            route_id="all_approved_arrival_contract",
+            target_minutes=180,
+            stop_ids=(ENTRY_NODE_ID, *approved_stop_ids),
+        ))
+        interaction = initialize_interaction(tour)
+        opening = apply_tour_opening_action(initialize_tour_opening(), "play")["program"]
+
+        for node_id in approved_stop_ids:
+            with self.subTest(node_id=node_id):
+                arrived = handle_tour_event(
+                    tour, interaction, "arrive_at_stop", node_id=node_id,
+                )
+                self.assertTrue(arrived["ok"])
+                self.assertEqual(arrived["code"], "arrived")
+                self.assertEqual(
+                    route_after_tour_event({
+                        "last_tour_event": {
+                            "ok": True, "event": "arrive_at_stop", "code": "arrived",
+                        },
+                        "tour_opening_program": opening,
+                    }),
+                    "stop_guidance",
+                )
+                completed = handle_tour_event(
+                    arrived["tour_state"], arrived["interaction_state"], "confirm_stop_complete",
+                )
+                self.assertTrue(completed["ok"])
+                tour, interaction = completed["tour_state"], completed["interaction_state"]
+
     def test_opening_is_evidence_backed_replayable_and_public_safe(self):
         initial = initialize_tour_opening()
         played = apply_tour_opening_action(initial, "play")

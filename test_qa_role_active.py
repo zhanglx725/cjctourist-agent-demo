@@ -58,6 +58,28 @@ class QaRoleActiveTests(unittest.TestCase):
         for forbidden in ("tour_state", "qa_context", "retrieved_evidence", "narration_coverage"):
             self.assertNotIn(forbidden, result)
 
+    def test_normal_qa_keeps_direct_answer_without_selected_tour_persona(self):
+        fixture = QaRoleShadowTests()
+        source = fixture.state("child")
+        planned = {**source, **qa_content_plan_node(source)}
+        narration_plan = planned["qa_content_plan"]["narration_plan"]
+        approved = narration_plan["facts"][0]["statement"]
+        raw_candidate = fixture.generated(
+            narration_plan["style_id"], f"眼光看过来。{approved}",
+        )
+        with patch.dict(os.environ, ACTIVE_ENV, clear=False), patch(
+            "agent_graph.generate_role_narration", return_value=raw_candidate,
+        ):
+            generated = qa_role_narration_generation_node(planned)
+            validated = qa_role_narration_validation_node(
+                {**planned, **generated},
+                {"configurable": {"thread_id": "qa-direct-answer"}},
+            )
+            state = {**planned, **generated, **validated}
+            result = qa_role_narration_commit_node(state)
+        self.assertEqual(result["messages"][0].content, approved)
+        self.assertNotIn("眼光看过来", result["messages"][0].content)
+
     def test_follow_up_uses_its_own_product_scene(self):
         state, _ = self._accepted(follow_up=True)
         self.assertEqual(state["active_qa_role_narration_audit"]["scene_kind"], "qa_follow_up_detail")

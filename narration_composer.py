@@ -133,14 +133,16 @@ def _photo_text(
 
 
 def _insert_before_next(base: str, enhancement: str | None) -> str:
-    marker = "【下一步】"
     if not enhancement:
         return base
-    block = f"【可选深入】\n\n{enhancement}"
+    # Renderer output is now flat visitor prose, so optional material cannot
+    # reintroduce database-like headings.  Keep it before the deterministic
+    # completion sentence when that sentence is present.
+    marker = "讲解结束后，您可确认是否完成本点参观。"
     if marker not in base:
-        return f"{base}\n\n{block}"
+        return f"{base}\n\n{enhancement}"
     before, after = base.split(marker, 1)
-    return f"{before.rstrip()}\n\n{block}\n\n{marker}{after}"
+    return f"{before.rstrip()}\n\n{enhancement}\n\n{marker}{after}"
 
 
 def compose_narration(

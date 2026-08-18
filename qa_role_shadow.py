@@ -52,11 +52,13 @@ def apply_qa_role_scaffold(
     approved = plan.legacy_public_message
     if candidate.used_fact_ids != ("qa:approved_answer",) or approved not in candidate.public_text:
         return candidate
-    components = qa_role_components(brief, plan.scene_kind)
-    public_text = "".join((
-        components["opening"], components["direct_answer"], approved,
-        components["follow_up"], components["closing"],
-    ))
+    # A question-answer turn is not a point narration.  The visitor has asked
+    # for a direct fact (opening hours, route, term, rule, etc.), so retain the
+    # reviewed answer exactly instead of injecting the currently selected tour
+    # persona's opening and closing.  The role model remains bounded to the
+    # same immutable fact contract for audit, but cannot make QA sound like a
+    # sudden guided-performance interruption.
+    public_text = approved
     return RoleNarrationCandidate(
         style_id=candidate.style_id, public_text=public_text,
         used_fact_ids=candidate.used_fact_ids, omitted_fact_ids=candidate.omitted_fact_ids,

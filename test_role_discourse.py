@@ -108,6 +108,27 @@ class RoleDiscourseTests(unittest.TestCase):
         for fact in source.facts:
             self.assertNotIn(fact.statement, prompt)
 
+    def test_buddy_prompt_requires_on_site_oral_observation_order(self):
+        discourse = build_role_discourse_plan(plan("buddy_guide"))
+        assert discourse is not None
+        prompt = role_discourse_prompt(discourse, compile_style_brief("buddy_guide"))
+        self.assertIn("同龄男生陪朋友逛展", prompt)
+        self.assertIn("先把注意力落到眼前实物", prompt)
+        self.assertIn("存在关联、审核”等后台或书面话", prompt)
+
+    def test_natural_opening_without_selected_role_marker_falls_back(self):
+        source = plan("hostel_scholar")
+        discourse = build_role_discourse_plan(source)
+        assert discourse is not None
+        raw = response("hostel_scholar")
+        raw["opening"] = "现在来到这里，我们开始讲解。"
+        candidate = parse_and_validate_role_discourse(
+            raw, discourse, compile_style_brief("hostel_scholar"),
+            interaction_allowed=True,
+        )
+        self.assertEqual(candidate.status, "rejected")
+        self.assertIn("discourse_opening_style_marker_missing", candidate.reason_codes)
+
     def test_schema_order_budget_fact_and_interaction_fail_closed(self):
         for name, mutate, expected in (
             ("order", lambda value: value["bridges"].reverse(), "discourse_bridge_order_changed"),

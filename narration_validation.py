@@ -20,7 +20,8 @@ from role_narration_generation import (
 
 _INTERNAL = re.compile(
     r"(?:https?://|file://|[A-Za-z]:\\|source[_ ]?ids?|node[_ ]?id|raw[_ ]?chunk|"
-    r"rag_tool|llm_think|stop_guidance|narration_content_plan)", re.IGNORECASE
+    r"rag_tool|llm_think|stop_guidance|narration_content_plan|审核关联|存在审核|"
+    r"可结合现场标识|构件位置辨认|未核验)", re.IGNORECASE
 )
 _DANGEROUS = re.compile(r"(?:触摸|攀爬|攀坐|跨越护栏|堵住通道|必须回答|强制互动)")
 _INTERACTION_REQUEST = re.compile(r"(?:\?|？|请你|试着|任务|回答|拍照|跟着做)")
@@ -319,6 +320,11 @@ def _validate_role_narration_contract(
         layout_reasons.append("layout_markdown_leak")
     if any(_LAYOUT_SPACING.search(segment) for segment in layout_segments):
         layout_reasons.append("layout_spacing_invalid")
+    # Point narration may use semantic paragraphs.  A QA answer is a single
+    # continuous response, however, so model-added line breaks are not an
+    # approved layout channel there.
+    if preserve_fact_layout and "\n" in connector:
+        layout_reasons.append("layout_not_continuous")
     if not candidate.public_text.strip().endswith(("。", "！", "？")):
         layout_reasons.append("layout_terminal_punctuation_missing")
     reasons.extend(layout_reasons)
@@ -337,7 +343,14 @@ def _validate_role_narration_contract(
         reasons.extend(coverage_validator(candidate, plan, brief))
     if any(pattern and pattern in candidate.public_text for pattern in brief.prohibited_patterns):
         reasons.append("style_prohibited_pattern")
-    reasons.extend(_style_acceptance_reasons(connector, brief))
+    style_reasons = _style_acceptance_reasons(connector, brief)
+    # Natural buddy speech often contains one slightly longer spoken turn.
+    # Keep the configured cap, but do not discard an otherwise fact-safe
+    # natural narration solely for that presentation preference.  This never
+    # relaxes fact order, source boundary, internal-field or safety checks.
+    if candidate.reason_code == "natural_discourse_generated" and brief.style_id == "buddy_guide":
+        style_reasons = [reason for reason in style_reasons if reason != "style_rhythm_mismatch"]
+    reasons.extend(style_reasons)
     if not plan.interaction_allowed and (
         "?" in candidate.public_text
         or "？" in candidate.public_text

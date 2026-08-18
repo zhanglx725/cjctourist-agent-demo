@@ -181,6 +181,19 @@ def build_narration_content_plan(
         )
     if not facts:
         return _rejected("requested_scope_unavailable", stop_id=stop_id, style_id=style_id, requested_scope=requested_scope)
+    # “兄弟搭子”导览先把眼前的一件实物带进视线，再补它所属的
+    # 工艺背景。只移动完整的已审核事实单元，既不删改事实，也不拆开
+    # 同一文物的身份、位置、造型和故事证据。
+    if style_id == "buddy_guide" and requested_scope == "whole_stop":
+        first_ornament_unit = next(
+            (fact.unit_id for fact in facts if fact.topic_kind == "ornament"),
+            None,
+        )
+        if first_ornament_unit:
+            facts = [
+                *(fact for fact in facts if fact.unit_id == first_ornament_unit),
+                *(fact for fact in facts if fact.unit_id != first_ornament_unit),
+            ]
     profile = dict(visitor_profile or {})
     interaction_allowed = style_id != "listen_only"
     introduced = narration_coverage or {}

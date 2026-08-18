@@ -25,6 +25,13 @@ ACTIVE_ENV = {
     "ROLE_ACTIVE_ENABLED": "true",
     "ROLE_ACTIVE_STYLES": ",".join(STOP_GUIDANCE_ACTIVE_STYLES),
     "ROLE_ACTIVE_SCENES": "route_planning,route_opening,stop_guidance",
+    "PRODUCT_ROLE_ACTIVE_ENABLED": "true",
+    "PRODUCT_ROLE_ACTIVE_STYLES": ",".join(STOP_GUIDANCE_ACTIVE_STYLES),
+    "PRODUCT_ROLE_ACTIVE_SCENES": "route_planning,route_opening,stop_guidance",
+    "PRODUCT_ROLE_ROLLOUT_PERCENTAGE": "100",
+    "PRODUCT_ROLE_KILL_SWITCH": "false",
+    "PRODUCT_ROLE_VALIDATION_LEVEL": "strict",
+    "PRODUCT_ROLE_FALLBACK_POLICY": "legacy",
 }
 
 SOURCES = {
@@ -213,7 +220,7 @@ class CompetitionRoleActiveTests(unittest.TestCase):
         self.assertNotIn("messages", update)
 
     def test_kill_switch_keeps_legacy_message(self):
-        disabled = {**ACTIVE_ENV, "ROLE_ACTIVE_ENABLED": "false"}
+        disabled = {**ACTIVE_ENV, "ROLE_ACTIVE_ENABLED": "false", "PRODUCT_ROLE_ACTIVE_ENABLED": "false"}
         with patch.dict(os.environ, disabled, clear=False):
             update = _route_role_narration_shadow_update(
                 _state(), None,

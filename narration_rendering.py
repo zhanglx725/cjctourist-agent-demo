@@ -249,6 +249,12 @@ _RAW_BOLD_LABEL_PREFIX = re.compile(r"^\*\*[^*]+\*\*\s*[：:]\s*")
 _INTERNAL_OBJECT_GUIDANCE = (
     "审核关联", "可结合现场标识", "构件位置辨认", "存在审核", "未核验",
 )
+_AUDIT_LOCATION_STATEMENT = re.compile(
+    r"^它与(?P<location>.+?)存在审核关联；可结合现场标识观察。?$"
+)
+_AUDIT_OBSERVATION_STATEMENT = re.compile(
+    r"^观察时，可结合(?P<location>.+?)处的构件位置辨认其造型。?$"
+)
 _CHILD_STORY_MARKERS = ("传说", "民间故事", "人们说")
 _CHILD_CRAFT_NAME = re.compile(r"^([^，。；：]{1,16}?)(?:是|又称)")
 _CHILD_STORY_ORIGIN = re.compile(
@@ -269,6 +275,21 @@ def _visitor_craft_sentence(sentence: str) -> str:
     """
     cleaned = _RAW_LIST_PREFIX.sub("", sentence.strip())
     return _RAW_BOLD_LABEL_PREFIX.sub("", cleaned).strip()
+
+
+def _visitor_object_statement(statement: str) -> str:
+    """Translate retrieval/audit phrasing into a visitor-facing fact sentence.
+
+    The reviewed source sentence remains attached to the fact unit for audit.
+    Only the public rendering changes: visitors need a usable location cue,
+    never an explanation of the internal evidence relationship.
+    """
+    cleaned = statement.strip()
+    if match := _AUDIT_LOCATION_STATEMENT.match(cleaned):
+        return f"它在{match.group('location')}；可以对照现场标识来找。"
+    if match := _AUDIT_OBSERVATION_STATEMENT.match(cleaned):
+        return f"找它时，先对照{match.group('location')}的位置，再认它的造型。"
+    return cleaned
 
 
 def _child_friendly_fact_statement(
@@ -380,14 +401,16 @@ def _role_fact_presentation(
 ) -> _RoleFactPresentation:
     """Return the public fact contract for any role style.
 
-    The default identity strategy deliberately preserves the existing mature
-    ancient-scholar and other-role behavior.  Child is the only current
-    controlled-summary strategy, but it produces the same two fields so new
-    styles can add a presentation policy without bypassing common contracts.
+    Every public role receives the same small audit-to-visitor normalization;
+    raw reviewed wording remains in ``source_statements``.  Child additionally
+    selects a concise, deterministic subset.
     """
     source_statements = tuple(statement.strip() for statement in statements if statement.strip())
     if style_id != "child":
-        return _RoleFactPresentation(source_statements, source_statements)
+        return _RoleFactPresentation(
+            tuple(_visitor_object_statement(statement) for statement in source_statements),
+            source_statements,
+        )
     pairs = _child_role_fact_pairs(source_statements, topic_kind=topic_kind)
     return _RoleFactPresentation(
         tuple(summary for summary, _ in pairs),
@@ -502,6 +525,15 @@ def render_guidance_evidence(
     lines = [f"现在来到{program.display_name}。"]
     if frame := _style_frame(style_id):
         lines.append(frame)
+    elif style is not None and style_id != "neutral":
+        # This is the deterministic compatibility path used when the role
+        # candidate is unavailable or deliberately shadowed.  It must still
+        # sound like the selected role rather than falling back to a neutral
+        # catalogue dump.  The phrase is reviewed, fact-free and is replaced
+        # (not duplicated) if the active role candidate later publishes.
+        opening = style.point_narration_components.get("opening", ())
+        if opening:
+            lines.append(opening[0])
     rendered_crafts: list[str] = []
     rendered_ornaments: list[str] = []
     used_sources: set[str] = set()
@@ -531,7 +563,7 @@ def render_guidance_evidence(
                     # not as a stack of catalogue cards.  Keep the reviewed
                     # facts, but let the first factual sentence introduce the
                     # craft naturally instead of printing a bracketed label.
-                    lines.extend(segment)
+                    lines.extend(_visitor_object_statement(line) for line in segment)
                 if statements:
                     unit = {
                         "unit_id": f"craft:{craft}",
@@ -575,7 +607,7 @@ def render_guidance_evidence(
             # Keep every reviewed object as plain prose.  The object's first
             # factual sentence names it, so a separate bracketed heading is
             # redundant and makes the guide sound like a database export.
-            lines.extend(segment)
+            lines.extend(_visitor_object_statement(line) for line in segment)
         if statements:
             unit = {
                 "unit_id": f"ornament:{item.ornament_id}",

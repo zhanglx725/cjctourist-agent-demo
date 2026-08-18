@@ -33,7 +33,8 @@ _SELF_CHECK_FIELDS = frozenset({
 })
 _INTERNAL = re.compile(
     r"(?:\[\[FACT_|https?://|file://|[A-Za-z]:\\|source[_ ]?ids?|"
-    r"node[_ ]?id|raw[_ ]?chunk|stop_guidance|narration_content_plan)",
+    r"node[_ ]?id|raw[_ ]?chunk|stop_guidance|narration_content_plan|审核关联|"
+    r"存在审核|可结合现场标识|构件位置辨认|未核验)",
     re.IGNORECASE,
 )
 _UNSAFE = re.compile(r"(?:触摸|攀爬|攀坐|跨越护栏|堵住通道|必须回答|强制互动)")
@@ -190,6 +191,12 @@ expression_palette 是已审核、且不含事实的声音灵感库。可借鉴�
 这些表达只能描述观看感受或探索节奏，不能新增真实人物、年代、事件、用途、空间关系或传说细节；
 不要机械重复“小线索”“新朋友”等口头禅，同一个短句在整组连接语中只能出现一次。
 """ if discourse_plan.style_id == "child" else ""
+    buddy_expression_rule = """
+兄弟搭子风格要像同龄男生陪朋友逛展：可以自然使用“哎、来、咱、你看、抬头、眼光收过来”等口语，
+但不自称真实兄弟，也不命令游客。先把注意力落到眼前实物和可见细节，再承接知识或故事；
+用短句和自然停顿，避免课本定义腔、报告腔，以及“首先、其次、该对象、存在关联、审核”等后台或书面话。
+每个主题转换优先给一个现场观察动作，不要机械重复“抓重点”“找到线索”。
+""" if discourse_plan.style_id == "buddy_guide" else ""
     return """你是成熟的实地导游，而不是模板拼接器。审核事实由服务端持有并原样插入，
 你负责把它们组织成游客愿意听下去的、完整而自然的角色讲解。
 opening 放在第一条事实之前；bridges 必须逐一对应 bridge_slots；closing 放在最后一条事实之后。
@@ -207,7 +214,7 @@ recent_expressions_to_avoid 是当前 Thread 最近已发布的纯表达片段�
 输出严格一行 JSON，只能包含 schema_version、style_id、opening、bridges、closing、self_check。
 schema_version 必须为 role_discourse_candidate_v1；bridges 每项只能包含 slot_id 和 text，顺序不得改变。
 self_check 只能包含 added_new_facts、role_consistent、within_budget 三个布尔值。不要输出代码块。
-""" + palette_rule + child_expression_rule + "输入：" + json.dumps(
+""" + palette_rule + child_expression_rule + buddy_expression_rule + "输入：" + json.dumps(
         payload, ensure_ascii=False, separators=(",", ":")
     )
 
@@ -313,6 +320,12 @@ def parse_and_validate_role_discourse(
     )
     if required_markers and not any(marker in connector for marker in required_markers):
         reasons.append("discourse_style_marker_missing")
+    # A marker hidden in a late bridge is not enough: the visitor first hears
+    # the opening, so a natural candidate must establish the selected role
+    # there.  Otherwise it is indistinguishable from a neutral fact dump.
+    # Rejection routes to the reviewed component scaffold for that same role.
+    if required_markers and not any(marker in candidate.opening for marker in required_markers):
+        reasons.append("discourse_opening_style_marker_missing")
     interaction_mode = brief.acceptance_profile.get("interaction_contract", {}).get("mode")
     if (not interaction_allowed or interaction_mode == "none") and _INTERACTION.search(connector):
         reasons.append("discourse_interaction_violation")

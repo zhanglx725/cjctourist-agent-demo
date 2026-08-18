@@ -51,8 +51,12 @@ class NarrationComposerTests(unittest.TestCase):
         candidate = CardEnhancementCandidate(10, "term_explanation", "term_x", False, "reviewed", ("S10",), False, 20)
         card = _card("term_x", "glossary_term", {"zh": "灰塑", "short_definition_zh": "以石灰材料塑成的建筑装饰工艺。"})
         result = self.compose(self.plan(candidate), {"term_x": card})
-        self.assertLess(result.visitor_message.index("【可选深入】"), result.visitor_message.index("【下一步】"))
         self.assertIn("术语“灰塑”", result.visitor_message)
+        self.assertLess(
+            result.visitor_message.index("术语“灰塑”"),
+            result.visitor_message.index("讲解结束后"),
+        )
+        self.assertNotIn("【可选深入】", result.visitor_message)
         self.assertNotIn("term_x", result.visitor_message)
         self.assertNotIn("S10", result.visitor_message)
         self.assertIn("term_x", result.used_card_ids)

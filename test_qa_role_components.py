@@ -29,7 +29,7 @@ class QaRoleComponentTests(unittest.TestCase):
             model_called=True, latency_ms=1,
         )
         result = apply_qa_role_scaffold(candidate, plan, brief)
-        self.assertEqual(result.public_text.count(plan.legacy_public_message), 1)
+        self.assertEqual(result.public_text, plan.legacy_public_message)
         self.assertNotIn("space", result.public_text.lower())
 
     def test_listen_only_components_do_not_ask_for_follow_up(self):

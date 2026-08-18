@@ -206,13 +206,13 @@ def _deterministic_message(
             )
             lines.extend(rendered.paragraphs)
         else:
-            lines.append(f"{item.name}是一件{item.craft}装饰。这是一处{item.craft}装饰的审核关联对象。")
+            lines.append(f"{item.name}是一件{item.craft}装饰。")
             if item.observation_location:
-                lines.append(f"它与{item.observation_location}存在审核关联；可结合现场标识观察。")
+                lines.append(f"它就在{item.observation_location}这一带；可以对照现场标识来找。")
             facts = _facts_for_item(str(craft_entries[0].get("content", "")), detailed=detailed) if craft_entries else ()
             if facts:
                 lines.extend(facts)
-            lines.append("未检索到可引用的事实资料，因此不据名称扩写题材或故事。")
+            lines.append("这一处先看造型和位置，题材或故事先不急着下结论。")
         if item.comparison_reason:
             lines.append(f"这里特意选它作对照，{item.comparison_reason}。")
     lines.append("【下一步】")

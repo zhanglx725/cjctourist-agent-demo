@@ -282,7 +282,19 @@ class NarrationRenderingTests(unittest.TestCase):
 
         self.assertTrue(result.fact_units)
         for unit in result.fact_units:
-            self.assertEqual(unit["source_statements"], unit["statements"])
+            self.assertIn("source_statements", unit)
+        public_facts = "".join(
+            statement for unit in result.fact_units for statement in unit["statements"]
+        )
+        source_facts = "".join(
+            statement for unit in result.fact_units for statement in unit["source_statements"]
+        )
+        self.assertNotIn("审核关联", public_facts)
+        self.assertNotIn("可结合现场标识", public_facts)
+        self.assertIn("审核关联", source_facts)
+        self.assertIn("可结合现场标识", source_facts)
+        self.assertNotIn("审核关联", result.visitor_message)
+        self.assertNotIn("可结合现场标识", result.visitor_message)
 
     def test_paths_are_hidden_sources_are_only_used_when_rendered_and_inputs_are_unchanged(self):
         bundle = self._bundle()

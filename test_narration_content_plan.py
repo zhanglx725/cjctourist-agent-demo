@@ -88,7 +88,7 @@ class NarrationContentPlanTests(unittest.TestCase):
         self.assertEqual(plan.requested_scope, "space")
         self.assertEqual([fact.fact_id for fact in plan.facts], ["space:front_courtyard_center"])
 
-    def test_audited_location_statement_is_preserved_verbatim(self):
+    def test_audited_location_statement_is_already_visitor_safe_in_the_plan(self):
         message = (
             "【工艺背景：灰塑】\n\n灰塑是建筑装饰工艺。\n\n"
             "【观察对象：独角狮】\n\n"
@@ -111,8 +111,23 @@ class NarrationContentPlanTests(unittest.TestCase):
             narration_coverage={},
         )
         self.assertEqual(plan.status, "ready")
+        # Content plans only consume public fact units.  Source wording is
+        # retained in render audit, never allowed to reach role generation.
         self.assertEqual(plan.facts[2].statement, "它与建筑山墙垂脊前沿存在审核关联；可结合现场标识观察。")
         self.assertEqual(plan.facts[3].statement, "观察时，可结合建筑山墙垂脊前沿处的构件位置辨认其造型。")
+
+    def test_buddy_plan_starts_with_first_visible_object_unit(self):
+        plan = build_narration_content_plan(
+            public_message=self.message,
+            stop_program=self.program,
+            render_audit={**self.audit, "style_id": "buddy_guide"},
+            visitor_profile={}, narration_coverage={},
+        )
+        self.assertEqual(plan.status, "ready")
+        self.assertEqual(
+            [fact.fact_id for fact in plan.facts],
+            ["ornament:lion_01:000", "craft:灰塑:000"],
+        )
 
 
 if __name__ == "__main__":
