@@ -65,7 +65,7 @@ class TermCardRuntimeTests(unittest.TestCase):
         result = answer_term_question("石雕是什么？", self.tour, self.interaction)
         self.assertEqual(result["term_instances"][0]["ornament_id"], "orn_080")
         self.assertTrue(all(item["node_id"] == "stop_front_courtyard_center" for item in result["term_instances"]))
-        self.assertIn("当前点与上述实例存在审核关联", result["message"])
+        self.assertIn("当前点的清单中包含上述实例", result["message"])
         self.assertIn("以现场为准", result["message"])
         self.assertNotIn("一定能看到", result["message"])
         self.assertNotIn("source_ids", result["message"])
@@ -96,12 +96,14 @@ class TermCardRuntimeTests(unittest.TestCase):
     def test_draft_english_is_blocked_without_leaking_translation(self) -> None:
         result = answer_term_question("墀头英文怎么说？", self.tour, self.interaction)
         self.assertEqual(result["mode"], "term_card_unavailable")
-        self.assertIn("尚未通过英文输出审核", result["message"])
+        self.assertIn("当前没有可用的英文译法", result["message"])
+        self.assertNotIn("审核", result["message"])
         self.assertNotIn("chitous", result["message"])
 
     def test_current_association_is_a_hint_not_visibility_claim(self) -> None:
         result = answer_term_question("灰塑是什么？", self.tour, self.interaction)
-        self.assertIn("审核关联", result["message"])
+        self.assertIn("相关实例", result["message"])
+        self.assertNotIn("审核", result["message"])
         self.assertIn("以现场为准", result["message"])
         no_tour = answer_term_question("灰塑是什么？", None, None)
         self.assertNotIn("当前点与上述实例", no_tour["message"])

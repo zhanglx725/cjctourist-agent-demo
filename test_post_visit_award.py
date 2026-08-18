@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from langchain_core.messages import HumanMessage
 
@@ -48,6 +49,13 @@ class PostVisitAwardTests(unittest.TestCase):
     def test_invalid_summary_fails_closed(self):
         with self.assertRaises(PostVisitAwardError):
             build_post_visit_award(None)
+
+    def test_new_completion_can_start_from_any_reviewed_title_variant(self):
+        state = {"visit_summary": _summary(completion_kind="completed_all_stops", visited_stop_count=3)}
+        with patch("agent_graph.secrets.randbelow", return_value=3):
+            update = post_visit_title_blessing_node(state)
+        self.assertEqual(update["post_visit_award"]["variant_cursor"], 3)
+        self.assertNotEqual(update["post_visit_award"]["candidate_id"], "route_finisher_default")
 
     def test_post_visit_request_parser_is_narrow(self):
         self.assertTrue(is_post_visit_request("给我一个专属称号和祝福"))

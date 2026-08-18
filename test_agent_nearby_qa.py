@@ -31,9 +31,9 @@ class AgentNearbyQaTests(unittest.TestCase):
     def test_nearby_request_routes_to_controlled_tour_qa(self) -> None:
         request = _state("陈家祠附近有什么吃饭的地方？")
         self.assertEqual(route_initial_request(request), "tour_qa")
-        with patch("tour_qa.answer_nearby_request", return_value={"message": "已审核周边候选", "mode": "nearby_recommendation", "nearby_pois": []}):
+        with patch("tour_qa.answer_nearby_request", return_value={"message": "周边选择", "mode": "nearby_recommendation", "nearby_pois": []}):
             update = tour_qa_node(request)
-        self.assertIn("已审核周边候选", update["messages"][0].content)
+        self.assertIn("周边选择", update["messages"][0].content)
         self.assertEqual(update["retrieved_evidence"], [])
 
     def test_active_tour_nearby_request_is_read_only(self) -> None:

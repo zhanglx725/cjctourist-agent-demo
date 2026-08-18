@@ -152,7 +152,7 @@ def plan_template(route_id: str) -> RoutePlan:
     stop_ids = tuple(template["stop_order"])
     exit_node_id = policy.get("exit_policy", {}).get("default_exit_node_id")
     if not exit_node_id or exit_node_id not in graph:
-        raise RoutePlanningError("路线出口区域未配置或不在已审核空间图中。")
+        raise RoutePlanningError("路线出口区域未配置或不在当前空间图中。")
     if len(stop_ids) < 2:
         raise RoutePlanningError(f"路线 {route_id} 至少需要起点和一个讲解停留站")
 
@@ -341,7 +341,7 @@ def plan_from_current_position(
     graph = _filtered_graph(policy)
     start = current_stop_id or templates["rules"]["start_node_id"]
     if start not in graph:
-        raise RoutePlanningError(f"当前起点不在已审核空间图中：{start}")
+        raise RoutePlanningError(f"当前起点不在当前空间图中：{start}")
     exit_node_id = policy["exit_policy"]["default_exit_node_id"]
     excluded = set(excluded_stop_ids or [])
     template = next((item for item in templates["templates"] if item["route_id"] == preferred_route_id), None)

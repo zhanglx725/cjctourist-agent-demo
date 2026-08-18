@@ -50,11 +50,11 @@ def answer_reviewed_craft(user_text: str) -> ReadToolResult:
         )
     request = parse_craft_explanation_request(user_text)
     if request is None:
-        return _result("craft", "not_eligible", "当前问题不属于可安全匹配的已审核工艺讲解范围，因此不作推测。", retrieval_strategy=None)
+        return _result("craft", "not_eligible", "当前问题不属于可安全匹配的工艺讲解范围，因此不作推测。", retrieval_strategy=None)
     try:
         record = load_craft_record(request.craft)
     except CraftKnowledgeError:
-        return _result("craft", "insufficient_evidence", "现有审核资料不足以安全说明这项工艺，因此不作推测。", craft=request.craft, retrieval_strategy="canonical_craft_section")
+        return _result("craft", "insufficient_evidence", "现有资料不足以安全说明这项工艺，因此不作推测。", craft=request.craft, retrieval_strategy="canonical_craft_section")
     evidence = record.to_evidence()
     return _result(
         "craft", "ok", render_craft_explanation(record, request.detail_level), (evidence,),
@@ -69,7 +69,7 @@ def answer_reviewed_object(
     """Render one resolver-supplied object using only exact item evidence."""
     required = ("ornament_id", "name", "craft", "node_id")
     if not all(isinstance(resolved_object.get(key), str) and resolved_object[key].strip() for key in required):
-        return _result("object", "not_eligible", "当前没有可核对的已审核对象，因此不会猜测对象详情。", retrieval_strategy=None)
+        return _result("object", "not_eligible", "当前没有可核对的对象，因此不会猜测对象详情。", retrieval_strategy=None)
     accepted = filter_object_evidence(
         ornament_id=resolved_object["ornament_id"], name=resolved_object["name"], craft=resolved_object["craft"],
         node_id=resolved_object["node_id"], evidence=evidence, strict_identity=True,

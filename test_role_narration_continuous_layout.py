@@ -35,9 +35,9 @@ class ContinuousPointNarrationTests(unittest.TestCase):
                 "rendered_craft_ids": ["木雕"], "rendered_ornament_ids": ["orn_1"],
                 "fact_units": [
                     {"unit_id": "craft:木雕", "topic_kind": "craft", "required": True,
-                     "statements": ["木雕审核事实一。", "木雕审核事实二。"]},
+                     "statements": ["木雕事实一。", "木雕事实二。"]},
                     {"unit_id": "ornament:orn_1", "topic_kind": "ornament", "required": True,
-                     "statements": ["杏林春燕审核事实一。", "杏林春燕审核事实二。"]},
+                     "statements": ["杏林春燕事实一。", "杏林春燕事实二。"]},
                 ],
             },
             visitor_profile={"language": "zh"}, narration_coverage={},
@@ -72,9 +72,9 @@ class ContinuousPointNarrationTests(unittest.TestCase):
 
     def test_explicit_scope_keeps_all_matching_reviewed_statements(self):
         craft = self.plan("请讲解这里的木雕工艺")
-        self.assertEqual([fact.statement for fact in craft.facts], ["木雕审核事实一。", "木雕审核事实二。"])
+        self.assertEqual([fact.statement for fact in craft.facts], ["木雕事实一。", "木雕事实二。"])
         ornament = self.plan("请讲解这里的纹样对象")
-        self.assertEqual([fact.statement for fact in ornament.facts], ["杏林春燕审核事实一。", "杏林春燕审核事实二。"])
+        self.assertEqual([fact.statement for fact in ornament.facts], ["杏林春燕事实一。", "杏林春燕事实二。"])
 
     def test_model_fact_order_and_connector_text_fail_closed(self):
         plan = self.plan()

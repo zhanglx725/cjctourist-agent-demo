@@ -7,6 +7,7 @@ It also never exposes an experience asset through a generic knowledge query.
 from __future__ import annotations
 
 import csv
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable
@@ -24,8 +25,37 @@ ROUTE_CHANGE_CUES = ("加入路线", "加入行程", "加入游览", "改路线"
 DEICTIC_CUES = ("这里", "此处", "眼前", "当前点", "当前站", "本点")
 FAMILY_CUES = ("一家人", "亲子", "全家", "家庭")
 SOLO_CUES = ("一个人", "自己拍", "独自", "单人")
-UNSAFE_PHOTO_ACTION_CUES = ("踩", "爬", "攀登", "攀爬", "坐上", "坐在", "站上", "倚靠", "靠着", "翻越", "翻过", "跨越")
 PROTECTED_FEATURE_CUES = ("栏杆", "栏板", "石狮", "文物", "构件", "围挡", "展品")
+PHOTO_SAFETY_SAFE = "safe"
+PHOTO_SAFETY_UNSAFE = "unsafe"
+PHOTO_SAFETY_CLARIFY = "clarify"
+_PROTECTED_PATTERN = r"(?:栏杆|栏板|石狮|文物|构件|围挡|展品)"
+_MOUNT_ACTION_PATTERN = r"(?:坐|骑|站|踩|爬|攀爬|攀登|趴)"
+_CONTACT_ACTION_PATTERN = r"(?:倚靠|倚着|倚在|靠着|靠在|靠到)"
+_CROSS_ACTION_PATTERN = r"(?:翻越|翻过|跨越|跨过)"
+_EXPLICIT_UNSAFE_PHOTO_PATTERNS = tuple(
+    re.compile(pattern)
+    for pattern in (
+        # 动作在前且明确落在受保护物表面：坐栏杆上、站到栏板上、爬到石狮顶部。
+        rf"(?:坐|站|踩|爬|攀爬|攀登|趴)(?:在|到|上|着|于)?(?:这|那|这个|那个)?{_PROTECTED_PATTERN}(?:的)?(?:上|上面|上边|顶部|顶上|表面)",
+        # “爬上石狮 / 坐上栏杆”把表面关系写在动作后、对象前。
+        rf"(?:坐|站|踩|爬|攀爬|攀登|趴)(?:上|到)(?:这|那|这个|那个)?{_PROTECTED_PATTERN}",
+        # 省略方位词时，坐/踩/爬等动作仍与保护对象直接成支撑关系；
+        # “在栏杆旁边”由后面的方位否定排除，避免误伤安全站位。
+        rf"(?:坐|骑|踩|爬|攀爬|攀登|趴)(?:在|着|于)?(?:这|那|这个|那个)?{_PROTECTED_PATTERN}(?!旁边|旁|附近|前面|后面|一侧)",
+        # “骑”本身已经表达跨坐关系：骑在栏杆、骑石狮。
+        rf"骑(?:在|到|上|着|于)?(?:这|那|这个|那个)?{_PROTECTED_PATTERN}",
+        # 对象在前：栏杆上坐着、石狮上爬、构件顶部站着。
+        rf"{_PROTECTED_PATTERN}(?:的)?(?:上|上面|上边|顶部|顶上|表面){_MOUNT_ACTION_PATTERN}",
+        # 接触和跨越关系本身已经足够明确。
+        rf"{_CONTACT_ACTION_PATTERN}(?:这|那|这个|那个)?{_PROTECTED_PATTERN}",
+        rf"{_CROSS_ACTION_PATTERN}(?:这|那|这个|那个)?{_PROTECTED_PATTERN}",
+        rf"{_PROTECTED_PATTERN}(?:能|可以|想|要|打算|准备)?(?:直接)?(?:翻|跨)(?:过|过去|越过)",
+    )
+)
+_DEICTIC_HIGH_RISK_PATTERN = re.compile(
+    r"(?:坐|骑|站|踩|爬|趴)上去|(?:翻|跨|爬)过去|(?:倚|靠)上去"
+)
 MARKERS_FILE = Path("data/chen_clan_academy/spatial/marker_inventory_v0.csv")
 
 
@@ -37,6 +67,34 @@ def has_photo_route_conflict(user_query: str) -> bool:
     return is_explicit_photo_request(user_query) and any(cue in user_query for cue in ROUTE_CHANGE_CUES)
 
 
+def classify_photo_safety_intent(user_query: str) -> str:
+    """Classify photo conduct before any point or candidate lookup.
+
+    The matcher models the relation between an action and a protected object,
+    so ordinary requests to photograph a railing are not treated as attempts
+    to sit or climb on it.  High-risk deictic wording without a resolved object
+    is never allowed to fall through to a recommendation.
+    """
+    if not is_explicit_photo_request(user_query):
+        return PHOTO_SAFETY_SAFE
+    compact = re.sub(r"[\s，。！？、；：,.!?;:]", "", user_query)
+    if is_visit_safety_question(compact):
+        return PHOTO_SAFETY_UNSAFE
+    if any(pattern.search(compact) for pattern in _EXPLICIT_UNSAFE_PHOTO_PATTERNS):
+        return PHOTO_SAFETY_UNSAFE
+    has_protected_object = any(cue in compact for cue in PROTECTED_FEATURE_CUES)
+    has_risky_action = bool(re.search(r"坐|骑|站|踩|爬|攀|趴|倚|靠|翻|跨", compact))
+    explicit_safe_proximity = bool(
+        re.search(rf"{_PROTECTED_PATTERN}(?:的)?(?:旁边|旁|附近|前面|后面|一侧)", compact)
+        or re.search(rf"(?:旁边|旁|附近|前面|后面|一侧)(?:的)?{_PROTECTED_PATTERN}", compact)
+    )
+    if _DEICTIC_HIGH_RISK_PATTERN.search(compact) or (
+        has_protected_object and has_risky_action and not explicit_safe_proximity
+    ):
+        return PHOTO_SAFETY_CLARIFY
+    return PHOTO_SAFETY_SAFE
+
+
 def is_unsafe_photo_request(user_query: str) -> bool:
     """Return whether a photo request violates a reviewed safety boundary.
 
@@ -45,23 +103,21 @@ def is_unsafe_photo_request(user_query: str) -> bool:
     restrictions (for example drone or flash use) are independently sufficient
     and are checked before any editorial candidate lookup.
     """
-    protected_contact = (
-        is_explicit_photo_request(user_query)
-        and any(cue in user_query for cue in UNSAFE_PHOTO_ACTION_CUES)
-        and any(cue in user_query for cue in PROTECTED_FEATURE_CUES)
-    )
-    restricted_photo_method = (
-        is_explicit_photo_request(user_query)
-        and is_visit_safety_question(user_query)
-    )
-    return protected_contact or restricted_photo_method
+    return classify_photo_safety_intent(user_query) == PHOTO_SAFETY_UNSAFE
 
 
 def _photo_safety_refusal_message() -> str:
     return (
         "不建议踩、爬、坐上、倚靠或翻越栏杆、构件、围挡和文物拍照。"
-        "请留在允许停留的平地和开放区域，在不触摸构件、不阻碍通行的前提下远观取景。\n\n"
-        + EDITORIAL_ON_SITE_DISCLAIMER
+        "请留在允许停留的平地和开放区域，在不触摸构件、不阻碍通行的前提下远观取景。"
+    )
+
+
+def _photo_safety_clarification_message() -> str:
+    return (
+        "如果您的意思是坐、站、踩、爬、倚靠或跨越栏杆、构件、围挡和文物拍照，"
+        "请不要这样做。请留在允许停留的平地和开放区域取景；"
+        "如果您只是想拍摄它本身，可以告诉我您现在的位置。"
     )
 
 
@@ -133,9 +189,8 @@ def _candidate_sort_key(
 
 def _safe_generic_message() -> str:
     return (
-        "当前没有可用的项目编辑拍摄候选。我只能给出通用建议：在允许拍摄、且不影响通行的位置远观取景，"
-        "不要触摸、倚靠、攀爬或跨越构件与围挡，也不要使用受限制的设备。\n\n"
-        + EDITORIAL_ON_SITE_DISCLAIMER
+        "当前没有可直接采用的点位拍摄方案。您可以在允许拍摄且不影响通行的位置远观取景，"
+        "不要触摸、倚靠、攀爬或跨越构件与围挡，也不要使用受限制的设备。"
     )
 
 
@@ -155,7 +210,7 @@ def _parent_node_ids() -> dict[str, str]:
 def _render_candidate(selection: dict[str, Any]) -> dict[str, Any]:
     spot = selection["photo_spot"]
     poses = selection.get("pose_templates", [])
-    lines = [f"{spot.get('title_zh') or '该点位'}可以作为一个项目编辑拍摄候选。", _focus_text(spot.get("themes", []))]
+    lines = [f"可以参考{spot.get('title_zh') or '这一处'}取景。", _focus_text(spot.get("themes", []))]
     if poses:
         pose = poses[0]
         instruction = pose.get("instruction_zh")
@@ -164,6 +219,8 @@ def _render_candidate(selection: dict[str, Any]) -> dict[str, Any]:
     disclosed_field_review = False
     for limitation in selection.get("limitations", []):
         limitation = str(limitation or "").strip()
+        if limitation == EDITORIAL_ON_SITE_DISCLAIMER:
+            limitation = "实际可见性、光线、客流和开放情况请以现场为准。"
         # Editorial lifecycle values are internal audit metadata, not useful
         # visitor prose.  Keep the actual on-site uncertainty while hiding the
         # YAML status token and review workflow wording.
@@ -198,10 +255,18 @@ def answer_photo_request(
             "photo_spots": [],
             "point_context": point_context,
         }
-    if is_unsafe_photo_request(user_query):
+    safety_intent = classify_photo_safety_intent(user_query)
+    if safety_intent == PHOTO_SAFETY_UNSAFE:
         return {
             "message": _photo_safety_refusal_message(),
             "mode": "photo_safety_refusal",
+            "photo_spots": [],
+            "point_context": point_context,
+        }
+    if safety_intent == PHOTO_SAFETY_CLARIFY:
+        return {
+            "message": _photo_safety_clarification_message(),
+            "mode": "photo_safety_clarification",
             "photo_spots": [],
             "point_context": point_context,
         }
@@ -213,7 +278,7 @@ def answer_photo_request(
     is_deictic = any(cue in user_query for cue in DEICTIC_CUES)
     if is_deictic and not point_context:
         return {
-            "message": "请先告诉我您现在位于哪个已审核点位；我不会根据聊天语气猜测拍摄位置。",
+            "message": "请先告诉我您现在位于地图上的哪个点位；我不会根据聊天语气猜测拍摄位置。",
             "mode": "photo_location_required", "photo_spots": [], "point_context": None,
         }
     try:
@@ -246,14 +311,14 @@ def answer_photo_request(
         if current_selection.get("available"):
             rendered_current = _render_candidate(current_selection)
             return {
-                "message": "可以参考这一处已审核的拍摄建议：\n\n" + rendered_current["message"],
+                "message": "可以参考这一处拍摄位置建议：\n\n" + rendered_current["message"],
                 "mode": "photo_recommendation",
                 "photo_spots": [rendered_current],
                 "point_context": point_context,
             }
         return {
             "message": (
-                "当前点位暂无可用的已审核拍摄建议。我可以先提供一般安全原则："
+                "当前点位暂无可直接采用的拍摄建议。我可以先提供一般安全原则："
                 "请在允许拍摄且不影响通行的位置取景，不触摸、倚靠或攀坐文物与建筑构件，"
                 "并遵守现场标识和工作人员要求。"
             ),
@@ -306,7 +371,7 @@ def answer_photo_request(
     if not scored:
         if current_node_id:
             return {
-                "message": f"当前点位暂无可用的项目编辑拍摄候选。{_safe_generic_message()}",
+                "message": f"当前点位暂无可直接采用的拍摄建议。{_safe_generic_message()}",
                 "mode": "photo_no_current_candidate", "photo_spots": [], "point_context": point_context,
             }
         return {"message": _safe_generic_message(), "mode": "photo_unavailable", "photo_spots": [], "point_context": point_context}
@@ -324,13 +389,13 @@ def answer_photo_request(
             break
     if not rendered:
         return {"message": _safe_generic_message(), "mode": "photo_unavailable", "photo_spots": [], "point_context": point_context}
-    heading = "为您整理了这些项目编辑拍摄候选：" if len(rendered) > 1 else "可以参考这一处项目编辑拍摄候选："
+    heading = "可以参考这些拍摄位置：" if len(rendered) > 1 else "可以参考这一处拍摄位置："
     # A deictic request is about the visitor's actual current position.  If
     # that position has no eligible candidate, say so explicitly before
     # offering a later route stop; otherwise the fallback can look like an
     # unsupported claim about the place the visitor is standing in.
     current_prefix = ""
     if is_deictic and current_node_id and not any(item["node_id"] == current_node_id for item in rendered):
-        current_prefix = "当前点位暂没有可用的项目编辑拍摄候选；以下是路线中可继续参考的候选。\n\n"
+        current_prefix = "当前点位暂没有可直接采用的拍摄建议；以下是路线中可以继续参考的位置。\n\n"
     message = current_prefix + heading + "\n\n" + "\n\n".join(item["message"] for item in rendered)
     return {"message": message, "mode": "photo_recommendation", "photo_spots": rendered, "point_context": point_context}

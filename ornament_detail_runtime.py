@@ -125,8 +125,38 @@ class ObjectDetailRender:
     coverage_level: str
 
     @property
+    def public_paragraphs(self) -> tuple[str, ...]:
+        """Return visitor prose while retaining raw paragraphs for audit use."""
+        rendered: list[str] = []
+        for paragraph in self.paragraphs:
+            text = paragraph.strip()
+            location = re.match(
+                r"^它与(?P<location>.+?)存在审核关联；可结合现场标识观察。?$",
+                text,
+            )
+            if location:
+                rendered.append(
+                    f"它在{location.group('location')}；可以对照现场标识来找。"
+                )
+                continue
+            observation = re.match(
+                r"^观察时，可结合(?P<location>.+?)处的构件位置辨认其造型。?$",
+                text,
+            )
+            if observation:
+                rendered.append(
+                    f"找它时，先对照{observation.group('location')}的位置，再认它的造型。"
+                )
+                continue
+            if "现有资料目前只足以确认其工艺和审核关联位置" in text:
+                rendered.append("现有资料目前只足以确认它的工艺和所在位置，不据此补写题材或故事。")
+                continue
+            rendered.append(text)
+        return tuple(rendered)
+
+    @property
     def visitor_text(self) -> str:
-        return "\n\n".join(self.paragraphs)
+        return "\n\n".join(self.public_paragraphs)
 
 
 def build_object_evidence_view(

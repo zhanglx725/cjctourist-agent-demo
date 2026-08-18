@@ -19,7 +19,7 @@ class ProfileDialogueTests(unittest.TestCase):
             "霸道总裁", "奶气学弟", "古风书生", "知心姐姐", "闺蜜唠嗑", "兄弟搭子",
             "探秘闯关", "打卡出片", "祠中宿生", "西关少爷（粤语）", "粤派讲古（粤语）",
         )
-        self.assertIn("18种已审核风格", STYLE_SELECTION_PROMPT)
+        self.assertIn("18种可选风格", STYLE_SELECTION_PROMPT)
         for display_name in expected:
             with self.subTest(display_name=display_name):
                 self.assertEqual(STYLE_SELECTION_PROMPT.count(display_name), 1)

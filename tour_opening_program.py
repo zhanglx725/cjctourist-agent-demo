@@ -56,15 +56,15 @@ def _load_approved_evidence() -> dict[str, Any]:
     try:
         payload = json.loads(EVIDENCE_FILE.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise TourOpeningProgramError("开场审核资料不可用。") from exc
+        raise TourOpeningProgramError("开场资料不可用。") from exc
     if payload.get("review_status") != "approved":
-        raise TourOpeningProgramError("开场资料尚未通过审核。")
+        raise TourOpeningProgramError("开场资料当前不可用。")
     facts = payload.get("facts")
     if not isinstance(facts, list) or not facts:
-        raise TourOpeningProgramError("开场审核资料为空。")
+        raise TourOpeningProgramError("开场资料为空。")
     for fact in facts:
         if not isinstance(fact, dict) or not str(fact.get("public_text") or "").strip():
-            raise TourOpeningProgramError("开场审核资料格式无效。")
+            raise TourOpeningProgramError("开场资料格式无效。")
         if not fact.get("source_ids"):
             raise TourOpeningProgramError("开场事实缺少来源。")
     return payload

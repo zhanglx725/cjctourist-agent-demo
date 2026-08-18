@@ -23,9 +23,9 @@ def plan(style_id: str = "child") -> NarrationContentPlan:
         stop_id="front", style_id=style_id, language="zh", budget_seconds=60,
         allocated_content_seconds=40, scaffold_mode="compact",
         facts=(
-            NarrationFact("craft:stucco:000", "craft_background", "审核事实甲。"),
-            NarrationFact("craft:stucco:001", "craft_detail", "审核事实乙。"),
-            NarrationFact("ornament:lion:000", "object_detail", "审核事实丙。"),
+            NarrationFact("craft:stucco:000", "craft_background", "这里使用灰塑工艺。"),
+            NarrationFact("craft:stucco:001", "craft_detail", "灰塑用于建筑装饰。"),
+            NarrationFact("ornament:lion:000", "object_detail", "眼前可见独角狮造型。"),
         ),
         must_include=(), already_covered=(), must_not_claim=(),
         interaction_allowed=True,

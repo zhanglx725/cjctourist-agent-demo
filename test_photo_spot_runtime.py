@@ -7,8 +7,12 @@ import unittest
 from unittest.mock import Mock, patch
 
 from photo_spot_runtime import (
+    PHOTO_SAFETY_CLARIFY,
+    PHOTO_SAFETY_SAFE,
+    PHOTO_SAFETY_UNSAFE,
     _candidate_sort_key,
     answer_photo_request,
+    classify_photo_safety_intent,
     has_photo_route_conflict,
     is_explicit_photo_request,
     is_unsafe_photo_request,
@@ -122,6 +126,17 @@ class PhotoSpotRuntimeTests(unittest.TestCase):
         self.assertFalse(is_explicit_photo_request("灰塑是什么？"))
         self.assertTrue(has_photo_route_conflict("把这个打卡点加入路线"))
 
+    def test_unsafe_photo_refusal_has_no_editorial_candidate_disclaimer(self) -> None:
+        result = answer_photo_request(
+            "可以靠着栏杆拍照吗",
+            point_context=None,
+            tour_state=None,
+            visitor_profile=None,
+        )
+        self.assertEqual(result["mode"], "photo_safety_refusal")
+        self.assertNotIn("项目编辑", result["message"])
+        self.assertNotIn("拍摄建议", result["message"])
+
     def test_pose_wording_uses_the_existing_photo_intent(self) -> None:
         for request in (
             "这里拍照摆什么姿势？",
@@ -145,14 +160,72 @@ class PhotoSpotRuntimeTests(unittest.TestCase):
     def test_unsafe_photo_request_requires_action_and_protected_feature(self) -> None:
         for request in (
             "我想踩在栏杆上拍照，怎么拍？",
+            "我到月台了，踩栏杆怎么拍？",
             "可以爬到栏杆上拍照吗？",
             "让孩子坐在栏杆上拍一张。",
+            "我想坐栏杆上拍照。",
+            "栏杆上坐着拍可以吗？",
+            "我想骑在栏杆拍一张。",
+            "能跨过栏杆再拍吗？",
             "能倚靠石狮拍照吗？",
             "翻过围挡拍会不会更好？",
         ):
             self.assertTrue(is_unsafe_photo_request(request), request)
         for request in ("栏杆怎么拍比较好？", "我想踩点拍照。", "让孩子坐在安全休息区拍照。"):
             self.assertFalse(is_unsafe_photo_request(request), request)
+
+    def test_photo_safety_structure_handles_word_order_and_ambiguous_deixis(self) -> None:
+        unsafe = (
+            "我想坐栏杆上拍照",
+            "栏杆上坐着拍一张",
+            "骑在栏杆拍照",
+            "翻越围挡拍照",
+            "展品上趴着合影",
+        )
+        for request in unsafe:
+            self.assertEqual(
+                classify_photo_safety_intent(request), PHOTO_SAFETY_UNSAFE, request
+            )
+        for request in ("我能跨过去拍吗", "站上去拍会不会更好"):
+            self.assertEqual(
+                classify_photo_safety_intent(request), PHOTO_SAFETY_CLARIFY, request
+            )
+            result = answer_photo_request(
+                request,
+                point_context=None,
+                tour_state=None,
+                visitor_profile=None,
+            )
+            self.assertEqual(result["mode"], "photo_safety_clarification")
+            self.assertEqual(result["photo_spots"], [])
+        for request in (
+            "栏杆本身怎么拍",
+            "坐在安全休息区拍照",
+            "我想踩点拍照",
+            "站在栏杆旁边拍照",
+            "在石狮附近站着合影",
+        ):
+            self.assertEqual(
+                classify_photo_safety_intent(request), PHOTO_SAFETY_SAFE, request
+            )
+
+    def test_photo_safety_mutation_matrix_covers_action_object_word_orders(self) -> None:
+        actions = ("坐", "站", "踩", "爬", "趴")
+        protected_objects = ("栏杆", "栏板", "石狮", "文物", "构件", "围挡", "展品")
+        templates = (
+            "我想{action}在{object}上拍照",
+            "拍照时能不能{action}到{object}上面",
+            "{object}顶部{action}着拍一张可以吗",
+        )
+        for action in actions:
+            for protected_object in protected_objects:
+                for template in templates:
+                    request = template.format(action=action, object=protected_object)
+                    with self.subTest(request=request):
+                        self.assertEqual(
+                            classify_photo_safety_intent(request),
+                            PHOTO_SAFETY_UNSAFE,
+                        )
 
     def test_unsafe_photo_requests_refuse_before_candidate_lookup_and_keep_state_unchanged(self) -> None:
         tour = {"visited_stop_ids": [CURRENT], "remaining_stop_ids": [NEXT], "route_status": "touring"}
@@ -165,6 +238,10 @@ class PhotoSpotRuntimeTests(unittest.TestCase):
             "我想踩在栏杆上拍照，怎么拍？",
             "可以爬到栏杆上拍照吗？",
             "让孩子坐在栏杆上拍一张。",
+            "我想坐栏杆上拍照。",
+            "栏杆上坐着拍可以吗？",
+            "我想骑在栏杆拍一张。",
+            "能跨过栏杆再拍吗？",
             "能倚靠石狮拍照吗？",
             "翻过围挡拍会不会更好？",
         ):
@@ -233,7 +310,9 @@ class PhotoSpotRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(result["mode"], "photo_recommendation")
         self.assertEqual(result["photo_spots"][0]["node_id"], CURRENT)
-        self.assertIn("项目编辑", result["message"])
+        self.assertNotIn("项目编辑", result["message"])
+        self.assertNotIn("审核", result["message"])
+        self.assertIn("拍摄位置", result["message"])
         self.assertIn("现场为准", result["message"])
         self.assertNotIn("最佳", result["message"])
         self.assertNotIn("热门", result["message"])

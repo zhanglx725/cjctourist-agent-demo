@@ -27,19 +27,19 @@ POINT_TEMPLATES = (
     {
         "point_type": "building",
         "fact_id": "space:front_courtyard_roof",
-        "approved_fact": "审核事实：屋脊位于前院中部。",
+        "approved_fact": "屋脊位于前院中部。",
         "safety_boundaries": ["不得新增路线、空间定位或现场对象", "不得泄露内部字段"],
     },
     {
         "point_type": "craft",
         "fact_id": "craft:灰塑",
-        "approved_fact": "审核事实：该构件采用灰塑工艺。",
+        "approved_fact": "该构件采用灰塑工艺。",
         "safety_boundaries": ["不得新增年代、人物、传说或认证", "不得改写审核事实"],
     },
     {
         "point_type": "ornament",
         "fact_id": "ornament:orn_005",
-        "approved_fact": "审核事实：栏板可见花卉纹样。",
+        "approved_fact": "栏板可见花卉纹样。",
         "safety_boundaries": ["不得触摸、攀爬、跨越护栏或阻塞通道", "不得新增未经审核的寓意"],
     },
 )

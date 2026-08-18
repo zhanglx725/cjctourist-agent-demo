@@ -322,7 +322,7 @@ def answer_nearby_request(
     cards = load_approved_nearby_pois()
     if not cards:
         return {
-            "message": "当前没有可用的已审核周边推荐。" + PUBLIC_UNCERTAINTY,
+            "message": "当前没有可用的周边推荐。" + PUBLIC_UNCERTAINTY,
             "mode": "nearby_unavailable",
             "nearby_pois": [],
             "selected_poi_ids": [],
@@ -342,7 +342,7 @@ def answer_nearby_request(
     remaining = [card for card in ranked if card["poi_id"] not in excluded]
     if not remaining:
         return {
-            "message": "这一类别中已审核且当前可用的候选已经全部为您展示完毕。您也可以换一种美食或饮品类型。",
+            "message": "这一类别中当前可用的选择已经全部为您展示完毕。您也可以换一种美食或饮品类型。",
             "mode": "nearby_candidates_exhausted",
             "nearby_pois": [],
             "selected_poi_ids": [],
@@ -352,7 +352,7 @@ def answer_nearby_request(
     rendered = [_render_card(card) for card in selected]
     return {
         "message": (
-            "可以参考以下已审核周边候选：\n\n"
+            "可以参考以下周边选择：\n\n"
             + "\n\n".join(text for text, _ in rendered)
             + "\n\n" + PUBLIC_UNCERTAINTY
         ),

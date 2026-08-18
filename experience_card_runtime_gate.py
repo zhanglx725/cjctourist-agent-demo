@@ -21,7 +21,7 @@ PHOTO_FILE = EXPERIENCE_DIR / "photo_spots" / "photo_spot_cards_v0.yaml"
 POSE_FILE = EXPERIENCE_DIR / "photo_spots" / "pose_templates_v0.yaml"
 PLATFORM_FILE = EXPERIENCE_DIR / "photo_spots" / "platform_observations_v0.yaml"
 
-NO_APPROVED_CONTENT = "暂无审核通过内容"
+NO_APPROVED_CONTENT = "暂无可用内容"
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:

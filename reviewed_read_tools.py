@@ -66,7 +66,7 @@ def answer_reviewed_single_fact(
     if fact_kind is None:
         return _result(
             "single_fact", "not_eligible",
-            "这个问题不属于可由单一审核事实安全回答的范围，我不会据此猜测补答。",
+            "现有资料不能安全回答这个问题，我不会据此猜测补答。",
             supplied, fact_kind=None, retrieval_strategy=None,
         )
     rendered = render_single_fact_answer(user_text, list(supplied), fact_kind=fact_kind)
@@ -94,7 +94,7 @@ def answer_reviewed_term(
     if not isinstance(answer, Mapping):
         return _result(
             "term", "not_eligible",
-            "当前没有可安全输出的已审核术语说明。",
+            "当前没有可安全输出的术语说明。",
             (), term=None, retrieval_strategy="term_runtime",
         )
     term = answer.get("term") if isinstance(answer.get("term"), Mapping) else None

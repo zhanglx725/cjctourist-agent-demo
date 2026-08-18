@@ -420,7 +420,7 @@ def plan_dynamic_route(
     ]
     final_states = productive_states or [item for item in states if item[1]]
     if not final_states:
-        raise DynamicRouteCandidateError("在当前时长和排除条件下，没有可安排的已审核讲解点。")
+        raise DynamicRouteCandidateError("在当前时长和排除条件下，没有可安排的讲解点。")
     # Prefer utility, then a route that makes productive use of its requested time.
     best_utility, selected, _ = max(
         final_states,

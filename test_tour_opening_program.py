@@ -195,6 +195,20 @@ class TourOpeningProgramTests(unittest.TestCase):
         for field in ("tour_state", "visitor_profile", "narration_coverage"):
             self.assertNotIn(field, opened)
 
+    def test_arrival_and_route_opening_use_selected_reviewed_style_voice(self):
+        route = direct_route_node({
+            "messages": [HumanMessage(content="选择经典模式，30分钟路线")],
+            "visitor_profile": {
+                "available_minutes": 30, "interests": [],
+                "detail_level": "standard", "route_constraint": None,
+                "explanation_style": "buddy_guide",
+            },
+        })
+        arrived = tour_event_node({**route, "messages": [HumanMessage(content="我到前院中部了")]})
+        self.assertIn("眼光看过来", arrived["messages"][0].content)
+        opened = tour_opening_node({**route, **arrived})
+        self.assertIn("眼光看过来", opened["messages"][0].content)
+
     def test_explicit_skip_is_the_only_first_arrival_bypass(self):
         route = direct_route_node({
             "messages": [HumanMessage(content="选择经典模式，30分钟路线")],

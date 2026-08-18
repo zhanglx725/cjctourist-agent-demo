@@ -109,7 +109,7 @@ STYLE_CHOICE_HELP = "、".join((
     "探秘闯关", "打卡出片", "祠中宿生", "西关少爷（粤语）", "粤派讲古（粤语）",
 ))
 STYLE_SELECTION_PROMPT = (
-    "您喜欢哪种讲解风格？目前有18种已审核风格：\n"
+    "您喜欢哪种讲解风格？目前有18种可选风格：\n"
     "基础与人群：中性清晰、儿童友好、亲子共游、研学观察、专业讲解、静听模式、混合群体；\n"
     "角色与体验：霸道总裁、奶气学弟、古风书生、知心姐姐、闺蜜唠嗑、兄弟搭子、"
     "探秘闯关、打卡出片、祠中宿生；\n"
@@ -479,7 +479,7 @@ def collect_profile_input(
         f"兴趣：{'、'.join(profile.interests) if profile.interests else '无特别偏好'}，"
         f"讲解深度：{profile.detail_level}。"
         + (
-            " 路线偏好：在已审核候选中优先减少预计步行。"
+            " 路线偏好：在可用路线中优先减少预计步行。"
             if profile.route_constraint == "minimize_walking"
             else ""
         ),

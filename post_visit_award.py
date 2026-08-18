@@ -105,7 +105,7 @@ def load_post_visit_title_catalog() -> dict[str, Any]:
             if candidate.get("review_status") == "approved" and candidate.get("enabled") is True:
                 approved.append(deepcopy(candidate))
         if not approved:
-            raise PostVisitAwardError(f"称号类别没有已审核候选：{category_id}")
+            raise PostVisitAwardError(f"称号类别没有可用候选：{category_id}")
         approved_by_category[category_id] = approved
     if category_ids != EXPECTED_CATEGORIES:
         raise PostVisitAwardError("称号类别集合不完整。")

@@ -70,7 +70,7 @@ def next_stop_navigation(
     source_id = state["current_stop_id"] or ENTRY_NODE_ID
     graph = build_spatial_graph()
     if source_id not in graph:
-        raise TourNavigationError(f"当前点位不在已审核空间图中：{source_id}")
+        raise TourNavigationError(f"当前点位不在当前空间图中：{source_id}")
     catalog = _load_catalog()
     card = catalog.get(target_id)
     if card is None:

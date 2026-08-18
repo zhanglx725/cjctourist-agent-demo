@@ -167,7 +167,7 @@ class ExperienceCardRuntimeEligibilityTests(unittest.TestCase):
         with patch.object(gate, "load_eligibility_records", return_value={}):
             result = gate.select_photo_spot_cards("label_moon_platform")
         self.assertEqual(result["status"], "no_approved_content")
-        self.assertEqual(result["message_zh"], "暂无审核通过内容")
+        self.assertEqual(result["message_zh"], "暂无可用内容")
         self.assertEqual(result["cards"], [])
 
 

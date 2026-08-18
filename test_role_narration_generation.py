@@ -200,8 +200,8 @@ class RoleNarrationGenerationTests(unittest.TestCase):
         plan = NarrationContentPlan(
             stop_id="front", style_id="neutral", language="zh", budget_seconds=60,
             facts=(
-                NarrationFact("fact:a", "craft_background", "审核事实甲。"),
-                NarrationFact("fact:b", "object_detail", "审核事实乙。"),
+                NarrationFact("fact:a", "craft_background", "这里使用灰塑工艺。"),
+                NarrationFact("fact:b", "object_detail", "眼前可见花卉纹样。"),
             ),
             must_include=(), already_covered=(), must_not_claim=(),
             interaction_allowed=True,
@@ -215,7 +215,7 @@ class RoleNarrationGenerationTests(unittest.TestCase):
     def test_infeasible_required_fact_budget_fails_before_model_call(self):
         plan = NarrationContentPlan(
             stop_id="front", style_id="neutral", language="zh", budget_seconds=1,
-            facts=(NarrationFact("fact:a", "craft_background", "这是一条明显超过四个字的审核事实。"),),
+            facts=(NarrationFact("fact:a", "craft_background", "这是一条明显超过四个字的既定事实。"),),
             must_include=(), already_covered=(), must_not_claim=(),
             interaction_allowed=True, allocated_content_seconds=2,
         )
@@ -228,7 +228,7 @@ class RoleNarrationGenerationTests(unittest.TestCase):
         self.assertEqual(calls, [])
 
     def test_e5_allocated_duration_prevents_double_charging_approved_facts(self):
-        statement = "这是已经通过上游审核并分配讲解时长的事实内容。" * 12
+        statement = "这是已经确认并分配讲解时长的完整事实内容。" * 12
         plan = NarrationContentPlan(
             stop_id="front", style_id="neutral", language="zh", budget_seconds=60,
             facts=(NarrationFact("fact:a", "craft_background", statement),),
@@ -280,8 +280,8 @@ class RoleNarrationGenerationTests(unittest.TestCase):
         plan = NarrationContentPlan(
             stop_id="front", style_id="neutral", language="zh", budget_seconds=60,
             facts=(
-                NarrationFact("fact:a", "craft_background", "审核事实甲。"),
-                NarrationFact("fact:b", "object_detail", "审核事实乙。"),
+                NarrationFact("fact:a", "craft_background", "这里使用灰塑工艺。"),
+                NarrationFact("fact:b", "object_detail", "眼前可见花卉纹样。"),
             ),
             must_include=(), already_covered=(), must_not_claim=(),
             interaction_allowed=True,
@@ -320,7 +320,7 @@ class RoleNarrationGenerationTests(unittest.TestCase):
             budget_seconds=60,
             facts=(NarrationFact(
                 "ornament:orn_005", "object_detail",
-                "独角狮造型来自审核传说，寓意辟邪保平安。",
+                "独角狮造型来自佛山民间传说，寓意辟邪保平安。",
             ),),
             must_include=(), already_covered=(), must_not_claim=(),
             interaction_allowed=True,
@@ -342,7 +342,7 @@ class RoleNarrationGenerationTests(unittest.TestCase):
             budget_seconds=60,
             facts=(NarrationFact(
                 "ornament:orn_005", "object_detail",
-                "独角狮造型来自审核传说，寓意辟邪保平安。",
+                "独角狮造型来自佛山民间传说，寓意辟邪保平安。",
             ),),
             must_include=(), already_covered=(), must_not_claim=(),
             interaction_allowed=True,
@@ -405,9 +405,9 @@ class RoleNarrationGenerationTests(unittest.TestCase):
                 plan = NarrationContentPlan(
                     stop_id="front", style_id=style_id, language="zh", budget_seconds=90,
                     facts=(
-                        NarrationFact("fact:a", "craft_background", "审核事实甲。"),
-                        NarrationFact("fact:b", "object_detail", "审核事实乙。"),
-                        NarrationFact("fact:c", "object_detail", "审核事实丙。"),
+                        NarrationFact("fact:a", "craft_background", "这里使用灰塑工艺。"),
+                        NarrationFact("fact:b", "object_detail", "眼前可见花卉纹样。"),
+                        NarrationFact("fact:c", "object_detail", "纹样位于建筑构件表面。"),
                     ),
                     must_include=(), already_covered=(), must_not_claim=(),
                     interaction_allowed=style_id != "listen_only",

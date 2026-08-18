@@ -47,7 +47,7 @@ def _plan(unit_count: int, budget: int) -> NarrationContentPlan:
         NarrationFact(
             f"{topics[index % 3]}:unit-{index}:000",
             f"{topics[index % 3]}_detail",
-            f"审核事实第{index}项保持原文。",
+            f"事实第{index}项保持原文。",
         )
         for index in range(unit_count)
     )
@@ -92,10 +92,10 @@ class NarrationBudgetTests(unittest.TestCase):
 
     def test_split_with_craft_and_ornament_keeps_first_object_in_arrival_turn(self):
         facts = (
-            NarrationFact("craft:grey:000", "craft_background", "审核工艺事实。"),
-            NarrationFact("ornament:lion:000", "object_detail", "审核文物事实。"),
-            NarrationFact("ornament:lion:001", "object_detail", "审核文物造型事实。"),
-            NarrationFact("ornament:bat:000", "object_detail", "后续审核文物事实。"),
+            NarrationFact("craft:grey:000", "craft_background", "既定工艺事实。"),
+            NarrationFact("ornament:lion:000", "object_detail", "既定文物事实。"),
+            NarrationFact("ornament:lion:001", "object_detail", "既定文物造型事实。"),
+            NarrationFact("ornament:bat:000", "object_detail", "后续既定文物事实。"),
         )
         plan = NarrationContentPlan(
             stop_id="front", style_id="neutral", language="zh",
@@ -116,14 +116,14 @@ class NarrationBudgetTests(unittest.TestCase):
             [
                 NarrationFact(
                     f"craft:stucco:{index:03d}", "craft_detail",
-                    f"审核工艺事实第{index + 1}句保持原文。",
+                    f"既定工艺事实第{index + 1}句保持原文。",
                 )
                 for index in range(4)
             ]
             + [
                 NarrationFact(
                     f"ornament:{unit_id}:{index:03d}", "object_detail",
-                    f"审核对象{unit_label}第{index + 1}句保持原文。",
+                    f"既定对象{unit_label}第{index + 1}句保持原文。",
                 )
                 for unit_id, unit_label in (("orn_005", "甲"), ("orn_008", "乙"))
                 for index in range(4)

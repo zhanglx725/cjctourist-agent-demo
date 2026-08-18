@@ -58,7 +58,7 @@ def _active_environment(style_id: str) -> dict[str, str]:
 
 
 def _legacy_message(fact: str) -> str:
-    return f"【审核点位讲解】\n\n{fact}\n\n【下一步】\n\n可继续前往下一处。"
+    return f"【本点讲解】\n\n{fact}\n\n【下一步】\n\n可继续前往下一处。"
 
 
 def _state(inputs: Mapping[str, Any]) -> dict[str, Any]:

@@ -111,12 +111,12 @@ class NarrationServiceTailTests(unittest.TestCase):
 
     def test_composition_separates_main_narration_and_service_text(self):
         text = compose_stop_presentation(
-            "先看眼前这处。 审核事实。",
+            "先看眼前这处。 这里可见一处装饰。",
             f"{COMPLETION_PROMPT} 完成本点后，下一站：月台。",
         )
         self.assertEqual(
             text,
-            "先看眼前这处。 审核事实。\n\n"
+            "先看眼前这处。 这里可见一处装饰。\n\n"
             f"{COMPLETION_PROMPT} 完成本点后，下一站：月台。",
         )
         self.assertIn("\n\n", text)

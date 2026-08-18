@@ -289,7 +289,7 @@ def plan_stop_program(
     )
     card = load_guide_cards().get(node_id)
     if card is None:
-        raise GuideProgramError("该 node_id 没有已审核点位讲解包")
+        raise GuideProgramError("该点位没有可用的讲解内容")
     candidates = [
         item for item in card.get("ornaments", [])
         if item.get("ornament_id") and item.get("name") and item.get("craft")

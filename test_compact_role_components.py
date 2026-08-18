@@ -20,9 +20,9 @@ def _plan(style_id: str, budget: int = 60) -> NarrationContentPlan:
         budget_seconds=budget,
         allocated_content_seconds=30,
         facts=(
-            NarrationFact("craft:stucco:001", "craft_detail", "审核工艺事实甲。"),
-            NarrationFact("craft:stucco:002", "craft_detail", "审核工艺事实乙。"),
-            NarrationFact("ornament:lion:001", "object_detail", "审核对象事实甲。"),
+            NarrationFact("craft:stucco:001", "craft_detail", "既定工艺事实甲。"),
+            NarrationFact("craft:stucco:002", "craft_detail", "既定工艺事实乙。"),
+            NarrationFact("ornament:lion:001", "object_detail", "既定对象事实甲。"),
         ),
         must_include=(),
         already_covered=(),

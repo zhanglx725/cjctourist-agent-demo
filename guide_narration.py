@@ -204,7 +204,7 @@ def _deterministic_message(
                 detailed=detailed,
                 listen_only=bool(policy and policy.interaction_mode == "listen_only"),
             )
-            lines.extend(rendered.paragraphs)
+            lines.extend(rendered.public_paragraphs)
         else:
             lines.append(f"{item.name}是一件{item.craft}装饰。")
             if item.observation_location:

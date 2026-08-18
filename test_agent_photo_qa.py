@@ -52,10 +52,39 @@ class AgentPhotoQaTests(unittest.TestCase):
     def test_photo_request_routes_to_tour_qa_without_rag(self) -> None:
         request = _state("给我推荐几个打卡点")
         self.assertEqual(route_initial_request(request), "tour_qa")
-        with patch("tour_qa.answer_photo_request", return_value={"message": "项目编辑建议", "mode": "photo_recommendation", "photo_spots": [], "point_context": None}):
+        with patch("tour_qa.answer_photo_request", return_value={"message": "拍摄位置建议", "mode": "photo_recommendation", "photo_spots": [], "point_context": None}):
             update = tour_qa_node(request)
-        self.assertIn("项目编辑建议", update["messages"][0].content)
+        self.assertIn("拍摄位置建议", update["messages"][0].content)
+        self.assertNotIn("项目编辑", update["messages"][0].content)
         self.assertEqual(update["retrieved_evidence"], [])
+
+    def test_unsafe_photo_word_order_is_refused_before_point_resolution(self) -> None:
+        initial = {
+            "tour_state": {
+                "current_stop_id": "stop_front_courtyard_center",
+                "remaining_stop_ids": ["label_moon_platform"],
+                "route_status": "touring",
+            },
+            "tour_interaction_state": {"stop_phase": "explaining"},
+        }
+        for request_text in (
+            "我想坐栏杆上拍照",
+            "栏杆上坐着拍可以吗",
+            "我能跨过去拍吗",
+        ):
+            with self.subTest(request=request_text), patch(
+                "tour_qa.resolve_point_context",
+                side_effect=AssertionError("safety must precede point resolution"),
+            ), patch(
+                "photo_spot_runtime.validate_photo_spot_cards",
+                side_effect=AssertionError("safety must precede candidate lookup"),
+            ):
+                update = tour_qa_node(_state(request_text, initial))
+            answer = update["messages"][0].content
+            self.assertTrue("请不要这样做" in answer or "不建议" in answer)
+            self.assertNotIn("项目编辑", answer)
+            self.assertNotIn("审核", answer)
+            self.assertEqual(update["retrieved_evidence"], [])
 
     def test_photo_route_change_clarifies_without_state_change(self) -> None:
         initial = {"tour_state": {"visited_stop_ids": ["label_moon_platform"], "remaining_stop_ids": ["stop_front_courtyard_center"], "route_status": "touring"}, "tour_interaction_state": {"stop_phase": "explaining"}}

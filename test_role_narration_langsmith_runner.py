@@ -12,7 +12,7 @@ class RoleNarrationLangSmithRunnerTests(unittest.TestCase):
     def test_timeout_fixture_uses_production_fallback_nodes(self):
         inputs = {
             "style_id": "dominant_ceo", "scene_kind": "stop_guidance",
-            "fact_id": "craft:灰塑", "approved_fact": "审核事实：该构件采用灰塑工艺。",
+            "fact_id": "craft:灰塑", "approved_fact": "该构件采用灰塑工艺。",
             "interaction_allowed": True, "failure_type": "model_failure",
         }
         result = run_role_narration_example(inputs, {
@@ -47,7 +47,7 @@ class RoleNarrationLangSmithRunnerTests(unittest.TestCase):
     def test_style_judge_is_optional_and_never_runs_for_a_fallback(self):
         inputs = {
             "style_id": "dominant_ceo", "scene_kind": "stop_guidance",
-            "fact_id": "craft:灰塑", "approved_fact": "审核事实：该构件采用灰塑工艺。",
+            "fact_id": "craft:灰塑", "approved_fact": "该构件采用灰塑工艺。",
             "interaction_allowed": True, "failure_type": "model_failure",
         }
         result = run_role_narration_example(inputs, evaluate_style_quality=True)
@@ -64,7 +64,7 @@ class RoleNarrationLangSmithRunnerTests(unittest.TestCase):
     def test_fault_runner_isolated_from_natural_full_shell_flags(self):
         inputs = {
             "style_id": "cute_junior", "scene_kind": "stop_guidance",
-            "fact_id": "craft:灰塑", "approved_fact": "审核事实：该构件采用灰塑工艺。",
+            "fact_id": "craft:灰塑", "approved_fact": "该构件采用灰塑工艺。",
             "interaction_allowed": True, "failure_type": "model_failure",
         }
         with patch.dict("os.environ", {

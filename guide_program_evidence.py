@@ -190,7 +190,7 @@ def build_stop_guidance(
         }
     program = _program_from_state(tour_state, current_program, guidance_policy)
     if program is None:
-        message = "当前点位缺少已审核的讲解内容预算或讲解包，无法安全生成本点讲解。"
+        message = "当前点位缺少可用的讲解内容或时长配置，暂时无法生成本点讲解。"
         return {
             "message": message,
             "status": "program_unavailable",
@@ -202,7 +202,7 @@ def build_stop_guidance(
         }
 
     if not program.selected_items:
-        message = f"{program.display_name} 暂无已审核的可讲解文物候选，因此不生成推测性讲解。"
+        message = f"{program.display_name} 暂无可用的讲解对象，因此不生成推测性讲解。"
         return {
             "message": message,
             "status": "no_reviewed_candidates",

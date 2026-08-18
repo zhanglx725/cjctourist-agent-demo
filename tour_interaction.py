@@ -381,7 +381,7 @@ def _arrive(
     tour_state: dict[str, Any], interaction_state: dict[str, Any], *, node_id: str | None = None, **_: Any
 ) -> dict[str, Any]:
     if not node_id or node_id not in known_node_ids():
-        return _rejection("arrive_at_stop", "invalid_node_id", "该点位不在已审核空间节点表中。", tour_state, interaction_state)
+        return _rejection("arrive_at_stop", "invalid_node_id", "地图中没有这个点位。", tour_state, interaction_state)
     pending = interaction_state.get("pending_stop_id")
     phase = interaction_state.get("stop_phase")
     if node_id == pending:

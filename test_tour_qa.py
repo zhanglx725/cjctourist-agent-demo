@@ -171,7 +171,7 @@ class TourQaTests(unittest.TestCase):
         self.assertEqual(result["mode"], "whole_site_craft_overview")
         self.assertEqual(result["term"]["card_id"], "term_stone_carving")
         self.assertEqual(result["term_instances"][0]["ornament_id"], "orn_080")
-        self.assertIn("审核关联实例", result["message"])
+        self.assertIn("相关实例", result["message"])
         self.assertIn("现场可见情况请以实际为准", result["message"])
         self.assertNotIn("一定能看到", result["message"])
         self.assertEqual(self.tour, before_tour)
@@ -274,8 +274,8 @@ class TourQaTests(unittest.TestCase):
         self.assertEqual(result["term_instances"][0]["ornament_id"], "orn_078")
         self.assertEqual(result["instance_context_origin"], "explicit_query_location")
         self.assertIn("月台的“引福归堂”", result["message"])
-        self.assertIn("所问点位的审核关联实例", result["message"])
-        self.assertNotIn("当前点的审核关联实例", result["message"])
+        self.assertIn("所问点位的相关实例", result["message"])
+        self.assertNotIn("当前点的相关实例", result["message"])
         self.assertEqual(self.tour, before_tour)
 
     def test_deictic_core_craft_definition_uses_the_physical_point_for_instances(self):
@@ -392,7 +392,7 @@ class TourQaTests(unittest.TestCase):
             "首进正厅有哪些装饰？", self.tour, self.interaction, lambda _: self.fail("missing card must not call RAG")
         )
         self.assertEqual(missing["mode"], "inventory_missing_card")
-        self.assertIn("讲解包缺失", missing["message"])
+        self.assertIn("缺少这个点位的讲解资料", missing["message"])
 
     def test_no_evidence_and_retrieval_exception_are_safe(self):
         before_tour = deepcopy(self.tour)

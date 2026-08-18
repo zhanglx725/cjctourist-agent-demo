@@ -237,7 +237,7 @@ class ControlledKnowledgeQueryTests(unittest.TestCase):
                 plan = ControlledKnowledgePlan(domain, "feature", "陈家祠", "brief")
                 message = render_controlled_knowledge_answer(
                     plan,
-                    [{"category": plan.categories[0], "content": "审核事实。", "source_ids": ["S07"]}],
+                    [{"category": plan.categories[0], "content": "现有资料中的事实。", "source_ids": ["S07"]}],
                     lambda _: "来自本地快照 06_ticketing_rules.md（来源：S07）",
                 )
                 self.assertIn("无法把证据安全整理成游客答案", message)

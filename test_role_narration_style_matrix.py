@@ -34,9 +34,9 @@ ACTIVE_ENV = {
 }
 
 POINT_FACTS = (
-    ("building", NarrationFact("space:roof", "space_identity", "审核事实：屋脊位于前院中部。")),
-    ("craft", NarrationFact("craft:灰塑", "craft_background", "审核事实：该构件采用灰塑工艺。")),
-    ("ornament", NarrationFact("ornament:orn_005", "object_detail", "审核事实：栏板可见花卉纹样。")),
+    ("building", NarrationFact("space:roof", "space_identity", "屋脊位于前院中部。")),
+    ("craft", NarrationFact("craft:灰塑", "craft_background", "该构件采用灰塑工艺。")),
+    ("ornament", NarrationFact("ornament:orn_005", "object_detail", "栏板可见花卉纹样。")),
 )
 
 

@@ -193,7 +193,7 @@ def validate_event_suggestion(
         node_id = arguments.get("node_id")
         known_ids = {node_id for ids in _load_node_names().values() for node_id in ids}
         if node_id not in known_ids:
-            return clarification("invalid_node_suggestion", "该点位不在已审核空间节点表中，请说出地图上的明确名称。")
+            return clarification("invalid_node_suggestion", "地图中没有这个点位，请说出地图上的明确名称。")
     if event_type == "replan_time":
         minutes = arguments.get("available_minutes")
         if not isinstance(minutes, int) or minutes <= 0:
@@ -202,7 +202,7 @@ def validate_event_suggestion(
         node_id = arguments["node_id"]
         known_ids = {node_id for ids in _load_node_names().values() for node_id in ids}
         if node_id not in known_ids:
-            return clarification("invalid_node_suggestion", "该点位不在已审核空间节点表中，请说出地图上的明确名称。")
+            return clarification("invalid_node_suggestion", "地图中没有这个点位，请说出地图上的明确名称。")
     return _decision(
         "tour_event",
         event_type=event_type,
@@ -479,8 +479,8 @@ def _classify_remaining_route_replan(
     if is_unresolved_replan_origin_request(text):
         return clarification(
             "unresolved_replan_origin",
-            "我暂时无法确认您所在的具体审核点位，因此不能从这个位置安全重排行程。"
-            "请提供现场标识上的点位名称，或从已审核点位中选择。",
+            "我暂时无法确认您所在的具体点位，因此不能从这个位置安全重排行程。"
+            "请提供现场标识上的点位名称，或从地图点位中选择。",
         )
     if not is_remaining_route_replan_request(text):
         return None
@@ -503,24 +503,24 @@ def _classify_remaining_route_replan(
         if explicit_origin_claim:
             return clarification(
                 "unresolved_replan_origin",
-                "我暂时无法确认您所在的具体审核点位，因此不能从这个位置安全重排行程。"
-                "请提供现场标识上的点位名称，或从已审核点位中选择。",
+                "我暂时无法确认您所在的具体点位，因此不能从这个位置安全重排行程。"
+                "请提供现场标识上的点位名称，或从地图点位中选择。",
             )
         return None
     if resolution.reason_code in {"ambiguous_node_name", "multiple_node_mentions"}:
-        return clarification(resolution.reason_code, "重规划起点不唯一，请说出一个明确的审核点位。")
+        return clarification(resolution.reason_code, "重规划起点不唯一，请说出一个明确的地图点位。")
     explicit_arrival = _has_arrival_language(text)
     if resolution.node_id is None and explicit_origin_claim:
         return clarification(
             "unresolved_replan_origin",
-            "我暂时无法确认您所在的具体审核点位，因此不能从这个位置安全重排行程。"
-            "请提供现场标识上的点位名称，或从已审核点位中选择。",
+            "我暂时无法确认您所在的具体点位，因此不能从这个位置安全重排行程。"
+            "请提供现场标识上的点位名称，或从地图点位中选择。",
         )
     node_id = resolution.node_id or tour_state.get("current_stop_id")
     if not node_id:
         return clarification(
             "replan_origin_unresolved",
-            "请先说明您当前所在的审核点位，再从这里调整后续路线。",
+            "请先说明您当前所在的地图点位，再从这里调整后续路线。",
         )
     return _decision(
         "replan_request",
@@ -680,7 +680,7 @@ def classify_tour_intent(
             resolution = resolve_reviewed_node(text)
             if resolution.node_id is None:
                 if resolution.reason_code == "ambiguous_node_name":
-                    return clarification("ambiguous_node_name", "该名称对应多个审核点位，请补充方位或选择具体点位。")
+                    return clarification("ambiguous_node_name", "该名称对应多个地图点位，请补充方位或选择具体点位。")
                 if resolution.reason_code == "multiple_node_mentions":
                     return clarification("multiple_node_mentions", "您提到了多个点位，请一次确认一个当前位置。")
                 pending = _pending_arrival_fallback(tour_state, interaction_state)

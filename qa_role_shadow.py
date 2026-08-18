@@ -37,7 +37,7 @@ def qa_role_components(brief: StyleBrief, scene_kind: str) -> dict[str, str]:
             else "如需继续，可以再问一个具体细节。" if scene_kind == "tour_qa"
             else "以上是本次追问范围内的补充。"
         ),
-        "uncertainty": "现有审核信息只能确认到这里。",
+        "uncertainty": "现有资料只能确认到这里。",
         "closing": closing,
     }
 

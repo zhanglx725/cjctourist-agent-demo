@@ -11,7 +11,7 @@ from role_narration_style_evaluator import (
 
 class RoleNarrationStyleEvaluatorTests(unittest.TestCase):
     def test_prompt_is_expression_only_and_contains_scoring_contract(self):
-        prompt = style_quality_prompt(style_id="ancient_scholar", public_text="诸位且看，审核事实。")
+        prompt = style_quality_prompt(style_id="ancient_scholar", public_text="诸位且看，眼前可见一处装饰。")
         self.assertIn("只评价表达", prompt)
         self.assertIn("不得建议补充人物、年代、典故", prompt)
         self.assertIn("role_fit", prompt)
@@ -19,7 +19,7 @@ class RoleNarrationStyleEvaluatorTests(unittest.TestCase):
 
     def test_missing_key_returns_unavailable_without_network(self):
         with patch.dict(os.environ, {"DEEPSEEK_API_KEY": ""}, clear=False):
-            result = evaluate_role_narration_style(style_id="neutral", public_text="审核事实。")
+            result = evaluate_role_narration_style(style_id="neutral", public_text="眼前可见一处装饰。")
         self.assertEqual(result["status"], "unavailable")
 
     def test_valid_model_score_is_normalized(self):
@@ -29,7 +29,7 @@ class RoleNarrationStyleEvaluatorTests(unittest.TestCase):
             model_cls.return_value.invoke.return_value.content = (
                 '{"role_fit":2,"naturalness":2,"distinctiveness":1,"readability":2,"rationale":"语气自然，角色特征清楚。"}'
             )
-            result = evaluate_role_narration_style(style_id="ancient_scholar", public_text="诸位且看，审核事实。")
+            result = evaluate_role_narration_style(style_id="ancient_scholar", public_text="诸位且看，眼前可见一处装饰。")
         self.assertEqual(result["status"], "scored")
         self.assertEqual(result["average_score"], 1.75)
 
@@ -38,7 +38,7 @@ class RoleNarrationStyleEvaluatorTests(unittest.TestCase):
             "role_narration_style_evaluator.ChatDeepSeek"
         ) as model_cls:
             model_cls.return_value.invoke.return_value.content = '{"role_fit":3}'
-            result = evaluate_role_narration_style(style_id="neutral", public_text="审核事实。")
+            result = evaluate_role_narration_style(style_id="neutral", public_text="眼前可见一处装饰。")
         self.assertEqual(result, {"status": "unavailable", "reason": "invalid_judge_schema"})
 
 

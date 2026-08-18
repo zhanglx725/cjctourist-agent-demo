@@ -6,6 +6,7 @@ import os
 import json
 import re
 import time
+import secrets
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Annotated, Any, Mapping
@@ -72,7 +73,11 @@ from narration_coverage import IntroductionRecord, NarrationCoverageError, commi
 from term_card_runtime import is_explicit_term_question
 from research_card_retrieval import is_explicit_research_question
 from comparison_retrieval import is_explicit_comparison_question
-from photo_spot_runtime import is_explicit_photo_request, is_unsafe_photo_request
+from photo_spot_runtime import (
+    PHOTO_SAFETY_SAFE,
+    classify_photo_safety_intent,
+    is_explicit_photo_request,
+)
 from proactive_photo_guidance import maybe_trigger_photo_guidance
 from narration_service_tail import (
     build_stop_service_tail,
@@ -1388,7 +1393,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         if selection_result.selected is None:
             return {
                 "messages": [AIMessage(content=(
-                    "当前时间预算内没有可安全安排的审核路线；请增加可用时间或调整需求。"
+                    "当前时间预算内没有可安排的路线；请增加可用时间或调整需求。"
                 ))],
                 "qa_context": clear_qa_context(state.get("qa_context")),
                 "performance_metrics": _append_metric(
@@ -1412,7 +1417,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         exit_return_seconds = plan.estimated_exit_return_seconds
     except (ValueError, RuntimeError) as exc:
         return {
-            "messages": [AIMessage(content=f"无法按当前画像生成审核路线：{exc}")],
+            "messages": [AIMessage(content="暂时无法按当前需求生成路线，请调整时间或兴趣后重试。")],
             "qa_context": clear_qa_context(state.get("qa_context")),
             "performance_metrics": _append_metric(
                 state, "direct_route", time.perf_counter() - started,
@@ -1485,7 +1490,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         f"互动 {interaction_seconds // 60} 分钟和步行约 {walk_seconds} 秒。\n"
         f"结束后将沿已核对路线回到前院出口区，已预留约 {exit_return_seconds} 秒。\n\n"
         + (
-            "本次采用少走路优先：只在当前时间预算内的已审核候选路线中，"
+            "本次采用少走路优先：只在当前时间预算内的可用候选路线中，"
             "优先选择预计步行时间较低的方案；不代表现场绝对最短或无障碍路线。\n\n"
             if profile.route_constraint == "minimize_walking"
             else ""
@@ -1613,6 +1618,24 @@ def tour_opening_node(state: AgentState, config: RunnableConfig = None) -> dict[
                 "status": "failed_closed",
             },
         }
+    public_message = result["message"]
+    try:
+        profile = profile_from_dict(state.get("visitor_profile"))
+        brief = compile_style_brief(profile.explanation_style)
+        opening = (brief.point_narration_components.get("opening") or ("",))[0].strip()
+        closing = (brief.point_narration_components.get("closing") or ("",))[0].strip()
+        # The idempotent "already played" notice is operational feedback, not
+        # visitor-facing route narration.  Keep it concise and neutral.
+        newly_played = (
+            result["program"].get("status") == "played"
+            and not result["audit"].get("idempotent")
+        )
+        if opening and newly_played:
+            public_message = f"{opening}\n\n{public_message}"
+        if closing and newly_played:
+            public_message = f"{public_message}\n\n{closing}"
+    except (VisitorProfileError, ValueError, KeyError, IndexError):
+        pass
     audit = {
         **result["audit"],
         "trigger": "first_arrival" if automatic_arrival else "explicit",
@@ -1621,7 +1644,7 @@ def tour_opening_node(state: AgentState, config: RunnableConfig = None) -> dict[
     evaluations.append(audit)
     updates: dict[str, Any] = {
         "messages": [AIMessage(
-            content=result["message"],
+            content=public_message,
             additional_kwargs={"public_scene_kind": "route_opening"},
         )],
         "tour_opening_program": result["program"],
@@ -1731,7 +1754,7 @@ def post_visit_title_blessing_node(state: AgentState) -> dict[str, Any]:
         )
         rotation_requested = is_title_rotation_request(_latest_human_text(state))
         rotation_status = "initial"
-        requested_cursor = 0
+        requested_cursor = secrets.randbelow(initial["approved_candidate_count"])
         if same_existing:
             requested_cursor = int(existing.get("variant_cursor", 0))
             if rotation_requested:
@@ -1756,7 +1779,7 @@ def post_visit_title_blessing_node(state: AgentState) -> dict[str, Any]:
             ),
         }
     no_alternative = rotation_status == "no_alternative"
-    prefix = "当前类别只有一个已审核称号，继续为你保留它。\n\n" if no_alternative else ""
+    prefix = "当前类别只有一个可用称号，继续为你保留它。\n\n" if no_alternative else ""
     message = (
         f"{prefix}你的本次游览称号是“{award['title']}”。{award['reason']}\n\n"
         f"{award['disclaimer']}\n\n{award['blessing']}"
@@ -2236,7 +2259,7 @@ def role_mode_confirmation_node(state: AgentState) -> dict[str, Any]:
     role = state.get("role_mode_shadow") or {}
     selected = role.get("selected_style_id")
     if role.get("status") != "selected" or selected not in ROLE_MODE_IDS:
-        message = "请明确选择一种已审核的讲解角色。"
+        message = "请从当前可用选项中明确选择一种讲解角色。"
         return {
             "messages": [AIMessage(content=message)],
             "last_role_mode_confirmation": {
@@ -2420,6 +2443,17 @@ def tour_event_node(state: AgentState, config: RunnableConfig = None) -> dict[st
             "performance_metrics": _append_metric(state, "tour_event", time.perf_counter() - started, event_type=decision.event_type, event_code="self_arrival_replan_time_requested", ok=True, origin_node_id=origin),
         }
     presentation = present_tour_event(result)
+    if result["ok"] and result["code"] == "arrived":
+        # Keep the arrival location fact deterministic, while giving this
+        # visitor-visible transition the same reviewed voice as the point body.
+        try:
+            profile = profile_from_dict(state.get("visitor_profile"))
+            brief = compile_style_brief(profile.explanation_style)
+            opening = (brief.point_narration_components.get("opening") or ("",))[0].strip()
+            if opening:
+                presentation = {**presentation, "message": f"{opening}\n\n{presentation['message']}"}
+        except (VisitorProfileError, ValueError, KeyError, IndexError):
+            pass
     updates: dict[str, Any] = {
         "messages": [AIMessage(
             content=presentation["message"],
@@ -2546,14 +2580,14 @@ def prepare_replan_node(state: AgentState, config: RunnableConfig = None) -> dic
         _effective_control_text(state), state.get("tour_state"), state.get("tour_interaction_state")
     )
     if decision.route_kind != "replan_request":
-        message = "我无法确认后续重规划的起点，请说明当前所在的审核点位。"
+        message = "我无法确认后续重规划的起点，请说明当前所在的地图点位。"
         return {"messages": [AIMessage(content=message)], "tour_presentation": present_clarification(message), "pending_replan_proposal": None}
     tour = state.get("tour_state")
     interaction = state.get("tour_interaction_state")
     args = decision.arguments or {}
     origin = args.get("node_id")
     if not tour or not interaction or not isinstance(origin, str):
-        message = "请先建立路线并说明当前所在的审核点位。"
+        message = "请先建立路线并说明当前所在的地图点位。"
         return {"messages": [AIMessage(content=message)], "tour_presentation": present_clarification(message), "pending_replan_proposal": None}
     if args.get("record_arrival"):
         arrival = handle_tour_event(tour, interaction, "arrive_at_stop", node_id=origin)
@@ -3614,7 +3648,7 @@ def clarification_node(state: AgentState) -> dict[str, Any]:
             "当前讲解偏好包含相互冲突的角色设置，请明确保留一种讲解角色。"
         ),
         "unsupported_role_request": (
-            "您选择的讲解角色目前尚未通过审核，请改选已有的讲解风格。"
+            "您选择的讲解角色当前不可用，请改选已有的讲解风格。"
         ),
     }.get(role_reason)
     presentation = present_clarification(
@@ -4890,7 +4924,10 @@ def route_initial_request(state: AgentState) -> str:
     control_expression = _normalize_pending_action_expression(raw_text)
     # Safety must remain above every pending-action gate.  A pending replan
     # cannot make an unsafe-photo request lose its deterministic refusal.
-    if is_unsafe_photo_request(raw_text):
+    if (
+        is_explicit_photo_request(raw_text)
+        and classify_photo_safety_intent(raw_text) != PHOTO_SAFETY_SAFE
+    ):
         return "tour_qa"
     # Explicit off-site/nearby purpose wins over the indoor food matcher.
     # "附近喝奶茶" asks for a POI; "展厅能喝奶茶吗" remains a safety query.

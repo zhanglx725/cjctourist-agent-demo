@@ -33,6 +33,13 @@ ADDRESS_EVIDENCE = {
         "- 地址：广州市荔湾区中山七路恩龙里 34 号"
     ),
 }
+TRANSPORT_EVIDENCE = {
+    "category": "basic_info",
+    "document": "01_basic_info.md",
+    "title_path": ["基础信息", "交通与到达"],
+    "source_ids": ["S05"],
+    "content": "地铁：广州地铁 1 号线、8 号线陈家祠站，D/E 出口附近。",
+}
 IDENTITY_WORKAROUND_EVIDENCE = {
     "category": "ticketing_snapshot",
     "document": "06_ticketing_rules.md",
@@ -166,6 +173,14 @@ class SingleFactAnswerTests(unittest.TestCase):
                     ["ticketing_snapshot", "visit_service"],
                 )
         self.assertIsNone(single_fact_categories("详细讲讲陈家祠"))
+
+    def test_closing_and_transport_colloquialisms_use_direct_reviewed_answers(self):
+        self.assertEqual(identify_single_fact_kind("陈家祠什么时候关门呢？"), "closing_time")
+        self.assertEqual(identify_single_fact_kind("来陈家祠的交通方式有什么？"), "transport")
+        answer = render_single_fact_answer("来这里怎么去？", [TRANSPORT_EVIDENCE])
+        self.assertTrue(answer.ok)
+        self.assertIn("陈家祠站", answer.message)
+        self.assertNotIn("检索", answer.message)
 
     def test_completion_answer_leads_with_conclusion_and_preserves_source_conflict(self):
         result = render_single_fact_answer(

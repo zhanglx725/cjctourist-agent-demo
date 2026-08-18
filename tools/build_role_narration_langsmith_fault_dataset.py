@@ -17,7 +17,7 @@ from tools.build_role_narration_langsmith_dataset import load_project_env, uploa
 
 DATASET_NAME = "chen-clan-academy-role-narration-stop-guidance-fallback-v1"
 OUTPUT = ROOT / "data" / "chen_clan_academy" / "evaluation" / "langsmith" / "role_narration_stop_guidance_fallback_v1.jsonl"
-FACT = "审核事实：栏板可见花卉纹样。"
+FACT = "栏板可见花卉纹样。"
 
 CASES = (
     ("ancient_scholar", "fact_drift", "unapproved_fact_trigger", "候选连接语新增未经审核的年代、人物、传说、寓意或排名。"),
