@@ -6,7 +6,11 @@ import unittest
 from unittest.mock import patch
 
 from guidance_policy import build_guidance_policy
-from narration_rendering import render_guidance_evidence
+from narration_rendering import (
+    render_guidance_evidence,
+    stop_guidance_compatibility_components,
+)
+from narration_style_policy import load_narration_style
 from test_e5_narration_rendering import NarrationRenderingTests
 from visitor_profile import create_visitor_profile
 
@@ -92,6 +96,14 @@ class NarrationStyleIntegrationTests(unittest.TestCase):
                 result = self._render(explanation_style=style_id)
                 self.assertEqual(result.style_id, style_id)
                 self.assertIn(expected, result.visitor_message)
+
+    def test_stop_guidance_component_adapter_is_scene_specific_and_stable(self):
+        components = stop_guidance_compatibility_components(
+            load_narration_style("buddy_guide"),
+        )
+        self.assertIsNotNone(components.opening)
+        self.assertIn("眼光看过来", components.opening)
+        self.assertIsNone(stop_guidance_compatibility_components(None).opening)
 
     def test_style_loader_failure_uses_original_neutral_renderer_without_fact_drift(self):
         neutral = self._render()

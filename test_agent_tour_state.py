@@ -45,6 +45,29 @@ class AgentTourStateTests(unittest.TestCase):
         self.assertEqual(result["tour_presentation"]["phase"], "explaining")
         self.assertIn("explanation_finished", [item["id"] for item in result["tour_presentation"]["actions"]])
 
+    def test_arrival_uses_its_own_contract_without_point_opening_and_then_continues(self):
+        initial = self._started()
+        with patch("agent_graph.compile_style_brief") as style_brief:
+            style_brief.return_value.point_narration_components = {
+                "opening": ("眼光看过来，抓重点。",),
+            }
+            arrived = tour_event_node(_message_state("我到了", initial))
+
+        confirmation = arrived["messages"][0]
+        self.assertEqual(confirmation.additional_kwargs["public_scene_kind"], "arrival_confirmation")
+        self.assertEqual(confirmation.content, "你已到达前院中部，现在开始本点讲解。")
+        self.assertNotIn("眼光看过来", confirmation.content)
+        self.assertNotIn("抓重点", confirmation.content)
+        next_node = route_after_tour_event(arrived)
+        # A route opening may be pending only on the first stop; whether it is
+        # pending or already played, arrival must continue this same turn into
+        # complete stop guidance rather than terminate at the confirmation.
+        self.assertIn(next_node, {"tour_opening", "stop_guidance"})
+        if next_node == "tour_opening":
+            from agent_graph import route_after_tour_opening, tour_opening_node
+            opened = tour_opening_node({**initial, **arrived})
+            self.assertEqual(route_after_tour_opening(opened), "stop_guidance")
+
     def test_next_point_arrival_variants_never_fall_through_to_llm_or_rag(self):
         for text in ("到达", "我到下一个点位了。", "我到下一站了", "已到前院中部"):
             with self.subTest(text=text):
@@ -216,6 +239,9 @@ class AgentTourStateTests(unittest.TestCase):
         self.assertEqual(result["last_tour_intent"]["event_type"], "next_stop")
         self.assertEqual(result["tour_state"], initial["tour_state"])
         self.assertEqual(result["tour_interaction_state"], initial["tour_interaction_state"])
+        self.assertEqual(result["messages"][0].additional_kwargs["public_scene_kind"], "navigation")
+        self.assertTrue(result["messages"][0].additional_kwargs["public_scene_validation"]["accepted"])
+        self.assertIn("从当前位置经", result["messages"][0].content)
 
     def test_multi_intent_returns_clarification_without_state_change(self):
         initial = self._started()

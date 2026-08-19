@@ -70,6 +70,34 @@ class NarrationRenderResult:
         }
 
 
+@dataclass(frozen=True)
+class StopGuidanceCompatibilityComponents:
+    """Reviewed expression-only components available to stop guidance only."""
+
+    opening: str | None
+
+
+def stop_guidance_compatibility_components(
+    style: NarrationStylePolicy | None,
+) -> StopGuidanceCompatibilityComponents:
+    """Adapt reviewed point components for the stop-guidance compatibility path.
+
+    The source library predates scene contracts and stores the phrases under a
+    generic ``opening`` key.  This adapter is the only renderer-facing path
+    that may consume it; route opening and arrival confirmation never receive
+    these components.  ``next(iter(...))`` preserves the prior stable first
+    reviewed choice without coupling callers to array positions.
+    """
+    if style is None or style.style_id == "neutral":
+        return StopGuidanceCompatibilityComponents(opening=None)
+    candidates = style.point_narration_components.get("opening", ())
+    opening = next(
+        (str(candidate).strip() for candidate in candidates if str(candidate).strip()),
+        None,
+    )
+    return StopGuidanceCompatibilityComponents(opening=opening)
+
+
 def _sentences(packet: EvidencePacket) -> list[tuple[str, tuple[str, ...]]]:
     values: list[tuple[str, tuple[str, ...]]] = []
     for entry in packet.evidence:
@@ -525,15 +553,15 @@ def render_guidance_evidence(
     lines = [f"现在来到{program.display_name}。"]
     if frame := _style_frame(style_id):
         lines.append(frame)
-    elif style is not None and style_id != "neutral":
+    elif components := stop_guidance_compatibility_components(style):
         # This is the deterministic compatibility path used when the role
         # candidate is unavailable or deliberately shadowed.  It must still
         # sound like the selected role rather than falling back to a neutral
         # catalogue dump.  The phrase is reviewed, fact-free and is replaced
-        # (not duplicated) if the active role candidate later publishes.
-        opening = style.point_narration_components.get("opening", ())
-        if opening:
-            lines.append(opening[0])
+        # (not duplicated) if the active role candidate later publishes.  Its
+        # dedicated adapter prevents route/arrival paths from borrowing it.
+        if components.opening:
+            lines.append(components.opening)
     rendered_crafts: list[str] = []
     rendered_ornaments: list[str] = []
     used_sources: set[str] = set()

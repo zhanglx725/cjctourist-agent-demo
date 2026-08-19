@@ -146,6 +146,11 @@ from narration_budget import (
     resume_plan_from_continuation,
 )
 from narration_style_policy import compile_style_brief
+from public_scene_contract import (
+    render_arrival_confirmation,
+    validate_navigation,
+    validate_safety_refusal,
+)
 from role_narration_generation import (
     generate_role_narration,
     role_connector_text,
@@ -206,6 +211,7 @@ from visitor_profile import (
 from tour_opening_program import (
     TourOpeningProgramError,
     apply_tour_opening_action,
+    build_route_opening_brief,
     initialize_tour_opening,
     is_tour_start_entry,
     opening_action,
@@ -1602,7 +1608,24 @@ def tour_opening_node(state: AgentState, config: RunnableConfig = None) -> dict[
             },
         }
     try:
-        result = apply_tour_opening_action(state.get("tour_opening_program"), action)
+        current_stop_id = (state.get("tour_state") or {}).get("current_stop_id")
+        catalog = _read_catalog(CATALOG_FILE)
+        first_stop_name = str(catalog.get(current_stop_id, {}).get("stop_name") or "").strip()
+        # A valid active route always supplies the real first-stop name.  Keep
+        # the legacy no-route control compatibility path deterministic rather
+        # than inventing a stop name when that state is unavailable.
+        route_opening_brief = (
+            build_route_opening_brief(
+                style_id=str((state.get("visitor_profile") or {}).get("explanation_style") or "neutral"),
+                first_stop_display_name=first_stop_name,
+            )
+            if first_stop_name
+            else None
+        )
+        result = apply_tour_opening_action(
+            state.get("tour_opening_program"), action,
+            route_opening_brief=route_opening_brief,
+        )
     except TourOpeningProgramError:
         return {
             "messages": [AIMessage(content=(
@@ -1618,24 +1641,10 @@ def tour_opening_node(state: AgentState, config: RunnableConfig = None) -> dict[
                 "status": "failed_closed",
             },
         }
+    # ``result['message']`` has already been assembled exclusively by the
+    # dedicated route-opening renderer.  Do not add point opening/closing
+    # components here: they are reserved for ``stop_guidance``.
     public_message = result["message"]
-    try:
-        profile = profile_from_dict(state.get("visitor_profile"))
-        brief = compile_style_brief(profile.explanation_style)
-        opening = (brief.point_narration_components.get("opening") or ("",))[0].strip()
-        closing = (brief.point_narration_components.get("closing") or ("",))[0].strip()
-        # The idempotent "already played" notice is operational feedback, not
-        # visitor-facing route narration.  Keep it concise and neutral.
-        newly_played = (
-            result["program"].get("status") == "played"
-            and not result["audit"].get("idempotent")
-        )
-        if opening and newly_played:
-            public_message = f"{opening}\n\n{public_message}"
-        if closing and newly_played:
-            public_message = f"{public_message}\n\n{closing}"
-    except (VisitorProfileError, ValueError, KeyError, IndexError):
-        pass
     audit = {
         **result["audit"],
         "trigger": "first_arrival" if automatic_arrival else "explicit",
@@ -2444,20 +2453,53 @@ def tour_event_node(state: AgentState, config: RunnableConfig = None) -> dict[st
         }
     presentation = present_tour_event(result)
     if result["ok"] and result["code"] == "arrived":
-        # Keep the arrival location fact deterministic, while giving this
-        # visitor-visible transition the same reviewed voice as the point body.
-        try:
-            profile = profile_from_dict(state.get("visitor_profile"))
-            brief = compile_style_brief(profile.explanation_style)
-            opening = (brief.point_narration_components.get("opening") or ("",))[0].strip()
-            if opening:
-                presentation = {**presentation, "message": f"{opening}\n\n{presentation['message']}"}
-        except (VisitorProfileError, ValueError, KeyError, IndexError):
-            pass
+        # Arrival is its own public scene, not a point-body preface.  In
+        # particular, never borrow ``point_narration_components['opening']``:
+        # that phrase belongs exclusively to stop guidance.
+        current_stop_id = (result.get("tour_state") or {}).get("current_stop_id")
+        catalog = _read_catalog(CATALOG_FILE)
+        display_name = str(catalog.get(current_stop_id, {}).get("stop_name") or "").strip()
+        if display_name:
+            presentation = {
+                **presentation,
+                "message": render_arrival_confirmation(display_name),
+            }
+    navigation_validation = None
+    if result["ok"] and result["code"] == "next_stop_ready":
+        # This transition has a reviewed spatial-graph instruction already.
+        # Never let its terse event acknowledgement become a generic guide
+        # opening or a point story: publish the deterministic navigation text,
+        # then validate the exact route/direction/timing payload.
+        deterministic_navigation = format_next_stop_navigation(
+            (result.get("data") or {}).get("navigation")
+        )
+        navigation_validation = validate_navigation(
+            presentation["message"], deterministic_message=deterministic_navigation,
+        )
+        if not navigation_validation.accepted:
+            presentation = {**presentation, "message": deterministic_navigation}
+            navigation_validation = validate_navigation(
+                presentation["message"], deterministic_message=deterministic_navigation,
+            )
     updates: dict[str, Any] = {
         "messages": [AIMessage(
             content=presentation["message"],
-            additional_kwargs={"public_scene_kind": "assistant"},
+            additional_kwargs={
+                "public_scene_kind": (
+                    "arrival_confirmation"
+                    if result["ok"] and result["code"] == "arrived"
+                    else "navigation"
+                    if result["ok"] and result["code"] == "next_stop_ready"
+                    else "assistant"
+                ),
+                **(
+                    {"public_scene_validation": {
+                        "accepted": navigation_validation.accepted,
+                        "reason_codes": navigation_validation.reason_codes,
+                    }}
+                    if navigation_validation is not None else {}
+                ),
+            },
         )],
         "last_tour_intent": decision.to_dict(),
         "last_tour_event": {
@@ -4330,6 +4372,20 @@ def _next_tour_question_log(
     return history
 
 
+_SAFETY_REFUSAL_QA_MODES = frozenset({
+    "photo_safety_refusal",
+    "photo_safety_clarification",
+    "photo_safety_restriction",
+})
+
+
+def _public_scene_kind_for_tour_qa(result: dict[str, Any]) -> str:
+    """Keep safety-controlled photo replies distinct from ordinary tour QA."""
+    if result.get("mode") in _SAFETY_REFUSAL_QA_MODES:
+        return "safety_refusal"
+    return "tour_qa"
+
+
 def tour_qa_node(state: AgentState) -> dict[str, Any]:
     """Answer a factual question with active-tour context but no state mutation.
 
@@ -4387,6 +4443,19 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
         post_visit_nearby_offer=state.get("post_visit_nearby_offer"),
     )
     public_message = public_visitor_message_or_fallback(result["message"])
+    safety_validation = None
+    if result.get("mode") in _SAFETY_REFUSAL_QA_MODES:
+        safety_validation = validate_safety_refusal(
+            public_message,
+            deterministic_message=result["message"],
+            mode=result["mode"],
+        )
+        if not safety_validation.accepted:
+            # Retain the existing public boundary even in this fail-closed
+            # branch.  The approved safety response is deterministic, so this
+            # normally remains identical; it must never enter role generation
+            # or retrieval for a rewrite.
+            public_message = public_visitor_message_or_fallback(result["message"])
     qa_context = build_qa_context_from_answer(
         query, result, state.get("tour_state")
     )
@@ -4395,7 +4464,14 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
             content=public_message,
             additional_kwargs={
                 "tour_qa_answer": True,
-                "public_scene_kind": "tour_qa",
+                "public_scene_kind": _public_scene_kind_for_tour_qa(result),
+                **(
+                    {"public_scene_validation": {
+                        "accepted": safety_validation.accepted,
+                        "reason_codes": safety_validation.reason_codes,
+                    }}
+                    if safety_validation is not None else {}
+                ),
                 # Bounded recovery metadata only.  It contains no evidence,
                 # source IDs or mutable tour/profile state and lets the next
                 # turn recover when an Agent Server checkpoint omits the
@@ -5341,6 +5417,18 @@ def route_after_qa_role_narration_validation(state: AgentState) -> str:
     )
 
 
+def route_after_tour_qa_publication(state: AgentState) -> str:
+    """Publish normal QA as its approved direct answer, without role staging.
+
+    ``tour_qa_node`` has already applied the evidence gate and public-response
+    boundary before creating its AI message.  P1 keeps that message
+    authoritative: a general QA turn must not enter role generation,
+    validation, or candidate commit.  Follow-up detail remains on its legacy
+    read-only audit path until it receives a separate scene contract.
+    """
+    return "atomic_read_plan_shadow"
+
+
 def route_after_journey_mode_selection(state: AgentState) -> str:
     selection = state.get("journey_mode_selection") or {}
     return "profile_collection" if selection.get("status") == "selected" else END
@@ -5533,7 +5621,10 @@ def build_agent_graph(with_checkpointer: bool = True):
     )
     workflow.add_edge("direct_rag", "llm_think")
     workflow.add_edge("controlled_knowledge_rollout", "llm_think")
-    workflow.add_edge("tour_qa", "qa_content_plan")
+    workflow.add_conditional_edges(
+        "tour_qa", route_after_tour_qa_publication,
+        {"atomic_read_plan_shadow": "atomic_read_plan_shadow"},
+    )
     workflow.add_edge("qa_follow_up_detail", "qa_content_plan")
     workflow.add_edge("qa_content_plan", "qa_role_narration_generation")
     workflow.add_edge("qa_role_narration_generation", "qa_role_narration_validation")
@@ -5649,7 +5740,9 @@ def chat(user_text: str, thread_id: str = "default") -> str:
 
 
 _PUBLIC_SCENE_KINDS = frozenset({
-    "welcome", "route_planning", "route_opening", "stop_guidance", "tour_qa", "tour_closing", "assistant",
+    "welcome", "route_planning", "route_opening", "arrival_confirmation",
+    "stop_guidance", "navigation", "tour_qa", "safety_refusal",
+    "tour_closing", "assistant",
 })
 _PUBLIC_TEXT_FORBIDDEN = re.compile(
     r"(?:source_ids|node_id|route_id|traceback|langsmith|"

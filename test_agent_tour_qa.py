@@ -16,6 +16,7 @@ from agent_graph import (
     direct_route_node,
     llm_think_node,
     qa_follow_up_detail_node,
+    route_after_tour_qa_publication,
     route_initial_request,
     semantic_normalization_node,
     tour_event_node,
@@ -160,6 +161,19 @@ class AgentTourQaTests(unittest.TestCase):
         self.assertEqual(state["tour_state"], before_tour)
         self.assertEqual(state["tour_interaction_state"], before_interaction)
         self.assertEqual(update["tour_presentation"]["phase"], "explaining")
+
+    def test_normal_tour_qa_publishes_direct_answer_without_role_generation_chain(self):
+        state = self._arrived_tour()
+        request = _message_state("这里的石雕有什么特点？", state)
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            rag.invoke.return_value = FAKE_PAYLOAD
+            update = tour_qa_node(request)
+
+        message = update["messages"][0]
+        self.assertTrue(message.additional_kwargs["tour_qa_answer"])
+        self.assertEqual(message.additional_kwargs["public_scene_kind"], "tour_qa")
+        self.assertNotIn("qa_role_narration", message.additional_kwargs)
+        self.assertEqual(route_after_tour_qa_publication(update), "atomic_read_plan_shadow")
         self.assertNotIn("S11", update["messages"][0].content)
         self.assertNotIn("08_ornament_items.md", update["messages"][0].content)
         self.assertIn("工艺特点", update["messages"][0].content)
@@ -800,6 +814,8 @@ class AgentTourQaTests(unittest.TestCase):
         rag.invoke.assert_not_called()
         self.assertIn("不建议", update["messages"][0].content)
         self.assertNotIn("月台", update["messages"][0].content.split("\n")[0])
+        self.assertEqual(update["messages"][0].additional_kwargs["public_scene_kind"], "safety_refusal")
+        self.assertTrue(update["messages"][0].additional_kwargs["public_scene_validation"]["accepted"])
         self.assertEqual(state["tour_state"], before_tour)
         self.assertEqual(state["tour_interaction_state"], before_interaction)
 

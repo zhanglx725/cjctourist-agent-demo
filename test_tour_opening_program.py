@@ -18,9 +18,11 @@ from agent_graph import (
 )
 from tour_opening_program import (
     apply_tour_opening_action,
+    build_route_opening_brief,
     initialize_tour_opening,
     is_tour_start_entry,
     opening_action,
+    render_route_opening,
 )
 from tour_interaction import handle_tour_event, initialize_interaction
 from tour_state import ENTRY_NODE_ID, start_tour
@@ -125,6 +127,16 @@ class TourOpeningProgramTests(unittest.TestCase):
         replayed = apply_tour_opening_action(played["program"], "replay")
         self.assertEqual(replayed["program"]["play_count"], 2)
 
+    def test_dedicated_renderer_uses_route_brief_not_point_opening_components(self):
+        brief = build_route_opening_brief(
+            style_id="buddy_guide", first_stop_display_name="前院中部",
+        )
+        message = render_route_opening(["陈家祠又称陈氏书院。"], brief)
+        self.assertIn("第一站先到前院中部", message)
+        self.assertIn("整体空间与建筑装饰工艺", message)
+        self.assertNotIn("眼光看过来", message)
+        self.assertNotIn("抓重点", message)
+
     def test_skip_does_not_load_or_claim_narration_coverage(self):
         skipped = apply_tour_opening_action(initialize_tour_opening(), "skip")
         self.assertEqual(skipped["program"]["status"], "skipped")
@@ -195,7 +207,7 @@ class TourOpeningProgramTests(unittest.TestCase):
         for field in ("tour_state", "visitor_profile", "narration_coverage"):
             self.assertNotIn(field, opened)
 
-    def test_arrival_and_route_opening_use_selected_reviewed_style_voice(self):
+    def test_arrival_and_route_opening_do_not_borrow_point_style_voice(self):
         route = direct_route_node({
             "messages": [HumanMessage(content="选择经典模式，30分钟路线")],
             "visitor_profile": {
@@ -205,9 +217,11 @@ class TourOpeningProgramTests(unittest.TestCase):
             },
         })
         arrived = tour_event_node({**route, "messages": [HumanMessage(content="我到前院中部了")]})
-        self.assertIn("眼光看过来", arrived["messages"][0].content)
+        self.assertNotIn("眼光看过来", arrived["messages"][0].content)
         opened = tour_opening_node({**route, **arrived})
-        self.assertIn("眼光看过来", opened["messages"][0].content)
+        self.assertEqual(opened["messages"][0].additional_kwargs["public_scene_kind"], "route_opening")
+        self.assertIn("第一站先到前院中部", opened["messages"][0].content)
+        self.assertNotIn("眼光看过来", opened["messages"][0].content)
 
     def test_explicit_skip_is_the_only_first_arrival_bypass(self):
         route = direct_route_node({
