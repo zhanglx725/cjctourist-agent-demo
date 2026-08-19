@@ -38,7 +38,18 @@ STYLES = {
     "西关少爷（粤语）": "xiguan_young_master",
     "粤派讲古（粤语）": "cantonese_storyteller",
 }
-INTERESTS = ["灰塑", "木雕", "石雕", "陶塑", "故事", "吉祥", "工艺", "建筑装饰"]
+LANGUAGES = {
+    "中文": "中文",
+    "English": "英语",
+    "한국어": "韩语",
+}
+JOURNEY_MODES = {
+    "经典模式": "classic",
+    "定制模式": "custom",
+}
+CRAFT_INTERESTS = ["灰塑", "木雕", "石雕", "砖雕", "陶塑", "建筑装饰"]
+DEFAULT_ROUTE_MINUTES = 60
+ROUTE_DURATION_OPTIONS = [30, 60]
 QUICK_ACTIONS = ["我到了", "再讲详细一点", "完成本点"]
 SCENE_LABELS = {
     "route_planning": "路线规划",
@@ -167,9 +178,27 @@ def _session_starter():
     return start_public_session
 
 
-def _profile_message(duration: int, interests: list[str], detail: str, style_label: str) -> str:
-    interest_text = "、".join(interests) if interests else "岭南建筑装饰"
-    return f"中文，定制模式，{duration}分钟，我喜欢{interest_text}，{detail}讲解，选择{style_label}风格"
+def _route_request_message(
+    language: str,
+    mode: str,
+    *,
+    interests: list[str] | None = None,
+    style_label: str | None = None,
+    duration: int = DEFAULT_ROUTE_MINUTES,
+) -> str:
+    """Build one complete request for the existing controlled route entry."""
+    if mode == "classic":
+        return f"{language}，经典模式，{duration}分钟"
+    if mode != "custom":
+        raise ValueError(f"未知游览模式：{mode}")
+    selected_interests = list(interests or [])
+    if not selected_interests or style_label not in STYLES:
+        raise ValueError("定制模式必须选择工艺偏好和讲解风格。")
+    interest_text = "、".join(selected_interests)
+    return (
+        f"{language}，定制模式，{duration}分钟，"
+        f"我喜欢{interest_text}，选择{style_label}风格"
+    )
 
 
 def _init_adapter() -> DemoAdapter:
@@ -249,12 +278,46 @@ def main() -> None:
 
     with st.sidebar:
         st.subheader("开始一段导览")
-        style_label = st.selectbox("讲解风格", list(STYLES))
-        duration = st.radio("可用时间", [30, 60], horizontal=True, format_func=lambda n: f"{n}分钟")
-        interests = st.multiselect("感兴趣的内容", INTERESTS, default=["灰塑"])
-        detail = st.radio("讲解节奏", ["标准", "深度"], horizontal=True)
-        if st.button("生成我的路线", type="primary", use_container_width=True):
-            _send(adapter, _profile_message(duration, interests, detail, style_label))
+        language_label = st.selectbox("1. 选择语言", list(LANGUAGES))
+        mode_label = st.radio("2. 选择游览模式", list(JOURNEY_MODES), horizontal=True)
+        selected_mode = JOURNEY_MODES[mode_label]
+        duration = st.radio(
+            "3. 选择游览时间",
+            ROUTE_DURATION_OPTIONS,
+            index=ROUTE_DURATION_OPTIONS.index(DEFAULT_ROUTE_MINUTES),
+            horizontal=True,
+            format_func=lambda minutes: f"{minutes}分钟",
+        )
+
+        interests: list[str] = []
+        style_label: str | None = None
+        if selected_mode == "custom":
+            st.markdown("##### 定制您的导览")
+            interests = st.multiselect(
+                "4. 喜欢的工艺类型",
+                CRAFT_INTERESTS,
+                default=["灰塑"],
+                placeholder="请选择至少一种工艺",
+            )
+            style_label = st.selectbox("5. 选择讲解风格", list(STYLES))
+        else:
+            st.caption("经典模式无需设置额外偏好，选择时间后即可规划代表性路线。")
+
+        can_plan = selected_mode == "classic" or bool(interests)
+        if st.button(
+            "开始规划路线",
+            type="primary",
+            use_container_width=True,
+            disabled=not can_plan,
+        ):
+            request = _route_request_message(
+                LANGUAGES[language_label],
+                selected_mode,
+                interests=interests,
+                style_label=style_label,
+                duration=duration,
+            )
+            _send(adapter, request)
             st.rerun()
         if st.button("重置会话", use_container_width=True):
             adapter.reset()

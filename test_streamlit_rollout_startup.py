@@ -34,6 +34,30 @@ class StreamlitRolloutStartupTests(unittest.TestCase):
             set(STOP_GUIDANCE_ACTIVE_STYLES),
         )
 
+    def test_classic_route_request_needs_no_custom_preferences(self):
+        self.assertEqual(
+            streamlit_app._route_request_message("中文", "classic", duration=30),
+            "中文，经典模式，30分钟",
+        )
+
+    def test_custom_route_request_contains_selected_crafts_and_style(self):
+        self.assertEqual(
+            streamlit_app._route_request_message(
+                "英语",
+                "custom",
+                interests=["灰塑", "木雕"],
+                style_label="古风书生",
+                duration=30,
+            ),
+            "英语，定制模式，30分钟，我喜欢灰塑、木雕，选择古风书生风格",
+        )
+
+    def test_custom_route_request_rejects_missing_craft_preference(self):
+        with self.assertRaises(ValueError):
+            streamlit_app._route_request_message(
+                "中文", "custom", interests=[], style_label="中性清晰",
+            )
+
     def test_explicit_process_rollout_overrides_stale_streamlit_secrets(self):
         stale = {
             **ACTIVE_ENV,
