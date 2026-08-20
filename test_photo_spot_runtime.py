@@ -312,7 +312,7 @@ class PhotoSpotRuntimeTests(unittest.TestCase):
         self.assertEqual(result["photo_spots"][0]["node_id"], CURRENT)
         self.assertNotIn("项目编辑", result["message"])
         self.assertNotIn("审核", result["message"])
-        self.assertIn("拍摄位置", result["message"])
+        self.assertIn("拍照/打卡位置", result["message"])
         self.assertIn("现场为准", result["message"])
         self.assertNotIn("最佳", result["message"])
         self.assertNotIn("热门", result["message"])

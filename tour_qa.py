@@ -139,6 +139,20 @@ def resolve_point_context(user_query: str, tour_state: dict[str, Any] | None) ->
     return None, None
 
 
+def _is_whole_venue_photo_request(user_query: str) -> bool:
+    """Recognise venue-wide photo/discovery wording, not an unknown point.
+
+    ``馆里哪里拍照好看`` asks for a set of photo/check-in candidates.  The
+    generic point resolver correctly treats ``馆`` as location-like for object
+    inventory requests, but photo discovery must leave whole-venue wording
+    unscoped so the reviewed photo runtime can rank its candidate cards.
+    """
+
+    return any(cue in str(user_query or "") for cue in (
+        "馆里", "馆内", "全馆", "整个馆", "园区里", "园区内", "景区里", "景区内",
+    ))
+
+
 def is_point_inventory_request(user_query: str, tour_state: dict[str, Any] | None = None) -> bool:
     """Recognize only deterministic 'what is at this point' inventory requests."""
     inventory_terms = (
@@ -1755,6 +1769,8 @@ def answer_tour_question(
         }
     if is_explicit_photo_request(user_query):
         context, error_code = resolve_point_context(user_query, tour_state)
+        if error_code == "unknown_point" and _is_whole_venue_photo_request(user_query):
+            context, error_code = None, None
         if error_code in {"ambiguous_node_name", "multiple_node_mentions", "unknown_point"}:
             message = "我无法确定您提到的拍摄位置。请使用地图中的明确点位名称，或直接询问全馆有哪些位置适合拍摄。"
             presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None

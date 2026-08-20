@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 
 from route_planner import plan_template
-from controlled_knowledge_query import ControlledKnowledgePlan
+from controlled_knowledge_query import ControlledKnowledgePlan, is_public_visitor_message
 from tour_interaction import handle_tour_event, initialize_interaction
 from tour_qa import answer_tour_question, build_tour_qa_query, load_guide_cards
 from tour_state import start_tour
@@ -41,6 +41,18 @@ class TourQaTests(unittest.TestCase):
         )
         self.tour = arrived["tour_state"]
         self.interaction = arrived["interaction_state"]
+
+    def test_whole_venue_photo_question_uses_photo_check_in_candidates(self):
+        result = answer_tour_question(
+            "馆里哪里拍照好看？",
+            self.tour,
+            self.interaction,
+            lambda _query: self.fail("photo discovery must not use RAG"),
+        )
+        self.assertEqual(result["mode"], "photo_recommendation")
+        self.assertIn("拍照/打卡", result["message"])
+        self.assertTrue(result["photo_spots"])
+        self.assertTrue(is_public_visitor_message(result["message"]))
 
     @staticmethod
     def _success_search(query: str) -> str:

@@ -224,7 +224,13 @@ def _render_candidate(selection: dict[str, Any]) -> dict[str, Any]:
         # Editorial lifecycle values are internal audit metadata, not useful
         # visitor prose.  Keep the actual on-site uncertainty while hiding the
         # YAML status token and review workflow wording.
-        if "draft_manual_review" in limitation or limitation.startswith("原卡为"):
+        if (
+            "draft_manual_review" in limitation
+            or limitation.startswith("原卡为")
+            or any(marker in limitation for marker in (
+                "未核验", "未审核", "审核对象", "对象 ID", "对象ID",
+            ))
+        ):
             disclosed_field_review = True
             continue
         if limitation and limitation not in lines:
@@ -272,7 +278,7 @@ def answer_photo_request(
         }
     if has_photo_route_conflict(user_query):
         return {
-            "message": "拍照建议与修改路线需要分别确认。本次不会自动把打卡点加入路线；您可以先说明想了解哪个点位的拍摄建议。",
+        "message": "拍照/打卡建议与修改路线需要分别确认。本次不会自动把打卡点加入路线；您可以先说明想了解哪个点位的拍照/打卡建议。",
             "mode": "photo_clarification", "photo_spots": [], "point_context": point_context,
         }
     is_deictic = any(cue in user_query for cue in DEICTIC_CUES)
@@ -311,14 +317,14 @@ def answer_photo_request(
         if current_selection.get("available"):
             rendered_current = _render_candidate(current_selection)
             return {
-                "message": "可以参考这一处拍摄位置建议：\n\n" + rendered_current["message"],
+                "message": "可以参考这一处拍照/打卡位置建议：\n\n" + rendered_current["message"],
                 "mode": "photo_recommendation",
                 "photo_spots": [rendered_current],
                 "point_context": point_context,
             }
         return {
             "message": (
-                "当前点位暂无可直接采用的拍摄建议。我可以先提供一般安全原则："
+                "当前点位暂无可直接采用的拍照/打卡建议。我可以先提供一般安全原则："
                 "请在允许拍摄且不影响通行的位置取景，不触摸、倚靠或攀坐文物与建筑构件，"
                 "并遵守现场标识和工作人员要求。"
             ),
@@ -371,7 +377,7 @@ def answer_photo_request(
     if not scored:
         if current_node_id:
             return {
-                "message": f"当前点位暂无可直接采用的拍摄建议。{_safe_generic_message()}",
+                "message": f"当前点位暂无可直接采用的拍照/打卡建议。{_safe_generic_message()}",
                 "mode": "photo_no_current_candidate", "photo_spots": [], "point_context": point_context,
             }
         return {"message": _safe_generic_message(), "mode": "photo_unavailable", "photo_spots": [], "point_context": point_context}
@@ -389,13 +395,13 @@ def answer_photo_request(
             break
     if not rendered:
         return {"message": _safe_generic_message(), "mode": "photo_unavailable", "photo_spots": [], "point_context": point_context}
-    heading = "可以参考这些拍摄位置：" if len(rendered) > 1 else "可以参考这一处拍摄位置："
+    heading = "可以参考这些拍照/打卡位置：" if len(rendered) > 1 else "可以参考这一处拍照/打卡位置："
     # A deictic request is about the visitor's actual current position.  If
     # that position has no eligible candidate, say so explicitly before
     # offering a later route stop; otherwise the fallback can look like an
     # unsupported claim about the place the visitor is standing in.
     current_prefix = ""
     if is_deictic and current_node_id and not any(item["node_id"] == current_node_id for item in rendered):
-        current_prefix = "当前点位暂没有可直接采用的拍摄建议；以下是路线中可以继续参考的位置。\n\n"
+        current_prefix = "当前点位暂没有可直接采用的拍照/打卡建议；以下是路线中可以继续参考的位置。\n\n"
     message = current_prefix + heading + "\n\n" + "\n\n".join(item["message"] for item in rendered)
     return {"message": message, "mode": "photo_recommendation", "photo_spots": rendered, "point_context": point_context}
