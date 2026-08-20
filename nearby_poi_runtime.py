@@ -14,6 +14,8 @@ from typing import Any
 
 import yaml
 
+from visitor_qa_intent import is_nearby_visitor_intent
+
 
 CATALOG_FILE = (
     Path(__file__).parent
@@ -31,7 +33,7 @@ NEARBY_CUES = (
 )
 PURPOSE_CUES = (
     "吃饭", "吃什么", "好吃", "餐厅", "餐馆", "饭店", "美食", "小吃", "咖啡", "喝茶", "奶茶", "甜品", "糖水", "面食", "面馆",
-    "休息", "歇脚", "手信", "伴手礼", "购物", "店", "去哪里", "推荐",
+    "休息", "歇脚", "手信", "伴手礼", "购物", "店", "去哪里", "推荐", "早茶", "逛", "可逛", "景点", "游玩", "玩的地方",
 )
 ROUTE_CHANGE_CUES = ("加入路线", "加入行程", "改路线", "调整路线", "顺路安排")
 PROHIBITED_PUBLIC_CLAIMS = (
@@ -101,11 +103,9 @@ def _repair_legacy_text(value: Any) -> str:
 
 
 def is_explicit_nearby_request(user_query: str) -> bool:
-    text = str(user_query or "")
-    return (
-        any(cue in text for cue in NEARBY_CUES)
-        and any(cue in text for cue in PURPOSE_CUES)
-    )
+    """Use the shared visitor-language router for off-site intent detection."""
+
+    return is_nearby_visitor_intent(user_query)
 
 
 def classify_nearby_offer_response(user_query: str) -> str | None:

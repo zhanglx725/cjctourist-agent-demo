@@ -38,6 +38,10 @@ class NearbyPoiRuntimeTests(unittest.TestCase):
         self.assertFalse(is_explicit_nearby_request("陈家祠里面可以吃东西吗？"))
         self.assertFalse(is_explicit_nearby_request("灰塑附近有什么纹样？"))
 
+    def test_spoken_breakfast_tea_and_sightseeing_requests_are_recognized_as_nearby(self) -> None:
+        self.assertTrue(is_explicit_nearby_request("附近有喝早茶的地方吗？"))
+        self.assertTrue(is_explicit_nearby_request("周边还有什么可以逛的地方？"))
+
     def test_requested_category_outranks_distance(self) -> None:
         with patch("nearby_poi_runtime.load_approved_nearby_pois", return_value=_cards()):
             food = answer_nearby_request("附近有什么吃饭的地方？")

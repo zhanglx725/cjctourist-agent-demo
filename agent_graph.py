@@ -108,6 +108,7 @@ from controlled_knowledge_query import (
     public_visitor_message_or_fallback,
     render_controlled_knowledge_answer,
 )
+from fact_card_catalog import answer_high_frequency_fact_cards
 from agent_decision import Capability, validate_agent_decision
 from controlled_executor import execute_approved_read_tool
 from controlled_rollout import (
@@ -4328,6 +4329,32 @@ def direct_rag_node(state: AgentState) -> dict[str, Any]:
     """Retrieve clearly in-domain facts without an unnecessary tool-selection LLM."""
     query = _latest_user_text(state)
     started = time.perf_counter()
+    fact_card_answer = answer_high_frequency_fact_cards(query)
+    if fact_card_answer is not None:
+        marker = AIMessage(
+            content="已根据已确认的服务信息整理回答。",
+            additional_kwargs={
+                "direct_rag_evidence": True,
+                "direct_single_fact_answer": None,
+                "direct_controlled_knowledge_answer": {
+                    "message": fact_card_answer.message,
+                    "domain": "fact_card",
+                    "question_type": ",".join(fact_card_answer.answered_question_types),
+                    "source_ids": [],
+                },
+            },
+        )
+        return {
+            "messages": [marker], "retrieved_evidence": [],
+            "qa_context": clear_qa_context(state.get("qa_context")),
+            "pending_ornament_clarification": None,
+            "performance_metrics": _append_metric(
+                state, "direct_rag", time.perf_counter() - started,
+                fact_card_status=fact_card_answer.status,
+                fact_card_ids=list(fact_card_answer.answered_card_ids),
+                model_called=False, rag_called=False,
+            ),
+        }
     fact_kind = _effective_fact_kind(state)
     knowledge_plan = (
         _effective_knowledge_plan(state)
@@ -4460,6 +4487,24 @@ def tour_qa_node(state: AgentState) -> dict[str, Any]:
     """
     query = _latest_user_text(state)
     started = time.perf_counter()
+    fact_card_answer = answer_high_frequency_fact_cards(query)
+    if fact_card_answer is not None:
+        public_message = public_visitor_message_or_fallback(fact_card_answer.message)
+        return {
+            "messages": [AIMessage(
+                content=public_message,
+                additional_kwargs={"tour_qa_answer": True, "public_scene_kind": "tour_qa"},
+            )],
+            "retrieved_evidence": [],
+            "performance_metrics": _append_metric(
+                state, "tour_qa", time.perf_counter() - started,
+                fact_card_status=fact_card_answer.status,
+                fact_card_ids=list(fact_card_answer.answered_card_ids),
+                model_called=False, rag_called=False,
+            ),
+            "qa_context": clear_qa_context(state.get("qa_context")),
+            "pending_ornament_clarification": None,
+        }
     fact_kind = _effective_fact_kind(state)
     knowledge_plan = (
         _effective_knowledge_plan(state)
@@ -5080,6 +5125,11 @@ def route_initial_request(state: AgentState) -> str:
     # venue fact.  Keep it out of RAG in both pre-tour and active-tour modes.
     if is_identity_document_civil_service_request(raw_text):
         return "tour_qa"
+    # P0 FactCards are deterministic read-only service answers.  Route them
+    # before semantic-model fallback so colloquial forms such as “几点开门”
+    # and “买了票能退吗” do not depend on free-form RAG synthesis.
+    if answer_high_frequency_fact_cards(raw_text) is not None:
+        return "tour_qa" if state.get("tour_state") and state.get("tour_interaction_state") else "direct_rag"
     if (
         state.get("narration_continuation")
         and classify_continuation_action(raw_text) is not None
