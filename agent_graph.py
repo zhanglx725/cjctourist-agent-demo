@@ -259,6 +259,15 @@ class PublicTourSummary:
     completed_count: int = 0
     total_count: int = 0
     remaining_count: int = 0
+    stops: tuple["PublicTourStop", ...] = ()
+
+
+@dataclass(frozen=True)
+class PublicTourStop:
+    """One visitor-safe ordered route stop for progress-only presentation."""
+
+    name: str
+    status: str  # ``completed``, ``current`` or ``upcoming``
 
 
 @dataclass(frozen=True)
@@ -5770,12 +5779,23 @@ def _public_tour_summary(result: dict[str, Any]) -> PublicTourSummary:
     total = len(visited) + len(remaining)
     if current and current not in visited and current not in remaining:
         total += 1
+    ordered_ids = [*visited, *[stop_id for stop_id in remaining if stop_id not in visited]]
+    if current and current not in ordered_ids:
+        ordered_ids.append(current)
+    stops = tuple(
+        PublicTourStop(
+            name=stop_name(stop_id),
+            status=("completed" if stop_id in visited else "current" if stop_id == current else "upcoming"),
+        )
+        for stop_id in ordered_ids
+    )
     return PublicTourSummary(
         current_stop=stop_name(current),
         next_stop=stop_name(remaining[0]) if remaining else "路线已接近完成",
         completed_count=len(visited),
         total_count=total,
         remaining_count=len(remaining),
+        stops=stops,
     )
 
 

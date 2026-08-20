@@ -7,6 +7,7 @@ from agent_graph import (
     PublicMessage,
     PublicTourSummary,
     PublicTurnResult,
+    _public_tour_summary,
     _public_turn_from_result,
 )
 from demo.demo_adapter import DemoAdapter
@@ -57,6 +58,18 @@ class DemoPublicAdapterTests(unittest.TestCase):
         self.assertTrue(second.is_error)
         self.assertEqual(adapter.itinerary.current_stop, "前院")
         self.assertEqual(len(calls), 2)
+
+    def test_public_summary_exposes_ordered_stop_progress_without_ids(self):
+        summary = _public_tour_summary({
+            "tour_state": {
+                "visited_stop_ids": ["p1_01_qianyuan"],
+                "current_stop_id": "p1_02_zhongting",
+                "remaining_stop_ids": ["p1_02_zhongting", "p1_03_juxiantang"],
+            },
+        })
+        self.assertEqual(summary.completed_count, 1)
+        self.assertEqual([stop.status for stop in summary.stops], ["completed", "current", "upcoming"])
+        self.assertTrue(all("_" not in stop.name for stop in summary.stops))
 
     def test_reset_creates_an_isolated_thread_and_allows_fresh_display(self):
         message = PublicMessage("same-id", "stop_guidance", "讲解正文", False)
