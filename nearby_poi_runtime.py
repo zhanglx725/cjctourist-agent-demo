@@ -54,7 +54,8 @@ SUBTYPE_CUES = {
     "souvenir": ("手信", "伴手礼"),
 }
 CANTONESE_CUISINE_CUES = (
-    "广东特色", "广东美食", "广府美食", "广府菜", "岭南美食", "岭南菜", "粤菜",
+    "广东特色", "广东美食", "广州特色", "广州美食", "广州小吃",
+    "广府美食", "广府菜", "广府小吃", "岭南美食", "岭南菜", "粤菜",
 )
 CANTONESE_CUISINE_EVIDENCE = (
     "粤式", "粤菜", "广府", "岭南", "广东特色", "广州特色", "广州非遗",
@@ -177,10 +178,10 @@ def _has_cantonese_cuisine_evidence(card: dict[str, Any]) -> bool:
     a visitor who explicitly asks for Cantonese or Guangdong food.
     """
 
-    content = " ".join(
-        str(card.get(field) or "")
-        for field in ("name_zh", "one_line_summary_zh", "why_recommend_zh")
-    )
+    # ``why_recommend_zh`` describes the visit connection and can contain a
+    # negative comparison such as “不同于广府菜”.  Only the reviewed summary
+    # is a positive cuisine statement, so use it as the evidence boundary.
+    content = str(card.get("one_line_summary_zh") or "")
     return any(cue in content for cue in CANTONESE_CUISINE_EVIDENCE)
 
 

@@ -92,11 +92,19 @@ class NearbyPoiRuntimeTests(unittest.TestCase):
         self.assertEqual(result["nearby_pois"], [])
         self.assertIn("不会用其他菜系替代", result["message"])
 
-    def test_real_catalog_guangdong_cuisine_query_excludes_hunan_restaurant(self) -> None:
-        result = answer_nearby_request("周边有什么广东特色美食？")
-        self.assertEqual(result["mode"], "nearby_recommendation")
-        self.assertNotIn("湘馆主", result["message"])
-        self.assertTrue(result["nearby_pois"])
+    def test_real_catalog_local_cuisine_paraphrases_exclude_other_cuisines(self) -> None:
+        for query in (
+            "周边有什么广东特色美食？",
+            "介绍附近的广州美食",
+            "介绍周边广州特色美食",
+        ):
+            with self.subTest(query=query):
+                result = answer_nearby_request(query)
+                self.assertEqual(result["mode"], "nearby_recommendation")
+                self.assertIn("广东特色美食", result["message"])
+                self.assertNotIn("湘馆主", result["message"])
+                self.assertNotIn("雾都小面", result["message"])
+                self.assertTrue(result["nearby_pois"])
 
     def test_public_output_is_bounded_and_has_uncertainty(self) -> None:
         with patch("nearby_poi_runtime.load_approved_nearby_pois", return_value=_cards()):

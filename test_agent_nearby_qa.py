@@ -36,13 +36,16 @@ class AgentNearbyQaTests(unittest.TestCase):
         self.assertIn("周边选择", update["messages"][0].content)
         self.assertEqual(update["retrieved_evidence"], [])
 
-    def test_guangdong_cuisine_request_preserves_its_cuisine_constraint(self) -> None:
-        request = _state("周边有什么广东特色美食？")
-        self.assertEqual(route_initial_request(request), "tour_qa")
-        update = tour_qa_node(request)
-        self.assertIn("广东特色美食", update["messages"][0].content)
-        self.assertNotIn("湘馆主", update["messages"][0].content)
-        self.assertEqual(update["retrieved_evidence"], [])
+    def test_local_cuisine_paraphrases_preserve_their_cuisine_constraint(self) -> None:
+        for text in ("周边有什么广东特色美食？", "介绍附近的广州美食"):
+            with self.subTest(text=text):
+                request = _state(text)
+                self.assertEqual(route_initial_request(request), "tour_qa")
+                update = tour_qa_node(request)
+                self.assertIn("广东特色美食", update["messages"][0].content)
+                self.assertNotIn("湘馆主", update["messages"][0].content)
+                self.assertNotIn("雾都小面", update["messages"][0].content)
+                self.assertEqual(update["retrieved_evidence"], [])
 
     def test_active_tour_nearby_request_is_read_only(self) -> None:
         initial = {
