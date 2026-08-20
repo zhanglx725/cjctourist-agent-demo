@@ -123,11 +123,12 @@ _FORBIDDEN_VISITOR_TOKENS = (
     "visitor_profile",
     "qa_context",
     "trace_url",
-    "http://",
-    "https://",
     "DSML",
     "tool_calls",
 )
+OFFICIAL_TICKETING_URL = "https://wx.gzcjc.com.cn"
+_PUBLIC_URL = re.compile(r"https?://[^\s<>()\[\]{}\"'，。；！？]+", re.IGNORECASE)
+_ALLOWED_PUBLIC_URLS = frozenset({OFFICIAL_TICKETING_URL})
 _SOURCE_ID = re.compile(r"(?<![A-Za-z0-9])S\d+(?![A-Za-z0-9])", re.IGNORECASE)
 _INTERNAL_IDENTIFIER = re.compile(
     r"(?<![A-Za-z0-9_])(?:label_[A-Za-z0-9_]+|stop_[A-Za-z0-9_]+|orn_\d+|term_[A-Za-z0-9_]+|card_[A-Za-z0-9_]+)(?![A-Za-z0-9_])",
@@ -220,6 +221,41 @@ def identify_controlled_knowledge_plan(
         for term in ("规划路线", "路线怎么走", "怎么逛", "参观顺序")
     ):
         return None
+    has_child_ticket_eligibility = (
+        any(term in compact for term in ("儿童", "未成年人", "小孩", "孩子"))
+        and any(term in compact for term in ("票", "购票", "入场"))
+        and any(
+            term in compact
+            for term in ("年龄", "身高", "要求", "条件", "适用", "半票", "免票", "优惠")
+        )
+    )
+    if has_child_ticket_eligibility:
+        try:
+            return ControlledKnowledgePlan(
+                domain="ticketing",
+                question_type="eligibility",
+                subject_text=subject,
+                detail_level="brief",
+            )
+        except ValueError:
+            return None
+    has_purchase_method_request = any(
+        term in compact
+        for term in (
+            "怎么购票", "怎么买票", "如何购票", "购票方式", "购票方法",
+            "怎么预约", "如何预约", "预约方式", "预约购票",
+        )
+    )
+    if has_purchase_method_request:
+        try:
+            return ControlledKnowledgePlan(
+                domain="ticketing",
+                question_type="method",
+                subject_text=subject,
+                detail_level="brief",
+            )
+        except ValueError:
+            return None
     has_invoice = "发票" in compact or "开票" in compact
     if not has_invoice:
         return None
@@ -349,6 +385,12 @@ def is_public_visitor_message(message: str) -> bool:
     compact = str(message or "").strip()
     if not compact or len(compact) > 1800:
         return False
+    normalized_original = compact.casefold()
+    if "http://" in normalized_original or "https://" in normalized_original:
+        urls = tuple(_PUBLIC_URL.findall(compact))
+        if not urls or any(url not in _ALLOWED_PUBLIC_URLS for url in urls):
+            return False
+        compact = _PUBLIC_URL.sub("", compact)
     normalized = compact.casefold()
     if any(token.casefold() in normalized for token in _FORBIDDEN_VISITOR_TOKENS):
         return False
@@ -424,6 +466,62 @@ def _is_invoice_plan(plan: ControlledKnowledgePlan) -> bool:
     )
 
 
+def _render_reviewed_child_ticket_eligibility(
+    plan: ControlledKnowledgePlan,
+    evidence: list[dict[str, Any]],
+) -> str | None:
+    """Render the complete reviewed age/height rule without model synthesis."""
+
+    if (
+        plan.domain != "ticketing"
+        or plan.question_type != "eligibility"
+        or not any(term in plan.subject_text for term in ("儿童", "未成年人", "小孩", "孩子"))
+    ):
+        return None
+    compact = "".join(
+        "".join(str(item.get("content") or "").split()) for item in evidence
+    )
+    required_clauses = (
+        "6周岁（不含）至18周岁未成年人",
+        "身高1.3米以上儿童",
+        "未满6周岁儿童",
+        "身高1.3米（含）以下儿童",
+    )
+    if not all(clause in compact for clause in required_clauses):
+        return None
+    return (
+        "按现有票务规则快照，儿童的年龄和身高都会影响票种："
+        "6 周岁（不含）至 18 周岁未成年人，或身高 1.3 米以上儿童，"
+        "适用半票；未满 6 周岁儿童，或身高 1.3 米（含）以下儿童，"
+        "按免预约购票/凭证入场规则办理。"
+        "优惠和免票资格可能调整，请在官方小程序核验当日适用条件。"
+    )
+
+
+def _render_reviewed_ticket_purchase_method(
+    plan: ControlledKnowledgePlan,
+    evidence: list[dict[str, Any]],
+) -> str | None:
+    """Render the reviewed official purchase channel without model synthesis."""
+
+    if plan.domain != "ticketing" or plan.question_type != "method":
+        return None
+    compact = "".join(
+        "".join(str(item.get("content") or "").split()) for item in evidence
+    )
+    channel = "微信公众号“广东民间工艺博物馆”服务号"
+    if channel not in compact:
+        return None
+    message = f"请通过{channel}预约或购票。"
+    if "未授权第三方" in compact and "讲解导览+门票预约" in compact:
+        message += "馆方未授权第三方销售门票或提供“讲解导览 + 门票预约”套餐，请勿通过此类渠道购票。"
+    return (
+        message
+        + f"购票入口：{OFFICIAL_TICKETING_URL}。"
+        "票价、场次、库存和开放安排可能调整，请以服务号或小程序当日页面为准。"
+    )
+
+
 def render_controlled_knowledge_answer(
     plan: ControlledKnowledgePlan,
     evidence: Iterable[dict[str, Any]],
@@ -445,6 +543,12 @@ def render_controlled_knowledge_answer(
             "现有票务资料不足以同时确认电子发票的申请期限、修改限制和退票限制，"
             "因此不作推测。具体规则请以官方小程序订单页面为准。"
         )
+    reviewed_child_ticket = _render_reviewed_child_ticket_eligibility(plan, scoped)
+    if reviewed_child_ticket is not None:
+        return reviewed_child_ticket
+    reviewed_purchase_method = _render_reviewed_ticket_purchase_method(plan, scoped)
+    if reviewed_purchase_method is not None:
+        return reviewed_purchase_method
     try:
         message = str(invoke_model(grounded_answer_prompt(plan, scoped))).strip()
     except Exception:

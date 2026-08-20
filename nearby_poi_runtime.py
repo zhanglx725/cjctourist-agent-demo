@@ -53,6 +53,12 @@ SUBTYPE_CUES = {
     "local_food": ("本地美食", "广州美食", "粤菜", "老字号"),
     "souvenir": ("手信", "伴手礼"),
 }
+CANTONESE_CUISINE_CUES = (
+    "广东特色", "广东美食", "广府美食", "广府菜", "岭南美食", "岭南菜", "粤菜",
+)
+CANTONESE_CUISINE_EVIDENCE = (
+    "粤式", "粤菜", "广府", "岭南", "广东特色", "广州特色", "广州非遗",
+)
 
 CATEGORY_LABELS = {
     "food": "餐饮",
@@ -157,6 +163,25 @@ def _requested_tags(text: str) -> set[str]:
         "伴手礼": "shopping",
     }
     return {tag for cue, tag in mapping.items() if cue in text}
+
+
+def _requests_cantonese_cuisine(text: str) -> bool:
+    return any(cue in str(text or "") for cue in CANTONESE_CUISINE_CUES)
+
+
+def _has_cantonese_cuisine_evidence(card: dict[str, Any]) -> bool:
+    """Use reviewed public text, not the broad ``local_food`` ranking tag.
+
+    The catalog's ``local_food`` tag only means a nearby food candidate.  It
+    is not evidence that every entry is Guangdong cuisine, so it cannot answer
+    a visitor who explicitly asks for Cantonese or Guangdong food.
+    """
+
+    content = " ".join(
+        str(card.get(field) or "")
+        for field in ("name_zh", "one_line_summary_zh", "why_recommend_zh")
+    )
+    return any(cue in content for cue in CANTONESE_CUISINE_EVIDENCE)
 
 
 def _valid_source(card: dict[str, Any]) -> bool:
@@ -330,6 +355,20 @@ def answer_nearby_request(
     categories = _requested_categories(user_query)
     tags = _requested_tags(user_query)
     ranked = sorted(cards, key=lambda card: _sort_key(card, categories, tags))
+    cantonese_cuisine = _requests_cantonese_cuisine(user_query)
+    if cantonese_cuisine:
+        ranked = [card for card in ranked if _has_cantonese_cuisine_evidence(card)]
+        if not ranked:
+            return {
+                "message": (
+                    "当前审核候选中没有能明确支持为广东/广府特色美食的周边选择，"
+                    "我不会用其他菜系替代回答。\n\n" + PUBLIC_UNCERTAINTY
+                ),
+                "mode": "nearby_no_matching_cuisine",
+                "nearby_pois": [],
+                "selected_poi_ids": [],
+                "offer_status": "awaiting_choice" if offer_pending else None,
+            }
     subtype = requested_nearby_subtype(user_query)
     if subtype:
         subtype_matches = [card for card in ranked if subtype in card.get("subtypes", ())]
@@ -352,7 +391,8 @@ def answer_nearby_request(
     rendered = [_render_card(card) for card in selected]
     return {
         "message": (
-            "可以参考以下周边选择：\n\n"
+            ("可以参考以下广东特色美食：" if cantonese_cuisine else "可以参考以下周边选择：")
+            + "\n\n"
             + "\n\n".join(text for text, _ in rendered)
             + "\n\n" + PUBLIC_UNCERTAINTY
         ),

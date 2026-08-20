@@ -6,11 +6,13 @@ from unittest.mock import patch
 from langchain_core.messages import AIMessage, HumanMessage
 
 from agent_graph import (
+    build_agent_graph,
     route_after_atomic_read_plan_shadow,
     route_after_visitor_localization,
     route_after_visitor_onboarding,
     route_after_visitor_welcome,
     route_initial_request,
+    semantic_normalization_node,
     visitor_onboarding_node,
     visitor_onboarding_resume_node,
     visitor_localization_node,
@@ -77,7 +79,7 @@ class VisitorWelcomeTests(unittest.TestCase):
             ],
             "visitor_welcome_program": {"schema_version": "visitor_welcome_v1", "status": "awaiting_language"},
         }
-        self.assertEqual(route_after_visitor_welcome(state), "semantic_normalization")
+        self.assertEqual(route_after_visitor_welcome(state), "visitor_onboarding")
 
     def test_language_and_classic_mode_complete_onboarding(self):
         invalid = visitor_onboarding_node({
@@ -119,6 +121,66 @@ class VisitorWelcomeTests(unittest.TestCase):
         self.assertEqual(mode["journey_mode_selection"]["selected_mode"], "custom")
         self.assertIn("language", mode["profile_collection"]["resolved_fields"])
         self.assertEqual(mode["profile_collection"]["next_missing_field"], "available_minutes")
+
+    @patch("agent_graph.recognize_semantic_candidate")
+    def test_language_answer_skips_optional_semantic_model_before_onboarding(self, recognizer):
+        """A fresh Streamlit thread must accept “中文” while offline."""
+        state = {
+            "messages": [HumanMessage(content="中文")],
+            "visitor_welcome_program": {
+                "schema_version": "visitor_welcome_v1", "status": "awaiting_language",
+            },
+            "performance_metrics": [],
+        }
+        update = semantic_normalization_node(state)
+        recognizer.assert_not_called()
+        self.assertEqual(update["performance_metrics"][-1]["reason"], "visitor_onboarding")
+        merged = {**state, **update}
+        self.assertEqual(route_initial_request(merged), "visitor_onboarding")
+        onboarding = visitor_onboarding_node(merged)
+        self.assertEqual(onboarding["visitor_profile"]["language"], "zh")
+        self.assertEqual(onboarding["visitor_welcome_program"]["status"], "awaiting_mode")
+        self.assertEqual(onboarding["messages"][0].content, MODE_PROMPT)
+
+    @patch("agent_graph.recognize_semantic_candidate")
+    def test_complete_first_route_command_skips_semantic_model(self, recognizer):
+        state = {
+            "messages": [HumanMessage(content="中文，经典模式，30分钟，帮我规划路线")],
+            "visitor_welcome_program": {
+                "schema_version": "visitor_welcome_v1", "status": "awaiting_language",
+            },
+            "performance_metrics": [],
+        }
+        update = semantic_normalization_node(state)
+        recognizer.assert_not_called()
+        merged = {**state, **update}
+        self.assertEqual(route_initial_request(merged), "visitor_onboarding")
+        onboarding = visitor_onboarding_node(merged)
+        self.assertEqual(onboarding["profile_collection"]["status"], "ready")
+        self.assertEqual(route_after_visitor_onboarding(onboarding), "direct_route")
+
+    def test_graph_accepts_first_chinese_language_answer_without_model(self):
+        result = build_agent_graph(with_checkpointer=False).invoke({
+            "messages": [HumanMessage(content="中文")],
+            "visitor_welcome_program": {
+                "schema_version": "visitor_welcome_v1", "status": "awaiting_language",
+            },
+            "tool_loops": 0,
+            "retrieved_evidence": [],
+            "performance_metrics": [],
+        })
+        self.assertEqual(result["visitor_profile"]["language"], "zh")
+        self.assertEqual(result["visitor_welcome_program"]["status"], "awaiting_mode")
+        self.assertEqual(result["messages"][-1].content, MODE_PROMPT)
+        onboarding_metric = next(
+            item for item in result["performance_metrics"]
+            if item["node"] == "visitor_onboarding"
+        )
+        self.assertFalse(onboarding_metric["model_called"])
+        self.assertFalse(any(
+            item["node"] == "semantic_normalization"
+            for item in result["performance_metrics"]
+        ))
 
     def test_active_onboarding_has_priority_over_global_route_fallbacks(self):
         state = {

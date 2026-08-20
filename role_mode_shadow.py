@@ -33,9 +33,21 @@ _NATURAL_ROLE_PHRASES = {
     ),
 }
 
-_EXPLICIT_ROLE_PHRASES = {
+_ROLE_REQUEST_MARKERS = (
+    "选择", "选用", "使用", "切换", "切成", "换成", "改成", "改为",
+    "请用", "请按", "希望用", "想用", "既要", "也要", "同时",
+    "讲解", "讲述", "解说", "风格", "方式", "模式", "口吻", "语气",
+)
+
+
+# The profile form can safely accept short values such as ``儿童`` because it
+# already knows it is collecting an explanation style.  A free-text turn does
+# not have that context: ``儿童票`` and ``儿童活动`` are ordinary venue
+# questions, not narration controls.  Keep the fully reviewed phrases and
+# natural role requests available globally, but require an explicit control
+# intent before consulting the form's broad aliases.
+_DIRECT_ROLE_PHRASES = {
     style_id: tuple(dict.fromkeys((
-        *STYLE_ALIASES.get(style_id, ()),
         *EXPLICIT_STYLE_PHRASES.get(style_id, ()),
         *_NATURAL_ROLE_PHRASES.get(style_id, ()),
     )))
@@ -43,6 +55,12 @@ _EXPLICIT_ROLE_PHRASES = {
     # candidate ordering across processes and Python hash seeds.
     for style_id in _ROLE_MODE_ORDER
 }
+
+
+def _has_role_request_intent(text: str) -> bool:
+    """Whether a broad profile alias is being used as a role control."""
+
+    return any(marker in text for marker in _ROLE_REQUEST_MARKERS) or "+" in text
 
 # These are intentionally not treated as aliases for a supported role.  A
 # request for an unreviewed persona must remain a clarification, not silently
@@ -161,11 +179,16 @@ def _selected(style_id: str, *, source: str, confidence: float) -> RoleModeShado
 
 
 def _explicit_matches(text: str) -> tuple[str, ...]:
-    return tuple(
-        style_id
-        for style_id, phrases in _EXPLICIT_ROLE_PHRASES.items()
-        if any(phrase in text for phrase in phrases)
-    )
+    matches: list[str] = []
+    for style_id in _ROLE_MODE_ORDER:
+        if any(phrase in text for phrase in _DIRECT_ROLE_PHRASES[style_id]):
+            matches.append(style_id)
+            continue
+        if _has_role_request_intent(text) and any(
+            phrase in text for phrase in STYLE_ALIASES.get(style_id, ())
+        ):
+            matches.append(style_id)
+    return tuple(matches)
 
 
 def _profile_matches(profile: Mapping[str, Any] | None) -> tuple[str, ...]:

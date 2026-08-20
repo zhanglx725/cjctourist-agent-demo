@@ -15,8 +15,55 @@ from knowledge_card_registry import build_registry
 COMPARISON_CUES = ("区别", "异同", "相比", "相较", "对照", "不同在哪里", "比较", "对比", "vs", "VS")
 RESEARCH_CUES = (
     "论文如何", "论文怎样", "从研究", "研究角度", "学术", "研究者", "有没有相关研究",
-    "研究依据", "建筑学", "民俗学", "研究方法", "研究限制", "这个研究", "该研究",
+    "研究依据", "建筑学", "民俗学", "研究方法", "研究限制", "这个研究", "该研究", "研究",
 )
+
+# These are deliberately broad *subject* words, rather than a second list of
+# research-intent cues.  A visitor rarely repeats a card's full topic tag (for
+# example, they ask about "建筑" instead of "建筑装饰").  Matching these words
+# against the reviewed card metadata keeps that natural phrasing useful without
+# treating an arbitrary current-node card as a match.
+SUBJECT_CUES = (
+    "建筑", "装饰", "雕塑", "空间", "工艺", "布局", "营建", "庭院", "连廊",
+    "灰塑", "木雕", "石雕", "陶塑", "屋脊", "月台", "栏板", "中轴", "通风",
+    "保护", "旗杆", "科举", "题材", "象征", "书院", "祠堂",
+)
+GENERAL_RESEARCH_WORDS = (
+    "介绍一下", "介绍", "一下", "这里的", "这里", "这座", "这个", "该处", "此处",
+    "陈家祠", "陈氏书院", "学术研究", "学术", "研究", "论文", "文献", "相关", "方面",
+    "关于", "请问", "请", "的", "了", "吗", "呢", "？", "?", "，", ",", "。", ".", "、", " ",
+)
+GENERAL_OVERVIEW_CARD_IDS = (
+    "research_004_spatial_characteristics",
+    "research_006_sculptural_metaphor",
+)
+# A small, editorially reviewed bridge for common umbrella terms.  These
+# words do not always occur verbatim in topic_tags, but the selected cards
+# directly study the named craft/arts subject.  Keeping this mapping explicit
+# avoids broadening a current-node association into an unrelated answer.
+SUBJECT_CARD_FALLBACKS = {
+    "建筑": (
+        "research_004_spatial_characteristics",
+        "research_016_academy_ancestral_program",
+    ),
+    "工艺": (
+        "research_003_ridge_pottery_colour",
+        "research_008_grey_plaster_lions",
+    ),
+    "技艺": (
+        "research_003_ridge_pottery_colour",
+        "research_008_grey_plaster_lions",
+    ),
+    "艺术": (
+        "research_003_ridge_pottery_colour",
+        "research_006_sculptural_metaphor",
+    ),
+    "雕刻": (
+        "research_006_sculptural_metaphor",
+        "research_008_grey_plaster_lions",
+    ),
+    "陶塑": ("research_003_ridge_pottery_colour",),
+}
 
 
 def is_explicit_research_question(query: str) -> bool:
@@ -51,7 +98,12 @@ def _score(card: KnowledgeCard, query: str, current_node_id: str | None) -> int:
     supported_hit = sum(1 for value in supported if isinstance(value, str) and any(tag in normalized for tag in raw.get("topic_tags", []) if tag))
     topic_hits = sum(1 for tag in raw.get("topic_tags", []) if isinstance(tag, str) and tag.casefold() in normalized)
     title_hits = sum(1 for value in _labels(card) if value and value.casefold() in normalized)
-    content_score = (60 if supported_hit else 0) + topic_hits * 20 + min(title_hits, 3) * 5
+    metadata = " ".join(_labels(card))
+    subject_hits = sum(
+        1 for cue in SUBJECT_CUES
+        if cue in normalized and cue in metadata.casefold()
+    )
+    content_score = (60 if supported_hit else 0) + topic_hits * 20 + min(title_hits, 3) * 5 + subject_hits * 12
     # A current-node relation is only a tie-breaker among cards that already
     # match the research question.  It must never turn an unrelated question
     # into an apparent exact research-card match.
@@ -60,6 +112,38 @@ def _score(card: KnowledgeCard, query: str, current_node_id: str | None) -> int:
     node_bonus = 20 if current_node_id and current_node_id in raw.get("applicable_node_ids", []) else 0
     # Whole-site cards (empty applicable nodes) deliberately receive no node bonus.
     return content_score + node_bonus
+
+
+def _is_general_research_overview(query: str) -> bool:
+    """Whether the visitor asks for a site-level research introduction.
+
+    This is intentionally narrow: removing research phrasing must leave no
+    subject word.  Questions such as "这里的建筑研究" retain "建筑" and therefore
+    still require a metadata match.
+    """
+    remainder = query.casefold()
+    for word in GENERAL_RESEARCH_WORDS:
+        remainder = remainder.replace(word, "")
+    return not remainder.strip()
+
+
+def _subject_fallback_ids(query: str) -> tuple[str, ...]:
+    """Return only the reviewed card IDs curated for an umbrella subject."""
+    normalized = query.casefold()
+    for subject, card_ids in SUBJECT_CARD_FALLBACKS.items():
+        if subject in normalized:
+            return card_ids
+    return ()
+
+
+def _has_exact_topic_match(cards: list[KnowledgeCard], query: str) -> bool:
+    """Keep a card's own precise topic tag ahead of umbrella aliases."""
+    normalized = query.casefold()
+    return any(
+        isinstance(tag, str) and tag.casefold() in normalized
+        for card in cards
+        for tag in card.raw_payload.get("topic_tags", [])
+    )
 
 
 def retrieve_research_cards(
@@ -76,7 +160,31 @@ def retrieve_research_cards(
         cards = _eligible_research_cards(registry_loader())
     except Exception:
         return {"status": "registry_unavailable", "cards": []}
-    ranked = [( _score(card, user_query, current_node_id), card) for card in cards]
+    ranked = [(_score(card, user_query, current_node_id), card) for card in cards]
+    fallback_ids = _subject_fallback_ids(user_query)
+    if fallback_ids and not _has_exact_topic_match(cards, user_query):
+        ranked = [
+            (
+                40 + (20 if current_node_id and current_node_id in card.applicable_node_ids else 0),
+                card,
+            )
+            for card in cards
+            if card.card_id in fallback_ids
+        ]
+    elif not any(score for score, _ in ranked) and _is_general_research_overview(user_query):
+        # A plainly worded request for an academic introduction is a valid
+        # request for the reviewed overview cards.  Prefer cards applicable at
+        # the current stop, but never use a node relation for a specific,
+        # otherwise unmatched subject question.
+        ranked = [
+            (
+                (40 if card.card_id in GENERAL_OVERVIEW_CARD_IDS else 0)
+                + (20 if current_node_id and current_node_id in card.applicable_node_ids else 0),
+                card,
+            )
+            for card in cards
+            if card.card_id in GENERAL_OVERVIEW_CARD_IDS
+        ]
     ranked = [(score, card) for score, card in ranked if score > 0]
     ranked.sort(key=lambda item: (-item[0], item[1].card_id))
     selected = []
@@ -104,6 +212,18 @@ def _citation_label(citation: str | None) -> str:
     return citation.split("https", 1)[0].strip().rstrip("。")
 
 
+def _public_research_limit(limit: object) -> str:
+    """Keep a card's boundary while using visitor-safe language.
+
+    The final public-message guard correctly treats editorial terms such as
+    ``未核验`` as internal workflow language.  That must not discard an
+    otherwise valid research answer: the visitor-facing equivalent makes the
+    same claim boundary clear without exposing the review workflow.
+    """
+    text = str(limit or "").strip()
+    return text.replace("未核验", "尚待现场资料佐证")
+
+
 def format_research_answer(
     context: dict[str, Any],
     *,
@@ -121,7 +241,9 @@ def format_research_answer(
             methods = [str(item) for item in card.get("method_and_evidence", []) if item]
             if methods:
                 lines.append(f"  研究主要采用：{'；'.join(methods[:2])}。")
-        limits = (card.get("agreement_and_limits") or {}).get("limits")
+        limits = _public_research_limit(
+            (card.get("agreement_and_limits") or {}).get("limits")
+        )
         if limits:
             lines.append(f"  适用范围与限制：{limits}")
     # ``base_evidence`` remains available to the caller for audit and Trace.

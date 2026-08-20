@@ -6,6 +6,7 @@ import unittest
 
 from controlled_knowledge_query import (
     ControlledKnowledgePlan,
+    OFFICIAL_TICKETING_URL,
     build_controlled_retrieval_query,
     filter_plan_evidence,
     grounded_answer_prompt,
@@ -50,6 +51,26 @@ class ControlledKnowledgeQueryTests(unittest.TestCase):
         self.assertIsNone(
             identify_controlled_knowledge_plan("团队票没用能退吗？")
         )
+
+    def test_child_ticket_eligibility_uses_a_closed_ticketing_plan(self):
+        for text in (
+            "儿童票对身高和年龄有要求吗",
+            "儿童票有年龄或身高要求吗？",
+            "未成年人购票的身高条件是什么",
+        ):
+            with self.subTest(text=text):
+                plan = identify_controlled_knowledge_plan(text)
+                self.assertIsNotNone(plan)
+                self.assertEqual(plan.domain, "ticketing")
+                self.assertEqual(plan.question_type, "eligibility")
+
+    def test_ticket_purchase_method_uses_a_closed_ticketing_plan(self):
+        for text in ("怎么购票", "怎么买票？", "如何预约", "购票方式是什么"):
+            with self.subTest(text=text):
+                plan = identify_controlled_knowledge_plan(text)
+                self.assertIsNotNone(plan)
+                self.assertEqual(plan.domain, "ticketing")
+                self.assertEqual(plan.question_type, "method")
 
     def test_plan_rejects_values_outside_the_closed_taxonomy(self):
         with self.assertRaises(ValueError):
@@ -227,6 +248,48 @@ class ControlledKnowledgeQueryTests(unittest.TestCase):
         self.assertNotIn("本地规则快照", message)
         self.assertTrue(is_public_visitor_message(message))
 
+    def test_child_ticket_rule_is_rendered_from_complete_evidence_without_model(self):
+        plan = identify_controlled_knowledge_plan("儿童票对身高和年龄有要求吗")
+        evidence = [{
+            "category": "ticketing_snapshot",
+            "content": (
+                "半票：适用于 6 周岁（不含）至 18 周岁未成年人、"
+                "身高 1.3 米以上儿童。免预约购票/凭证入场："
+                "未满 6 周岁儿童、身高 1.3 米（含）以下儿童。"
+            ),
+        }]
+
+        def forbidden(_: str) -> str:
+            self.fail("complete child ticket evidence must not depend on model synthesis")
+
+        message = render_controlled_knowledge_answer(plan, evidence, forbidden)
+        self.assertIn("6 周岁（不含）至 18 周岁", message)
+        self.assertIn("身高 1.3 米以上", message)
+        self.assertIn("未满 6 周岁", message)
+        self.assertIn("身高 1.3 米（含）以下", message)
+        self.assertIn("官方小程序", message)
+        self.assertTrue(is_public_visitor_message(message))
+
+    def test_ticket_purchase_method_is_rendered_from_reviewed_channel_without_model(self):
+        plan = identify_controlled_knowledge_plan("怎么购票")
+        evidence = [{
+            "category": "ticketing_snapshot",
+            "content": (
+                "官方预约/购票渠道：微信公众号“广东民间工艺博物馆”服务号。"
+                "馆方未授权第三方销售门票，或提供“讲解导览 + 门票预约”套餐。"
+            ),
+        }]
+
+        def forbidden(_: str) -> str:
+            self.fail("reviewed purchase channel must not depend on model synthesis")
+
+        message = render_controlled_knowledge_answer(plan, evidence, forbidden)
+        self.assertIn("微信公众号“广东民间工艺博物馆”服务号", message)
+        self.assertIn("未授权第三方", message)
+        self.assertIn(OFFICIAL_TICKETING_URL, message)
+        self.assertIn("当日页面", message)
+        self.assertTrue(is_public_visitor_message(message))
+
     def test_public_output_gate_rejects_internal_descriptions_for_every_domain(self):
         domain_cases = (
             "site_overview", "history_architecture", "visit_service", "ticketing",
@@ -293,6 +356,14 @@ class ControlledKnowledgeQueryTests(unittest.TestCase):
             with self.subTest(candidate=candidate):
                 self.assertTrue(is_public_visitor_message(candidate))
                 self.assertEqual(public_visitor_message_or_fallback(candidate), candidate)
+
+    def test_only_the_reviewed_official_ticketing_url_is_allowed_in_public_text(self):
+        allowed = f"购票入口：{OFFICIAL_TICKETING_URL}"
+        self.assertTrue(is_public_visitor_message(allowed))
+        self.assertFalse(is_public_visitor_message("https://example.com"))
+        self.assertFalse(
+            is_public_visitor_message(f"{OFFICIAL_TICKETING_URL}/unexpected")
+        )
 
 
 if __name__ == "__main__":

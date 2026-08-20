@@ -47,6 +47,57 @@ class NearbyPoiRuntimeTests(unittest.TestCase):
         self.assertEqual(rest["nearby_pois"][0]["name_zh"], "审核奶茶候选")
         self.assertEqual(shopping["nearby_pois"][0]["name_zh"], "审核手信候选")
 
+    def test_guangdong_cuisine_request_requires_cantonese_evidence(self) -> None:
+        cards = (
+            {
+                "poi_id": "hunan", "name_zh": "审核湘菜馆", "address_zh": "示例路一号",
+                "category": "food", "tags": ("local_food",), "subtypes": ("local_food",),
+                "one_line_summary_zh": "提供湖南风味菜肴。",
+                "why_recommend_zh": "可作为参观后的餐饮参考。", "distance_rank": 1,
+            },
+            {
+                "poi_id": "cantonese", "name_zh": "审核粤式餐厅", "address_zh": "示例路二号",
+                "category": "food", "tags": ("local_food",), "subtypes": ("local_food",),
+                "one_line_summary_zh": "提供粤式风味菜肴。",
+                "why_recommend_zh": "可作为参观后的餐饮参考。", "distance_rank": 4,
+            },
+            {
+                "poi_id": "beef_offal", "name_zh": "审核牛杂", "address_zh": "示例路三号",
+                "category": "food", "tags": ("local_food",), "subtypes": ("local_food", "snacks"),
+                "one_line_summary_zh": "广州特色牛杂小吃。",
+                "why_recommend_zh": "可作为参观后的餐饮参考。", "distance_rank": 5,
+            },
+        )
+        with patch("nearby_poi_runtime.load_approved_nearby_pois", return_value=cards):
+            result = answer_nearby_request("周边有什么广东特色美食？")
+        self.assertEqual(result["mode"], "nearby_recommendation")
+        self.assertIn("广东特色美食", result["message"])
+        self.assertEqual(
+            [item["name_zh"] for item in result["nearby_pois"]],
+            ["审核粤式餐厅", "审核牛杂"],
+        )
+        self.assertNotIn("审核湘菜馆", result["message"])
+
+    def test_guangdong_cuisine_request_does_not_fall_back_to_other_cuisines(self) -> None:
+        with patch("nearby_poi_runtime.load_approved_nearby_pois", return_value=(
+            {
+                "poi_id": "hunan", "name_zh": "审核湘菜馆", "address_zh": "示例路一号",
+                "category": "food", "tags": ("local_food",), "subtypes": ("local_food",),
+                "one_line_summary_zh": "提供湖南风味菜肴。",
+                "why_recommend_zh": "可作为参观后的餐饮参考。", "distance_rank": 1,
+            },
+        )):
+            result = answer_nearby_request("附近有什么粤菜？")
+        self.assertEqual(result["mode"], "nearby_no_matching_cuisine")
+        self.assertEqual(result["nearby_pois"], [])
+        self.assertIn("不会用其他菜系替代", result["message"])
+
+    def test_real_catalog_guangdong_cuisine_query_excludes_hunan_restaurant(self) -> None:
+        result = answer_nearby_request("周边有什么广东特色美食？")
+        self.assertEqual(result["mode"], "nearby_recommendation")
+        self.assertNotIn("湘馆主", result["message"])
+        self.assertTrue(result["nearby_pois"])
+
     def test_public_output_is_bounded_and_has_uncertainty(self) -> None:
         with patch("nearby_poi_runtime.load_approved_nearby_pois", return_value=_cards()):
             result = answer_nearby_request("周边有什么推荐？")

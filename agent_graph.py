@@ -573,6 +573,23 @@ def _is_onboarding_read_only_question(text: str) -> bool:
     )
 
 
+def _welcome_onboarding_active(state: AgentState) -> bool:
+    """Recognize a persisted fresh welcome at graph routing boundaries."""
+    status = (state.get("visitor_welcome_program") or {}).get("status")
+    if status in {"awaiting_ready", "awaiting_language", "awaiting_mode"}:
+        return True
+    # Some checkpointer merges expose the prior public welcome message before
+    # its sibling program field at the next conditional edge.  That is still a
+    # fresh onboarding turn, provided no later route/profile control exists.
+    if state.get("tour_state") or state.get("journey_mode_selection") or state.get("profile_collection"):
+        return False
+    return any(
+        isinstance(message, AIMessage)
+        and (message.additional_kwargs or {}).get("public_scene_kind") == "welcome"
+        for message in state.get("messages", [])
+    )
+
+
 def _effective_control_text(state: AgentState) -> str:
     """Return a bounded canonical control phrase, otherwise the raw message.
 
@@ -893,6 +910,35 @@ def semantic_normalization_node(state: AgentState) -> dict[str, Any]:
     started = time.perf_counter()
     raw_text = _latest_user_text(state)
     role_shadow = _role_mode_shadow_update(state, raw_text)
+    # The welcome program owns its language/mode/profile answers.  In
+    # particular, a bare “中文” is a valid answer to the first prompt, not an
+    # ambiguous utterance that should wait for the optional semantic model.
+    # Keep this before every semantic recognizer path so an unavailable model
+    # cannot turn onboarding (or a complete first route command) into the
+    # demo adapter's generic service error.  ``visitor_onboarding_node`` still
+    # performs all profile parsing and the normal route entry continues to
+    # ``route_initial_request`` -> C2 -> ``direct_route``.
+    if _welcome_onboarding_active(state):
+        envelope = build_intent_envelope(
+            raw_text, _deterministic_intent_values(state, raw_text),
+            model_called=False,
+        )
+        arbitration = arbitrate_intents(envelope, state)
+        return {
+            **role_shadow,
+            "semantic_candidate": None,
+            "semantic_arrival_audit": None,
+            "semantic_control_text": None,
+            "semantic_fact_kind": None,
+            "knowledge_query_plan": None,
+            "semantic_intent_envelope": envelope.to_dict(),
+            "intent_arbitration": arbitration.to_dict(),
+            "performance_metrics": _append_metric(
+                state, "semantic_normalization", time.perf_counter() - started,
+                status="not_needed", reason="visitor_onboarding",
+                model_called=False,
+            ),
+        }
     deterministic_knowledge_plan = identify_controlled_knowledge_plan(raw_text)
     pre_semantic = resolve_pre_semantic_action(state, raw_text)
     if pre_semantic.consumed:
@@ -2098,7 +2144,13 @@ def visitor_onboarding_node(state: AgentState) -> dict[str, Any]:
     if not route_ready:
         updates["messages"] = [AIMessage(
             content=message,
-            additional_kwargs={"visitor_onboarding_prompt": True},
+            additional_kwargs={
+                "visitor_onboarding_prompt": True,
+                # Startup prompts are completed public replies.  Marking them
+                # here keeps the public adapter from treating a legitimate
+                # language/mode follow-up as an empty graph response.
+                "public_scene_kind": "assistant",
+            },
         )]
     return updates
 
@@ -2123,7 +2175,11 @@ def visitor_onboarding_resume_node(state: AgentState) -> dict[str, Any]:
     return {
         "messages": [AIMessage(
             content=prompt,
-            additional_kwargs={prompt_kind: True, "resumed_after_qa": True},
+            additional_kwargs={
+                prompt_kind: True,
+                "resumed_after_qa": True,
+                "public_scene_kind": "assistant",
+            },
         )],
         "performance_metrics": _append_metric(
             state, "visitor_onboarding_resume", 0.0,
@@ -5040,10 +5096,9 @@ def route_initial_request(state: AgentState) -> str:
     # role-only control can terminate the turn.  Once onboarding is complete,
     # the existing role confirmation path remains authoritative and cannot
     # restart or mutate an active route.
-    onboarding_status = (state.get("visitor_welcome_program") or {}).get("status")
     onboarding_profile_control = parse_extended_profile_control(raw_text)
     if (
-        onboarding_status in {"awaiting_ready", "awaiting_language", "awaiting_mode"}
+        _welcome_onboarding_active(state)
         and not _is_onboarding_read_only_question(raw_text)
     ):
         if onboarding_profile_control.kind != "none":
@@ -5400,6 +5455,24 @@ def route_initial_request(state: AgentState) -> str:
     return "llm_think"
 
 
+def route_after_semantic_normalization(state: AgentState) -> str:
+    """Keep onboarding answers out of the generic LLM branch.
+
+    This graph-level guard mirrors the existing ``route_initial_request``
+    priority.  It is intentionally located at the conditional edge because a
+    checkpointed public turn merges the welcome state and current message at
+    that boundary.  Language/mode answers must therefore reach the owned
+    onboarding collector even if intent-arbitration has no candidate.
+    """
+    raw_text = _latest_human_text(state)
+    if (
+        _welcome_onboarding_active(state)
+        and not _is_onboarding_read_only_question(raw_text)
+    ):
+        return "visitor_onboarding"
+    return route_initial_request(state)
+
+
 def route_after_profile_collection(state: AgentState) -> str:
     """Start a route only after C2 has produced a complete validated profile."""
     collection = state.get("profile_collection") or {}
@@ -5516,8 +5589,16 @@ def route_after_visit_summary(state: AgentState) -> str:
 
 
 def route_after_visitor_welcome(state: AgentState) -> str:
-    """Continue only when the bootstrap invocation also carries user input."""
-    return "semantic_normalization" if _latest_human_text(state) else END
+    """Route welcome answers directly to their owned deterministic collector."""
+    raw_text = _latest_human_text(state)
+    if not raw_text:
+        return END
+    if (
+        _welcome_onboarding_active(state)
+        and not _is_onboarding_read_only_question(raw_text)
+    ):
+        return "visitor_onboarding"
+    return "semantic_normalization"
 
 
 def route_after_visitor_onboarding(state: AgentState) -> str:
@@ -5617,11 +5698,15 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_edge("runtime_contract_audit", "visitor_welcome")
     workflow.add_conditional_edges(
         "visitor_welcome", route_after_visitor_welcome,
-        {"semantic_normalization": "semantic_normalization", END: END},
+        {
+            "visitor_onboarding": "visitor_onboarding",
+            "semantic_normalization": "semantic_normalization",
+            END: END,
+        },
     )
     workflow.add_conditional_edges(
         "semantic_normalization",
-        route_initial_request,
+        route_after_semantic_normalization,
         {
             "direct_rag": "direct_rag", "controlled_knowledge_rollout": "controlled_knowledge_rollout", "tour_qa": "tour_qa", "qa_follow_up_detail": "qa_follow_up_detail", "direct_route": "direct_route", "visitor_onboarding": "visitor_onboarding", "journey_mode_selection": "journey_mode_selection", "inactive_tour_end": "inactive_tour_end", "tour_opening": "tour_opening", "visit_summary": "visit_summary", "post_visit_title_blessing": "post_visit_title_blessing", "profile_collection": "profile_collection", "profile_update": "profile_update", "extended_profile_control": "extended_profile_control", "role_mode_confirmation": "role_mode_confirmation", "tour_event": "tour_event",
             "narration_continuation_control": "narration_continuation_control", "clarification": "clarification", "prepare_replan": "prepare_replan", "prepare_replan_candidate": "prepare_replan_candidate", "prepare_duration_replan": "prepare_duration_replan",
