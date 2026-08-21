@@ -262,6 +262,8 @@ class PublicTourSummary:
     total_count: int = 0
     remaining_count: int = 0
     stops: tuple["PublicTourStop", ...] = ()
+    is_finished: bool = False
+    finished_early: bool = False
 
 
 @dataclass(frozen=True)
@@ -3425,6 +3427,10 @@ def role_narration_generation_node(state: AgentState) -> dict[str, Any]:
     rollout = rollout_from_environment()
     budget_decision = None
     continuation = None
+    first_arrival_fast_path = bool(
+        (state.get("last_tour_event") or {}).get("event") == "arrive_at_stop"
+        and (state.get("last_tour_opening_action") or {}).get("trigger") == "first_arrival"
+    )
     if plan is None or plan.status != "ready":
         candidate = {
             "schema_version": "role_narration_candidate_v1",
@@ -3437,6 +3443,17 @@ def role_narration_generation_node(state: AgentState) -> dict[str, Any]:
         candidate = {
             "schema_version": "role_narration_candidate_v1",
             "generation_status": "rejected", "reason_code": "role_mode_clarification",
+            "style_id": plan.style_id, "public_text": "", "used_fact_ids": [],
+            "omitted_fact_ids": [], "self_check": {}, "model_called": False,
+            "latency_ms": 0,
+        }
+    elif first_arrival_fast_path:
+        # First arrival already performs the route opening and reviewed RAG
+        # assembly in one turn.  Publish that deterministic, style-compatible
+        # narration immediately instead of adding a second remote rewrite.
+        candidate = {
+            "schema_version": "role_narration_candidate_v1",
+            "generation_status": "rejected", "reason_code": "first_arrival_fast_path",
             "style_id": plan.style_id, "public_text": "", "used_fact_ids": [],
             "omitted_fact_ids": [], "self_check": {}, "model_called": False,
             "latency_ms": 0,
@@ -4537,6 +4554,15 @@ def _next_tour_question_log(
     tour = state.get("tour_state") or {}
     if tour.get("route_status") not in {"not_started", "touring", "replanning"}:
         return None
+    # UI controls can pass through QA/detail nodes to reuse presentation
+    # machinery, but they are navigation actions rather than visitor
+    # questions and must not inflate the post-visit interaction count.
+    normalized_text = _latest_user_text(state).strip(" ，。！？!?\t\r\n")
+    if normalized_text in {
+        "我到了", "到了", "再讲详细一点", "再详细一点", "讲详细一点",
+        "拍照提示", "完成本点", "结束游览", "结束导览", "结束路线",
+    }:
+        return list(state.get("tour_question_log") or [])
     history = list(state.get("tour_question_log") or [])
     history.append({
         "sequence": len(history) + 1,
@@ -5514,12 +5540,19 @@ def route_initial_request(state: AgentState) -> str:
         not state.get("pending_ornament_clarification")
         and (is_qa_follow_up_detail_request(raw_text) or is_qa_subject_follow_up_request(raw_text))
     ):
+        previous_kind = _last_assistant_response_kind(state)
+        if (
+            raw_text.strip(" ，。！？!?\t\r\n") in {"再讲详细一点", "再详细一点", "讲详细一点"}
+            and (state.get("tour_state") or {}).get("current_stop_id")
+            and (state.get("tour_state") or {}).get("route_status") == "touring"
+            and previous_kind == "stop_guidance"
+        ):
+            return "tour_event"
         # A craft named in this turn is a complete question, not an omitted
         # subject that depends on the previous QA response.  This keeps
         # “请详细讲讲灰塑” usable before any route has started.
         if any(craft in raw_text for craft in CRAFT_TERMS):
             return "tour_qa"
-        previous_kind = _last_assistant_response_kind(state)
         if previous_kind == "tour_qa":
             return "qa_follow_up_detail"
         if previous_kind not in {"stop_guidance"}:
@@ -5993,6 +6026,8 @@ def _public_tour_summary(result: dict[str, Any]) -> PublicTourSummary:
     visited = list(tour.get("visited_stop_ids") or [])
     remaining = list(tour.get("remaining_stop_ids") or [])
     current = tour.get("current_stop_id")
+    is_finished = tour.get("route_status") == "completed"
+    finished_early = is_finished and tour.get("completion_reason") == "visitor_finished_early"
     total = len(visited) + len(remaining)
     if current and current not in visited and current not in remaining:
         total += 1
@@ -6013,6 +6048,8 @@ def _public_tour_summary(result: dict[str, Any]) -> PublicTourSummary:
         total_count=total,
         remaining_count=len(remaining),
         stops=stops,
+        is_finished=is_finished,
+        finished_early=finished_early,
     )
 
 

@@ -444,6 +444,22 @@ def _unlocked_crafts(messages: list[dict[str, object]]) -> tuple[str, ...]:
     return tuple(craft for craft in craft_names if craft in eligible_text)
 
 
+def _is_genuine_visitor_question(item: dict[str, object]) -> bool:
+    """Exclude route setup and button-like controls from interaction totals."""
+    if item.get("role") != "user":
+        return False
+    text = str(item.get("content") or "").strip(" ，。！？!?\t\r\n")
+    if not text:
+        return False
+    if text in {
+        *QUICK_ACTIONS,
+        "到了", "结束游览", "结束导览", "结束路线",
+        "查看游览地图", "生成纪念卡", "查看纪念卡", "附近美食推荐",
+    }:
+        return False
+    return not bool(re.search(r"(?:经典模式|定制模式).{0,40}\d+分钟", text))
+
+
 def _tour_summary_card_markup(itinerary, messages: list[dict[str, object]]) -> str:
     """Build one visitor-safe completion card from public presentation data."""
     closing_text = "\n".join(
@@ -459,13 +475,7 @@ def _tour_summary_card_markup(itinerary, messages: list[dict[str, object]]) -> s
         "赤壁之战", "风尘三侠", "郭子仪祝寿", "麒麟", "鳌鱼",
     )
     highlights = tuple(name for name in highlight_candidates if name in closing_text)[:6]
-    question_count = sum(
-        1
-        for item in messages
-        if item.get("role") == "user"
-        and str(item.get("content") or "").strip() not in QUICK_ACTIONS
-        and not re.search(r"(?:经典模式|定制模式).{0,40}\d+分钟", str(item.get("content") or ""))
-    )
+    question_count = sum(_is_genuine_visitor_question(item) for item in messages)
     route = "".join(
         f"<span class='summary-route-stop'>✓ {escape(stop.name)}</span>"
         for stop in itinerary.stops
@@ -494,6 +504,19 @@ def _tour_summary_card_markup(itinerary, messages: list[dict[str, object]]) -> s
         f"<div class='summary-section'><b>工艺成就</b><div class='summary-badges'>{craft_badges}</div></div>"
         f"<div class='summary-section'><b>今日看点</b><div class='summary-badges'>{highlight_badges}</div></div>"
         "<div class='summary-wish'>愿你今日看到的岭南繁花，归去之后仍可慢慢回味。</div>"
+        "</section>"
+    )
+
+
+def _tour_end_record_markup(itinerary, *, finished_early: bool) -> str:
+    """Build the compact on-page record shown for every finished tour."""
+    visited = tuple(stop.name for stop in itinerary.stops if stop.status == "completed")
+    route_text = " · ".join(visited) if visited else "尚未确认完成点位"
+    heading = "本次导览已提前结束" if finished_early else "本次导览圆满完成"
+    return (
+        "<section class='tour-end-record'>"
+        f"<div><b>{heading}</b><span>已参观 {itinerary.completed_count} 个讲解点</span></div>"
+        f"<p>路线记录：{escape(route_text)}</p>"
         "</section>"
     )
 
@@ -543,16 +566,35 @@ def _render_chat_message(item: dict[str, object]) -> None:
     """Render a visitor-safe WeChat-style message bubble without raw model HTML."""
     role = str(item.get("role") or "assistant")
     is_visitor = role == "user"
+    scene_kind = str(item.get("scene_kind") or "")
     raw_content = str(item.get("content") or "").strip()
-    compact_content = raw_content if is_visitor else re.sub(r"\n[ \t]*\n+", "\n", raw_content)
-    escaped_content = escape(compact_content)
     if is_visitor:
-        content = escaped_content.replace("\n", "<br>")
+        content = escape(raw_content).replace("\n", "<br>")
     else:
+        blocks = [
+            block.strip()
+            for block in re.split(r"\n\s*\n+", raw_content)
+            if block.strip()
+        ]
+        # Stop narration often arrives as one sentence per line. Present it
+        # like a human guide instead of making each sentence a new paragraph.
+        if scene_kind in {"stop_guidance", "qa_follow_up_detail"}:
+            lines = [line.strip() for line in raw_content.splitlines() if line.strip()]
+            blocks = []
+            current: list[str] = []
+            current_length = 0
+            for line in lines:
+                if current and (len(current) >= 4 or current_length + len(line) > 240):
+                    blocks.append("".join(current))
+                    current = []
+                    current_length = 0
+                current.append(line)
+                current_length += len(line)
+            if current:
+                blocks.append("".join(current))
         content = "".join(
-            f"<span class='chat-paragraph'>{line}</span>"
-            for line in escaped_content.splitlines()
-            if line.strip()
+            f"<span class='chat-paragraph'>{escape(block).replace(chr(10), '<br>')}</span>"
+            for block in blocks
         )
     # Public answers allow exactly one reviewed external destination.  It is
     # escaped before this replacement, and the URL constant is not model
@@ -563,7 +605,6 @@ def _render_chat_message(item: dict[str, object]) -> None:
         official_url,
         f'<a href="{official_url}" target="_blank" rel="noopener noreferrer">{official_url}</a>',
     )
-    scene_kind = str(item.get("scene_kind") or "")
     scene_label = SCENE_LABELS.get(scene_kind, "") if not is_visitor else ""
     service_text = str(item.get("service_text") or "")
     avatar = "游" if is_visitor else "祠"
@@ -779,6 +820,7 @@ def main() -> None:
     .wechat-row {display:flex;align-items:flex-start;gap:.55rem;margin:.7rem 0;}.wechat-row.visitor {justify-content:flex-end;}.wechat-avatar {flex:0 0 2.3rem;height:2.3rem;border-radius:.65rem;display:grid;place-items:center;font-weight:700;color:#fff;background:linear-gradient(145deg,#a86d2d,#6f351d);border:1px solid rgba(240,198,105,.5);box-shadow:0 4px 14px rgba(0,0,0,.26);}.wechat-row.visitor .wechat-avatar {background:linear-gradient(145deg,#4f9d37,#267522);border-color:rgba(182,240,139,.7);}.wechat-bubble {max-width:min(88%,940px);padding:.62rem .82rem;border-radius:4px 14px 14px 14px;background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.72);box-shadow:0 7px 20px rgba(0,0,0,.18);font-size:.95rem;line-height:1.55;color:#172630;}.wechat-row.visitor .wechat-bubble {border-radius:14px 4px 14px 14px;background:#95ec69;border-color:#79d852;color:#172314;}.wechat-speaker {font-size:.74rem;color:#8a6a45;margin-bottom:.18rem;}.wechat-row.visitor .wechat-speaker {color:#376328;}.wechat-service {margin-top:.42rem;padding-top:.35rem;border-top:1px solid rgba(156,116,65,.25);color:#765231;font-size:.82rem;}.wechat-row.visitor .wechat-service {border-color:rgba(47,116,31,.22);color:#315d27;}
     .chat-paragraph {display:block;text-indent:2em;margin:.12rem 0;}
     .tour-summary-card {position:relative;width:min(88%,940px);box-sizing:border-box;margin:1rem auto;padding:1.15rem 1.3rem 1rem;overflow:hidden;border:1px solid rgba(232,191,94,.82);border-radius:5px 22px 5px 22px;background:linear-gradient(135deg,rgba(72,28,22,.97),rgba(12,61,64,.96));color:#fff4d6;box-shadow:0 16px 38px rgba(0,0,0,.34),inset 0 0 0 3px rgba(255,255,255,.035);}
+    .tour-end-record {width:min(72%,760px);box-sizing:border-box;margin:.45rem auto .65rem;padding:.72rem .9rem;border:1px solid rgba(232,191,94,.68);border-radius:4px 16px 4px 16px;background:linear-gradient(135deg,rgba(72,28,22,.92),rgba(12,61,64,.92));color:#f7ecd0;box-shadow:0 9px 24px rgba(0,0,0,.24);}.tour-end-record>div {display:flex;align-items:center;justify-content:space-between;gap:1rem;}.tour-end-record b {color:#efca76;font-size:.92rem;}.tour-end-record span,.tour-end-record p {color:#cbdad6;font-size:.72rem;}.tour-end-record p {margin:.35rem 0 0;padding-top:.35rem;border-top:1px solid rgba(232,191,94,.2);}
     .tour-summary-card:before {content:'';position:absolute;inset:9px;border:1px solid rgba(232,191,94,.2);border-radius:3px 15px 3px 15px;pointer-events:none;}.summary-seal {position:absolute;right:1.15rem;top:1rem;width:2.65rem;height:2.65rem;border:2px solid #e1b65e;border-radius:50%;display:grid;place-items:center;color:#f1ca75;font-size:.72rem;font-weight:700;transform:rotate(8deg);}.summary-kicker {color:#e7c476;font-size:.78rem;letter-spacing:.16em;text-align:center;}.tour-summary-card h2 {margin:.22rem 3rem .08rem;text-align:center;color:#fff5d8;font-family:'STKaiti','KaiTi','Microsoft YaHei',sans-serif;font-size:1.48rem;letter-spacing:.08em;}.summary-date {text-align:center;color:#e7c476;font-size:.68rem;}.summary-disclaimer {text-align:center;color:#b9ccca;font-size:.68rem;}.summary-stats {display:grid;grid-template-columns:repeat(4,1fr);gap:.45rem;margin:.7rem 0;}.summary-stats div {display:flex;flex-direction:column;align-items:center;padding:.5rem .25rem;border:1px solid rgba(225,183,90,.28);background:rgba(3,25,29,.32);}.summary-stats strong {color:#f1c66e;font-size:1.25rem;line-height:1.1;}.summary-stats span {margin-top:.2rem;color:#c8d8d5;font-size:.69rem;}.summary-section {margin-top:.52rem;}.summary-section>b {display:block;margin-bottom:.28rem;color:#efcc83;font-size:.76rem;}.summary-route,.summary-badges {display:flex;flex-wrap:wrap;gap:.32rem;}.summary-route-stop,.summary-badge {padding:.25rem .48rem;border:1px solid rgba(76,201,208,.32);border-radius:999px;background:rgba(4,30,34,.36);color:#d9e6e3;font-size:.7rem;}.summary-badge.unlocked {border-color:rgba(230,186,89,.48);color:#f2d591;}.summary-empty {color:#9eb4b2;font-size:.7rem;}.summary-wish {position:absolute;left:1rem;right:1rem;bottom:.55rem;padding-top:.38rem;border-top:1px solid rgba(231,190,96,.25);text-align:center;color:#e7d7b4;font-size:.72rem;}[data-testid='stDialog'] .tour-summary-card {width:100%;aspect-ratio:16/9;margin:.1rem auto .55rem;padding:.9rem 1rem 2.2rem;}div[role='dialog'] {width:min(720px,calc(100vw - 2rem)) !important;max-width:720px !important;background:linear-gradient(135deg,rgba(66,27,21,.99),rgba(7,55,58,.99)) !important;border:1px solid rgba(232,191,94,.82) !important;border-radius:6px 22px 6px 22px !important;box-shadow:0 22px 60px rgba(0,0,0,.52),inset 0 0 0 3px rgba(255,255,255,.035) !important;color:#fff4d6 !important;}
     div[role='dialog']>div,div[role='dialog'] [data-testid='stDialog'] {background:transparent !important;}
     div[role='dialog'] h1,div[role='dialog'] h2,div[role='dialog'] h3,div[role='dialog'] strong,div[role='dialog'] p,div[role='dialog'] label {color:#fff1cf !important;}
@@ -840,12 +882,16 @@ def main() -> None:
         _start_session(adapter)
     itinerary = st.session_state.itinerary
     _render_progress_panel(itinerary, st.session_state.messages)
-    tour_completed = bool(
-        itinerary.total_count
-        and itinerary.completed_count >= itinerary.total_count
-        and itinerary.remaining_count == 0
-    )
-    if not tour_completed:
+    tour_finished = bool(getattr(itinerary, "is_finished", False))
+    finished_early = bool(getattr(itinerary, "finished_early", False))
+    # Compatibility with adapters created before the explicit completion flag.
+    if not tour_finished:
+        tour_finished = bool(
+            itinerary.total_count
+            and itinerary.completed_count >= itinerary.total_count
+            and itinerary.remaining_count == 0
+        )
+    if not tour_finished:
         st.session_state.tour_card_generated = False
         st.session_state.souvenir_show_map = False
 
@@ -861,32 +907,45 @@ def main() -> None:
                 or "最后一站已确认完成" in item_text
                 or "本次导览已结束" in item_text
             )
-            if tour_completed and is_closing_item:
+            if tour_finished and is_closing_item:
                 if not closing_ack_rendered:
                     _render_chat_message(
                         {
                             "role": "assistant",
                             "scene_kind": "tour_closing",
-                            "content": "最后一站已确认完成，本次导览已结束。",
+                            "content": (
+                                "本次导览已提前结束，已为您保留实际参观记录。"
+                                if finished_early
+                                else "最后一站已确认完成，本次导览已结束。"
+                            ),
                         }
                     )
                     closing_ack_rendered = True
                 continue
             _render_chat_message(item)
-        if tour_completed and not closing_ack_rendered:
+        if tour_finished and not closing_ack_rendered:
             _render_chat_message(
                 {
                     "role": "assistant",
                     "scene_kind": "tour_closing",
-                    "content": "最后一站已确认完成，本次导览已结束。",
+                    "content": (
+                        "本次导览已提前结束，已为您保留实际参观记录。"
+                        if finished_early
+                        else "最后一站已确认完成，本次导览已结束。"
+                    ),
                 }
             )
+    if tour_finished:
+        st.markdown(
+            _tour_end_record_markup(itinerary, finished_early=finished_early),
+            unsafe_allow_html=True,
+        )
     st.caption(
         "本次导览已完成，您仍可以继续询问陈家祠或周边游玩问题。"
-        if tour_completed else "您可以直接提问，或使用快捷指令推进导览。"
+        if tour_finished else "您可以直接提问，或使用快捷指令推进导览。"
     )
-    columns = st.columns(3 if tour_completed else len(QUICK_ACTIONS))
-    if tour_completed:
+    columns = st.columns(3 if tour_finished else len(QUICK_ACTIONS))
+    if tour_finished:
         if columns[0].button("查看游览地图", use_container_width=True, key="closing_map"):
             _show_tour_map()
         card_button_label = (
@@ -918,7 +977,7 @@ def main() -> None:
     with st.container(key="inline_chat_input"):
         input_hint = (
             "游览结束了，还可以继续问我陈家祠或附近游玩问题"
-            if tour_completed else "例如：这里最值得看什么？"
+            if tour_finished else "例如：这里最值得看什么？"
         )
         if prompt := st.chat_input(input_hint, max_chars=200):
             _send(adapter, prompt)

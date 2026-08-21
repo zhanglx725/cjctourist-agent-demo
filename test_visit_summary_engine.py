@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import unittest
 
+from langchain_core.messages import HumanMessage
+
 from agent_graph import _next_tour_question_log, route_after_tour_event, visit_summary_node
 from narration_coverage import IntroductionRecord, commit_introductions, empty_narration_coverage
 from route_planner import plan_template
@@ -24,6 +26,15 @@ class VisitSummaryEngineTests(unittest.TestCase):
             {"tour_state": tour, "tour_question_log": first}, "qa_follow_up_detail"
         )
         self.assertEqual([item["sequence"] for item in second], [1, 2])
+
+    def test_shortcut_detail_is_not_counted_as_a_visitor_question(self):
+        tour = start_tour(plan_template("highlights_30"))
+        state = {
+            "messages": [HumanMessage(content="再讲详细一点")],
+            "tour_state": tour,
+            "tour_question_log": [],
+        }
+        self.assertEqual(_next_tour_question_log(state, "qa_follow_up_detail"), [])
 
     def test_requires_completed_tour(self):
         with self.assertRaises(VisitSummaryError):

@@ -71,6 +71,21 @@ class DemoPublicAdapterTests(unittest.TestCase):
         self.assertEqual([stop.status for stop in summary.stops], ["completed", "current", "upcoming"])
         self.assertTrue(all("_" not in stop.name for stop in summary.stops))
 
+    def test_public_summary_exposes_early_finish_for_frontend_completion_ui(self):
+        summary = _public_tour_summary({
+            "tour_state": {
+                "visited_stop_ids": ["p1_01_qianyuan"],
+                "current_stop_id": "p1_02_zhongting",
+                "remaining_stop_ids": ["p1_02_zhongting", "p1_03_juxiantang"],
+                "route_status": "completed",
+                "completion_reason": "visitor_finished_early",
+            },
+        })
+        self.assertTrue(summary.is_finished)
+        self.assertTrue(summary.finished_early)
+        self.assertEqual(summary.completed_count, 1)
+        self.assertEqual(summary.remaining_count, 2)
+
     def test_reset_creates_an_isolated_thread_and_allows_fresh_display(self):
         message = PublicMessage("same-id", "stop_guidance", "讲解正文", False)
         adapter = DemoAdapter(
