@@ -16,7 +16,7 @@ import streamlit as st
 ROOT = Path(__file__).resolve().parents[1]
 BACKGROUND_IMAGE = Path(__file__).resolve().parent / "assets" / "chen-clan-heritage-tech-bg-v2.png"
 PHOTO_POSE_GRID_DIR = Path(__file__).resolve().parent / "assets" / "photo_pose_grids"
-MAP_IMAGE = ROOT / "outputs" / "spatial_network_review_v1.png"
+MAP_IMAGE = ROOT / "outputs" / "visitor_point_map_v1.png"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -585,9 +585,9 @@ def _render_chat_message(item: dict[str, object]) -> None:
 
 @st.dialog("陈家祠导览地图", width="large")
 def _show_tour_map() -> None:
-    """Show the reviewed spatial network without changing tour state."""
+    """Show the simplified visitor point map without changing tour state."""
     st.image(MAP_IMAGE, use_container_width=True)
-    st.caption("蓝色为讲解点，橙色为空间节点，红线为双向通行边。")
+    st.caption("简图用于辅助辨认主要点位；现场通行与开放情况请以馆方指引为准。")
 
 
 @st.dialog("拍照提示", width="large")
@@ -632,7 +632,7 @@ def _show_souvenir_card(itinerary, messages: list[dict[str, object]]) -> None:
     )
     if st.session_state.get("souvenir_show_map", False):
         st.image(MAP_IMAGE, use_container_width=True)
-        st.caption("本次游览地图 · 蓝色为讲解点，橙色为空间节点。")
+        st.caption("本次游览点位简图 · 现场通行与开放情况请以馆方指引为准。")
     actions = st.columns(3)
     actions[0].download_button(
         "下载纪念卡",
