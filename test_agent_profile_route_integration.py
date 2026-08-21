@@ -16,7 +16,6 @@ from agent_graph import (
     tour_event_node,
 )
 from guide_program_planner import plan_stop_program
-from narration_style_policy import compile_style_brief
 from role_mode_shadow import ROLE_MODE_IDS
 from route_planner import plan_template
 from tour_state import start_tour
@@ -76,9 +75,12 @@ class AgentProfileRouteIntegrationTests(unittest.TestCase):
             len([message for message in result["messages"] if isinstance(message, AIMessage)]),
             1,
         )
-        self.assertIn("已采用“中性清晰”讲解角色", answer)
         self.assertIn("为您推荐“", answer)
-        self.assertIn("讲解停留顺序", answer)
+        self.assertNotIn("为什么选择这条路线", answer)
+        self.assertIn("沿途可以重点看到", answer)
+        self.assertIn("游览后", answer)
+        self.assertIn("路线主线", answer)
+        self.assertNotIn("偏好看点", answer)
         self.assertNotEqual(
             answer,
             "已确认使用“中性清晰”讲解角色。后续讲解将使用这一角色，当前路线和进度保持不变。",
@@ -100,7 +102,7 @@ class AgentProfileRouteIntegrationTests(unittest.TestCase):
         self.assertTrue(arrival["last_tour_event"]["ok"])
         self.assertEqual(arrival["last_tour_event"]["event"], "arrive_at_stop")
 
-    def test_all_reviewed_roles_are_confirmed_inside_successful_route_text(self):
+    def test_all_reviewed_roles_are_kept_in_state_without_internal_confirmation_text(self):
         self.assertEqual(len(ROLE_MODE_IDS), 18)
         for style_id in sorted(ROLE_MODE_IDS):
             with self.subTest(style_id=style_id):
@@ -115,11 +117,11 @@ class AgentProfileRouteIntegrationTests(unittest.TestCase):
                     "生成路线",
                     {"visitor_profile": profile.to_dict()},
                 ))
-                self.assertIn(
-                    f"已采用“{compile_style_brief(style_id).display_name}”讲解角色",
-                    route["messages"][0].content,
-                )
-                self.assertIn("为您推荐“", route["messages"][0].content)
+                route_text = route["messages"][0].content
+                self.assertNotIn("讲解角色", route_text)
+                self.assertNotIn("为什么选择这条路线", route_text)
+                self.assertIn("沿途可以重点看到", route_text)
+                self.assertIn("路线主线", route_text)
                 self.assertEqual(route["tour_state"]["route_status"], "not_started")
 
     def test_english_minute_route_input_starts_same_thirty_minute_route(self):

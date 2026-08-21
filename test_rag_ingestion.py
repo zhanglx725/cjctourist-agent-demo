@@ -42,6 +42,28 @@ class KnowledgeIngestionTests(unittest.TestCase):
         )
         self.assertEqual(history.source_ids, ("S02", "S04"))
 
+    def test_people_sections_are_ingested_with_section_sources(self):
+        people = next(
+            chunk
+            for chunk in self.chunks
+            if chunk.document == "10_people_builders_craftspeople.md"
+            and chunk.title_path[-1] == "二、文物保护、研究与工艺传承人物"
+        )
+        self.assertEqual(people.category, "history_architecture")
+        self.assertEqual(people.source_ids, ("S13", "S15", "S16", "S17"))
+
+    def test_conservation_sections_distinguish_precise_evidence_sources(self):
+        conservation = next(
+            chunk
+            for chunk in self.chunks
+            if chunk.document == "11_architectural_conservation.md"
+            and chunk.title_path[-1] == "五、陶塑、石雕、砖雕和彩绘：已有巡查，专项病害资料不足"
+        )
+        self.assertEqual(conservation.category, "history_architecture")
+        self.assertEqual(conservation.source_ids, ("S19",))
+        self.assertIn("本轮检索没有找到公开的陈家祠专项报告", conservation.content)
+        self.assertIn("不得将其他地区彩画修复原则直接写成陈家祠工程事实", conservation.content)
+
 
 if __name__ == "__main__":
     unittest.main()

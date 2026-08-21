@@ -26,6 +26,13 @@ DOCUMENT_SOURCES = {
     "07_ornament_crafts.md": ("S10",),
     "08_ornament_items.md": ("S11",),
     "09_ornament_locations.md": ("S11",),
+    "10_people_builders_craftspeople.md": (
+        "S02", "S10", "S11", "S12", "S13", "S14", "S15", "S16", "S17", "S18",
+    ),
+    "11_architectural_conservation.md": (
+        "S09", "S13", "S15", "S16", "S17", "S19", "S20", "S21", "S22", "S23",
+        "S24", "S25", "S26", "S27", "S28", "S29",
+    ),
 }
 
 # Most documents have one source family.  The history document deliberately mixes
@@ -40,6 +47,22 @@ SECTION_SOURCES = {
         "文物保护与科技应用": ("S09",),
         "文化解释": ("S02",),
     },
+    "10_people_builders_craftspeople.md": {
+        "一、可用于普通导览的人物与群体": ("S02", "S12", "S14"),
+        "二、文物保护、研究与工艺传承人物": ("S13", "S15", "S16", "S17"),
+        "三、陶塑商号：可讲作营造组织，不等同于个人工匠": ("S10", "S11", "S14"),
+        "四、博物馆藏品建设相关人物": ("S18",),
+    },
+    "11_architectural_conservation.md": {
+        "一、保护原则在陈家祠中的可核验实践": ("S13", "S16", "S27"),
+        "二、灰塑：现有证据最充分的专项保护材料": ("S13", "S16", "S17", "S22", "S23", "S26"),
+        "三、木构件、木雕与白蚁保护": ("S09", "S19", "S20", "S28"),
+        "四、青砖墙体、基础和整体结构安全": ("S09", "S15", "S19", "S20", "S24"),
+        "五、陶塑、石雕、砖雕和彩绘：已有巡查，专项病害资料不足": ("S19",),
+        "六、重要保护与修缮时间线": (
+            "S13", "S16", "S17", "S19", "S20", "S21", "S22", "S23", "S24", "S25", "S27", "S29",
+        ),
+    },
 }
 
 DOCUMENT_TYPES = {
@@ -51,6 +74,10 @@ DOCUMENT_TYPES = {
     "07_ornament_crafts.md": "ornament_craft",
     "08_ornament_items.md": "ornament_item",
     "09_ornament_locations.md": "ornament_location",
+    # Reuse the reviewed public taxonomy so controlled history/architecture
+    # queries can retrieve these extensions without opening a new category.
+    "10_people_builders_craftspeople.md": "history_architecture",
+    "11_architectural_conservation.md": "history_architecture",
 }
 
 

@@ -41,7 +41,15 @@ class AgentProfileTests(unittest.TestCase):
         result = direct_route_node(
             {"messages": [HumanMessage(content="我只有半小时，帮我规划路线")], "performance_metrics": []}
         )
-        self.assertIn("讲解停留顺序", result["messages"][0].content)
+        message = result["messages"][0].content
+        self.assertNotIn("为什么选择这条路线", message)
+        self.assertIn("沿途可以重点看到", message)
+        self.assertIn("游览后", message)
+        self.assertIn("路线主线", message)
+        self.assertIn(
+            "提示：时间基于官网地图与已核对路线估算，现场通行、驻足和开放情况请以馆方安排为准。",
+            message,
+        )
         self.assertEqual(result["selected_route_id"], "highlights_30")
 
     def test_non_anchor_duration_uses_dynamic_route_after_a0_review(self):

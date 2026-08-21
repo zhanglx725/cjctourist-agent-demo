@@ -1470,13 +1470,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         route_strategy = plan.route_strategy
         plan_data = plan.to_dict()
         guide_stop_ids = plan.guide_stop_ids
-        explanation_seconds = plan.estimated_explanation_seconds
-        observation_seconds = plan.estimated_observation_seconds
-        interaction_seconds = plan.estimated_interaction_seconds
         total_seconds = plan.estimated_total_seconds
-        walk_seconds = plan.estimated_walk_seconds
-        exit_node_id = plan.exit_node_id
-        exit_return_seconds = plan.estimated_exit_return_seconds
     except (ValueError, RuntimeError) as exc:
         return {
             "messages": [AIMessage(content="暂时无法按当前需求生成路线，请调整时间或兴趣后重试。")],
@@ -1507,58 +1501,56 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         },
     }
     stop_lines = []
+    route_focuses = []
+    route_themes = set()
     for index, node_id in enumerate(guide_stop_ids, start=1):
         card = catalog[node_id]
-        themes = {
+        guide_focus = str(card["guide_focus"]).strip().rstrip("。；;")
+        route_focuses.append(guide_focus)
+        route_themes.update(
             theme.strip()
             for theme in str(card.get("themes") or "").split(";")
             if theme.strip()
-        }
-        interest_focus = [
-            interest for interest in interests if interest in themes
-        ]
-        interest_note = (
-            f"；偏好看点：{'、'.join(interest_focus)}"
-            if interest_focus
-            else ""
-        )
-        depth_note = (
-            "；详细讲解将围绕工艺、构件、题材和可核验证据展开"
-            if profile.detail_level == "deep"
-            else ""
         )
         stop_lines.append(
             f"{index}. {card['stop_name']}（建议停留 "
-            f"{card['recommended_visit_minutes']} 分钟）：{card['guide_focus']}"
-            f"{interest_note}{depth_note}"
+            f"{card['recommended_visit_minutes']} 分钟）：{guide_focus}"
         )
     total_minutes = total_seconds / 60
-    role_confirmation = ""
-    if profile.explanation_style in ROLE_MODE_IDS:
-        role_name = compile_style_brief(profile.explanation_style).display_name
-        role_confirmation = (
-            f"已采用“{role_name}”讲解角色，接下来的路线开场与点位讲解"
-            "将使用这一风格。\n\n"
-        )
+    covered_interests = [interest for interest in interests if interest in route_themes]
+    preference_reason = (
+        f"优先安排了与{'、'.join(covered_interests)}相关的点位"
+        if covered_interests
+        else "兼顾陈家祠的代表性建筑、工艺与题材"
+    )
+    depth_advantage = (
+        "并为重点点位留出更充分的观察和讲解时间"
+        if profile.detail_level == "deep"
+        else "在代表性看点与游览节奏之间保持平衡"
+    )
+    walking_advantage = (
+        "，同时优先采用站间步行较少的可用方案"
+        if profile.route_constraint == "minimize_walking"
+        else ""
+    )
+    representative_focuses = "、".join(route_focuses[:3])
+    learning_gain = (
+        "游览后，您不仅能辨认重点工艺和构件，还能理解它们在建筑空间中的位置、"
+        "题材寓意与可观察的细节依据。"
+        if profile.detail_level == "deep"
+        else "游览后，您将能辨认几类代表性工艺与构件，并建立对陈家祠空间布局和岭南装饰特色的整体认识。"
+    )
     message = (
-        role_confirmation
-        + f"为您推荐“{plan.display_name}”。预计总时长约 {total_minutes:.0f} 分钟"
-        f"（可用时间 {minutes} 分钟）。路线已结合您的时间、兴趣和讲解深度安排。\n\n"
-        "讲解停留顺序：\n"
+        f"为您推荐“{plan.display_name}”，预计约 {total_minutes:.0f} 分钟，共 "
+        f"{len(guide_stop_ids)} 站。\n\n"
+        f"它符合您 {minutes} 分钟的时间安排，{preference_reason}，{depth_advantage}"
+        f"{walking_advantage}。路线按已核对的空间关系衔接，便于顺序跟随，"
+        "并在游览结束后返回前院出口区。"
+        f"沿途可以重点看到{representative_focuses}等内容。{learning_gain}\n\n"
+        "路线主线：\n"
         + "\n".join(stop_lines)
         + "\n\n"
-        f"时间包含讲解 {explanation_seconds // 60} 分钟、"
-        f"观察 {observation_seconds // 60} 分钟、"
-        f"互动 {interaction_seconds // 60} 分钟和步行约 {walk_seconds} 秒。\n"
-        f"结束后将沿已核对路线回到前院出口区，已预留约 {exit_return_seconds} 秒。\n\n"
-        + (
-            "本次采用少走路优先：只在当前时间预算内的可用候选路线中，"
-            "优先选择预计步行时间较低的方案；不代表现场绝对最短或无障碍路线。\n\n"
-            if profile.route_constraint == "minimize_walking"
-            else ""
-        )
-        +
-        "提示：步行时间基于官网地图与已核对路线估算，现场通行、驻足和开放情况请以馆方安排为准。"
+        "提示：时间基于官网地图与已核对路线估算，现场通行、驻足和开放情况请以馆方安排为准。"
         "\n\n"
         + format_next_stop_navigation(next_stop_navigation(tour))
         + "\n\n到达第一站后，我会先自动进行陈家祠总体介绍，再开始本点讲解。"

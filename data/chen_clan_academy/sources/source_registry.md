@@ -15,6 +15,24 @@
 | S09 | 广东民间工艺博物馆文物保护科技资料（2019-12-08，用户提供） | 馆方科普/保护资料 | A | 白蚁监测预警、建筑动态安全监测与历史保护案例 | 历史资料；当前设备和施工状态须实时确认 |
 | S10 | https://www.gzcjc.com.cn/MYwebsite/rc/my_JZZSliebiao.htm | 馆方建筑装饰页面 | A | 陶塑、灰塑、木雕、石雕、砖雕、铜铁铸与彩绘工艺 | 访问/整理于 2026-07-23；用于工艺总览与单件装饰交叉检索 |
 | S11 | https://www.gzcjc.com.cn/MYwebsite/rc/my_CSGSliebiao.htm | 馆方装饰图文页面整理 | A（待逐条页面复核） | 105 条装饰的题材类型、摆放位置及 9 条补充简介 | 用户提供 Word 整理稿；页面整理日期为 2019-11-28；修缮或导览调整以馆方现场说明为准 |
+| S12 | https://difangzhi.cn/qk/qkgl/zgnjyj201901_128964/202102/W020210220556029453591.pdf | 学术期刊论文 | A- | 陈家祠旗杆夹石、陈伯陶、陈昭常、陈振先、陈启辉及清末教育制度转型 | 谢莹，《中国地方志》2020 年第 6 期；具体碑文仍需与现场交叉核验 |
+| S13 | https://www.gzcjc.com.cn/MYwebsite/rc/jyxq.htm?cplx=7891132&id=342e9900&weiz=4 | 馆方转载新闻 | A- | 第八次灰塑保养维护、石浩斌、邵成村、独角狮检测与复原 | 工程持续时间和职务具有时效性；作为历史项目记录使用 |
+| S14 | https://www.gz.gov.cn/zlgz/whgz/content/post_9588471.html | 广州市政府文化文章 | A- | 陶塑商号、陈伯陶与营建背景、陈家祠修缮概述 | 适合公共文化讲解；人物与精确工程细节仍优先采用馆方或论文 |
+| S15 | https://www.amo.gov.hk/filemanager/amo/common/form/2022_AMO_Summit-CN.pdf | 政府文物机构论坛论文集 | A- | 黄海妍、石浩斌及陈家祠科技保护实践 | 论文为阶段性总结；当前监测状态需另行核验 |
+| S16 | https://wglj.gz.gov.cn/gkmlpt/content/9/9782/post_9782400.html | 广州市文物局批复 | A | 2024 年陈家祠局部灰塑修缮项目审批事实 | 批复证明项目与程序，不单独支撑具体施工细节 |
+| S17 | https://www.ihchina.cn/news_1_details/11211.html | 国家非遗平台转载报道 | A- | 邵成村、李继光与 2009 年灰塑维护和传承 | 历史采访；当时职务与成本等信息不得当作当前状态 |
+| S18 | https://www.gzcjc.com.cn/MYwebsite/rc/my_gaik_xq.htm?leixing=a98536&subpath=3&token=35afbd486503488aa1ee1f327d9be0c5 | 馆方概况 | A | 博物馆藏品建设相关捐赠者群体及机构定位 | 仅支持馆方列明的概括，不扩写个人捐赠细节 |
+| S19 | https://www.gzcjc.com.cn/MYwebsite/rc/jyxq.htm?cplx=7891132&id=7f4a4ffa&weiz=4 | 馆方年度保护工作记录 | A | 2020 年前东厢墙体、白蚁、构件巡查和动态监测 | 仅代表 2020 年记录，不作当前病害或设备状态 |
+| S20 | https://wglj.gz.gov.cn/attachment/7/7431/7431192/8617629.pdf | 政府部门决算 | A | 2021 年监测运维交接、设备调整、保护规划和灰塑整理 | 阶段性工作记录 |
+| S21 | https://wglj.gz.gov.cn/attachment/7/7683/7683168/9915545.pdf | 政府部门决算 | A | 2023 年陈家祠复原保护与科技保护展及保护工作概况 | 阶段性工作记录 |
+| S22 | https://wglj.gz.gov.cn/gzdt/zwxx/content/post_10164350.html | 广州市文广旅局月度信息 | A | 2025 年 2 月陈家祠灰塑项目报审进度 | 报审不等于开工或竣工 |
+| S23 | https://wglj.gz.gov.cn/gkmlpt/content/10/10160/post_10160077.html | 广州市文物局转发意见 | A | 2025 年局部灰塑修缮设计方案审批进度 | 意见文件不单独证明实施完成 |
+| S24 | https://www.gzcjc.com.cn/MYwebsite/rc/jyxq.htm?cplx=7891132&id=9e1c7dd3&ty=2&weiz=2 | 馆方采购公告 | A | 2026—2027 年局部三维扫描项目需求 | 采购公告不等于中选、实施或验收 |
+| S25 | https://www.qb.gd.gov.cn/jrqx/content/post_1246013.html | 广东省政府侨务文化文章 | A- | 1958 年、1980 年代保护阶段和复原项目概述 | 适合历史讲解，工程细节优先采用档案和验收报告 |
+| S26 | https://culture.people.com.cn/n1/2020/0422/c1013-31682665.html | 中央媒体馆方采访 | B+ | 灰塑风雨侵蚀、剥落掉色和周期维护的科普说明 | 作为馆方采访辅助证据，不替代工程报告 |
+| S27 | https://www.chinanews.com.cn/cul/2014/08-13/6486419.shtml | 中央媒体项目报道 | B+ | 2014 年屋顶辘筒维护与纸筋砂灰方法 | 历史项目报道，具体配比不得据此指导施工 |
+| S28 | https://www.gdwsw.gov.cn/wsgdxxyt/content/post_36638.html | 广东政协文史平台 | A- | 白蚁监测点数量和预防性保护概述 | 作为历史总结，不代表当前监测点数量 |
+| S29 | https://www.gzlib.org.cn/splendMomt/197564.jhtml | 广州图书馆讲座回顾 | A- | 2010 年旗杆夹石、石狮及基座复原记录 | 二手讲座整理，精确工程信息仍待原始档案复核 |
 
 ## 使用规则
 

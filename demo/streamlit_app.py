@@ -54,7 +54,7 @@ CRAFT_INTERESTS = ["灰塑", "木雕", "石雕", "砖雕", "陶塑", "建筑装�
 DEFAULT_ROUTE_MINUTES = 60
 MIN_ROUTE_MINUTES = 20
 MAX_ROUTE_MINUTES = 120
-QUICK_ACTIONS = ["我到了", "再讲详细一点", "完成本点"]
+QUICK_ACTIONS = ["拍照提示", "我到了", "再讲详细一点", "完成本点"]
 SCENE_LABELS = {
     "route_planning": "路线规划",
     "welcome": "欢迎来到陈家祠",
@@ -561,6 +561,14 @@ def _show_tour_map() -> None:
     st.caption("蓝色为讲解点，橙色为空间节点，红线为双向通行边。")
 
 
+@st.dialog("拍照提示", width="medium")
+def _show_photo_hint_card(text: str) -> None:
+    """Show optional pose guidance outside the main narration flow."""
+    st.markdown(text or "当前点位暂时没有可用的拍照提示。")
+    if st.button("关闭", use_container_width=True, key="close_photo_hint"):
+        st.rerun()
+
+
 @st.dialog("游览纪念卡", width="medium")
 def _show_souvenir_card(itinerary, messages: list[dict[str, object]]) -> None:
     """Preview and download the generated souvenir without mutating tour state."""
@@ -789,7 +797,7 @@ def main() -> None:
         "本次导览已完成，您仍可以继续询问陈家祠或周边游玩问题。"
         if tour_completed else "您可以直接提问，或使用快捷指令推进导览。"
     )
-    columns = st.columns(3)
+    columns = st.columns(3 if tour_completed else len(QUICK_ACTIONS))
     if tour_completed:
         if columns[0].button("查看游览地图", use_container_width=True, key="closing_map"):
             _show_tour_map()
@@ -809,6 +817,14 @@ def main() -> None:
     else:
         for column, action in zip(columns, QUICK_ACTIONS):
             if column.button(action, use_container_width=True):
+                if action == "拍照提示":
+                    with st.spinner("正在准备拍照建议…"):
+                        reply = adapter.send(action)
+                    photo_text = "\n\n".join(
+                        message.text for message in reply.messages if message.text.strip()
+                    )
+                    _show_photo_hint_card(photo_text)
+                    continue
                 _send(adapter, action)
                 st.rerun()
     with st.container(key="inline_chat_input"):
