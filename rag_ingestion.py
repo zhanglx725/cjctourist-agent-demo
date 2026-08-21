@@ -33,6 +33,16 @@ DOCUMENT_SOURCES = {
         "S09", "S13", "S15", "S16", "S17", "S19", "S20", "S21", "S22", "S23",
         "S24", "S25", "S26", "S27", "S28", "S29",
     ),
+    "12_craft_process_and_transmission.md": (
+        "S10", "S13", "S14", "S17", "S30", "S31", "S32", "S33", "S34",
+        "S35", "S36", "S37",
+    ),
+    "13_literary_citation_cards.md": (
+        "S10", "S11", "S38", "S39", "S40", "S41", "S42", "S43",
+    ),
+    "14_students_examinations_and_education.md": (
+        "S02", "S12", "S14", "S44", "S45", "S46", "S47",
+    ),
 }
 
 # Most documents have one source family.  The history document deliberately mixes
@@ -63,6 +73,35 @@ SECTION_SOURCES = {
             "S13", "S16", "S17", "S19", "S20", "S21", "S22", "S23", "S24", "S25", "S27", "S29",
         ),
     },
+    "12_craft_process_and_transmission.md": {
+        "二、灰塑：陈家祠直接证据最完整的工艺": ("S13", "S17", "S30", "S31"),
+        "三、陶塑瓦脊：分件烧制，再运输和安装": ("S14", "S30", "S32", "S36"),
+        "四、木雕：从一比一图样到粗雕、细雕和表面保护": ("S30", "S33", "S35"),
+        "五、砖雕：逐砖雕刻、编号组合与现场收口": ("S30", "S33", "S34"),
+        "六、石雕：先理解构件功能，再看雕刻层次": ("S10", "S30"),
+        "八、当代传承并非只有传统师徒制": ("S17", "S31", "S33", "S34", "S37"),
+    },
+    "13_literary_citation_cards.md": {
+        "二、引用卡 A01：九如图与《诗经·小雅·天保》": ("S11", "S38"),
+        "三、引用卡 A02：古城会与《三国演义》第二十八回": ("S11", "S40", "S41"),
+        "四、引用卡 A03：桃园结义与《三国演义》第一回": ("S11", "S40"),
+        "五、引用卡 A04：三顾茅庐与《三国演义》第三十七、三十八回": ("S11", "S40", "S42"),
+        "六、引用卡 A05：夜游赤壁的来源冲突": ("S11", "S39"),
+        "七、引用卡 B01：郭沫若对陈家祠的题咏": ("S43",),
+        "八、引用卡 B02：罗哲文对陈家祠的评价": ("S43",),
+        "九、引用卡 C01：借《诗经·斯干》形容屋脊": ("S38",),
+        "十、引用卡 C02：借《前赤壁赋》形容安静氛围": ("S39",),
+    },
+    "14_students_examinations_and_education.md": {
+        "一、目前可以确认的早期功能": ("S02", "S44"),
+        "二、《议建陈氏书院章程》：制度设想不等于执行记录": ("S45", "S47"),
+        "三、族谱、倡建名录与捐资资料能证明什么": ("S02", "S45", "S47"),
+        "四、旗杆夹石：四位人物与两种教育制度": ("S12",),
+        "五、人物证据卡 E01：陈伯陶": ("S12", "S14", "S46"),
+        "六、人物证据卡 E02：陈昭常": ("S12",),
+        "七、人物证据卡 E03：陈振先与陈启辉": ("S12",),
+        "九、1905 年前后：功能转换应怎样讲": ("S02",),
+    },
 }
 
 DOCUMENT_TYPES = {
@@ -78,6 +117,9 @@ DOCUMENT_TYPES = {
     # queries can retrieve these extensions without opening a new category.
     "10_people_builders_craftspeople.md": "history_architecture",
     "11_architectural_conservation.md": "history_architecture",
+    "12_craft_process_and_transmission.md": "ornament_craft",
+    "13_literary_citation_cards.md": "literary_citation",
+    "14_students_examinations_and_education.md": "history_architecture",
 }
 
 

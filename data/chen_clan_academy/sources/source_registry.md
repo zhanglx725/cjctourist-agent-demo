@@ -33,6 +33,24 @@
 | S27 | https://www.chinanews.com.cn/cul/2014/08-13/6486419.shtml | 中央媒体项目报道 | B+ | 2014 年屋顶辘筒维护与纸筋砂灰方法 | 历史项目报道，具体配比不得据此指导施工 |
 | S28 | https://www.gdwsw.gov.cn/wsgdxxyt/content/post_36638.html | 广东政协文史平台 | A- | 白蚁监测点数量和预防性保护概述 | 作为历史总结，不代表当前监测点数量 |
 | S29 | https://www.gzlib.org.cn/splendMomt/197564.jhtml | 广州图书馆讲座回顾 | A- | 2010 年旗杆夹石、石狮及基座复原记录 | 二手讲座整理，精确工程信息仍待原始档案复核 |
+| S30 | https://wglj.gz.gov.cn/xxgk/bmwj/ywxx/wwl/content/post_10271377.html | 广州市文物局技术成果公告及附件 | A | 岭南传统建筑砖瓦、木作、石作、彩绘与雕塑的营建修缮通用工艺 | 通用技术依据；附件中的其他建筑案例不得冒充陈家祠工程事实 |
+| S31 | https://www.ihchina.cn/character_detail/8576.html | 中国非物质文化遗产网传承人采访 | A- | 邵成村的灰塑材料、工序、高处现场制作、陈家祠经历与师徒传承 | 人物回忆和历史采访；不得扩写未列出的工程岗位或当前状态 |
+| S32 | https://www.ihchina.cn/Article/Index/detail?id=14263 | 中国非物质文化遗产网项目资料 | A | 石湾陶塑的设计、泥料、塑形、装饰、施釉、烧成与代表性传承人 | 石湾陶塑通用背景，不证明所列传承人参与陈家祠工程 |
+| S33 | https://zfcj.gz.gov.cn/gkmlpt/content/9/9220/post_9220039.html | 广州市住房和城乡建设局工匠人才资料 | A | 砖雕、灰塑、木雕技能环节及传统建筑工匠遴选、评价 | 广州行业人才培养背景，不等同于陈家祠项目人员名单 |
+| S34 | https://www.gz.gov.cn/zlgz/whgz/content/post_8292016.html | 广州市政府文化人物报道 | A- | 何世良、组合砖雕制作与工作室传承 | 不得据此宣称何世良参与陈家祠原建或修缮 |
+| S35 | https://lyylj.gz.gov.cn/kpyd/zhzy/content/post_9699114.html | 广州市林业和园林局科普 | A- | 陈家祠七类工艺与岭南建筑装修技法背景 | 科普性通用资料，具体工程事实优先采用馆方档案 |
+| S36 | https://lzhbwg.mofcom.gov.cn/edi_ecms_web_front/thb/detail/ebe165a74c5946a4906dc2b47b6e3ae9 | 商务部老字号数字博物馆 | A- | 1981 年石湾建筑陶瓷厂复原聚贤堂脊饰的历史记录 | 未公开完整个人名单、分件运输和安装档案 |
+| S37 | https://wglj.gz.gov.cn/xxgk/qt/rdjyzxta/zxta/content/post_6993535.html | 广州市文广旅局提案答复 | A | 非遗进校园、工作室、职业教育和现代学徒制 | 说明广州传承政策与方式，不代表特定传承人培养成效 |
+| S38 | https://ctext.org/book-of-poetry/zh | 中国哲学书电子化计划《诗经》 | A- | 《天保》《斯干》等先秦原典核字与影印底本入口 | 电子文本仍应记录所选底本；装饰对应关系须另有馆方证据 |
+| S39 | https://ctext.org/wiki.pl?chapter=971224&if=gb&remap=gb | 中国哲学书电子化计划《前赤壁赋》 | B+ | 苏轼泛舟赤壁原文核字 | 页面底本标注不足；正式展签宜再对照权威整理本 |
+| S40 | https://zh.wikisource.org/zh/三國演義 | 维基文库《三国演义》毛氏修订系统文本 | B+ | 通行本目录、作者与版本系统说明 | 开放协作电子文本；正式展签宜再与权威校注本复核 |
+| S41 | https://zh.wikisource.org/zh/三國演義/第028回 | 维基文库《三国演义》第二十八回 | B+ | 古城会情节和回目核对 | 仅作公共领域原典辅助核字，装饰对应采用馆方资料 |
+| S42 | https://zh.wikisource.org/zh/三國演義/第037回 | 维基文库《三国演义》第三十七回 | B+ | 三顾茅庐回目和情节核对 | 仅作公共领域原典辅助核字，装饰对应采用馆方资料 |
+| S43 | https://www.qb.gd.gov.cn/jrqx/content/post_1246013.html | 广东省政府侨务办公室转载报道 | A- | 郭沫若题咏、罗哲文评价及陈家祠总体价值 | 可使用必要短句；题词原始载体、时间和篇名仍待馆方复核 |
+| S44 | https://www.gzass.gd.cn/whzc/wenhuaziyuan/wenhuayichan/125.html | 广州市社会科学院文化资料转载 | A- | 陈氏书院合族祠性质、应考办事暂住与后续使用史 | 页面转载自第三方并标示上游来源；关键事实优先以馆方 S02 复核 |
+| S45 | https://ep.ycwb.com/epaper/ycwb/resfile/2025-02-06/A06/ycwb20250206A06.pdf | 羊城晚报文化专文 | A- | 黄海妍对清代广州合族祠、试馆和《议建陈氏书院章程》的研究性介绍 | 只使用文中展示的章程片段；未展示部分不得补写为原文 |
+| S46 | https://wglj.gz.gov.cn/attachment/7/7429/7429911/9188019.pdf | 广州市文物部门公开考古调查资料 | A | 陈伯陶墓、籍贯、生卒、1892 年探花及后续履历 | 支持陈伯陶人物履历，不单独证明其在陈氏书院居住或学习 |
+| S47 | https://www.dg.gov.cn/dfz/szlt/201904/6b0459ed6c3341c4b9df4be800fe661a/files/04a371141df240f0b29e5cfc0490f23d.pdf | 东莞市地方志办公室史志研究 | A- | 陈伯陶、倡建文书名称及陈氏书院教育功能研究 | 研究性二手资料；具体章程和个人活动仍应回查原始文书 |
 
 ## 使用规则
 
