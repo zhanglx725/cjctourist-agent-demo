@@ -232,6 +232,23 @@ def _route_request_message(
     )
 
 
+def _sidebar_plan_request(
+    *,
+    active_tour: bool,
+    mode: str,
+    interests: list[str] | None,
+    style_label: str | None,
+    duration: int,
+) -> str:
+    """Build an initial route or a current-position remaining-time replan."""
+    if active_tour:
+        return f"我还有 {duration} 分钟"
+    return _route_request_message(
+        "中文", mode, interests=interests,
+        style_label=style_label, duration=duration,
+    )
+
+
 _CHAT_ROUTE_ACTION_RE = re.compile(
     r"\b(?:create|build|make|plan|generate|start)\b[^.?!]{0,60}"
     r"\b(?:route|tour|itinerary)\b",
@@ -694,6 +711,11 @@ def _show_souvenir_card(itinerary, messages: list[dict[str, object]]) -> None:
 @st.fragment
 def _render_route_sidebar(adapter: DemoAdapter) -> None:
     """Keep preference-only changes local so mode switching does not redraw chat."""
+    itinerary = adapter.itinerary
+    active_tour = bool(
+        itinerary.total_count
+        and not getattr(itinerary, "is_finished", False)
+    )
     with st.sidebar:
         st.markdown(
             "<div class='sidebar-brand'>"
@@ -724,6 +746,8 @@ def _render_route_sidebar(adapter: DemoAdapter) -> None:
             )
         else:
             duration = int(duration_choice.removesuffix("分钟"))
+        if active_tour:
+            st.caption("中途重规划会保留当前模式与偏好；这里选择的是从当前点位起算的剩余时间。")
         interests: list[str] = []
         style_label: str | None = None
         if selected_mode == "custom":
@@ -733,10 +757,17 @@ def _render_route_sidebar(adapter: DemoAdapter) -> None:
             )
             style_label = st.selectbox("讲解风格", list(STYLES), key="guide_style_selection")
         can_plan = selected_mode == "classic" or bool(interests)
-        if st.button("开始规划路线", type="primary", use_container_width=True, disabled=not can_plan, key="plan_route"):
-            request = _route_request_message(
-                "中文", selected_mode, interests=interests,
-                style_label=style_label, duration=int(duration),
+        plan_button_label = "重新规划后续路线" if active_tour else "开始规划路线"
+        if st.button(plan_button_label, type="primary", use_container_width=True, disabled=not can_plan, key="plan_route"):
+            # During an active tour a duration-only control is interpreted as
+            # remaining time and replanned from TourState.current_stop_id.
+            # The ordinary route prompt is reserved for the initial route.
+            request = _sidebar_plan_request(
+                active_tour=active_tour,
+                mode=selected_mode,
+                interests=interests,
+                style_label=style_label,
+                duration=int(duration),
             )
             _send(adapter, request)
             st.rerun()

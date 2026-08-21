@@ -121,6 +121,18 @@ class StreamlitRolloutStartupTests(unittest.TestCase):
             form,
         )
 
+    def test_sidebar_active_tour_uses_remaining_time_replan_not_initial_route(self):
+        request = streamlit_app._sidebar_plan_request(
+            active_tour=True,
+            mode="classic",
+            interests=[],
+            style_label=None,
+            duration=45,
+        )
+        self.assertEqual(request, "我还有 45 分钟")
+        self.assertNotIn("经典模式", request)
+        self.assertNotIn("路线", request)
+
     def test_chat_new_route_request_with_existing_route_reuses_route_collection(self):
         adapted = streamlit_app._chat_route_request_message(
             "Create an English classic 45-minute tour"
