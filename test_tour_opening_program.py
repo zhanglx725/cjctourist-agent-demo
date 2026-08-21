@@ -164,7 +164,9 @@ class TourOpeningProgramTests(unittest.TestCase):
         result = graph.invoke({"messages": [HumanMessage(content="选择经典模式，中文，30分钟路线")]})
         self.assertEqual(result["tour_opening_program"]["status"], "pending")
         self.assertEqual(result["tour_opening_program"]["play_count"], 0)
-        self.assertIn("到达第一站后", result["messages"][-1].content)
+        self.assertNotIn("到达第一站后", result["messages"][-1].content)
+        self.assertNotIn("到达后重点看", result["messages"][-1].content)
+        self.assertNotIn("跳过总体介绍", result["messages"][-1].content)
         self.assertNotIn("如需先听", result["messages"][-1].content)
 
     def test_graph_play_skip_and_replay_only_write_opening_state(self):

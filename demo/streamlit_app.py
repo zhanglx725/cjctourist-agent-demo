@@ -15,6 +15,7 @@ import streamlit as st
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKGROUND_IMAGE = Path(__file__).resolve().parent / "assets" / "chen-clan-heritage-tech-bg-v2.png"
+PHOTO_POSE_GRID_DIR = Path(__file__).resolve().parent / "assets" / "photo_pose_grids"
 MAP_IMAGE = ROOT / "outputs" / "spatial_network_review_v1.png"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -65,6 +66,25 @@ SCENE_LABELS = {
     "tour_closing": "游览总结",
     "assistant": "导览回复",
 }
+
+PHOTO_POSE_GRID_RULES = (
+    (("月台", "moon_platform"), "pose-grid-moon-platform.png"),
+    (("后东", "rear_east"), "pose-grid-rear-east.png"),
+    (("后西", "rear_west"), "pose-grid-rear-west.png"),
+    (("后庭", "rear_courtyard"), "pose-grid-rear-center.png"),
+    (("前东", "front_east", "courtyard_east"), "pose-grid-front-east.png"),
+    (("前西", "front_west", "courtyard_west"), "pose-grid-front-center.png"),
+    (("前院", "front_courtyard"), "pose-grid-front-center.png"),
+)
+
+
+def _photo_pose_grid(current_stop: str) -> Path:
+    """Return one complete nine-pose grid for the current formal stop."""
+    normalized = str(current_stop or "").strip().lower()
+    for aliases, filename in PHOTO_POSE_GRID_RULES:
+        if any(alias.lower() in normalized for alias in aliases):
+            return PHOTO_POSE_GRID_DIR / filename
+    return PHOTO_POSE_GRID_DIR / "pose-grid-front-center.png"
 
 
 @st.cache_data
@@ -562,20 +582,35 @@ def _show_tour_map() -> None:
     st.caption("蓝色为讲解点，橙色为空间节点，红线为双向通行边。")
 
 
-@st.dialog("拍照提示", width="medium")
-def _show_photo_hint_card(text: str) -> None:
+@st.dialog("拍照提示", width="large")
+def _show_photo_hint_card(text: str, current_stop: str = "") -> None:
     """Show optional pose guidance outside the main narration flow."""
     card = build_photo_hint_card(text)
-    st.markdown(f"### {card.title}")
-    left, right = st.columns(2)
-    with left:
-        st.markdown(f"**推荐机位**\n\n{card.recommended_position}")
-        st.markdown(f"**人物站位与姿势**\n\n{card.pose}")
-        st.markdown(f"**客流与光线**\n\n{card.conditions}")
-    with right:
-        st.markdown(f"**构图方式**\n\n{card.composition}")
-        st.markdown(f"**适合纳入画面的建筑元素**\n\n{card.architecture}")
-        st.markdown(f"**安全提醒**\n\n{card.safety}")
+    st.markdown("<div class='photo-hint-card-marker'></div>", unsafe_allow_html=True)
+    with st.container(key="photo_guide_card"):
+        st.markdown(
+            "<div class='photo-card-heading'>"
+            "<span>祠语智游 · 拍照锦囊</span>"
+            f"<h3>{escape(card.title)}</h3>"
+            "<small>九宫格姿势参考 · 请结合现场空间自然调整</small>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        pose_column, advice_column = st.columns([1, 1], gap="large", vertical_alignment="center")
+        with pose_column:
+            with st.container(key="photo_pose_panel"):
+                st.image(_photo_pose_grid(current_stop), use_container_width=True)
+        with advice_column:
+            with st.container(key="photo_advice_panel"):
+                st.markdown(
+                    "<div class='photo-advice-grid'>"
+                    f"<section><b>人物站位与姿势</b><p>{escape(card.pose)}</p></section>"
+                    f"<section><b>构图方式</b><p>{escape(card.composition)}</p></section>"
+                    f"<section><b>客流与光线</b><p>{escape(card.conditions)}</p></section>"
+                    f"<section><b>安全提醒</b><p>{escape(card.safety)}</p></section>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
     if st.button("关闭", use_container_width=True, key="close_photo_hint"):
         st.rerun()
 
@@ -735,7 +770,40 @@ def main() -> None:
     .craft-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.32rem;}.craft-badge {display:flex;align-items:center;justify-content:center;gap:.3rem;min-height:1.55rem;border:1px solid rgba(119,151,153,.34);border-radius:4px 9px 4px 9px;background:rgba(5,25,29,.42);color:#8fa6a6;font-size:.7rem;}.craft-badge.unlocked {border-color:rgba(229,185,91,.72);background:linear-gradient(120deg,rgba(129,47,31,.82),rgba(18,91,91,.82));color:#fff0bf;box-shadow:0 0 10px rgba(66,205,213,.14);}.craft-symbol {color:#55ced6;font-weight:700;}.craft-badge.unlocked .craft-symbol {color:#f0c469;}
     .wechat-row {display:flex;align-items:flex-start;gap:.55rem;margin:.7rem 0;}.wechat-row.visitor {justify-content:flex-end;}.wechat-avatar {flex:0 0 2.3rem;height:2.3rem;border-radius:.65rem;display:grid;place-items:center;font-weight:700;color:#fff;background:linear-gradient(145deg,#a86d2d,#6f351d);border:1px solid rgba(240,198,105,.5);box-shadow:0 4px 14px rgba(0,0,0,.26);}.wechat-row.visitor .wechat-avatar {background:linear-gradient(145deg,#4f9d37,#267522);border-color:rgba(182,240,139,.7);}.wechat-bubble {max-width:min(88%,940px);padding:.62rem .82rem;border-radius:4px 14px 14px 14px;background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.72);box-shadow:0 7px 20px rgba(0,0,0,.18);font-size:.95rem;line-height:1.55;color:#172630;}.wechat-row.visitor .wechat-bubble {border-radius:14px 4px 14px 14px;background:#95ec69;border-color:#79d852;color:#172314;}.wechat-speaker {font-size:.74rem;color:#8a6a45;margin-bottom:.18rem;}.wechat-row.visitor .wechat-speaker {color:#376328;}.wechat-service {margin-top:.42rem;padding-top:.35rem;border-top:1px solid rgba(156,116,65,.25);color:#765231;font-size:.82rem;}.wechat-row.visitor .wechat-service {border-color:rgba(47,116,31,.22);color:#315d27;}
     .tour-summary-card {position:relative;width:min(88%,940px);box-sizing:border-box;margin:1rem auto;padding:1.15rem 1.3rem 1rem;overflow:hidden;border:1px solid rgba(232,191,94,.82);border-radius:5px 22px 5px 22px;background:linear-gradient(135deg,rgba(72,28,22,.97),rgba(12,61,64,.96));color:#fff4d6;box-shadow:0 16px 38px rgba(0,0,0,.34),inset 0 0 0 3px rgba(255,255,255,.035);}
-    .tour-summary-card:before {content:'';position:absolute;inset:9px;border:1px solid rgba(232,191,94,.2);border-radius:3px 15px 3px 15px;pointer-events:none;}.summary-seal {position:absolute;right:1.15rem;top:1rem;width:2.65rem;height:2.65rem;border:2px solid #e1b65e;border-radius:50%;display:grid;place-items:center;color:#f1ca75;font-size:.72rem;font-weight:700;transform:rotate(8deg);}.summary-kicker {color:#e7c476;font-size:.78rem;letter-spacing:.16em;text-align:center;}.tour-summary-card h2 {margin:.22rem 3rem .08rem;text-align:center;color:#fff5d8;font-family:'STKaiti','KaiTi','Microsoft YaHei',sans-serif;font-size:1.48rem;letter-spacing:.08em;}.summary-date {text-align:center;color:#e7c476;font-size:.68rem;}.summary-disclaimer {text-align:center;color:#b9ccca;font-size:.68rem;}.summary-stats {display:grid;grid-template-columns:repeat(4,1fr);gap:.45rem;margin:.7rem 0;}.summary-stats div {display:flex;flex-direction:column;align-items:center;padding:.5rem .25rem;border:1px solid rgba(225,183,90,.28);background:rgba(3,25,29,.32);}.summary-stats strong {color:#f1c66e;font-size:1.25rem;line-height:1.1;}.summary-stats span {margin-top:.2rem;color:#c8d8d5;font-size:.69rem;}.summary-section {margin-top:.52rem;}.summary-section>b {display:block;margin-bottom:.28rem;color:#efcc83;font-size:.76rem;}.summary-route,.summary-badges {display:flex;flex-wrap:wrap;gap:.32rem;}.summary-route-stop,.summary-badge {padding:.25rem .48rem;border:1px solid rgba(76,201,208,.32);border-radius:999px;background:rgba(4,30,34,.36);color:#d9e6e3;font-size:.7rem;}.summary-badge.unlocked {border-color:rgba(230,186,89,.48);color:#f2d591;}.summary-empty {color:#9eb4b2;font-size:.7rem;}.summary-wish {position:absolute;left:1rem;right:1rem;bottom:.55rem;padding-top:.38rem;border-top:1px solid rgba(231,190,96,.25);text-align:center;color:#e7d7b4;font-size:.72rem;}[data-testid='stDialog'] .tour-summary-card {width:100%;aspect-ratio:16/9;margin:.1rem auto .55rem;padding:.9rem 1rem 2.2rem;}div[role='dialog'] {width:min(720px,calc(100vw - 2rem)) !important;max-width:720px !important;}
+    .tour-summary-card:before {content:'';position:absolute;inset:9px;border:1px solid rgba(232,191,94,.2);border-radius:3px 15px 3px 15px;pointer-events:none;}.summary-seal {position:absolute;right:1.15rem;top:1rem;width:2.65rem;height:2.65rem;border:2px solid #e1b65e;border-radius:50%;display:grid;place-items:center;color:#f1ca75;font-size:.72rem;font-weight:700;transform:rotate(8deg);}.summary-kicker {color:#e7c476;font-size:.78rem;letter-spacing:.16em;text-align:center;}.tour-summary-card h2 {margin:.22rem 3rem .08rem;text-align:center;color:#fff5d8;font-family:'STKaiti','KaiTi','Microsoft YaHei',sans-serif;font-size:1.48rem;letter-spacing:.08em;}.summary-date {text-align:center;color:#e7c476;font-size:.68rem;}.summary-disclaimer {text-align:center;color:#b9ccca;font-size:.68rem;}.summary-stats {display:grid;grid-template-columns:repeat(4,1fr);gap:.45rem;margin:.7rem 0;}.summary-stats div {display:flex;flex-direction:column;align-items:center;padding:.5rem .25rem;border:1px solid rgba(225,183,90,.28);background:rgba(3,25,29,.32);}.summary-stats strong {color:#f1c66e;font-size:1.25rem;line-height:1.1;}.summary-stats span {margin-top:.2rem;color:#c8d8d5;font-size:.69rem;}.summary-section {margin-top:.52rem;}.summary-section>b {display:block;margin-bottom:.28rem;color:#efcc83;font-size:.76rem;}.summary-route,.summary-badges {display:flex;flex-wrap:wrap;gap:.32rem;}.summary-route-stop,.summary-badge {padding:.25rem .48rem;border:1px solid rgba(76,201,208,.32);border-radius:999px;background:rgba(4,30,34,.36);color:#d9e6e3;font-size:.7rem;}.summary-badge.unlocked {border-color:rgba(230,186,89,.48);color:#f2d591;}.summary-empty {color:#9eb4b2;font-size:.7rem;}.summary-wish {position:absolute;left:1rem;right:1rem;bottom:.55rem;padding-top:.38rem;border-top:1px solid rgba(231,190,96,.25);text-align:center;color:#e7d7b4;font-size:.72rem;}[data-testid='stDialog'] .tour-summary-card {width:100%;aspect-ratio:16/9;margin:.1rem auto .55rem;padding:.9rem 1rem 2.2rem;}div[role='dialog'] {width:min(720px,calc(100vw - 2rem)) !important;max-width:720px !important;background:linear-gradient(135deg,rgba(66,27,21,.99),rgba(7,55,58,.99)) !important;border:1px solid rgba(232,191,94,.82) !important;border-radius:6px 22px 6px 22px !important;box-shadow:0 22px 60px rgba(0,0,0,.52),inset 0 0 0 3px rgba(255,255,255,.035) !important;color:#fff4d6 !important;}
+    div[role='dialog']>div,div[role='dialog'] [data-testid='stDialog'] {background:transparent !important;}
+    div[role='dialog'] h1,div[role='dialog'] h2,div[role='dialog'] h3,div[role='dialog'] strong,div[role='dialog'] p,div[role='dialog'] label {color:#fff1cf !important;}
+    div[role='dialog'] button {color:#fff4d6 !important;background:linear-gradient(120deg,rgba(116,43,30,.96),rgba(14,76,78,.96)) !important;border:1px solid rgba(225,183,89,.68) !important;}
+    div[role='dialog'] button svg {fill:#f3d27f !important;color:#f3d27f !important;}
+    div[role='dialog']:has(.photo-hint-card-marker) {width:min(980px,calc(100vw - 2rem)) !important;max-width:980px !important;background:linear-gradient(135deg,rgba(66,27,21,.99),rgba(7,55,58,.99)) !important;border:1px solid rgba(232,191,94,.82) !important;border-radius:6px 22px 6px 22px !important;box-shadow:0 22px 60px rgba(0,0,0,.52),inset 0 0 0 3px rgba(255,255,255,.035) !important;color:#fff4d6 !important;}
+    div[role='dialog']:has(.photo-hint-card-marker) h2,div[role='dialog']:has(.photo-hint-card-marker) h3,div[role='dialog']:has(.photo-hint-card-marker) strong,div[role='dialog']:has(.photo-hint-card-marker) p {color:#fff1cf !important;}
+    div[role='dialog']:has(.photo-hint-card-marker) h3 {color:#efc96f !important;font-family:'STKaiti','KaiTi','Microsoft YaHei',sans-serif;letter-spacing:.08em;}
+    div[role='dialog']:has(.photo-hint-card-marker) [data-testid='stImage'] {padding:.42rem;background:rgba(255,248,222,.94);border:1px solid rgba(232,191,94,.72);border-radius:4px 15px 4px 15px;box-shadow:0 10px 28px rgba(0,0,0,.28);}
+    div[role='dialog']:has(.photo-hint-card-marker) [data-testid='stImage'] img {display:block;width:100%;border-radius:2px 10px 2px 10px;}
+    div[role='dialog']:has(.photo-hint-card-marker) [data-testid='stImage'] [data-testid='stCaptionContainer'] p {color:#72522d !important;text-shadow:none !important;font-size:.72rem !important;}
+    [data-testid='stDialog'] div[role='dialog']:has(.photo-hint-card-marker),[data-baseweb='modal'] div[role='dialog']:has(.photo-hint-card-marker) {padding:1rem 1.15rem 1.05rem !important;background-color:#102f31 !important;background-image:linear-gradient(118deg,#421d19 0%,#2d211d 42%,#0b3d40 100%) !important;}
+    [data-testid='stDialog'] div[role='dialog']:has(.photo-hint-card-marker)>div,[data-baseweb='modal'] div[role='dialog']:has(.photo-hint-card-marker)>div {background:transparent !important;}
+    .st-key-photo_guide_card {position:relative;box-sizing:border-box;width:100%;aspect-ratio:16/9;min-height:430px;padding:1.25rem 1.35rem 1.1rem;margin:.05rem 0 .65rem;border:2px solid #d9ae54;border-radius:5px 22px 5px 22px;background:linear-gradient(120deg,rgba(64,28,23,.97),rgba(10,55,58,.97));box-shadow:inset 0 0 0 8px rgba(5,21,23,.18),inset 0 0 0 9px rgba(220,174,79,.34),0 14px 34px rgba(0,0,0,.32);overflow:hidden;}
+    .st-key-photo_guide_card:before {content:'';position:absolute;inset:9px;border:1px solid rgba(231,186,91,.52);border-radius:3px 15px 3px 15px;pointer-events:none;}
+    .st-key-photo_guide_card:after {content:'';position:absolute;inset:0;pointer-events:none;opacity:.13;background:radial-gradient(circle at 12% 18%,rgba(231,190,95,.34),transparent 28%),radial-gradient(circle at 88% 82%,rgba(60,211,218,.26),transparent 30%);}
+    .st-key-photo_guide_card>div {position:relative;z-index:1;}
+    .photo-card-heading {text-align:center;margin:0 0 .8rem;}
+    .photo-card-heading span {display:block;color:#e8bd62;font-size:.76rem;font-weight:700;letter-spacing:.2em;}
+    .photo-card-heading h3 {margin:.18rem 0 .08rem !important;color:#fff0ca !important;font-family:'STKaiti','KaiTi','Microsoft YaHei',sans-serif;font-size:1.45rem !important;letter-spacing:.08em;}
+    .photo-card-heading small {color:#a9c8c6;font-size:.7rem;}
+    .st-key-photo_guide_card strong {display:block;margin-bottom:.2rem;color:#e7bd62 !important;font-size:.78rem;}
+    .st-key-photo_guide_card p {color:#edf1e8 !important;font-size:.8rem;line-height:1.55;}
+    .st-key-photo_guide_card [data-testid='stImage'] {padding:.34rem !important;background:rgba(255,246,214,.94) !important;border:1px solid rgba(226,183,88,.76) !important;border-radius:4px 14px 4px 14px !important;}
+    .st-key-photo_pose_panel {width:93%;margin:-.45rem auto 0;}
+    .st-key-photo_pose_panel [data-testid='stImage'] {width:100%;margin:0 auto;}
+    .st-key-photo_advice_panel {width:100%;display:flex;align-items:center;justify-content:center;}
+    .st-key-photo_advice_panel>div {width:100%;}
+    .photo-advice-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem;height:100%;align-content:center;}
+    .photo-advice-grid section {position:relative;min-height:112px;box-sizing:border-box;padding:.85rem .9rem;border:1px solid rgba(226,181,82,.62);border-radius:4px 15px 4px 15px;background:linear-gradient(135deg,rgba(76,34,25,.54),rgba(5,49,53,.7));box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 6px 16px rgba(0,0,0,.2);overflow:hidden;}
+    .photo-advice-grid section:after {content:'';position:absolute;right:-18px;bottom:-20px;width:62px;height:62px;border:1px solid rgba(67,205,214,.18);border-radius:50%;box-shadow:0 0 16px rgba(67,205,214,.1);}
+    .photo-advice-grid b {display:block;margin-bottom:.42rem;color:#efc96f;font-size:.92rem;letter-spacing:.06em;}
+    .photo-advice-grid p {margin:0;color:#f3eee0 !important;font-size:.88rem !important;line-height:1.65 !important;}
+    @media (max-width:700px) {.st-key-photo_guide_card {aspect-ratio:auto;min-height:0;padding:1rem .8rem;}.photo-card-heading h3 {font-size:1.2rem !important;}.photo-advice-grid {grid-template-columns:1fr;}.photo-advice-grid section {min-height:0;}div[role='dialog']:has(.photo-hint-card-marker) {width:calc(100vw - 1rem) !important;}}
     .stMain h4 {display:flex;align-items:center;justify-content:center;gap:.8rem;color:#fff1c8;text-shadow:0 2px 12px rgba(0,0,0,.65);letter-spacing:.08em;font-family:'STKaiti','KaiTi','Microsoft YaHei',sans-serif;font-size:1.42rem;}
     .stMain h4:before,.stMain h4:after {content:'';width:72px;height:1px;background:linear-gradient(90deg,transparent,#a8762f,#36bfc8);}
     .stMain h4:after {transform:scaleX(-1);}
@@ -834,7 +902,7 @@ def main() -> None:
                     photo_text = "\n\n".join(
                         message.text for message in reply.messages if message.text.strip()
                     )
-                    _show_photo_hint_card(photo_text)
+                    _show_photo_hint_card(photo_text, itinerary.current_stop)
                     continue
                 _send(adapter, action)
                 st.rerun()

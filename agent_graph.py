@@ -1592,6 +1592,11 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         if profile.detail_level == "deep"
         else "游览后，您将能辨认几类代表性工艺与构件，并建立对陈家祠空间布局和岭南装饰特色的整体认识。"
     )
+    first_stop_navigation = format_next_stop_navigation(next_stop_navigation(tour))
+    # The route card already explains every stop's focus and carries the reviewed
+    # timing disclaimer.  Keep the first-stop handoff to destination and walking
+    # directions so the closing block does not repeat those details.
+    first_stop_navigation = "\n".join(first_stop_navigation.splitlines()[:2])
     message = (
         f"为您推荐“{plan.display_name}”，预计约 {total_minutes:.0f} 分钟，共 "
         f"{len(guide_stop_ids)} 站。\n\n"
@@ -1604,9 +1609,7 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
         + "\n\n"
         "提示：时间基于官网地图与已核对路线估算，现场通行、驻足和开放情况请以馆方安排为准。"
         "\n\n"
-        + format_next_stop_navigation(next_stop_navigation(tour))
-        + "\n\n到达第一站后，我会先自动进行陈家祠总体介绍，再开始本点讲解。"
-        + "如需跳过，请在到站前明确说“跳过总体介绍”。"
+        + first_stop_navigation
     )
     marker = AIMessage(
         content=message,
