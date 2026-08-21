@@ -135,18 +135,15 @@ class ObjectDetailRender:
                 text,
             )
             if location:
-                rendered.append(
-                    f"它在{location.group('location')}；可以对照现场标识来找。"
-                )
+                rendered.append(f"它位于{location.group('location')}。")
                 continue
             observation = re.match(
                 r"^观察时，可结合(?P<location>.+?)处的构件位置辨认其造型。?$",
                 text,
             )
             if observation:
-                rendered.append(
-                    f"找它时，先对照{observation.group('location')}的位置，再认它的造型。"
-                )
+                # Location was already stated above; do not repeat a robotic
+                # find-it instruction after the object explanation.
                 continue
             if "现有资料目前只足以确认其工艺和审核关联位置" in text:
                 rendered.append("现有资料目前只足以确认它的工艺和所在位置，不据此补写题材或故事。")

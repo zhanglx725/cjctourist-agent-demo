@@ -320,9 +320,9 @@ def _visitor_object_statement(statement: str) -> str:
     """
     cleaned = statement.strip()
     if match := _AUDIT_LOCATION_STATEMENT.match(cleaned):
-        return f"它在{match.group('location')}；可以对照现场标识来找。"
+        return f"它位于{match.group('location')}。"
     if match := _AUDIT_OBSERVATION_STATEMENT.match(cleaned):
-        return f"找它时，先对照{match.group('location')}的位置，再认它的造型。"
+        return ""
     return cleaned
 
 
@@ -441,9 +441,14 @@ def _role_fact_presentation(
     """
     source_statements = tuple(statement.strip() for statement in statements if statement.strip())
     if style_id != "child":
+        rendered_pairs = tuple(
+            (public, source)
+            for source in source_statements
+            if (public := _visitor_object_statement(source))
+        )
         return _RoleFactPresentation(
-            tuple(_visitor_object_statement(statement) for statement in source_statements),
-            source_statements,
+            tuple(public for public, _ in rendered_pairs),
+            tuple(source for _, source in rendered_pairs),
         )
     pairs = _child_role_fact_pairs(source_statements, topic_kind=topic_kind)
     return _RoleFactPresentation(
@@ -488,7 +493,6 @@ def _craft_segment(
     })
     lines = [template_line or f"先认识{craft}：{visitor_selected[0][0]}"]
     lines.extend(sentence for sentence, _ in visitor_selected[1:])
-    lines.append(_style_observation(style_id, f"{craft}对象的造型、细部和所在构件"))
     source_ids = tuple(sorted({source for _, values in selected for source in values}))
     complete = len(covered_dimensions) >= 2
     warning = None if complete else f"{craft}工艺证据暂不足两类信息，未作为完整首次介绍"
@@ -581,7 +585,12 @@ def _optional_context_segment(
             if score:
                 ranked.append((score, cleaned, source_ids, dimension_id))
     ranked.sort(key=lambda value: (-value[0], len(value[1]), value[1]))
-    limit = 2 if detailed and program.budget_seconds >= 270 else 1
+    if program.budget_seconds >= 330:
+        limit = 3
+    elif program.budget_seconds >= 210:
+        limit = 2
+    else:
+        limit = 1
     chosen: list[str] = []
     sources: set[str] = set()
     dimension_ids: list[str] = []
@@ -716,7 +725,7 @@ def render_guidance_evidence(
         first = bundle.coverage_status["ornament"].get(item.ornament_id) == "first_introduction"
         segment, sources, complete, warning, statements = _ornament_segment(
             item, packet, bundle.location_evidence.get(item.ornament_id), first=first,
-            detailed=detailed, style=style, style_id=style_id,
+            detailed=(detailed or program.budget_seconds >= 240), style=style, style_id=style_id,
         )
         presentation = _role_fact_presentation(
             statements, topic_kind="ornament", style_id=style_id,
@@ -752,6 +761,7 @@ def render_guidance_evidence(
         bundle.optional_context, program, detailed=detailed,
     )
     if optional_lines:
+        lines.append("看过眼前的对象，再把它放回陈家祠的建筑、工艺与历史脉络中理解。")
         lines.extend(optional_lines)
         used_sources.update(optional_sources)
         for dimension_id, statement in zip(optional_dimension_ids, optional_lines):
@@ -771,21 +781,8 @@ def render_guidance_evidence(
     if rhetorical:
         lines.append(rhetorical)
 
-    if len(rendered_ornaments) >= 2:
-        first, second = rendered_items[0], rendered_items[1]
-        if first.craft == second.craft:
-            lines.append(f"这两件都属于{first.craft}，可以对照它们各自的造型处理。")
-        else:
-            lines.append("也可以留意两种工艺在构件处理上的不同。")
     if omitted:
         warnings.append("本站预算优先保留核心对象，后续对象留待需要时再展开")
-    if (
-        policy
-        and policy.interaction_mode != "listen_only"
-        and policy.interaction_task_enabled
-        and not rhetorical
-    ):
-        lines.append("您可以留意其中一处造型细部；无需回答也不影响继续导览。")
     # The completion instruction is deliberately a peer paragraph, rather
     # than the last line of an object or observation paragraph.
     if style_id == "child":

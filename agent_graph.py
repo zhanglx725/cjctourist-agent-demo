@@ -3217,10 +3217,8 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
         visitor_profile=state.get("visitor_profile"),
         detailed=is_detail_request,
     )
-    if photo_guidance["triggered"]:
-        public_message = public_visitor_message_or_fallback(
-            f"{public_message}\n\n{photo_guidance['message']}"
-        )
+    # Keep the reviewed photo plan for the explicit “拍照提示” action, but do
+    # not append shooting instructions to the main point narration.
     service_tail = build_stop_service_tail(
         tour_state=state.get("tour_state"),
         photo_guidance_message=(
