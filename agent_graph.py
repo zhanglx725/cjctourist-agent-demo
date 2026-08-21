@@ -108,6 +108,7 @@ from controlled_knowledge_query import (
     public_visitor_message_or_fallback,
     render_controlled_knowledge_answer,
 )
+from knowledge_evidence_policy import retrieval_limit_for_plan, retrieval_limit_for_question
 from fact_card_catalog import answer_high_frequency_fact_cards
 from agent_decision import Capability, validate_agent_decision
 from controlled_executor import execute_approved_read_tool
@@ -490,6 +491,51 @@ def should_direct_rag(user_text: str) -> bool:
         "百鸟朝凤",
         "梁山聚义",
         "月台",
+        "工匠",
+        "匠人",
+        "手艺人",
+        "老师傅",
+        "传承人",
+        "倡建者",
+        "修复师",
+        "保护专家",
+        "修缮",
+        "维护",
+        "维修",
+        "修复",
+        "古建筑保护",
+        "病害",
+        "老化",
+        "开裂",
+        "脱落",
+        "褪色",
+        "虫蛀",
+        "风化",
+        "制作过程",
+        "制作工序",
+        "制作流程",
+        "怎么制作",
+        "如何制作",
+        "怎么做出来",
+        "使用什么工具",
+        "安装工艺",
+        "诗句",
+        "诗文",
+        "文学引用",
+        "出处",
+        "名言",
+        "原文",
+        "学子",
+        "科举",
+        "应考",
+        "赶考",
+        "考试",
+        "求学",
+        "读书",
+        "暂住",
+        "住宿规则",
+        "书院章程",
+        "办学",
     )
     return any(term in user_text for term in knowledge_terms)
 
@@ -1160,16 +1206,22 @@ def _last_assistant_response_kind(state: AgentState) -> str | None:
 
 
 @tool
-def chen_clan_academy_rag_search(query: str, categories: list[str] | None = None) -> str:
+def chen_clan_academy_rag_search(
+    query: str,
+    categories: list[str] | None = None,
+    limit: int = 4,
+) -> str:
     """检索本地陈家祠知识快照并返回可引用证据。
 
     涉及陈家祠历史、建筑、工艺、装饰、服务、票务或公告的事实问题必须调用。
     可选 categories 仅可使用：history_architecture、ornament_craft、ornament_item、
-    ornament_location、basic_info、visit_service、event_notice、ticketing_snapshot。
+    ornament_location、literary_citation、basic_info、visit_service、event_notice、
+    ticketing_snapshot。
     不确定类别时省略 categories，让系统全库检索。返回的 evidence 才是可陈述事实的边界。
     """
     try:
-        evidence = get_retriever().search(query, limit=3, categories=categories)
+        safe_limit = max(1, min(int(limit), 10))
+        evidence = get_retriever().search(query, limit=safe_limit, categories=categories)
         return json.dumps(
             {
                 "query": query,
@@ -3058,6 +3110,8 @@ def _commit_stop_guidance_coverage(
         ("craft", subject_id) for subject_id in render_audit.get("rendered_craft_ids", [])
     }.union({
         ("ornament", subject_id) for subject_id in render_audit.get("rendered_ornament_ids", [])
+    }).union({
+        ("dimension", subject_id) for subject_id in render_audit.get("rendered_dimension_ids", [])
     })
     used_source_ids = set(render_audit.get("used_source_ids", []))
     selected_subjects: set[tuple[str, str]] | None = None
@@ -3070,7 +3124,7 @@ def _commit_stop_guidance_coverage(
             prefix, separator, suffix = raw_fact_id.rpartition(":")
             unit_id = prefix if separator and suffix.isdigit() else raw_fact_id
             parts = unit_id.split(":", 1)
-            if len(parts) == 2 and parts[0] in {"craft", "ornament"}:
+            if len(parts) == 2 and parts[0] in {"craft", "ornament", "dimension"}:
                 selected_subjects.add((parts[0], parts[1]))
     turn_id = f"{introduced_by}:{current_node}:{len(state.get('messages', [])) + 1}"
     try:
@@ -3081,6 +3135,7 @@ def _commit_stop_guidance_coverage(
             key = (candidate.get("subject_kind"), candidate.get("subject_id"))
             expected_evidence_kind = {
                 "craft": "craft_overview", "ornament": "ornament_detail",
+                "dimension": "optional_point_context",
             }.get(key[0])
             actual_sources = tuple(
                 source for source in candidate.get("source_ids", [])
@@ -3107,6 +3162,10 @@ def _commit_stop_guidance_coverage(
             "committed_subject_ids": (
                 list(coverage_after.introduced_craft_ids)
                 + list(coverage_after.introduced_ornament_ids)
+                + [
+                    record.subject_id for record in coverage_after.introduction_records
+                    if record.subject_kind == "dimension"
+                ]
             ),
             "turn_id": turn_id,
         }
@@ -3793,7 +3852,10 @@ def _search_controlled_fact_evidence(
     )
     if categories is None:
         return str(
-            chen_clan_academy_rag_search.invoke({"query": retrieval_query})
+            chen_clan_academy_rag_search.invoke({
+                "query": retrieval_query,
+                "limit": retrieval_limit_for_question(query),
+            })
         )
     merged: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -3844,14 +3906,41 @@ def _search_controlled_knowledge_evidence(
     """Retrieve broad knowledge through one reviewed category boundary."""
 
     retrieval_query = build_controlled_retrieval_query(plan)
-    return str(
-        chen_clan_academy_rag_search.invoke(
-            {
-                "query": retrieval_query,
-                "categories": list(plan.categories),
-            }
-        )
+    per_category_limit = retrieval_limit_for_plan(
+        plan.detail_level, len(plan.categories),
     )
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    errors: list[str] = []
+    for category in plan.categories:
+        content = str(chen_clan_academy_rag_search.invoke({
+            "query": retrieval_query,
+            "categories": [category],
+            "limit": per_category_limit,
+        }))
+        try:
+            payload = json.loads(content)
+        except json.JSONDecodeError:
+            errors.append(f"{category}:invalid_payload")
+            continue
+        if payload.get("error"):
+            errors.append(f"{category}:{payload['error']}")
+        for item in payload.get("evidence", []):
+            if not isinstance(item, dict):
+                continue
+            identity = str(item.get("chunk_id") or (
+                item.get("document"), tuple(item.get("title_path") or ()), item.get("content")
+            ))
+            if identity not in seen:
+                seen.add(identity)
+                merged.append(item)
+    return json.dumps({
+        "query": retrieval_query,
+        "knowledge_base": "local_snapshot_v1",
+        "evidence": merged,
+        "errors": errors,
+        "retrieval_strategy": "per_category_bounded_merge",
+    }, ensure_ascii=False)
 
 
 def _rollout_thread_id(config: RunnableConfig | None) -> str:

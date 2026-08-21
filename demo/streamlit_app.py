@@ -22,6 +22,7 @@ if str(ROOT) not in sys.path:
 from demo.demo_adapter import DemoAdapter
 from controlled_knowledge_query import OFFICIAL_TICKETING_URL
 from duration_parser import parse_duration_minutes
+from photo_hint_card import build_photo_hint_card
 
 
 LOGGER = logging.getLogger(__name__)
@@ -564,7 +565,17 @@ def _show_tour_map() -> None:
 @st.dialog("拍照提示", width="medium")
 def _show_photo_hint_card(text: str) -> None:
     """Show optional pose guidance outside the main narration flow."""
-    st.markdown(text or "当前点位暂时没有可用的拍照提示。")
+    card = build_photo_hint_card(text)
+    st.markdown(f"### {card.title}")
+    left, right = st.columns(2)
+    with left:
+        st.markdown(f"**推荐机位**\n\n{card.recommended_position}")
+        st.markdown(f"**人物站位与姿势**\n\n{card.pose}")
+        st.markdown(f"**客流与光线**\n\n{card.conditions}")
+    with right:
+        st.markdown(f"**构图方式**\n\n{card.composition}")
+        st.markdown(f"**适合纳入画面的建筑元素**\n\n{card.architecture}")
+        st.markdown(f"**安全提醒**\n\n{card.safety}")
     if st.button("关闭", use_container_width=True, key="close_photo_hint"):
         st.rerun()
 

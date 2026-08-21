@@ -108,7 +108,10 @@ class DemoPublicAdapterTests(unittest.TestCase):
         app_source = (root / "demo" / "streamlit_app.py").read_text(encoding="utf-8")
         self.assertNotIn("get_state", adapter_source)
         self.assertNotIn("tour_state", adapter_source)
-        self.assertIn('QUICK_ACTIONS = ["我到了"', app_source)
+        self.assertIn(
+            'QUICK_ACTIONS = ["拍照提示", "我到了", "再讲详细一点", "完成本点"]',
+            app_source,
+        )
 
     def test_deploy_doc_has_active_settings_and_current_arrival_wording(self):
         document = (Path(__file__).resolve().parent / "demo" / "README_DEPLOY.md").read_text(encoding="utf-8")

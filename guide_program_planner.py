@@ -11,6 +11,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from guidance_policy import GuidancePolicy
+from point_knowledge_profiles import point_knowledge_profile
 from tour_qa import load_guide_cards
 
 
@@ -290,9 +291,16 @@ def plan_stop_program(
     card = load_guide_cards().get(node_id)
     if card is None:
         raise GuideProgramError("该点位没有可用的讲解内容")
+    point_profile = point_knowledge_profile(node_id)
+    excluded_objects = set(point_profile.excluded_objects if point_profile else ())
     candidates = [
         item for item in card.get("ornaments", [])
-        if item.get("ornament_id") and item.get("name") and item.get("craft")
+        if (
+            item.get("ornament_id")
+            and item.get("name")
+            and item.get("craft")
+            and item.get("name") not in excluded_objects
+        )
     ]
     normalised_interests = _normalise_interests(interests)
     if not candidates:

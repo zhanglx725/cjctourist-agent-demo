@@ -138,6 +138,7 @@ def build_narration_content_plan(
         expected_unit_ids = {
             *(f"craft:{value}" for value in render_audit.get("rendered_craft_ids", [])),
             *(f"ornament:{value}" for value in render_audit.get("rendered_ornament_ids", [])),
+            *(f"dimension:{value}" for value in render_audit.get("rendered_dimension_ids", [])),
         }
         for raw_unit in audited_units:
             if not isinstance(raw_unit, Mapping):
@@ -146,7 +147,7 @@ def build_narration_content_plan(
             topic_kind = str(raw_unit.get("topic_kind") or "")
             statements = raw_unit.get("statements")
             if (
-                topic_kind not in {"space", "craft", "ornament"}
+                topic_kind not in {"space", "craft", "ornament", "dimension"}
                 or not unit_id
                 or not isinstance(statements, list)
                 or not statements
@@ -162,6 +163,9 @@ def build_narration_content_plan(
                 "space": "space_identity",
                 "craft": "craft_background",
                 "ornament": "object_detail",
+                # Optional contextual facts reuse the ornament prose scaffold
+                # while retaining a distinct internal unit ID for coverage.
+                "dimension": "object_detail",
             }[topic_kind]
             for index, statement in enumerate(selected):
                 # These strings were emitted from the reviewed deterministic

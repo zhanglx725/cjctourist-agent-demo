@@ -13,7 +13,7 @@ from dataclasses import dataclass
 import re
 from typing import Any, Iterable, Mapping
 
-from guidance_evidence_bundle import CoverageCandidate, EvidencePacket, GuidanceEvidenceBundle
+from guidance_evidence_bundle import CoverageCandidate, EvidencePacket, GuidanceEvidenceBundle, optional_dimension_id
 from guidance_policy import GuidancePolicy
 from guide_program_planner import StopProgram
 from narration_style_policy import NarrationStylePolicy, STYLE_SCHEMA_VERSION, compile_narration_style
@@ -32,6 +32,10 @@ ORNAMENT_SHAPE_MARKERS = ("形", "造型", "构图", "描绘", "表现", "全身
 ORNAMENT_THEME_MARKERS = ("寓意", "象征", "故事", "传说", "题材", "人物", "祈盼", "辟邪", "保平安", "文化")
 ORNAMENT_STORY_ORIGIN_MARKERS = ("故事", "传说", "源自", "取材", "相传")
 ORNAMENT_STORY_DETAIL_MARKERS = ("画面", "图中", "描绘", "刻画", "表现", "场面", "雕饰", "冒着")
+OPTIONAL_CONTEXT_SKIP_MARKERS = (
+    "不得", "不能", "资料不足", "尚缺", "本轮检索", "证据边界", "导览边界",
+    "整理日期", "来源", "核验状态", "是否允许逐字引用", "是否为直接相关",
+)
 
 
 @dataclass(frozen=True)
@@ -39,6 +43,7 @@ class NarrationRenderResult:
     visitor_message: str
     rendered_craft_ids: tuple[str, ...]
     rendered_ornament_ids: tuple[str, ...]
+    rendered_dimension_ids: tuple[str, ...]
     used_source_ids: tuple[str, ...]
     eligible_coverage_candidates: tuple[CoverageCandidate, ...]
     content_budget_seconds: int
@@ -56,6 +61,7 @@ class NarrationRenderResult:
             "visitor_message": self.visitor_message,
             "rendered_craft_ids": list(self.rendered_craft_ids),
             "rendered_ornament_ids": list(self.rendered_ornament_ids),
+            "rendered_dimension_ids": list(self.rendered_dimension_ids),
             "used_source_ids": list(self.used_source_ids),
             "eligible_coverage_candidates": [candidate.to_dict() for candidate in self.eligible_coverage_candidates],
             "content_budget_seconds": self.content_budget_seconds,
@@ -533,6 +539,96 @@ def _ornament_segment(
     return lines, source_ids, complete if first else False, warning, tuple(lines)
 
 
+def _optional_context_segment(
+    packet: EvidencePacket | None,
+    program: StopProgram,
+    *,
+    detailed: bool,
+) -> tuple[list[str], tuple[str, ...], tuple[str, ...]]:
+    """Select a small, sourced enrichment without making it mandatory.
+
+    Semantic retrieval chooses candidate sections for the reviewed point
+    profile.  This final deterministic gate keeps only sentences tied to a
+    selected object, craft, stop or visible component and never exposes
+    editorial/source-boundary prose to visitors.
+    """
+    if packet is None or not packet.evidence or program.budget_seconds < 210:
+        return [], (), ()
+    anchors = (
+        program.display_name,
+        *(item.name for item in program.selected_items),
+        *(item.craft for item in program.selected_items),
+    )
+    ranked: list[tuple[int, str, tuple[str, ...], str]] = []
+    for entry in packet.evidence:
+        one_entry = EvidencePacket(
+            packet.evidence_kind, packet.subject_id, packet.query,
+            (entry,), tuple(entry.get("source_ids", ())), packet.retrieval_error,
+        )
+        dimension_id = optional_dimension_id(entry)
+        for sentence, source_ids in _sentences(one_entry):
+            cleaned = _visitor_object_statement(sentence).strip()
+            if (
+                len(cleaned) < 12
+                or len(cleaned) > 150
+                or any(marker in cleaned for marker in OPTIONAL_CONTEXT_SKIP_MARKERS)
+            ):
+                continue
+            score = sum(8 for item in program.selected_items if item.name in cleaned)
+            score += sum(4 for item in program.selected_items if item.craft in cleaned)
+            score += sum(3 for interest in program.interests if interest and interest in cleaned)
+            score += 2 if program.display_name in cleaned else 0
+            if score:
+                ranked.append((score, cleaned, source_ids, dimension_id))
+    ranked.sort(key=lambda value: (-value[0], len(value[1]), value[1]))
+    limit = 2 if detailed and program.budget_seconds >= 270 else 1
+    chosen: list[str] = []
+    sources: set[str] = set()
+    dimension_ids: list[str] = []
+    for _, sentence, source_ids, dimension_id in ranked:
+        if sentence in chosen:
+            continue
+        if dimension_id in dimension_ids:
+            continue
+        chosen.append(sentence)
+        sources.update(source_ids)
+        dimension_ids.append(dimension_id)
+        if len(chosen) >= limit:
+            break
+    return chosen, tuple(sorted(sources)), tuple(dimension_ids)
+
+
+def _rhetorical_observation(
+    program: StopProgram,
+    rendered_items: tuple[Any, ...],
+    bundle: GuidanceEvidenceBundle,
+    *,
+    detailed: bool,
+    style_id: str,
+) -> str | None:
+    """Return one self-contained observation question and its answer.
+
+    The question never asks the visitor to respond.  Its answer uses only the
+    selected object's reviewed craft and location, avoiding a new historical,
+    symbolic or causal claim that is absent from the evidence bundle.
+    """
+    depth_allows = detailed or program.detail_level == "deep"
+    if not depth_allows or program.budget_seconds < 210 or style_id == "listen_only" or not rendered_items:
+        return None
+    item = rendered_items[0]
+    location = bundle.location_evidence.get(item.ornament_id)
+    raw_location = (
+        str(location.raw_location).strip()
+        if location is not None and getattr(location, "valid", False) and location.raw_location
+        else "所在建筑构件"
+    )
+    return (
+        f"为什么观察{item.name}时，既要看造型，也要看它所在的位置？"
+        f"因为它不是脱离建筑陈设的独立摆件；把{raw_location}与{item.craft}的造型放在一起看，"
+        "更容易理解装饰与建筑构件之间的关系。"
+    )
+
+
 def render_guidance_evidence(
     program: StopProgram,
     bundle: GuidanceEvidenceBundle,
@@ -652,6 +748,29 @@ def render_guidance_evidence(
         if warning:
             warnings.append(warning)
 
+    optional_lines, optional_sources, optional_dimension_ids = _optional_context_segment(
+        bundle.optional_context, program, detailed=detailed,
+    )
+    if optional_lines:
+        lines.extend(optional_lines)
+        used_sources.update(optional_sources)
+        for dimension_id, statement in zip(optional_dimension_ids, optional_lines):
+            fact_units.append({
+                "unit_id": f"dimension:{dimension_id}",
+                "topic_kind": "dimension",
+                "statements": [statement],
+                "source_statements": [statement],
+                "required": False,
+            })
+            if candidate := eligible_by_subject.get(("dimension", dimension_id)):
+                eligible.append(candidate)
+
+    rhetorical = _rhetorical_observation(
+        program, rendered_items, bundle, detailed=detailed, style_id=style_id,
+    )
+    if rhetorical:
+        lines.append(rhetorical)
+
     if len(rendered_ornaments) >= 2:
         first, second = rendered_items[0], rendered_items[1]
         if first.craft == second.craft:
@@ -660,20 +779,24 @@ def render_guidance_evidence(
             lines.append("也可以留意两种工艺在构件处理上的不同。")
     if omitted:
         warnings.append("本站预算优先保留核心对象，后续对象留待需要时再展开")
-    if policy and policy.interaction_mode != "listen_only" and policy.interaction_task_enabled:
+    if (
+        policy
+        and policy.interaction_mode != "listen_only"
+        and policy.interaction_task_enabled
+        and not rhetorical
+    ):
         lines.append("您可以留意其中一处造型细部；无需回答也不影响继续导览。")
     # The completion instruction is deliberately a peer paragraph, rather
     # than the last line of an object or observation paragraph.
-    lines.append(
-        "这一站的小秘密先看到这里。我们慢慢来，您想再仔细看看，"
-        "或者准备好后完成本点都可以。"
-        if style_id == "child" else COMPLETION_PROMPT
-    )
+    if style_id == "child":
+        lines.append("这一站的小秘密先看到这里。我们慢慢来，想仔细看看或完成本点都可以。")
+    lines.append(COMPLETION_PROMPT)
     allocated = sum(item.planned_seconds for item in rendered_items)
     return NarrationRenderResult(
         visitor_message="\n\n".join(lines),
         rendered_craft_ids=tuple(rendered_crafts),
         rendered_ornament_ids=tuple(rendered_ornaments),
+        rendered_dimension_ids=optional_dimension_ids,
         used_source_ids=tuple(sorted(used_sources)),
         eligible_coverage_candidates=tuple(eligible),
         content_budget_seconds=program.budget_seconds,

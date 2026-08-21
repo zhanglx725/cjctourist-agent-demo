@@ -36,6 +36,7 @@ def _render(result: Mapping[str, Any]) -> NarrationRenderResult:
         visitor_message=result["message"],
         rendered_craft_ids=tuple(audit.get("rendered_craft_ids", [])),
         rendered_ornament_ids=tuple(audit.get("rendered_ornament_ids", [])),
+        rendered_dimension_ids=tuple(audit.get("rendered_dimension_ids", [])),
         used_source_ids=tuple(audit.get("used_source_ids", [])),
         eligible_coverage_candidates=candidates,
         content_budget_seconds=audit["content_budget_seconds"],

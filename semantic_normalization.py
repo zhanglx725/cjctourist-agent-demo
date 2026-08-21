@@ -155,7 +155,7 @@ def recognition_prompt(user_text: str) -> str:
 
 通用知识问题候选：
 - knowledge_query：问题属于陈家祠现有知识库，但不属于上面的审核单一事实，也没有被工艺、术语、研究、比较、拍照或点位专项通道覆盖。
-  knowledge_domain 只能是：site_overview、history_architecture、visit_service、ticketing、event_notice、ornament_craft、ornament_item、ornament_location。
+  knowledge_domain 只能是：site_overview、history_architecture、visit_service、ticketing、event_notice、ornament_craft、ornament_item、ornament_location、people_craftspeople、architectural_conservation、craft_process、literary_citation、education_examination。
   领域含义：
   - site_overview：场馆名称、身份、总体概况及概览类问题；
   - history_architecture：历史沿革、营建背景、建筑格局、空间形制与文化解释；
@@ -165,6 +165,11 @@ def recognition_prompt(user_text: str) -> str:
   - ornament_craft：装饰工艺的材料、制作流程、技法与工艺特点；
   - ornament_item：具体装饰作品、人物题材、故事、寓意与构图；
   - ornament_location：具体装饰对象或题材位于哪里、哪个建筑部位。
+  - people_craftspeople：有史料依据的倡建者、营建参与者、工匠、传承人、修复师和保护工作者；
+  - architectural_conservation：构件病害、监测、历次修缮、保护原则及措施的时间边界；
+  - craft_process：工具、材料、完整制作流程、高处安装、协作分工和当代传承；
+  - literary_citation：诗文原文与出处、装饰题材关联、后人评价或借用诗意的引用边界；
+  - education_examination：陈氏子弟应试、暂住、书院教育、科举制度及相关史料边界。
   question_type 只能是：definition、time、location、person、material、process、technique、feature、story、meaning、function、composition、list、count、reason、rule、eligibility、method、availability、other。
   detail_level 只能是 brief 或 detailed；只有用户明确要求详细、深入、展开时才选 detailed，否则选 brief。
 - none：其他所有情况，包括多意图问题、模糊问题、无法判断知识领域、地点猜测和与陈家祠无关的问题。

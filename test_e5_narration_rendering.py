@@ -315,8 +315,17 @@ class NarrationRenderingTests(unittest.TestCase):
             self.assertIn(f"{item.name}是一件", message)
         self.assertNotIn("【", message)
         self.assertNotIn("】", message)
-        self.assertIn("讲解结束后，您可确认是否完成本点参观。", message)
+        self.assertIn("如需要拍照指导，请点击下方“拍照提示”。", message)
         self.assertFalse(any(line.startswith(("- ", "* ", "  - ", "  * ")) for line in message.splitlines()))
+
+    def test_detailed_guidance_uses_a_self_answered_observation_question(self):
+        detailed_program = replace(self.program, budget_seconds=300)
+        result = render_guidance_evidence(
+            detailed_program, self._bundle(detailed_program), detailed=True,
+        )
+        self.assertIn(f"为什么观察{self.primary.name}时", result.visitor_message)
+        self.assertIn("因为它不是脱离建筑陈设的独立摆件", result.visitor_message)
+        self.assertNotIn("请回答", result.visitor_message)
 
 
 if __name__ == "__main__":

@@ -41,7 +41,7 @@ class NarrationServiceTailTests(unittest.TestCase):
         self.assertEqual(validation.validation_status, "accepted")
         self.assertEqual(validation.reason_codes, ())
 
-    def test_reviewed_photo_guidance_is_heading_free_and_last(self):
+    def test_reviewed_photo_guidance_is_request_only_and_not_in_main_tail(self):
         tour = self.tour_state()
         photo_plan = {
             "schema_version": "proactive_photo_guidance_v1",
@@ -61,22 +61,13 @@ class NarrationServiceTailTests(unittest.TestCase):
 
         self.assertEqual(
             [unit.service_kind for unit in tail.units],
-            ["completion_prompt", "next_stop", "photo_guidance"],
-        )
-        self.assertEqual(
-            tail.units[-1].public_text,
-            "前庭门厅 在允许停留的位置自然站立，轻微侧身望向建筑。",
+            ["completion_prompt", "next_stop"],
         )
         validation = validate_stop_service_tail(
             tail, tour_state=tour, photo_plan=photo_plan, publish=True,
         )
         self.assertEqual(validation.validation_status, "accepted")
-        changed_plan = {**photo_plan, "planned_stop_ids": []}
-        stale = validate_stop_service_tail(
-            tail, tour_state=tour, photo_plan=changed_plan, publish=True,
-        )
-        self.assertEqual(stale.validation_status, "rejected")
-        self.assertIn("photo_guidance_stale", stale.reason_codes)
+        self.assertNotIn("自然站立", validation.public_text)
 
     def test_stale_route_and_invalid_public_text_fail_closed(self):
         tour = self.tour_state()

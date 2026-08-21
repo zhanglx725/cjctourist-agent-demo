@@ -22,7 +22,7 @@ from tour_navigation import (
 
 
 SERVICE_TAIL_SCHEMA_VERSION = "stop_service_tail_v1"
-COMPLETION_PROMPT = "讲解结束后，您可确认是否完成本点参观。"
+COMPLETION_PROMPT = "如需要拍照指导，请点击下方“拍照提示”。"
 _HEADING = re.compile(r"【[^】]+】")
 _MARKDOWN = re.compile(r"(?m)^\s*(?:#{1,6}\s+|[-*+]\s+|\d+[.)、]\s+)")
 _MALFORMED_PUNCTUATION = re.compile(r"(?:[。！？]{2,}|[，、]{2,}|～)")
@@ -192,23 +192,18 @@ def build_stop_service_tail(
             public_text=f"完成本点后，{navigation_text}",
         ),
     ]
-    normalized_photo = _photo_text(photo_guidance_message or "")
-    if normalized_photo:
-        units.append(PointServiceUnit(
-            unit_id="service:photo_guidance",
-            service_kind="photo_guidance",
-            public_text=normalized_photo,
-            required=False,
-        ))
+    # Photo guidance is intentionally request-only.  A reviewed proactive
+    # candidate may still be prepared upstream, but it must not be appended to
+    # the main narration.  The Streamlit "拍照提示" action requests and opens
+    # it in a separate card when the visitor wants it.
+    normalized_photo = ""
     return StopServiceTail(
         stop_id=stop_id,
         route_id=route_id,
         next_stop_id=next_stop_id,
-        photo_spot_id=str(photo_spot_id or "") or None,
+        photo_spot_id=None,
         route_fingerprint=_route_fingerprint(tour),
-        photo_plan_fingerprint=(
-            _photo_plan_fingerprint(photo_plan) if normalized_photo else None
-        ),
+        photo_plan_fingerprint=None,
         units=tuple(units),
     )
 

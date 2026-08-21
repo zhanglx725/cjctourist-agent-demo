@@ -13,6 +13,8 @@ import json
 import re
 from typing import Any, Callable, Iterable
 
+from knowledge_evidence_policy import rank_domain_evidence, retrieval_limit_for_plan
+
 
 KNOWLEDGE_DOMAIN_CATEGORIES: dict[str, tuple[str, ...]] = {
     "site_overview": ("basic_info", "history_architecture"),
@@ -23,6 +25,15 @@ KNOWLEDGE_DOMAIN_CATEGORIES: dict[str, tuple[str, ...]] = {
     "ornament_craft": ("ornament_craft",),
     "ornament_item": ("ornament_item",),
     "ornament_location": ("ornament_location", "ornament_item"),
+    # The following domains make the newly curated libraries addressable by
+    # the controlled planner.  Several currently share a broad persisted RAG
+    # category; the domain-specific query hints below provide the narrower
+    # retrieval intent without changing existing index compatibility.
+    "people_craftspeople": ("history_architecture",),
+    "architectural_conservation": ("history_architecture",),
+    "craft_process": ("ornament_craft",),
+    "literary_citation": ("literary_citation",),
+    "education_examination": ("history_architecture",),
 }
 KNOWLEDGE_DOMAINS = frozenset(KNOWLEDGE_DOMAIN_CATEGORIES)
 QUESTION_TYPES = frozenset(
@@ -74,6 +85,11 @@ _DOMAIN_QUERY_HINTS = {
     "ornament_craft": ("陈家祠", "建筑装饰工艺"),
     "ornament_item": ("陈家祠", "建筑装饰", "题材", "寓意"),
     "ornament_location": ("陈家祠", "建筑装饰", "位置"),
+    "people_craftspeople": ("陈家祠", "人物", "工匠", "传承人", "史料依据"),
+    "architectural_conservation": ("陈家祠", "古建筑保护", "修缮", "病害", "证据年代"),
+    "craft_process": ("陈家祠", "工艺制作", "材料", "工具", "工序", "传承"),
+    "literary_citation": ("陈家祠", "文学引用", "原文", "出处", "关联类型"),
+    "education_examination": ("陈氏书院", "学子", "科举", "应试", "教育史", "史料边界"),
 }
 _QUESTION_QUERY_HINTS = {
     "definition": ("是什么", "定义", "性质"),
@@ -323,7 +339,7 @@ def filter_plan_evidence(
 ) -> list[dict[str, Any]]:
     """Keep only evidence from the plan's reviewed category boundary."""
 
-    return [
+    scoped = [
         item
         for item in evidence
         if (
@@ -332,6 +348,12 @@ def filter_plan_evidence(
             and str(item.get("content") or "").strip()
         )
     ]
+    return rank_domain_evidence(
+        plan.domain,
+        plan.subject_text,
+        scoped,
+        limit=retrieval_limit_for_plan(plan.detail_level, len(plan.categories)),
+    )
 
 
 def grounded_answer_prompt(
@@ -360,6 +382,23 @@ def grounded_answer_prompt(
         if plan.is_dynamic
         else "只在有必要时用“馆方公开资料表明”说明证据边界。"
     )
+    domain_rule = {
+        "people_craftspeople": (
+            "人物姓名、身份、年代和经历必须逐项由 evidence 支持；不得补写人物生平、师承或参与项目。"
+        ),
+        "architectural_conservation": (
+            "必须区分历史记录、某次工程和当前状态；没有当前证据时不得使用‘目前仍在运行’等现在时断言。"
+        ),
+        "literary_citation": (
+            "只能按 evidence 的关联类型引用。C类必须明确说是借用诗意形容，并说明诗句不是描写陈家祠；不得补写原文。"
+        ),
+        "education_examination": (
+            "没有姓名、题名、书信、日记或档案时，只讲制度背景，不得虚构具体学子的生活场景。"
+        ),
+        "craft_process": (
+            "必须区分陈家祠直接记录与岭南通用工艺，不得把通用流程说成某件陈家祠原作的确定制作记录。"
+        ),
+    }.get(plan.domain, "")
     return (
         "你是陈家祠受控知识讲解器。只根据下方 evidence 回答，不得使用模型记忆补充陈家祠事实。\n"
         f"问题领域：{plan.domain}\n"
@@ -371,6 +410,7 @@ def grounded_answer_prompt(
         "若 evidence 只支持部分答案，明确说清支持到哪里；若存在冲突，说明口径差异，不自行裁决。\n"
         "不得输出文件名、资料标题、原始chunk、来源编号、URL、类别名、节点名、JSON或工具调用文本。\n"
         f"时效要求：{dynamic_rule}\n"
+        f"领域证据规则：{domain_rule or '遵守证据边界，不补写未提供事实。'}\n"
         "evidence：\n"
         + json.dumps(safe_evidence, ensure_ascii=False)
     )

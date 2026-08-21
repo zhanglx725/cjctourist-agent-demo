@@ -54,7 +54,7 @@ class NarrationComposerTests(unittest.TestCase):
         self.assertIn("术语“灰塑”", result.visitor_message)
         self.assertLess(
             result.visitor_message.index("术语“灰塑”"),
-            result.visitor_message.index("讲解结束后"),
+            result.visitor_message.index("如需要拍照指导"),
         )
         self.assertNotIn("【可选深入】", result.visitor_message)
         self.assertNotIn("term_x", result.visitor_message)
@@ -89,13 +89,14 @@ class NarrationComposerTests(unittest.TestCase):
         self.assertIn("相关比较研究认为", result.visitor_message)
         self.assertIn("不能扩展为价值排序", result.visitor_message)
 
-    def test_photo_is_revalidated_at_same_node(self):
+    def test_photo_candidate_is_kept_out_of_main_narration(self):
         candidate = CardEnhancementCandidate(40, "photo_spot", "photo_x", False, "safe", (), False, 20)
         payload = {"title_zh": "构件细节", "recommended_capture_zh": "可拍摄局部纹样。", "boundaries_zh": "不得触摸构件。"}
         card = _card("photo_x", "photo_spot_card", payload, refs=("S11",), visitor_visible=False)
         safe = lambda **_: {"available": True, "photo_spot": {"photo_spot_id": "photo_x", "node_id": self.program.node_id}}
         result = self.compose(self.plan(candidate), {"photo_x": card}, photo_selector=safe)
-        self.assertIn("拍摄建议“构件细节”", result.visitor_message)
+        self.assertNotIn("拍摄建议", result.visitor_message)
+        self.assertIn("photo_x", result.omitted_card_ids)
         wrong = self.compose(self.plan(candidate), {"photo_x": card}, photo_selector=lambda **_: {"available": False})
         self.assertNotIn("拍摄建议", wrong.visitor_message)
 

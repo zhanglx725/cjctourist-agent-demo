@@ -245,7 +245,11 @@ def build_stop_guidance(
             view = present_tour_state(tour_state, interaction_state, message=message)
             e5_evidence = [
                 entry
-                for packet in (*bundle.craft_overviews.values(), *bundle.ornament_details.values())
+                for packet in (
+                    *bundle.craft_overviews.values(),
+                    *bundle.ornament_details.values(),
+                    *((bundle.optional_context,) if bundle.optional_context else ()),
+                )
                 for entry in packet.evidence
             ]
             return {
@@ -256,7 +260,11 @@ def build_stop_guidance(
                 "evidence_by_item": bundle.evidence_by_item,
                 "rag_queries": [
                     packet.query
-                    for packet in (*bundle.craft_overviews.values(), *bundle.ornament_details.values())
+                    for packet in (
+                        *bundle.craft_overviews.values(),
+                        *bundle.ornament_details.values(),
+                        *((bundle.optional_context,) if bundle.optional_context else ()),
+                    )
                 ],
                 "source_ids": list(render.used_source_ids),
                 "guidance_policy": guidance_policy.to_dict(),
@@ -271,6 +279,7 @@ def build_stop_guidance(
                     "node_id": bundle.node_id,
                     "rendered_craft_ids": list(render.rendered_craft_ids),
                     "rendered_ornament_ids": list(render.rendered_ornament_ids),
+                    "rendered_dimension_ids": list(render.rendered_dimension_ids),
                     "used_source_ids": list(render.used_source_ids),
                     "content_budget_seconds": render.content_budget_seconds,
                     "allocated_content_seconds": render.allocated_content_seconds,

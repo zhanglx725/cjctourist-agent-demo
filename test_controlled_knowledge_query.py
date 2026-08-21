@@ -18,6 +18,20 @@ from controlled_knowledge_query import (
 
 
 class ControlledKnowledgeQueryTests(unittest.TestCase):
+    def test_new_knowledge_domains_have_stable_category_boundaries(self):
+        cases = {
+            "people_craftspeople": ("history_architecture",),
+            "architectural_conservation": ("history_architecture",),
+            "craft_process": ("ornament_craft",),
+            "literary_citation": ("literary_citation",),
+            "education_examination": ("history_architecture",),
+        }
+        for domain, categories in cases.items():
+            with self.subTest(domain=domain):
+                plan = ControlledKnowledgePlan(domain, "other", "陈家祠相关资料", "brief")
+                self.assertEqual(plan.categories, categories)
+                self.assertIn("陈家祠", build_controlled_retrieval_query(plan))
+
     def test_title_like_invoice_requests_use_one_closed_ticketing_plan(self):
         cases = (
             ("团体发票", "rule"),
@@ -293,7 +307,7 @@ class ControlledKnowledgeQueryTests(unittest.TestCase):
     def test_public_output_gate_rejects_internal_descriptions_for_every_domain(self):
         domain_cases = (
             "site_overview", "history_architecture", "visit_service", "ticketing",
-            "ornament_craft", "ornament_item",
+            "ornament_craft", "ornament_item", "ornament_location",
         )
         for domain in domain_cases:
             with self.subTest(domain=domain):

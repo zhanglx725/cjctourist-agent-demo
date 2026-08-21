@@ -22,7 +22,7 @@ from agent_graph import (
 )
 from narration_content_plan import NarrationContentPlan, NarrationFact
 from narration_coverage import empty_narration_coverage
-from narration_service_tail import build_stop_service_tail
+from narration_service_tail import COMPLETION_PROMPT, build_stop_service_tail
 from role_narration_generation import RoleNarrationCandidate
 from role_narration_style_evaluator import evaluate_role_narration_style
 from route_planner import plan_template
@@ -183,7 +183,7 @@ def _deterministic_assertions(
         "successful_service_tail_is_complete": (
             bool(audit.get("fallback_used"))
             or (
-                "讲解结束后，您可确认是否完成本点参观。" in final_message
+                COMPLETION_PROMPT in final_message
                 and "完成本点后，下一站：月台" in final_message
                 and "【下一步】" not in final_message
             )

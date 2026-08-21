@@ -53,9 +53,9 @@ class GuidanceEvidenceBundleTests(unittest.TestCase):
         bundle = build_guidance_evidence_bundle(self.program, coverage, self._rag(calls))
         self.assertEqual(bundle.coverage_status["craft"]["灰塑"], "repeat")
         self.assertNotIn("灰塑", bundle.craft_overviews)
-        self.assertFalse(any("灰塑 定义 材料 技法 建筑位置 特点" == query for query in calls))
+        self.assertFalse(any(query.startswith("灰塑 定义 材料 技法 建筑位置 特点") for query in calls))
 
-    def test_ornament_detail_is_hard_bounded_to_exact_08_title(self):
+    def test_ornament_detail_is_hard_bounded_to_reviewed_title(self):
         calls: list[str] = []
         bundle = build_guidance_evidence_bundle(self.program, None, self._rag(calls, wrong_ornament=True))
         self.assertEqual(bundle.ornament_details[self.primary.ornament_id].evidence, ())
@@ -86,6 +86,44 @@ class GuidanceEvidenceBundleTests(unittest.TestCase):
         self.assertFalse(any(candidate.evidence_kind == "craft_overview" for candidate in no_craft.coverage_candidates))
         no_items = build_guidance_evidence_bundle(self.program, None, lambda _: json.dumps({"evidence": []}))
         self.assertFalse(any(candidate.evidence_kind == "ornament_detail" for candidate in no_items.coverage_candidates))
+
+    def test_new_curated_craft_sources_are_eligible_with_sources_and_subject_match(self):
+        craft = self.primary.craft
+
+        def search(query: str) -> str:
+            if "定义 材料 技法 建筑位置 特点" in query:
+                evidence = [
+                    _entry("12_craft_process_and_transmission.md", f"{craft}：材料与完整流程", "S12", f"{craft}制作需要按工序完成。"),
+                    _entry("10_people_builders_craftspeople.md", "无关人物", "S10", f"此人研究过{craft}。"),
+                ]
+            else:
+                evidence = [_entry("08_ornament_items.md", self.primary.name, "S08", f"{self.primary.name}是审核条目。")]
+            return json.dumps({"evidence": evidence}, ensure_ascii=False)
+
+        bundle = build_guidance_evidence_bundle(self.program, None, search)
+        documents = {
+            entry["document"]
+            for packet in bundle.craft_overviews.values()
+            for entry in packet.evidence
+        }
+        self.assertIn("12_craft_process_and_transmission.md", documents)
+        self.assertNotIn("10_people_builders_craftspeople.md", documents)
+
+    def test_literary_card_can_support_exact_reviewed_ornament_title(self):
+        def search(query: str) -> str:
+            if "定义 材料 技法 建筑位置 特点" in query:
+                evidence = [_entry("07_ornament_crafts.md", self.primary.craft, "S07", f"{self.primary.craft}是建筑装饰工艺。")]
+            else:
+                evidence = [
+                    _entry("13_literary_citation_cards.md", f"引用卡：{self.primary.name}", "S13", f"{self.primary.name}的引用须区分直接相关与借用诗意。"),
+                    _entry("13_literary_citation_cards.md", "其他装饰", "S13", f"正文顺带提到{self.primary.name}。"),
+                ]
+            return json.dumps({"evidence": evidence}, ensure_ascii=False)
+
+        bundle = build_guidance_evidence_bundle(self.program, None, search)
+        packet = bundle.ornament_details[self.primary.ornament_id]
+        self.assertEqual(len(packet.evidence), 1)
+        self.assertIn(self.primary.name, packet.evidence[0]["title_path"][-1])
 
     def test_rag_failure_is_closed_and_inputs_are_unchanged(self):
         coverage = commit_introductions(None, [])

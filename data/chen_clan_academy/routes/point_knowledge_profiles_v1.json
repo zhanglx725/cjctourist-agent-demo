@@ -1,0 +1,79 @@
+{
+  "schema_version": "v1",
+  "selection_policy": "Optional dimensions are retrieval hints, not mandatory narration. Current reviewed objects and source-backed component locations remain the visibility boundary.",
+  "profiles": [
+    {
+      "node_id": "stop_front_courtyard_north",
+      "visible_components": ["屋脊", "外立面", "连廊", "首进中路"],
+      "optional_dimensions": ["灰塑制作与工艺传承", "陶塑瓦脊制作安装", "屋脊装饰保护", "装饰题材文学出处", "庭院连廊与岭南建筑空间"],
+      "next_stop_preview": ["前院中轴与入口空间", "月台的栏杆和通花装饰"]
+    },
+    {
+      "node_id": "stop_front_courtyard_center",
+      "excluded_objects": ["金蟾吐瑞气"],
+      "visible_components": ["前院外观", "山墙垂脊前沿", "旗杆夹石", "石狮与基座"],
+      "optional_dimensions": ["灰塑制作与工艺传承", "独角狮保护修缮案例", "入口空间与中轴礼序", "旗杆夹石与科举制度", "陈氏子弟应试与书院功能"],
+      "next_stop_preview": ["月台空间与栏杆工艺", "前庭屋脊和外立面装饰"]
+    },
+    {
+      "node_id": "label_moon_platform",
+      "visible_components": ["月台", "石雕栏杆", "望柱", "铁铸通花栏板", "聚贤堂前空间"],
+      "optional_dimensions": ["建筑空间与礼制秩序", "石雕制作与构件功能", "石材风化保护", "木雕屏门与厅堂关系", "相关装饰题材的文学出处"],
+      "next_stop_preview": ["后部庭院与厅堂序列", "前院东西侧的吉祥和故事题材"]
+    },
+    {
+      "node_id": "stop_rear_courtyard",
+      "visible_components": ["后庭", "后进厅堂", "冷巷", "连廊"],
+      "optional_dimensions": ["书院与祠堂复合功能", "陈氏子弟暂住和应试制度", "建筑使用与办学变迁", "木雕制作与保护", "冷巷通风和庭院空间"],
+      "next_stop_preview": ["后庭东西侧的木石雕故事", "后部厅堂的建筑变迁"]
+    },
+    {
+      "node_id": "stop_rear_west_courtyard",
+      "visible_components": ["后西庭", "木雕屏门", "石雕构件"],
+      "optional_dimensions": ["木雕制作与修复", "三国题材文学出处", "人物构图与叙事", "木雕和石雕审美比较"],
+      "next_stop_preview": ["后庭的厅堂与庭院层次"]
+    },
+    {
+      "node_id": "stop_front_east_courtyard",
+      "visible_components": ["前东庭", "山墙", "石雕构件"],
+      "optional_dimensions": ["灰塑制作与保护", "吉祥纹样的图像寓意", "人物故事文学出处", "中西图像在地转化"],
+      "next_stop_preview": ["前院中轴空间", "月台栏杆工艺"]
+    },
+    {
+      "node_id": "stop_rear_east_courtyard_inner",
+      "visible_components": ["后东庭", "灰塑装饰", "木雕构件"],
+      "optional_dimensions": ["九如图与诗经出处", "灰塑和木雕制作", "日月神保护案例", "后部庭院空间"],
+      "next_stop_preview": ["后庭中路的厅堂序列"]
+    },
+    {
+      "node_id": "stop_front_courtyard_east",
+      "visible_components": ["前院东部", "灰塑", "陶塑", "砖雕与铁铸构件"],
+      "optional_dimensions": ["多工艺协作与安装", "戏曲和神话题材出处", "砖雕制作传承", "外来图像的岭南化"],
+      "next_stop_preview": ["前东庭的吉祥纹样"]
+    },
+    {
+      "node_id": "stop_front_west_courtyard",
+      "visible_components": ["前西庭", "灰塑", "石雕构件"],
+      "optional_dimensions": ["百鸟朝凤的图像寓意", "灰塑和石雕制作比较", "苏武题材文献出处", "装饰保护"],
+      "next_stop_preview": ["前院西部的科举和小说题材"]
+    },
+    {
+      "node_id": "stop_front_courtyard_west_inner",
+      "visible_components": ["前院西部", "灰塑", "陶塑", "砖雕与铁铸构件"],
+      "optional_dimensions": ["科举吉祥图像", "陈氏子弟应试制度", "三国与水浒题材出处", "砖雕制作传承"],
+      "next_stop_preview": ["前西庭的吉祥与人物典故"]
+    },
+    {
+      "node_id": "stop_rear_courtyard_east",
+      "visible_components": ["后庭东侧", "灰塑", "石雕", "陶塑"],
+      "optional_dimensions": ["广州城市意象与琶洲砥柱", "瑞兽图像寓意", "石雕和陶塑制作", "后部建筑构件保护"],
+      "next_stop_preview": ["后庭中路空间"]
+    },
+    {
+      "node_id": "stop_rear_courtyard_west",
+      "visible_components": ["后庭西侧", "木雕", "石雕"],
+      "optional_dimensions": ["历史人物题材的文献边界", "木雕制作与传承", "木石雕审美比较", "构件保护"],
+      "next_stop_preview": ["后庭中路的建筑变迁"]
+    }
+  ]
+}

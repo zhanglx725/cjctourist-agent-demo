@@ -52,6 +52,32 @@ class NarrationContentPlanTests(unittest.TestCase):
         self.assertIsNotNone(restored)
         self.assertEqual(restored.allocated_content_seconds, 120)
 
+    def test_optional_dimension_is_a_non_required_audited_fact_unit(self):
+        audit = {
+            **self.audit,
+            "rendered_dimension_ids": ["knowledge_deadbeef"],
+            "fact_units": [
+                *self.audit["fact_units"],
+                {
+                    "unit_id": "dimension:knowledge_deadbeef",
+                    "topic_kind": "dimension",
+                    "required": False,
+                    "statements": ["馆方历史资料记录了这一装饰的保护案例。"],
+                },
+            ],
+        }
+        plan = build_narration_content_plan(
+            public_message=self.message,
+            stop_program=self.program,
+            render_audit=audit,
+            visitor_profile={},
+            narration_coverage={},
+        )
+        self.assertEqual(plan.status, "ready")
+        optional = next(fact for fact in plan.facts if fact.fact_id.startswith("dimension:"))
+        self.assertFalse(optional.required)
+        self.assertEqual(optional.topic_kind, "ornament")
+
     def test_mismatched_reviewed_id_fails_closed(self):
         audit = {**self.audit, "rendered_ornament_ids": ["missing"]}
         plan = build_narration_content_plan(
