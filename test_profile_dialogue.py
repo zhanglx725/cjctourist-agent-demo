@@ -19,7 +19,7 @@ class ProfileDialogueTests(unittest.TestCase):
             "霸道总裁", "奶气学弟", "古风书生", "知心姐姐", "闺蜜唠嗑", "兄弟搭子",
             "探秘闯关", "打卡出片", "祠中宿生", "西关少爷（粤语）", "粤派讲古（粤语）",
         )
-        self.assertIn("18种已审核风格", STYLE_SELECTION_PROMPT)
+        self.assertIn("18种可选风格", STYLE_SELECTION_PROMPT)
         for display_name in expected:
             with self.subTest(display_name=display_name):
                 self.assertEqual(STYLE_SELECTION_PROMPT.count(display_name), 1)
@@ -153,6 +153,28 @@ class ProfileDialogueTests(unittest.TestCase):
                 self.assertEqual(patch.get("explanation_style"), expected)
                 self.assertIn("explanation_style", fields)
                 self.assertNotIn("interests", patch)
+
+    def test_all_display_names_resolve_when_the_style_question_is_active(self):
+        cases = {
+            "中性清晰": "neutral", "儿童友好": "child", "亲子共游": "family",
+            "研学观察": "student_research", "专业讲解": "professional",
+            "静听模式": "listen_only", "混合群体": "mixed_group",
+            "霸道总裁": "dominant_ceo", "奶气学弟": "cute_junior",
+            "古风书生": "ancient_scholar", "知心姐姐": "warm_sister",
+            "闺蜜唠嗑": "bestie_chat", "兄弟搭子": "buddy_guide",
+            "探秘闯关": "exploration_game", "打卡出片": "photo_guide",
+            "祠中宿生": "hostel_scholar", "西关少爷": "xiguan_young_master",
+            "粤派讲古": "cantonese_storyteller",
+        }
+        for display_name, style_id in cases.items():
+            with self.subTest(display_name=display_name):
+                result = collect_profile_input(
+                    None, display_name, start_collection=True,
+                    required_fields=("explanation_style",),
+                )
+                assert result is not None
+                self.assertEqual(result.status, "ready")
+                self.assertEqual(result.collection.profile.explanation_style, style_id)
 
     def test_new_style_conflict_requires_clarification(self):
         patch, fields, issue = extract_profile_patch("选择古风书生风格和打卡出片风格")

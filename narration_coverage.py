@@ -15,7 +15,7 @@ from typing import Any, Iterable
 
 
 SCHEMA_VERSION = "v1"
-VALID_SUBJECT_KINDS = frozenset({"craft", "ornament"})
+VALID_SUBJECT_KINDS = frozenset({"craft", "ornament", "dimension"})
 VALID_INTRODUCED_BY = frozenset(
     {
         "stop_guidance",
@@ -142,7 +142,12 @@ class NarrationCoverage:
             raise NarrationCoverageError("introduction_records are invalid")
         craft_ids = tuple(record.subject_id for record in records if record.subject_kind == "craft")
         ornament_ids = tuple(record.subject_id for record in records if record.subject_kind == "ornament")
-        if len(craft_ids) != len(set(craft_ids)) or len(ornament_ids) != len(set(ornament_ids)):
+        subject_keys = tuple((record.subject_kind, record.subject_id) for record in records)
+        if (
+            len(craft_ids) != len(set(craft_ids))
+            or len(ornament_ids) != len(set(ornament_ids))
+            or len(subject_keys) != len(set(subject_keys))
+        ):
             raise NarrationCoverageError("first introductions must be unique per subject")
         if tuple(self.introduced_craft_ids) != craft_ids:
             raise NarrationCoverageError("introduced_craft_ids must be derived from records")

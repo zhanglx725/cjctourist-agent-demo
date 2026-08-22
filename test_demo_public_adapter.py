@@ -1,7 +1,15 @@
 import unittest
 from pathlib import Path
 
-from agent_graph import PublicMessage, PublicTourSummary, PublicTurnResult
+from langchain_core.messages import AIMessage
+
+from agent_graph import (
+    PublicMessage,
+    PublicTourSummary,
+    PublicTurnResult,
+    _public_tour_summary,
+    _public_turn_from_result,
+)
 from demo.demo_adapter import DemoAdapter
 
 
@@ -13,6 +21,27 @@ def _turn(*messages, current_stop="前院"):
 
 
 class DemoPublicAdapterTests(unittest.TestCase):
+    def test_stop_guidance_projects_validated_service_tail_separately(self):
+        service_text = "讲解结束后，您可确认是否完成本点。 完成本点后，下一站：月台。"
+        result = _public_turn_from_result(
+            {
+                "messages": [AIMessage(
+                    id="stop-1",
+                    content=f"先看眼前的构件。\n\n{service_text}",
+                    additional_kwargs={
+                        "public_scene_kind": "stop_guidance",
+                        "role_narration": True,
+                        "stop_service_text": service_text,
+                    },
+                )],
+            },
+            after_last_human=False,
+        )
+        self.assertEqual(len(result.public_messages), 1)
+        message = result.public_messages[0]
+        self.assertEqual(message.text, "先看眼前的构件。")
+        self.assertEqual(message.service_text, service_text)
+
     def test_deduplicates_by_message_id_and_uses_public_summary(self):
         route = PublicMessage("route-1", "route_planning", "路线正文", True)
         opening = PublicMessage("opening-1", "route_opening", "开场正文", True)
@@ -29,6 +58,33 @@ class DemoPublicAdapterTests(unittest.TestCase):
         self.assertTrue(second.is_error)
         self.assertEqual(adapter.itinerary.current_stop, "前院")
         self.assertEqual(len(calls), 2)
+
+    def test_public_summary_exposes_ordered_stop_progress_without_ids(self):
+        summary = _public_tour_summary({
+            "tour_state": {
+                "visited_stop_ids": ["p1_01_qianyuan"],
+                "current_stop_id": "p1_02_zhongting",
+                "remaining_stop_ids": ["p1_02_zhongting", "p1_03_juxiantang"],
+            },
+        })
+        self.assertEqual(summary.completed_count, 1)
+        self.assertEqual([stop.status for stop in summary.stops], ["completed", "current", "upcoming"])
+        self.assertTrue(all("_" not in stop.name for stop in summary.stops))
+
+    def test_public_summary_exposes_early_finish_for_frontend_completion_ui(self):
+        summary = _public_tour_summary({
+            "tour_state": {
+                "visited_stop_ids": ["p1_01_qianyuan"],
+                "current_stop_id": "p1_02_zhongting",
+                "remaining_stop_ids": ["p1_02_zhongting", "p1_03_juxiantang"],
+                "route_status": "completed",
+                "completion_reason": "visitor_finished_early",
+            },
+        })
+        self.assertTrue(summary.is_finished)
+        self.assertTrue(summary.finished_early)
+        self.assertEqual(summary.completed_count, 1)
+        self.assertEqual(summary.remaining_count, 2)
 
     def test_reset_creates_an_isolated_thread_and_allows_fresh_display(self):
         message = PublicMessage("same-id", "stop_guidance", "讲解正文", False)
@@ -67,15 +123,20 @@ class DemoPublicAdapterTests(unittest.TestCase):
         app_source = (root / "demo" / "streamlit_app.py").read_text(encoding="utf-8")
         self.assertNotIn("get_state", adapter_source)
         self.assertNotIn("tour_state", adapter_source)
-        self.assertIn('QUICK_ACTIONS = ["我到了"', app_source)
+        self.assertIn(
+            'QUICK_ACTIONS = ["拍照提示", "我到了", "再讲详细一点", "完成本点"]',
+            app_source,
+        )
 
     def test_deploy_doc_has_active_settings_and_current_arrival_wording(self):
         document = (Path(__file__).resolve().parent / "demo" / "README_DEPLOY.md").read_text(encoding="utf-8")
         for value in (
             "CJC_READ_ONLY_ROLLOUT_MODE = \"read_only_active\"",
-            "ROLE_ACTIVE_ENABLED = \"true\"",
-            "ROLE_ACTIVE_STYLES = \"neutral,child,ancient_scholar\"",
-            "ROLE_ACTIVE_SCENES = \"route_planning,route_opening,stop_guidance\"",
+            "CJC_READ_ONLY_ROLLOUT_CAPABILITIES = \"role_narration,role_qa\"",
+            "PRODUCT_ROLE_ACTIVE_ENABLED = \"true\"",
+            "PRODUCT_ROLE_ACTIVE_SCENES = \"route_planning,route_opening,stop_guidance,tour_qa,qa_follow_up_detail,navigation,tour_closing,replan_presentation\"",
+            "PRODUCT_ROLE_ROLLOUT_PERCENTAGE = \"100\"",
+            "PRODUCT_ROLE_NATURAL_FULL_NARRATION_ENABLED = \"true\"",
             "“我到了”",
         ):
             self.assertIn(value, document)

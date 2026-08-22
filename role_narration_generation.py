@@ -1,14 +1,15 @@
 """Bounded role narration candidate generation.
 
-The model receives a minimal reviewed StyleBrief and a source-free claim plan.
-It cannot retrieve, call tools, or write state. Approved fact statements must
-remain verbatim; the model may only arrange them and add bounded role phrasing.
+The model receives a reviewed StyleBrief and a bounded, reviewed claim plan.
+It cannot retrieve, call tools, or write state. Facts remain server-controlled,
+while the model owns the natural visitor-facing organisation around them.
 """
 
 from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import time
 from dataclasses import dataclass
@@ -36,6 +37,38 @@ UNAPPROVED_CONNECTOR_FACT_TRIGGER = re.compile(
     r"(?:\d{3,4}年|公元|朝代|作者|创作者|传说|典故|寓意|象征|第一|唯一|"
     r"最[具有佳高大]|官方认证|国家级)"
 )
+
+
+def _provider_failure_reason(exc: Exception) -> str:
+    """Return a compact, secret-free provider failure marker for evaluation.
+
+    A bare exception class made an API rejection indistinguishable from a
+    timeout or a model outage in saved snapshots.  Keep existing class-only
+    markers for ordinary failures (including deterministic test fixtures),
+    but append an HTTP/API error code when the client exposes one.  Never
+    record the request, prompt, response body, or credentials.
+    """
+    marker = type(exc).__name__
+    status_code = getattr(exc, "status_code", None)
+    body = getattr(exc, "body", None)
+    error_code = body.get("code") if isinstance(body, Mapping) else None
+    error_message = body.get("message") if isinstance(body, Mapping) else None
+    safe_parts = [marker]
+    if isinstance(status_code, int):
+        safe_parts.append(str(status_code))
+    if isinstance(error_code, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,96}", error_code):
+        safe_parts.append(error_code)
+    # Provider error messages explain request-shape failures, but may not be
+    # copied verbatim: collapse whitespace, exclude credential-like strings,
+    # and bound the diagnostic to a short internal marker.
+    if isinstance(error_message, str):
+        normalized_message = re.sub(r"\s+", "_", error_message).strip("_")
+        if (
+            normalized_message
+            and not re.search(r"(?i)(api[_-]?key|authorization|bearer|sk-[A-Za-z0-9])", normalized_message)
+        ):
+            safe_parts.append(normalized_message[:160])
+    return ":".join(safe_parts)
 
 
 def role_connector_text(
@@ -72,16 +105,177 @@ def _plan_output_limits(plan: NarrationContentPlan) -> tuple[int, int]:
         # Live plans carry E5's authoritative allocated duration.
         allocated_seconds = math.ceil(approved_fact_characters / 4)
     remaining_seconds = max(0, plan.budget_seconds - allocated_seconds)
+    # A point narration needs a role phrase before, between, and after
+    # immutable fact blocks.  Keep a deliberately wider expression allowance
+    # than the former template-era quota: natural observation guidance needs
+    # enough room to name an action and make a real transition, not merely add
+    # a catchphrase.  This relaxes style expression only; the authoritative
+    # time budget, immutable fact-token boundary, public-safety checks and
+    # state-write prohibition remain unchanged.
+    structured_cap = min(360, 28 + 36 * (len(plan.facts) + 3))
+    # Compact mode has a small, deterministic structural overhead: opening,
+    # per-unit micro observations, one transition and closing.  These are
+    # approved style components rather than model-added facts.  Reserve a
+    # bounded six-second allowance so a valid multi-object compact scaffold
+    # is not rejected solely because its mandatory glue is counted against
+    # the fact allocation a second time.
+    compact_structure_allowance = 24 if plan.scaffold_mode == "compact" else 0
     max_connector_characters = max(
         0,
-        min(
-            120,
-            len(plan.facts) * 60,
-            remaining_seconds * 4,
-        ),
+        min(structured_cap, remaining_seconds * 4 + compact_structure_allowance),
     )
     max_public_characters = approved_fact_characters + max_connector_characters
     return max_public_characters, max_connector_characters
+
+
+def role_connector_character_limit(plan: NarrationContentPlan) -> int:
+    """Expose the single budget formula used by generation and validation."""
+    return _plan_output_limits(plan)[1]
+
+
+def _component(
+    brief: StyleBrief,
+    kind: str,
+    index: int,
+    *,
+    previous: str = "",
+    used: frozenset[str] = frozenset(),
+) -> str:
+    values = brief.point_narration_components.get(kind, ())
+    if not values:
+        return ""
+    normalized = tuple(str(value).strip() for value in values if str(value).strip())
+    if not normalized:
+        return ""
+    for offset in range(len(normalized)):
+        selected = normalized[(index + offset) % len(normalized)]
+        if selected != previous and selected not in used:
+            return selected
+    # A short component library can be exhausted on a long stop.  Preserve
+    # required typed coverage in that case; the child library supplies enough
+    # distinct phrases for its reviewed stop size.
+    for offset in range(len(normalized)):
+        selected = normalized[(index + offset) % len(normalized)]
+        if selected != previous:
+            return selected
+    return normalized[index % len(normalized)]
+
+
+def apply_point_narration_scaffold(
+    candidate: RoleNarrationCandidate,
+    plan: NarrationContentPlan,
+    brief: StyleBrief,
+    *,
+    compact: bool | None = None,
+) -> RoleNarrationCandidate:
+    """Interleave immutable facts with reviewed persona-only components.
+
+    The model still supplies the strict token envelope.  Once its fact
+    partition is valid, its free-form connector prose is deliberately not
+    published: this deterministic composer guarantees that the same role is
+    audible at the opening, middle, and closing without altering any fact.
+    """
+    if candidate.generation_status != "generated":
+        return candidate
+    required_components = {
+        "opening", "appreciation", "closing",
+        *(f"{topic}_{kind}" for topic in ("space", "craft", "ornament")
+          for kind in ("intro", "observation", "transition")),
+    }
+    if not all(brief.point_narration_components.get(key) for key in required_components):
+        return _failed(plan.style_id, "style_components_unavailable", candidate.latency_ms, model_called=True)
+    ordered_facts = [fact for fact in plan.facts if fact.fact_id in candidate.used_fact_ids]
+    if not ordered_facts:
+        return _failed(plan.style_id, "no_used_facts_for_scaffold", candidate.latency_ms, model_called=True)
+    compact_components = bool(brief.point_narration_components.get("compact_opening"))
+    opening_key = "compact_opening" if compact and compact_components else "opening"
+    closing_key = "compact_closing" if compact and compact_components else "closing"
+    used_components: dict[str, set[str]] = {}
+
+    def component(kind: str, index: int, *, previous: str = "") -> str:
+        used = used_components.setdefault(kind, set())
+        selected = _component(
+            brief, kind, index, previous=previous, used=frozenset(used),
+        )
+        if selected:
+            used.add(selected)
+        return selected
+
+    parts = [component(opening_key, 0)]
+    previous_component = parts[0]
+    compact_transition_emitted = False
+    for index, fact in enumerate(ordered_facts):
+        is_unit_start = index == 0 or ordered_facts[index - 1].unit_id != fact.unit_id
+        if is_unit_start and not (compact and compact_components):
+            intro = component(
+                f"{fact.topic_kind}_intro", index,
+                previous=previous_component,
+            )
+            if intro and intro != previous_component:
+                parts.append(intro)
+                previous_component = intro
+        parts.append(fact.statement)
+        if compact and compact_components:
+            is_unit_end = index == len(ordered_facts) - 1 or ordered_facts[index + 1].unit_id != fact.unit_id
+            if is_unit_end:
+                observation = component(
+                    f"{fact.topic_kind}_micro_observation", index,
+                    previous=previous_component,
+                )
+                if observation and observation != previous_component:
+                    parts.append(observation)
+                    previous_component = observation
+            if is_unit_end and index < len(ordered_facts) - 1 and not compact_transition_emitted:
+                transition = component(
+                    f"{fact.topic_kind}_micro_transition", index,
+                    previous=previous_component,
+                )
+                if transition and transition != previous_component:
+                    parts.append(transition)
+                    previous_component = transition
+                    compact_transition_emitted = True
+        elif not compact and index < len(ordered_facts) - 1:
+            next_fact = ordered_facts[index + 1]
+            kind = "observation" if next_fact.unit_id == fact.unit_id else "transition"
+            bridge = component(
+                f"{fact.topic_kind}_{kind}", index,
+                previous=previous_component,
+            )
+            if bridge and bridge != previous_component:
+                parts.append(bridge)
+                previous_component = bridge
+    if not compact:
+        appreciation = component(
+            "appreciation", len(ordered_facts), previous=previous_component,
+        )
+        if appreciation and appreciation != previous_component:
+            parts.append(appreciation)
+            previous_component = appreciation
+    closing = component(
+        closing_key, len(ordered_facts), previous=previous_component,
+    )
+    if closing and closing != previous_component:
+        parts.append(closing)
+    public_text = "".join(part for part in parts if part)
+    # The component fallback remains a visitor-facing narration, not a compact
+    # machine string. Keep every immutable fact in its own visual paragraph.
+    for fact in ordered_facts:
+        public_text = public_text.replace(
+            fact.statement, f"\n\n{fact.statement}\n\n", 1,
+        )
+    public_text = re.sub(r"\n{3,}", "\n\n", public_text).strip()
+    if len(re.sub(r"\s+", "", role_connector_text(public_text, plan))) > role_connector_character_limit(plan):
+        return _failed(plan.style_id, "style_scaffold_budget_exceeded", candidate.latency_ms, model_called=True)
+    return RoleNarrationCandidate(
+        style_id=candidate.style_id,
+        public_text=public_text,
+        used_fact_ids=candidate.used_fact_ids,
+        omitted_fact_ids=candidate.omitted_fact_ids,
+        self_check=candidate.self_check,
+        model_called=candidate.model_called,
+        latency_ms=candidate.latency_ms,
+        reason_code=candidate.reason_code,
+    )
 
 
 @dataclass(frozen=True)
@@ -125,6 +319,7 @@ def role_narration_prompt(plan: NarrationContentPlan, brief: StyleBrief) -> str:
             "schema_version": plan.schema_version,
             "style_id": plan.style_id,
             "language": plan.language,
+            "requested_scope": plan.requested_scope,
             "budget_seconds": plan.budget_seconds,
             "facts": [
                 {
@@ -166,6 +361,14 @@ omitted_fact_ids。只允许省略 required=false 的事实。
 public_text 去除事实 token 后的全部角色连接文字，总字符数不得超过
 content_plan.max_role_connector_characters；public_text 恢复事实后的总字符数不得超过
 content_plan.max_public_text_characters。若连接预算为 0，只输出 required token，不加任何文字。
+style_brief.acceptance_profile 是本次点位讲解的审核表达合同。仅对你新增的角色连接文字执行：
+1. 用 point_narration_strategy 组织开场、事实之间的连接与收束；
+2. 在连接文字中满足 required_markers 的至少
+   rhythm.min_marker_groups 组，不足时宁可少写并由系统回退，不能伪造事实；
+3. 不得使用 forbidden_markers，并遵守 rhythm 的 sentence_length 与 pacing；
+4. interaction_contract.mode=none 或 content_plan.interaction_allowed=false 时，绝不提出问题、
+   任务、拍照或动作要求；其他 mode 也不得超过 interaction_contract.max_requests。
+few_shot_examples 仅示范语气、节奏和事实块周围的连接方式；其中 input_facts 不是可新增事实。
 你可以调整完整事实块的顺序，并添加简短的角色化称呼、开场、连接和收束，但不得新增人物、年代、
 故事、寓意、排名、认证、现场对象或路线信息。不得回答计划之外的问题。
 不得输出文件路径、URL、source ID、节点 ID、工具名称或任何内部字段。
@@ -177,7 +380,13 @@ self_check 只能包含 added_new_facts、role_consistent、within_budget 三个
         shape_example, ensure_ascii=False, separators=(",", ":")
     ) + "\n输入如下：\n" + json.dumps(
         payload, ensure_ascii=False, separators=(",", ":")
-    )
+    ) + """
+
+最终令牌协议（优先于前文所有角色表达指令）：服务端会确定性生成全部角色开场、观察、承接和收束。
+你的 public_text 必须且只能由已给出的 public_text_token 连续组成，不得加入任何其他字符，
+包括普通文字、称呼、空格、换行、标点、波浪号、问题、互动或 Markdown；不得改变 token 顺序。
+这不是风格缺失：风格文字由服务端在令牌水合后添加。只输出严格 JSON 对象。
+"""
 
 
 def _decode(value: str) -> Mapping[str, Any] | None:
@@ -259,9 +468,21 @@ def _hydrate_fact_tokens(
         f"[[FACT_{index:03d}]]": fact
         for index, fact in enumerate(plan.facts)
     }
-    if any(token not in known_tokens for token in _FACT_TOKEN.findall(text)):
+    found_tokens = _FACT_TOKEN.findall(text)
+    if any(token not in known_tokens for token in found_tokens) or not found_tokens:
         return _failed(
             plan.style_id, "invalid_fact_placeholders",
+            candidate.latency_ms, model_called=True,
+        )
+    expected_tokens = [token for token, fact in known_tokens.items() if fact.fact_id in used_ids]
+    if found_tokens != expected_tokens:
+        return _failed(
+            plan.style_id, "invalid_fact_token_order",
+            candidate.latency_ms, model_called=True,
+        )
+    if text != "".join(expected_tokens):
+        return _failed(
+            plan.style_id, "model_connector_text_forbidden",
             candidate.latency_ms, model_called=True,
         )
     connector_text = text
@@ -300,10 +521,41 @@ def _hydrate_fact_tokens(
     )
 
 
+def _requires_unmodified_validation(
+    candidate: RoleNarrationCandidate,
+    plan: NarrationContentPlan,
+    brief: StyleBrief,
+) -> bool:
+    """Do not hide unsafe model prose by replacing it with a style scaffold."""
+    if candidate.generation_status != "generated":
+        return True
+    connector = role_connector_text(candidate.public_text, plan)
+    if connector_has_unapproved_fact(candidate, plan):
+        return True
+    if re.search(r"(?:source[_ ]?ids?|node[_ ]?id|https?://|file://|[A-Za-z]:\\\\)", candidate.public_text, re.I):
+        return True
+    if re.search(r"(?:[。！？]{2,}|[，、]{2,}|[，。！？]\s*[，。！？]|～)", candidate.public_text):
+        return True
+    sentences = [piece.strip() for piece in re.split(r"[。！？\n]+", connector) if piece.strip()]
+    if len(sentences) != len(set(sentences)):
+        return True
+    forbidden = tuple(brief.acceptance_profile.get("forbidden_markers", ())) + tuple(brief.prohibited_patterns)
+    if any(marker and marker in candidate.public_text for marker in forbidden):
+        return True
+    contract = brief.acceptance_profile.get("interaction_contract", {})
+    if not plan.interaction_allowed or contract.get("mode") == "none":
+        if re.search(r"(?:\?|？|请你|试着|任务|回答|拍照|跟着做)", candidate.public_text):
+            return True
+    return False
+
+
 def generate_role_narration(
     plan: NarrationContentPlan,
     brief: StyleBrief,
     invoke_model: Callable[[str], str],
+    *,
+    compact: bool | None = None,
+    recent_discourse_expressions: tuple[str, ...] = (),
 ) -> RoleNarrationCandidate:
     if plan.status != "ready" or brief.style_id != plan.style_id:
         return _failed(plan.style_id, "plan_or_style_not_ready")
@@ -315,51 +567,132 @@ def generate_role_narration(
         allocated_seconds = math.ceil(approved_fact_characters / 4)
     if plan.budget_seconds <= 0 or allocated_seconds > plan.budget_seconds:
         return _failed(plan.style_id, "fact_budget_infeasible")
+    use_natural_discourse = (
+        os.getenv("PRODUCT_ROLE_NATURAL_DISCOURSE_ENABLED", "").strip().lower()
+        in {"1", "true", "yes", "on"}
+        # ``...NATURAL_DISCOURSE_ENABLED`` was the original pilot switch and
+        # is already present in many test/dev shells.  Full, all-role prose is
+        # a new wire protocol, so it needs an explicit migration gate instead
+        # of reinterpreting old mocked candidate envelopes as discourse JSON.
+        and os.getenv("PRODUCT_ROLE_NATURAL_FULL_NARRATION_ENABLED", "").strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
     started = time.perf_counter()
-    prompt = role_narration_prompt(plan, brief)
+    discourse_plan = None
+    if use_natural_discourse:
+        from role_discourse import build_role_discourse_plan, role_discourse_prompt
+        discourse_plan = build_role_discourse_plan(
+            plan, recent_expressions=recent_discourse_expressions,
+        )
+        prompt = (
+            role_discourse_prompt(discourse_plan, brief)
+            if discourse_plan is not None else role_narration_prompt(plan, brief)
+        )
+    else:
+        prompt = role_narration_prompt(plan, brief)
     try:
         raw = invoke_model(prompt)
     except Exception as exc:
         latency = int((time.perf_counter() - started) * 1000)
-        return _failed(plan.style_id, f"model_unavailable:{type(exc).__name__}", latency, model_called=True)
+        if discourse_plan is not None:
+            fallback_seed = RoleNarrationCandidate(
+                style_id=plan.style_id,
+                public_text="".join(fact.statement for fact in plan.facts),
+                used_fact_ids=tuple(fact.fact_id for fact in plan.facts),
+                omitted_fact_ids=(),
+                self_check={
+                    "added_new_facts": False,
+                    "role_consistent": True,
+                    "within_budget": True,
+                },
+                model_called=True,
+                latency_ms=latency,
+                reason_code=(
+                    "natural_discourse_fallback:model_unavailable:"
+                    + _provider_failure_reason(exc)
+                ),
+            )
+            return apply_point_narration_scaffold(
+                fallback_seed, plan, brief,
+                compact=plan.scaffold_mode == "compact" if compact is None else compact,
+            )
+        return _failed(
+            plan.style_id,
+            f"model_unavailable:{_provider_failure_reason(exc)}",
+            latency,
+            model_called=True,
+        )
     latency = int((time.perf_counter() - started) * 1000)
+    if discourse_plan is not None:
+        # Development and offline callers can still supply the established
+        # token-candidate envelope.  Treat it as the strict legacy protocol
+        # rather than misclassifying it as a malformed natural-discourse
+        # object solely because the process has the new rollout flag enabled.
+        # This preserves fail-closed validation of every token/fact boundary;
+        # live natural calls use the distinct discourse schema below.
+        decoded = _decode(raw)
+        if isinstance(decoded, Mapping) and frozenset(decoded) == _MODEL_CANDIDATE_FIELDS:
+            candidate = validate_candidate_shape(
+                decoded, expected_style_id=plan.style_id, latency_ms=latency,
+            )
+            candidate = _hydrate_fact_tokens(candidate, plan)
+            if _requires_unmodified_validation(candidate, plan, brief):
+                return candidate
+            return apply_point_narration_scaffold(
+                candidate, plan, brief,
+                compact=plan.scaffold_mode == "compact" if compact is None else compact,
+            )
+        from role_discourse import compose_role_discourse, parse_and_validate_role_discourse
+        discourse_candidate = parse_and_validate_role_discourse(
+            raw, discourse_plan, brief,
+            interaction_allowed=plan.interaction_allowed,
+        )
+        if discourse_candidate.status == "generated":
+            return RoleNarrationCandidate(
+                style_id=plan.style_id,
+                public_text=compose_role_discourse(discourse_candidate, discourse_plan),
+                used_fact_ids=tuple(fact.fact_id for fact in plan.facts),
+                omitted_fact_ids=(),
+                self_check=dict(discourse_candidate.self_check),
+                model_called=True,
+                latency_ms=latency,
+                reason_code="natural_discourse_generated",
+            )
+        fallback_seed = RoleNarrationCandidate(
+            style_id=plan.style_id,
+            public_text="".join(fact.statement for fact in plan.facts),
+            used_fact_ids=tuple(fact.fact_id for fact in plan.facts),
+            omitted_fact_ids=(),
+            self_check={
+                "added_new_facts": False,
+                "role_consistent": True,
+                "within_budget": True,
+            },
+            model_called=True,
+            latency_ms=latency,
+            reason_code=(
+                "natural_discourse_fallback:"
+                + ",".join(discourse_candidate.reason_codes)
+            ),
+        )
+        return apply_point_narration_scaffold(
+            fallback_seed, plan, brief,
+            compact=plan.scaffold_mode == "compact" if compact is None else compact,
+        )
     candidate = validate_candidate_shape(
         _decode(raw), expected_style_id=plan.style_id, latency_ms=latency,
     )
     candidate = _hydrate_fact_tokens(candidate, plan)
-    connector_fact_violation = connector_has_unapproved_fact(candidate, plan)
-    if candidate.generation_status == "generated" and not connector_fact_violation:
+    # One request only: malformed output, fact drift, unsafe prose, and
+    # budget failure are all handed to narration_validation for the existing
+    # deterministic legacy fallback.  Retrying used to extend a visitor turn
+    # and could make a bad first response look safe after its prose vanished.
+    if _requires_unmodified_validation(candidate, plan, brief):
         return candidate
-    # One bounded repair is allowed for structural errors or factual connector
-    # prose. Facts and StyleBrief remain authoritative; the repair receives no
-    # state, tools or RAG and validation remains fail-closed.
-    repair_instruction = (
-        "事实 token 之外的连接语新增或改写了事实。请让所有事实内容只通过原样的 "
-        "FACT token 表达；连接语只能是简短称呼、过渡或收束，不得复述、概括或推断事实。"
-        if connector_fact_violation
-        else ""
+    return apply_point_narration_scaffold(
+        candidate, plan, brief,
+        compact=plan.scaffold_mode == "compact" if compact is None else compact,
     )
-    repair_prompt = (
-        prompt
-        + "\n" + repair_instruction
-        + "上一输出未通过 JSON Schema、事实占位符或连接语事实边界约束。请重新输出且只输出规定的 JSON 对象。"
-        + "不得解释错误，不得增加字段；required token 必须各出现一次。上一输出："
-        + str(raw)[:500]
-    )
-    try:
-        repaired_raw = invoke_model(repair_prompt)
-    except Exception as exc:
-        total_latency = int((time.perf_counter() - started) * 1000)
-        return _failed(
-            plan.style_id, f"schema_repair_unavailable:{type(exc).__name__}",
-            total_latency, model_called=True,
-        )
-    total_latency = int((time.perf_counter() - started) * 1000)
-    repaired = validate_candidate_shape(
-        _decode(repaired_raw), expected_style_id=plan.style_id,
-        latency_ms=total_latency,
-    )
-    return _hydrate_fact_tokens(repaired, plan)
 
 
 def role_narration_candidate_from_dict(value: Mapping[str, Any] | None) -> RoleNarrationCandidate | None:

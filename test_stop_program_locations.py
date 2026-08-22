@@ -48,7 +48,7 @@ class StopProgramLocationTests(unittest.TestCase):
             {item.ornament_id: [{"source_ids": ["S10"], "content": "灰塑是岭南建筑常见的装饰艺术。"}]},
         )
         self.assertIn("建筑山墙垂脊前沿", narration.visitor_message)
-        self.assertIn("审核关联", narration.visitor_message)
+        self.assertNotIn("审核关联", narration.visitor_message)
         self.assertIn("现场标识", narration.visitor_message)
         self.assertNotIn("ornament_spatial_mapping_v1", narration.visitor_message)
         self.assertNotIn("raw_location", narration.visitor_message)

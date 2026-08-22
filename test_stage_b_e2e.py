@@ -132,8 +132,8 @@ class StageBEndToEndTests(unittest.TestCase):
         self.assertIn("前院中部", message)
         self.assertTrue({item["ornament_id"] for item in program["selected_items"]}.issubset(local_ids))
         self.assertTrue(any(item.get("observation_location") for item in program["selected_items"]))
-        self.assertIn("这是一处灰塑装饰", message)
-        for internal in ("审核位置", "类型：", "简介：", "planned_seconds", ".md"):
+        self.assertIn("是一件灰塑装饰", message)
+        for internal in ("审核位置", "类型：", "简介：", "planned_seconds", ".md", "项目编辑整理", "未核验"):
             self.assertNotIn(internal, message)
 
     def test_detail_uses_same_program_and_question_keeps_only_local_instances(self):
@@ -223,7 +223,7 @@ class StageBEndToEndTests(unittest.TestCase):
             rag.invoke.return_value = json.dumps({"evidence": []})
             guidance = stop_guidance_node(state)
         program = guidance["active_stop_program"]
-        self.assertIn("未检索到可引用的事实资料", guidance["messages"][0].content)
+        self.assertIn("题材或故事先不急着下结论", guidance["messages"][0].content)
         self.assertEqual(guidance["retrieved_evidence"], [])
         self.assertTrue(all(not item["research_summary_card_ids"] for item in program["selected_items"]))
         self.assertTrue(all(not item["comparison_card_ids"] for item in program["selected_items"]))

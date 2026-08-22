@@ -179,7 +179,7 @@ def answer_term_question(
     if not enabled:
         # A draft English translation must never be handed to a later model.
         if kind == "english":
-            message = "该术语当前尚未通过英文输出审核，因此我不能提供英文译法。"
+            message = "该术语当前没有可用的英文译法。"
             return {
                 "message": message, "mode": "term_card_unavailable", "term": None, "evidence": [],
                 "presentation": _presentation_message(message, tour_state, interaction_state),
@@ -187,7 +187,7 @@ def answer_term_question(
         return None
     if len(enabled) > 1:
         labels = "、".join(card.raw_payload.get("zh", card.card_id) for card in enabled[:4])
-        message = f"您提到的术语可能对应多个已审核条目（{labels}），请补充完整术语后我再说明。"
+        message = f"您提到的术语可能对应多个条目（{labels}），请补充完整术语后我再说明。"
         return {
             "message": message, "mode": "term_card_clarification", "term": None, "evidence": [],
             "presentation": _presentation_message(message, tour_state, interaction_state),
@@ -200,14 +200,14 @@ def answer_term_question(
     term_instances: list[dict[str, Any]] = []
     if kind == "english":
         if "en_translation" not in capabilities or not raw.get("en"):
-            message = f"“{zh}”当前没有可输出的已审核英文译法。"
+            message = f"“{zh}”当前没有可用的英文译法。"
         else:
             aliases = [item for item in raw.get("aliases_en", []) if isinstance(item, str) and item]
-            suffix = f"；已审核英文别名包括 {', '.join(aliases)}" if aliases else ""
+            suffix = f"；英文别名包括 {', '.join(aliases)}" if aliases else ""
             message = f"“{zh}”常用英文为 {raw['en']}{suffix}。"
     elif kind == "pinyin":
         if "pinyin" not in capabilities or not raw.get("pinyin"):
-            message = f"“{zh}”当前没有可输出的已审核拼音。"
+            message = f"“{zh}”当前没有可用的拼音。"
         else:
             message = f"“{zh}”的拼音为 {raw['pinyin']}。"
     elif kind == "domain":
@@ -224,11 +224,11 @@ def answer_term_question(
         message = f"“{zh}”在术语卡中归入{domain}领域。"
     elif kind == "aliases":
         if "en_translation" not in capabilities:
-            message = f"“{zh}”当前没有可输出的已审核英文别名。"
+            message = f"“{zh}”当前没有可用的英文别名。"
         else:
             aliases = [raw.get("en"), *(raw.get("aliases_en") or ())]
             aliases = [item for item in aliases if isinstance(item, str) and item]
-            message = f"“{zh}”的已审核英文名称为 {', '.join(dict.fromkeys(aliases)) or '暂无'}。"
+            message = f"“{zh}”的英文名称为 {', '.join(dict.fromkeys(aliases)) or '暂无'}。"
     else:
         if "definition_zh" not in capabilities or not raw.get("short_definition_zh"):
             return None
@@ -248,10 +248,10 @@ def answer_term_question(
                 f"{item['point_name']}的“{item['ornament_name']}”（{item['craft']}）"
                 for item in term_instances
             )
-            message += f" 陈家祠的审核关联实例可参考：{examples}。"
+            message += f" 陈家祠的相关实例可参考：{examples}。"
 
     if card.card_id in associated_ids and current_node:
-        message += " 当前点与上述实例存在审核关联；能否清楚看到请以现场为准。"
+        message += " 当前点的清单中包含上述实例；能否清楚看到请以现场为准。"
     if tour_state and interaction_state:
         message += "\n\n本次术语说明未改变路线进度，您可继续使用现有导览操作。"
     return {

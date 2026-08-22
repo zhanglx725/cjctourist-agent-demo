@@ -298,7 +298,9 @@ def _navigation_data(tour_state: dict[str, Any], target_stop_id: str | None = No
     if target_stop_id is None:
         return {"navigation": None}
     navigation = next_stop_navigation(tour_state, target_stop_id=target_stop_id)
-    return {"navigation": navigation}
+    # Event data can be copied into presentation state and checkpointed by
+    # LangGraph. Persist only primitives, never the navigation dataclass.
+    return {"navigation": navigation.to_dict() if navigation is not None else None}
 
 
 def handle_tour_event(
@@ -381,7 +383,7 @@ def _arrive(
     tour_state: dict[str, Any], interaction_state: dict[str, Any], *, node_id: str | None = None, **_: Any
 ) -> dict[str, Any]:
     if not node_id or node_id not in known_node_ids():
-        return _rejection("arrive_at_stop", "invalid_node_id", "该点位不在已审核空间节点表中。", tour_state, interaction_state)
+        return _rejection("arrive_at_stop", "invalid_node_id", "地图中没有这个点位。", tour_state, interaction_state)
     pending = interaction_state.get("pending_stop_id")
     phase = interaction_state.get("stop_phase")
     if node_id == pending:

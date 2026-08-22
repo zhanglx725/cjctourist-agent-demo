@@ -37,6 +37,18 @@ class SemanticNormalizationTests(unittest.TestCase):
         state["performance_metrics"] = []
         return state
 
+    def test_optional_semantic_model_failure_preserves_deterministic_role_control(self):
+        state = self._state("请切换为适合小朋友的讲解方式")
+        with patch("agent_graph._invoke_semantic_model", side_effect=TimeoutError("offline")):
+            update = semantic_normalization_node(state)
+        self.assertEqual(update["role_mode_shadow"]["status"], "selected")
+        metric = update["performance_metrics"][-1]
+        self.assertFalse(metric["model_called"])
+        self.assertEqual(metric["failure_reason"], "semantic_model_unavailable:TimeoutError")
+        self.assertEqual(
+            route_initial_request({**state, **update}), "role_mode_confirmation",
+        )
+
     def test_arrival_schema_accepts_only_raw_location_text_or_null(self):
         text = "我已经晃悠到月台这边了"
         candidate = validate_candidate(text, {

@@ -45,7 +45,7 @@ class NarrationStylePolicyTests(unittest.TestCase):
     def test_professional_does_not_carry_source_ids(self):
         s = compile_narration_style(self.policy(knowledge_level="professional"))
         self.assertFalse(hasattr(s, "source_ids"))
-    def test_all_styles_have_approved_v2_role_briefs(self):
+    def test_all_styles_have_approved_role_briefs_and_point_acceptance_profiles(self):
         for style_id in EXPECTED_STYLE_IDS:
             with self.subTest(style_id=style_id):
                 brief = compile_style_brief(style_id)
@@ -53,7 +53,17 @@ class NarrationStylePolicyTests(unittest.TestCase):
                 self.assertEqual(brief.schema_version, "narration_style_v2")
                 self.assertTrue(brief.persona["identity_boundaries"])
                 self.assertTrue(brief.generation_policy["avoid"])
-                self.assertTrue(brief.few_shot_examples)
+                self.assertTrue(brief.acceptance_profile["required_markers"])
+                self.assertIn("rhythm", brief.acceptance_profile)
+                self.assertIn("interaction_contract", brief.acceptance_profile)
+                self.assertTrue(brief.acceptance_profile["point_narration_strategy"])
+                self.assertGreaterEqual(len(brief.few_shot_examples), 3)
+
+    def test_listen_only_acceptance_profile_forbids_interaction(self):
+        profile = compile_style_brief("listen_only").acceptance_profile
+        self.assertEqual(profile["interaction_contract"]["mode"], "none")
+        self.assertEqual(profile["interaction_contract"]["max_requests"], 0)
+        self.assertIn("？", profile["forbidden_markers"])
     def test_role_brief_never_contains_template_or_source_fields(self):
         value = compile_style_brief("ancient_scholar").to_dict()
         self.assertNotIn("templates", value)

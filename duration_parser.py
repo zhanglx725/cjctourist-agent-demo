@@ -40,7 +40,7 @@ _DURATION_RE = re.compile(
 ROUTE_CONTEXT_TERMS = (
     "路线", "规划", "怎么逛", "游览", "参观顺序", "导览", "带我逛",
 )
-_REMAINING_CONTEXT_RE = re.compile(r"(?:只剩|还剩|剩余|把(?:游览)?时间改成|时间改成|改为|改成)")
+_REMAINING_CONTEXT_RE = re.compile(r"(?:只剩|我还有|还剩|剩余|把(?:游览)?时间改成|时间改成|改为|改成)")
 
 
 @dataclass(frozen=True)

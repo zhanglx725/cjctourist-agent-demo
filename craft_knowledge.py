@@ -343,7 +343,7 @@ def render_craft_location_answer(
             fields = location_fields(record)
         except CraftKnowledgeError:
             missing.append(craft)
-            lines.append(f"- {craft}：现有审核资料不足以确认观察位置。")
+            lines.append(f"- {craft}：现有资料不足以确认观察位置。")
             continue
         statement = "；".join(field.text.rstrip("。") for field in fields) + "。"
         lines.append(f"- {craft}：{statement}")

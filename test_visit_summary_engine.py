@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import unittest
 
+from langchain_core.messages import HumanMessage
+
 from agent_graph import _next_tour_question_log, route_after_tour_event, visit_summary_node
 from narration_coverage import IntroductionRecord, commit_introductions, empty_narration_coverage
 from route_planner import plan_template
@@ -24,6 +26,15 @@ class VisitSummaryEngineTests(unittest.TestCase):
             {"tour_state": tour, "tour_question_log": first}, "qa_follow_up_detail"
         )
         self.assertEqual([item["sequence"] for item in second], [1, 2])
+
+    def test_shortcut_detail_is_not_counted_as_a_visitor_question(self):
+        tour = start_tour(plan_template("highlights_30"))
+        state = {
+            "messages": [HumanMessage(content="再讲详细一点")],
+            "tour_state": tour,
+            "tour_question_log": [],
+        }
+        self.assertEqual(_next_tour_question_log(state, "qa_follow_up_detail"), [])
 
     def test_requires_completed_tour(self):
         with self.assertRaises(VisitSummaryError):
@@ -70,6 +81,20 @@ class VisitSummaryEngineTests(unittest.TestCase):
         ])
         summary = build_visit_summary(tour, coverage.to_dict(), []).to_dict()
         self.assertEqual(summary["introduced_craft_ids"], ["灰塑"])
+
+    def test_active_role_commit_counts_after_the_stop_is_actually_completed(self):
+        tour = start_tour(plan_template("highlights_30"))
+        first = tour["route_stop_ids"][0]
+        tour["visited_stop_ids"] = [first]
+        tour["remaining_stop_ids"] = []
+        tour["route_status"] = "completed"
+        coverage = commit_introductions(empty_narration_coverage(), [
+            _record("craft", "灰塑", first, "narration_commit"),
+            _record("ornament", "orn_005", first, "narration_commit"),
+        ])
+        summary = build_visit_summary(tour, coverage.to_dict(), []).to_dict()
+        self.assertEqual(summary["introduced_craft_ids"], ["灰塑"])
+        self.assertEqual(summary["introduced_ornament_ids"], ["orn_005"])
 
     def test_malformed_coverage_omits_exact_content_counts(self):
         tour = finish_tour(start_tour(plan_template("highlights_30")))

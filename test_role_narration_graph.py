@@ -16,14 +16,38 @@ from agent_graph import (
 )
 from narration_coverage import empty_narration_coverage
 from narration_content_plan import NarrationContentPlan, NarrationFact
+from narration_service_tail import (
+    COMPLETION_PROMPT,
+    build_stop_service_tail,
+    compose_stop_presentation,
+)
+from route_planner import plan_template
+from tour_state import start_tour
 
 
 class RoleNarrationGraphTests(unittest.TestCase):
+    STOP_ID = "stop_front_courtyard_center"
+
+    def setUp(self):
+        # Product-level rollout variables are intentionally strict and take
+        # precedence over legacy variables.  Isolate these legacy-compatibility
+        # tests from a developer's Studio shell, which may have child-only
+        # PRODUCT_ROLE_* values exported for a manual Active run.
+        self._environment = patch.dict(os.environ, {}, clear=True)
+        self._environment.start()
+
+    def tearDown(self):
+        self._environment.stop()
+
     def state(self):
         legacy = "【工艺背景：灰塑】\n\n屋脊可见灰塑。\n\n【下一步】\n\n讲解结束后可继续。"
+        tour_state = start_tour(plan_template("highlights_30"))
+        tour_state["current_stop_id"] = self.STOP_ID
+        service_tail = build_stop_service_tail(tour_state=tour_state)
+        candidate_text = "诸位且看，屋脊可见灰塑。"
         return {
             "messages": [AIMessage(id="legacy-message", content=legacy, additional_kwargs={"stop_guidance": True})],
-            "tour_state": {"route_status": "touring", "current_stop_id": "front"},
+            "tour_state": tour_state,
             "narration_coverage": empty_narration_coverage().to_dict(),
             "pending_role_narration_commit": {
                 "status": "guided_e5",
@@ -31,23 +55,33 @@ class RoleNarrationGraphTests(unittest.TestCase):
                 "coverage_candidates": [{
                     "subject_kind": "craft", "subject_id": "灰塑",
                     "source_ids": ["S1"], "evidence_kind": "craft_overview",
-                    "node_id": "front",
+                    "node_id": self.STOP_ID,
                 }],
                 "narration_render_audit": {
-                    "node_id": "front", "rendered_craft_ids": ["灰塑"],
+                    "node_id": self.STOP_ID, "rendered_craft_ids": ["灰塑"],
                     "rendered_ornament_ids": [], "used_source_ids": ["S1"],
                 },
+                "service_tail": service_tail.to_dict(),
             },
             "role_narration_candidate": {
                 "schema_version": "role_narration_candidate_v1",
                 "generation_status": "generated", "reason_code": None,
                 "style_id": "ancient_scholar",
-                "public_text": "诸位且看，屋脊可见灰塑。",
+                "public_text": candidate_text,
                 "used_fact_ids": ["craft:灰塑"], "omitted_fact_ids": [],
                 "self_check": {"added_new_facts": False, "role_consistent": True, "within_budget": True},
                 "model_called": True, "latency_ms": 20,
             },
-            "narration_validation": {"validation_status": "accepted", "reason_codes": []},
+            "narration_validation": {
+                "validation_status": "accepted", "reason_codes": [],
+                "service_tail_validation": {
+                    "validation_status": "accepted", "reason_codes": [],
+                },
+                "validated_public_message": compose_stop_presentation(
+                    candidate_text,
+                    " ".join(unit.public_text for unit in service_tail.units),
+                ),
+            },
             "active_role_narration_audit": {"mode": "active", "style_id": "ancient_scholar"},
             "tour_presentation": {"message": legacy, "ok": True},
         }
@@ -70,7 +104,7 @@ class RoleNarrationGraphTests(unittest.TestCase):
             "source": "visitor_profile", "confidence": 1.0,
         }
         state["narration_content_plan"] = NarrationContentPlan(
-            stop_id="front", style_id=style_id, language="zh",
+            stop_id=self.STOP_ID, style_id=style_id, language="zh",
             budget_seconds=60, allocated_content_seconds=20,
             facts=(NarrationFact(
                 "craft:灰塑", "craft_background", "屋脊可见灰塑。",
@@ -117,12 +151,23 @@ class RoleNarrationGraphTests(unittest.TestCase):
             result = narration_commit_node(state)
         self.assertEqual(result["messages"][0].id, "legacy-message")
         self.assertIn("诸位且看", result["messages"][0].content)
-        self.assertIn("【下一步】", result["messages"][0].content)
+        self.assertIn(COMPLETION_PROMPT, result["messages"][0].content)
+        self.assertIn("完成本点后，下一站：月台", result["messages"][0].content)
+        self.assertNotIn("【下一步】", result["messages"][0].content)
+        self.assertNotIn("【工艺背景", result["messages"][0].content)
         self.assertEqual(result["narration_coverage"]["introduced_craft_ids"], ["灰塑"])
         self.assertIsNone(result["pending_role_narration_commit"])
         self.assertNotIn("tour_state", result)
         self.assertNotIn("visitor_profile", result)
         self.assertTrue(result["active_role_narration_audit"]["active_takeover"])
+        self.assertEqual(
+            result["active_role_narration_audit"]["commit_decision"],
+            "role_candidate_published",
+        )
+        self.assertEqual(
+            result["active_role_narration_audit"]["commit_validation_status"],
+            "accepted",
+        )
 
     def test_stop_guidance_active_commit_is_limited_to_three_styles(self):
         with self.active_environment():
@@ -162,7 +207,44 @@ class RoleNarrationGraphTests(unittest.TestCase):
         self.assertFalse(result["active_role_narration_audit"]["active_takeover"])
         self.assertTrue(result["active_role_narration_audit"]["fallback_used"])
         self.assertTrue(result["active_role_narration_audit"]["legacy_message_preserved"])
+        self.assertEqual(
+            result["active_role_narration_audit"]["commit_decision"],
+            "legacy_fallback_published",
+        )
+        self.assertEqual(
+            result["active_role_narration_audit"]["commit_validation_status"],
+            "accepted",
+        )
         self.assertNotIn("messages", result)
+
+    def test_validation_audit_records_style_quality_without_changing_commit_authority(self):
+        state = self.state_with_plan()
+        state["role_narration_candidate"] = {
+            **self.state()["role_narration_candidate"],
+            "public_text": "请看，屋脊可见灰塑。",
+        }
+        with patch.dict(os.environ, {
+            "CJC_READ_ONLY_ROLLOUT_MODE": "read_only_active",
+            "CJC_READ_ONLY_ROLLOUT_CAPABILITIES": "role_narration",
+            "ROLE_ACTIVE_ENABLED": "true",
+            "ROLE_ACTIVE_STYLES": "ancient_scholar",
+            "ROLE_ACTIVE_SCENES": "stop_guidance",
+        }, clear=False):
+            result = narration_validation_node(state)
+        audit = result["active_role_narration_audit"]
+        self.assertFalse(audit["style_quality_passed"])
+        self.assertIn("style_coverage_incomplete", audit["style_quality_reason_codes"])
+        with patch.dict(os.environ, {
+            "CJC_READ_ONLY_ROLLOUT_MODE": "read_only_active",
+            "CJC_READ_ONLY_ROLLOUT_CAPABILITIES": "role_narration",
+            "ROLE_ACTIVE_ENABLED": "true",
+            "ROLE_ACTIVE_STYLES": "ancient_scholar",
+            "ROLE_ACTIVE_SCENES": "stop_guidance",
+        }, clear=False):
+            self.assertEqual(
+                route_after_narration_validation({**state, **result}),
+                "deterministic_narration_fallback",
+            )
 
     def test_rejected_active_candidate_routes_to_deterministic_fallback(self):
         state = self.state()
@@ -175,6 +257,23 @@ class RoleNarrationGraphTests(unittest.TestCase):
         self.assertFalse(result["active_role_narration_audit"]["active_takeover"])
         self.assertTrue(result["active_role_narration_audit"]["legacy_message_preserved"])
         self.assertNotIn("messages", result)
+
+    def test_missing_service_tail_is_rejected_before_commit(self):
+        state = self.state_with_plan()
+        state["role_narration_candidate"] = self.state()["role_narration_candidate"]
+        state["pending_role_narration_commit"].pop("service_tail")
+        with self.active_environment():
+            validated = narration_validation_node(state)
+            next_node = route_after_narration_validation({**state, **validated})
+        self.assertEqual(
+            validated["narration_validation"]["validation_status"], "rejected",
+        )
+        self.assertIn(
+            "service_tail_missing",
+            validated["narration_validation"]["reason_codes"],
+        )
+        self.assertFalse(validated["active_role_narration_audit"]["service_tail_passed"])
+        self.assertEqual(next_node, "deterministic_narration_fallback")
 
     def test_shadow_never_routes_to_takeover(self):
         with patch.dict(os.environ, {
@@ -304,6 +403,7 @@ class RoleNarrationGraphTests(unittest.TestCase):
             "DEEPSEEK_API_KEY": "test-key",
             "CJC_ROLE_NARRATION_TEST_FAILURE": "",
             "ROLE_NARRATION_MAX_TOKENS": "4096",
+            "ROLE_NARRATION_TEMPERATURE": "0.55",
         }, clear=False), patch("agent_graph.ChatDeepSeek") as model_cls:
             response = model_cls.return_value.invoke.return_value
             response.response_metadata = {"finish_reason": "stop"}
@@ -316,8 +416,10 @@ class RoleNarrationGraphTests(unittest.TestCase):
             )
             model_cls.assert_called_once_with(
                 model=os.getenv("ROLE_NARRATION_MODEL", os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")),
-                temperature=0,
+                temperature=0.55,
                 max_tokens=4096,
+                timeout=45.0,
+                max_retries=0,
                 extra_body={
                     "thinking": {"type": "disabled"},
                     "response_format": {"type": "json_object"},

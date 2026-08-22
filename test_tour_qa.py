@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 
 from route_planner import plan_template
-from controlled_knowledge_query import ControlledKnowledgePlan
+from controlled_knowledge_query import ControlledKnowledgePlan, is_public_visitor_message
 from tour_interaction import handle_tour_event, initialize_interaction
 from tour_qa import answer_tour_question, build_tour_qa_query, load_guide_cards
 from tour_state import start_tour
@@ -41,6 +41,30 @@ class TourQaTests(unittest.TestCase):
         )
         self.tour = arrived["tour_state"]
         self.interaction = arrived["interaction_state"]
+
+    def test_whole_venue_photo_question_uses_photo_check_in_candidates(self):
+        result = answer_tour_question(
+            "馆里哪里拍照好看？",
+            self.tour,
+            self.interaction,
+            lambda _query: self.fail("photo discovery must not use RAG"),
+        )
+        self.assertEqual(result["mode"], "photo_recommendation")
+        self.assertIn("拍照/打卡", result["message"])
+        self.assertTrue(result["photo_spots"])
+        self.assertTrue(is_public_visitor_message(result["message"]))
+
+    def test_academy_and_lineage_question_is_deterministic_and_never_calls_rag(self):
+        result = answer_tour_question(
+            "陈家祠为什么既是书院，又和宗族有关？",
+            self.tour,
+            self.interaction,
+            lambda _query: self.fail("institutional explanation must not use RAG"),
+        )
+        self.assertEqual(result["mode"], "academy_lineage_function")
+        self.assertIn("合族祠", result["message"])
+        self.assertIn("暂时落脚", result["message"])
+        self.assertEqual(result["source_ids"], ["S02"])
 
     @staticmethod
     def _success_search(query: str) -> str:
@@ -171,7 +195,7 @@ class TourQaTests(unittest.TestCase):
         self.assertEqual(result["mode"], "whole_site_craft_overview")
         self.assertEqual(result["term"]["card_id"], "term_stone_carving")
         self.assertEqual(result["term_instances"][0]["ornament_id"], "orn_080")
-        self.assertIn("审核关联实例", result["message"])
+        self.assertIn("相关实例", result["message"])
         self.assertIn("现场可见情况请以实际为准", result["message"])
         self.assertNotIn("一定能看到", result["message"])
         self.assertEqual(self.tour, before_tour)
@@ -274,8 +298,8 @@ class TourQaTests(unittest.TestCase):
         self.assertEqual(result["term_instances"][0]["ornament_id"], "orn_078")
         self.assertEqual(result["instance_context_origin"], "explicit_query_location")
         self.assertIn("月台的“引福归堂”", result["message"])
-        self.assertIn("所问点位的审核关联实例", result["message"])
-        self.assertNotIn("当前点的审核关联实例", result["message"])
+        self.assertIn("所问点位的相关实例", result["message"])
+        self.assertNotIn("当前点的相关实例", result["message"])
         self.assertEqual(self.tour, before_tour)
 
     def test_deictic_core_craft_definition_uses_the_physical_point_for_instances(self):
@@ -392,7 +416,7 @@ class TourQaTests(unittest.TestCase):
             "首进正厅有哪些装饰？", self.tour, self.interaction, lambda _: self.fail("missing card must not call RAG")
         )
         self.assertEqual(missing["mode"], "inventory_missing_card")
-        self.assertIn("讲解包缺失", missing["message"])
+        self.assertIn("缺少这个点位的讲解资料", missing["message"])
 
     def test_no_evidence_and_retrieval_exception_are_safe(self):
         before_tour = deepcopy(self.tour)

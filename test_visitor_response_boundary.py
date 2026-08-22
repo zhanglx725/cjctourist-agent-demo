@@ -27,6 +27,14 @@ class _StaticModel:
 
 
 class VisitorResponseBoundaryTests(unittest.TestCase):
+    def test_internal_lifecycle_terms_are_not_public_text(self):
+        for message in (
+            "这是项目编辑拍摄候选。",
+            "该对象已经审核。",
+            "当前信息未核验。",
+        ):
+            self.assertFalse(is_public_visitor_message(message), message)
+
     def test_generic_llm_exit_fails_closed_without_erasing_audit_state(self):
         evidence = [{
             "document": "06_ticketing_rules.md",

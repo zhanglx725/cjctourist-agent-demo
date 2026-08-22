@@ -36,6 +36,16 @@ class TourNavigationTests(unittest.TestCase):
         self.assertIn("栏杆", instruction.guide_focus)
         self.assertIn("下一站", format_next_stop_navigation(instruction))
 
+    def test_checkpoint_safe_navigation_payload_keeps_visitor_text_unchanged(self):
+        instruction = next_stop_navigation(start_tour(self.plan))
+        self.assertIsNotNone(instruction)
+        payload = instruction.to_dict()
+        self.assertTrue(all(isinstance(value, (str, int, list, type(None))) for value in payload.values()))
+        self.assertEqual(
+            format_next_stop_navigation(payload),
+            format_next_stop_navigation(instruction),
+        )
+
     def test_explicit_target_navigation_keeps_original_state_valid(self):
         state = start_tour(self.plan)
         instruction = next_stop_navigation(state, target_stop_id="label_moon_platform")

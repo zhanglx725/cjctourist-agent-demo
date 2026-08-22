@@ -90,7 +90,7 @@ class GuideNarrationTests(unittest.TestCase):
         evidence = {"orn_001": [{"source_ids": ["S11"], "content": "这是一段没有终止符的原始内容"}], "orn_002": []}
         narration = compose_guide_narration(self.program, evidence)
         self.assertNotIn("这是一段没有终止符的原始内容", narration.visitor_message)
-        self.assertIn("未检索到可引用的事实资料", narration.visitor_message)
+        self.assertIn("题材或故事先不急着下结论", narration.visitor_message)
         self.assertNotIn("…", narration.visitor_message)
 
     def test_rejected_optional_llm_output_falls_back_to_safe_renderer(self):

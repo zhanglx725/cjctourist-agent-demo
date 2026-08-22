@@ -100,7 +100,7 @@ def shortest_route(
     try:
         node_ids = nx.shortest_path(graph, source_id, target_id, weight="route_cost")
     except nx.NetworkXNoPath as exc:
-        raise SpatialGraphError(f"不存在已审核路径：{source_id} → {target_id}") from exc
+        raise SpatialGraphError(f"不存在可用路径：{source_id} → {target_id}") from exc
     edge_data = [graph.get_edge_data(start, end) for start, end in zip(node_ids, node_ids[1:])]
     raw_times = [item["walk_seconds"] for item in edge_data]
     return SpatialRoute(

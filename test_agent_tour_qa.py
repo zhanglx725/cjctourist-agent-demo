@@ -16,6 +16,7 @@ from agent_graph import (
     direct_route_node,
     llm_think_node,
     qa_follow_up_detail_node,
+    route_after_tour_qa_publication,
     route_initial_request,
     semantic_normalization_node,
     tour_event_node,
@@ -160,6 +161,19 @@ class AgentTourQaTests(unittest.TestCase):
         self.assertEqual(state["tour_state"], before_tour)
         self.assertEqual(state["tour_interaction_state"], before_interaction)
         self.assertEqual(update["tour_presentation"]["phase"], "explaining")
+
+    def test_normal_tour_qa_publishes_direct_answer_without_role_generation_chain(self):
+        state = self._arrived_tour()
+        request = _message_state("这里的石雕有什么特点？", state)
+        with patch("agent_graph.chen_clan_academy_rag_search") as rag:
+            rag.invoke.return_value = FAKE_PAYLOAD
+            update = tour_qa_node(request)
+
+        message = update["messages"][0]
+        self.assertTrue(message.additional_kwargs["tour_qa_answer"])
+        self.assertEqual(message.additional_kwargs["public_scene_kind"], "tour_qa")
+        self.assertNotIn("qa_role_narration", message.additional_kwargs)
+        self.assertEqual(route_after_tour_qa_publication(update), "atomic_read_plan_shadow")
         self.assertNotIn("S11", update["messages"][0].content)
         self.assertNotIn("08_ornament_items.md", update["messages"][0].content)
         self.assertIn("工艺特点", update["messages"][0].content)
@@ -294,6 +308,129 @@ class AgentTourQaTests(unittest.TestCase):
         self.assertIn("不能修改", active_answer)
         self.assertIn("不能办理退票", active_answer)
         self.assertIn("官方小程序订单页面", active_answer)
+        self.assertNotIn("06_ticketing_rules.md", active_answer)
+        self.assertNotIn("S07", active_answer)
+        self.assertNotIn("tour_state", update)
+        self.assertNotIn("tour_interaction_state", update)
+
+    @patch.dict(os.environ, {"CJC_READ_ONLY_ROLLOUT_MODE": "off"}, clear=False)
+    def test_child_ticket_eligibility_is_answered_without_model_in_both_modes(self):
+        query = "儿童票对身高和年龄有要求吗"
+        payload = json.dumps({
+            "evidence": [{
+                "category": "ticketing_snapshot",
+                "document": "06_ticketing_rules.md",
+                "source_ids": ["S07"],
+                "content": (
+                    "半票：适用于 6 周岁（不含）至 18 周岁未成年人、"
+                    "身高 1.3 米以上儿童。免预约购票/凭证入场："
+                    "未满 6 周岁儿童、身高 1.3 米（含）以下儿童。"
+                ),
+            }],
+        }, ensure_ascii=False)
+        expected_search = {
+            "query": (
+                "儿童票对身高和年龄有要求吗 陈家祠 购票 预约 入馆规则 "
+                "条件 资格 适用人群"
+            ),
+            "categories": ["ticketing_snapshot"],
+        }
+
+        no_route = _message_state(query)
+        no_route.update(semantic_normalization_node(no_route))
+        self.assertEqual(route_initial_request(no_route), "direct_rag")
+        with (
+            patch("agent_graph.chen_clan_academy_rag_search") as rag,
+            patch("agent_graph._invoke_grounded_knowledge_model") as model,
+        ):
+            rag.invoke.return_value = payload
+            retrieval = direct_rag_node(no_route)
+        rag.invoke.assert_called_once_with(expected_search)
+        model.assert_not_called()
+        direct_state = {
+            **no_route,
+            **retrieval,
+            "messages": [*no_route["messages"], *retrieval["messages"]],
+        }
+        no_route_answer = llm_think_node(direct_state)["messages"][0].content
+
+        active = _message_state(query, self._arrived_tour())
+        active.update(semantic_normalization_node(active))
+        self.assertEqual(route_initial_request(active), "tour_qa")
+        with (
+            patch("agent_graph.chen_clan_academy_rag_search") as rag,
+            patch("agent_graph._invoke_grounded_knowledge_model") as model,
+        ):
+            rag.invoke.return_value = payload
+            update = tour_qa_node(active)
+        rag.invoke.assert_called_once_with(expected_search)
+        model.assert_not_called()
+        active_answer = update["messages"][0].content
+
+        self.assertEqual(no_route_answer, active_answer)
+        self.assertIn("6 周岁（不含）至 18 周岁", active_answer)
+        self.assertIn("身高 1.3 米以上", active_answer)
+        self.assertIn("未满 6 周岁", active_answer)
+        self.assertIn("身高 1.3 米（含）以下", active_answer)
+        self.assertNotIn("06_ticketing_rules.md", active_answer)
+        self.assertNotIn("S07", active_answer)
+        self.assertNotIn("tour_state", update)
+        self.assertNotIn("tour_interaction_state", update)
+
+    @patch.dict(os.environ, {"CJC_READ_ONLY_ROLLOUT_MODE": "off"}, clear=False)
+    def test_ticket_purchase_method_is_answered_without_model_in_both_modes(self):
+        query = "怎么购票"
+        payload = json.dumps({
+            "evidence": [{
+                "category": "ticketing_snapshot",
+                "document": "06_ticketing_rules.md",
+                "source_ids": ["S07"],
+                "content": (
+                    "官方预约/购票渠道：微信公众号“广东民间工艺博物馆”服务号。"
+                    "馆方未授权第三方销售门票，或提供“讲解导览 + 门票预约”套餐。"
+                ),
+            }],
+        }, ensure_ascii=False)
+        expected_search = {
+            "query": "怎么购票 陈家祠 购票 预约 入馆规则 怎么办 如何办理 方式",
+            "categories": ["ticketing_snapshot"],
+        }
+
+        no_route = _message_state(query)
+        no_route.update(semantic_normalization_node(no_route))
+        self.assertEqual(route_initial_request(no_route), "direct_rag")
+        with (
+            patch("agent_graph.chen_clan_academy_rag_search") as rag,
+            patch("agent_graph._invoke_grounded_knowledge_model") as model,
+        ):
+            rag.invoke.return_value = payload
+            retrieval = direct_rag_node(no_route)
+        rag.invoke.assert_called_once_with(expected_search)
+        model.assert_not_called()
+        no_route_answer = llm_think_node({
+            **no_route,
+            **retrieval,
+            "messages": [*no_route["messages"], *retrieval["messages"]],
+        })["messages"][0].content
+
+        active = _message_state(query, self._arrived_tour())
+        active.update(semantic_normalization_node(active))
+        self.assertEqual(route_initial_request(active), "tour_qa")
+        with (
+            patch("agent_graph.chen_clan_academy_rag_search") as rag,
+            patch("agent_graph._invoke_grounded_knowledge_model") as model,
+        ):
+            rag.invoke.return_value = payload
+            update = tour_qa_node(active)
+        rag.invoke.assert_called_once_with(expected_search)
+        model.assert_not_called()
+        active_answer = update["messages"][0].content
+
+        self.assertEqual(no_route_answer, active_answer)
+        self.assertIn("微信公众号“广东民间工艺博物馆”服务号", active_answer)
+        self.assertIn("未授权第三方", active_answer)
+        self.assertIn("https://wx.gzcjc.com.cn", active_answer)
+        self.assertIn("当日页面", active_answer)
         self.assertNotIn("06_ticketing_rules.md", active_answer)
         self.assertNotIn("S07", active_answer)
         self.assertNotIn("tour_state", update)
@@ -800,6 +937,8 @@ class AgentTourQaTests(unittest.TestCase):
         rag.invoke.assert_not_called()
         self.assertIn("不建议", update["messages"][0].content)
         self.assertNotIn("月台", update["messages"][0].content.split("\n")[0])
+        self.assertEqual(update["messages"][0].additional_kwargs["public_scene_kind"], "safety_refusal")
+        self.assertTrue(update["messages"][0].additional_kwargs["public_scene_validation"]["accepted"])
         self.assertEqual(state["tour_state"], before_tour)
         self.assertEqual(state["tour_interaction_state"], before_interaction)
 

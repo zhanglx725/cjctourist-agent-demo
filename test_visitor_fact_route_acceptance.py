@@ -392,10 +392,14 @@ class VisitorFactRouteAcceptanceTests(unittest.TestCase):
         self.assertEqual(result["visitor_profile"]["detail_level"], "deep")
         self.assertEqual(result["tour_state"]["available_minutes"], 120)
         message = result["messages"][-1].content
-        self.assertIn("讲解停留顺序", message)
+        self.assertNotIn("为什么选择这条路线", message)
+        self.assertIn("沿途可以重点看到", message)
+        self.assertIn("游览后", message)
+        self.assertIn("路线主线", message)
         self.assertIn("建议停留", message)
         self.assertIn("木雕", message)
-        self.assertIn("详细讲解", message)
+        self.assertIn("更充分的观察和讲解时间", message)
+        self.assertNotIn("偏好看点", message)
         self._assert_visitor_safe(message)
         nodes = [metric["node"] for metric in result["performance_metrics"]]
         self.assertIn("semantic_normalization", nodes)
@@ -412,9 +416,12 @@ class VisitorFactRouteAcceptanceTests(unittest.TestCase):
         self.assertEqual(result["visitor_profile"]["detail_level"], "deep")
         self.assertEqual(result["tour_state"]["available_minutes"], 120)
         message = result["messages"][-1].content
-        self.assertIn("讲解停留顺序", message)
+        self.assertNotIn("为什么选择这条路线", message)
+        self.assertIn("沿途可以重点看到", message)
+        self.assertIn("游览后", message)
+        self.assertIn("路线主线", message)
         self.assertIn("木雕", message)
-        self.assertIn("详细讲解", message)
+        self.assertIn("更充分的观察和讲解时间", message)
         self._assert_visitor_safe(message)
         nodes = [metric["node"] for metric in result["performance_metrics"]]
         self.assertIn("semantic_normalization", nodes)

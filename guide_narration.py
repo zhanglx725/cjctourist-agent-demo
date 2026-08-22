@@ -16,6 +16,7 @@ from typing import Any, Callable
 from guide_program_planner import StopProgram
 from guidance_policy import GuidancePolicy
 from ornament_detail_runtime import build_object_evidence_view, render_object_detail
+from narration_service_tail import COMPLETION_PROMPT
 
 
 RAW_DUMP_MARKERS = (
@@ -153,9 +154,7 @@ def _opening(program: StopProgram, policy: GuidancePolicy | None, detailed: bool
 
 def _closing(policy: GuidancePolicy | None, detailed: bool) -> str:
     if policy is None and detailed:
-        # Preserve B3's established neutral fallback for callers that have
-        # not yet supplied a C6 policy.
-        return "如果您愿意，可以把刚才看到的细节告诉我；讲解结束后再确认是否完成本点参观。"
+        return COMPLETION_PROMPT
     if policy and policy.interaction_task_enabled:
         if policy.audience_mode == "child_friendly":
             return "小任务：在这两处装饰里选一处，说说你先注意到的一个形状或细节。"
@@ -165,10 +164,8 @@ def _closing(policy: GuidancePolicy | None, detailed: bool) -> str:
             return "思考任务：比较刚才的造型和周围构件，哪一处细部最能支持你的观察？"
         return "观察任务：选一处刚才提到的装饰，指出最能体现其工艺特点的一个细部。"
     if policy and policy.audience_mode == "mixed_group" and policy.optional_deepening_enabled:
-        return "如需更深入的工艺补充，我可以在不改变当前路线的前提下继续展开。"
-    if detailed:
-        return "讲解结束后，您可确认是否完成本点参观。"
-    return "您可先停留观察；需要展开细节可选择“再讲详细一点”。"
+        return f"如需更深入的工艺补充，可以选择“再讲详细一点”。{COMPLETION_PROMPT}"
+    return COMPLETION_PROMPT
 
 
 def _deterministic_message(
@@ -204,15 +201,15 @@ def _deterministic_message(
                 detailed=detailed,
                 listen_only=bool(policy and policy.interaction_mode == "listen_only"),
             )
-            lines.extend(rendered.paragraphs)
+            lines.extend(rendered.public_paragraphs)
         else:
-            lines.append(f"{item.name}是一件{item.craft}装饰。这是一处{item.craft}装饰的审核关联对象。")
+            lines.append(f"{item.name}是一件{item.craft}装饰。")
             if item.observation_location:
-                lines.append(f"它与{item.observation_location}存在审核关联；可结合现场标识观察。")
+                lines.append(f"它就在{item.observation_location}这一带；可以对照现场标识来找。")
             facts = _facts_for_item(str(craft_entries[0].get("content", "")), detailed=detailed) if craft_entries else ()
             if facts:
                 lines.extend(facts)
-            lines.append("未检索到可引用的事实资料，因此不据名称扩写题材或故事。")
+            lines.append("这一处先看造型和位置，题材或故事先不急着下结论。")
         if item.comparison_reason:
             lines.append(f"这里特意选它作对照，{item.comparison_reason}。")
     lines.append("【下一步】")

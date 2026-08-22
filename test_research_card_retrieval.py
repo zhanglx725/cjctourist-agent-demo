@@ -6,6 +6,7 @@ import unittest
 
 from knowledge_card_contract import KnowledgeCard
 from research_card_retrieval import format_research_answer, is_explicit_research_question, retrieve_research_cards
+from controlled_knowledge_query import is_public_visitor_message
 
 
 def _research(card_id: str, *, node_ids: list[str] | None = None, status: str = "attributed_only", raw_status: str = "reviewed") -> KnowledgeCard:
@@ -29,6 +30,7 @@ class ResearchCardRetrievalTests(unittest.TestCase):
         self.assertTrue(is_explicit_research_question("从学术研究角度看灰塑有什么价值？"))
         self.assertFalse(is_explicit_research_question("灰塑是什么？"))
         self.assertFalse(is_explicit_research_question("从研究角度比较灰塑和砖雕"))
+        self.assertTrue(is_explicit_research_question("介绍关于建筑的研究"))
 
     def test_node_association_boosts_and_order_is_stable(self) -> None:
         cards = {
@@ -51,6 +53,88 @@ class ResearchCardRetrievalTests(unittest.TestCase):
         )
         self.assertEqual(result["status"], "no_eligible_match")
         self.assertEqual(result["cards"], [])
+
+    def test_natural_space_question_matches_a_broader_card_subject(self) -> None:
+        card = _research("research_a", node_ids=["label_moon_platform"])
+        card.raw_payload["topic_tags"] = ["空间等级"]
+        result = retrieve_research_cards(
+            "介绍一下这里的空间的学术研究",
+            current_node_id="label_moon_platform",
+            registry_loader=lambda: {"research_a": card},
+        )
+        self.assertEqual(result["status"], "ok")
+        self.assertTrue(result["cards"][0]["applicable_here"])
+
+    def test_site_level_research_introduction_uses_reviewed_overviews_only(self) -> None:
+        cards = {
+            "research_004_spatial_characteristics": _research("research_004_spatial_characteristics"),
+            "research_006_sculptural_metaphor": _research("research_006_sculptural_metaphor"),
+            "research_other": _research("research_other", node_ids=["label_moon_platform"]),
+        }
+        result = retrieve_research_cards("介绍一下陈家祠的学术研究", registry_loader=lambda: cards)
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(len(result["cards"]), 2)
+
+    def test_real_cards_support_the_natural_questions_used_in_the_guide(self) -> None:
+        overview = retrieve_research_cards("介绍一下陈家祠的学术研究")
+        architecture = retrieve_research_cards(
+            "介绍一下这里的建筑的学术研究", current_node_id="stop_front_courtyard_center"
+        )
+        self.assertEqual(overview["status"], "ok")
+        self.assertEqual(architecture["status"], "ok")
+        self.assertTrue(architecture["cards"][0]["applicable_here"])
+
+    def test_about_phrasing_and_research_answer_are_public_safe(self) -> None:
+        overview = retrieve_research_cards("关于陈家祠的学术研究")
+        architecture = retrieve_research_cards(
+            "关于建筑的学术研究", current_node_id="stop_front_courtyard_center"
+        )
+        self.assertEqual(overview["status"], "ok")
+        self.assertEqual(architecture["status"], "ok")
+        self.assertTrue(is_public_visitor_message(format_research_answer(overview)))
+        self.assertTrue(is_public_visitor_message(format_research_answer(architecture)))
+
+    def test_craft_umbrella_question_uses_only_the_curated_research_cards(self) -> None:
+        cards = {
+            "research_003_ridge_pottery_colour": _research("research_003_ridge_pottery_colour"),
+            "research_008_grey_plaster_lions": _research(
+                "research_008_grey_plaster_lions", node_ids=["stop_front_courtyard_center"]
+            ),
+            "research_other": _research("research_other"),
+        }
+        result = retrieve_research_cards(
+            "介绍陈家祠关于工艺的学术研究",
+            current_node_id="stop_front_courtyard_center",
+            registry_loader=lambda: cards,
+        )
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(len(result["cards"]), 2)
+        self.assertTrue(result["cards"][0]["applicable_here"])
+
+    def test_real_cards_support_a_craft_umbrella_question(self) -> None:
+        result = retrieve_research_cards(
+            "介绍陈家祠关于工艺的学术研究", current_node_id="stop_front_courtyard_center"
+        )
+        self.assertEqual(result["status"], "ok")
+        self.assertTrue(is_public_visitor_message(format_research_answer(result)))
+
+    def test_architecture_umbrella_question_prefers_architecture_cards(self) -> None:
+        cards = {
+            "research_004_spatial_characteristics": _research("research_004_spatial_characteristics"),
+            "research_016_academy_ancestral_program": _research("research_016_academy_ancestral_program"),
+            "research_003_ridge_pottery_colour": _research("research_003_ridge_pottery_colour"),
+        }
+        result = retrieve_research_cards("介绍这里建筑的研究", registry_loader=lambda: cards)
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(len(result["cards"]), 2)
+
+    def test_real_cards_support_bare_research_phrasing_for_architecture_and_craft(self) -> None:
+        for query in ("介绍关于建筑的研究", "介绍关于这里工艺的研究"):
+            result = retrieve_research_cards(
+                query, current_node_id="stop_front_courtyard_center"
+            )
+            self.assertEqual(result["status"], "ok", query)
+            self.assertTrue(is_public_visitor_message(format_research_answer(result)), query)
 
     def test_disabled_and_background_cards_never_run(self) -> None:
         cards = {

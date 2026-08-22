@@ -69,7 +69,7 @@ def build_photo_trigger_plan(
 def _render(selection: dict[str, Any]) -> str:
     spot = selection.get("photo_spot") or {}
     title = str(spot.get("title_zh") or "这个位置").strip()
-    lines = [f"【打卡姿势建议】{title}"]
+    lines = [f"拍摄小提示：{title}"]
     poses = selection.get("pose_templates") or []
     if poses and str(poses[0].get("instruction_zh") or "").strip():
         lines.append(str(poses[0]["instruction_zh"]).strip())
@@ -78,6 +78,10 @@ def _render(selection: dict[str, Any]) -> str:
         text = str(item or "").strip()
         if not text or "draft_manual_review" in text or text.startswith("原卡为"):
             continue
+        if "项目编辑整理" in text:
+            text = "拍摄时请以现场光线、客流和开放情况为准。"
+        if "未核验" in text:
+            text = "现场规则请以馆方指引为准。"
         if text not in boundaries:
             boundaries.append(text)
     lines.extend(boundaries)
@@ -108,6 +112,9 @@ def maybe_trigger_photo_guidance(
         or not event.get("ok", False)
         or profile.get("interaction_mode") == "listen_only"
         or profile.get("explanation_style") == "listen_only"
+        # Keep the first child-friendly explanation focused and short. Photo
+        # guidance remains available through an explicit photo request.
+        or profile.get("explanation_style") == "child"
         or not node_id
         or node_id not in plan.get("planned_stop_ids", [])
         or node_id in plan.get("triggered_stop_ids", [])

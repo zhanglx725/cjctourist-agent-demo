@@ -99,7 +99,7 @@ class OrnamentDetailRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(result["mode"], "ornament_detail_clarification")
         self.assertIn("未在", result["message"])
-        self.assertIn("不把其他点位对象当作本点内容", result["message"])
+        self.assertIn("不会把其他点位的对象当作这里的内容", result["message"])
         self.assertEqual(result["evidence"], [])
 
     def test_same_name_without_point_is_ambiguous_instead_of_guessing(self):
@@ -128,7 +128,7 @@ class OrnamentDetailRuntimeTests(unittest.TestCase):
             lambda _: self.fail("reviewed inventory must not retrieve"),
         )
         self.assertEqual(result["mode"], "inventory")
-        self.assertIn("已审核点位清单", result["message"])
+        self.assertIn("现有点位清单", result["message"])
 
     def test_detail_answer_does_not_mutate_route_or_profile_inputs(self):
         tour_state = {
@@ -169,6 +169,7 @@ class OrnamentDetailRuntimeTests(unittest.TestCase):
         self.assertNotIn("传说", rendered.visitor_text)
         self.assertNotIn("辟邪", rendered.visitor_text)
         self.assertNotIn("S10", rendered.visitor_text)
+        self.assertNotIn("审核", rendered.visitor_text)
 
     def test_craft_only_request_clarifies_without_object_retrieval(self):
         result = answer_tour_question(

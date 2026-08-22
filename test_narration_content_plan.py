@@ -26,6 +26,12 @@ class NarrationContentPlanTests(unittest.TestCase):
             "rendered_ornament_ids": ["lion_01"],
             "content_budget_seconds": 180,
             "allocated_content_seconds": 120,
+            "fact_units": [
+                {"unit_id": "craft:灰塑", "topic_kind": "craft", "required": True,
+                 "statements": ["灰塑是建筑装饰工艺。"]},
+                {"unit_id": "ornament:lion_01", "topic_kind": "ornament", "required": True,
+                 "statements": ["独角狮位于屋脊。"]},
+            ],
         }
 
     def test_plan_contains_only_approved_fact_sections(self):
@@ -36,7 +42,7 @@ class NarrationContentPlanTests(unittest.TestCase):
         )
         self.assertEqual(plan.status, "ready")
         self.assertEqual(plan.allocated_content_seconds, 120)
-        self.assertEqual([fact.fact_id for fact in plan.facts], ["craft:灰塑", "ornament:lion_01"])
+        self.assertEqual([fact.fact_id for fact in plan.facts], ["craft:灰塑:000", "ornament:lion_01:000"])
         serialized = str(plan.to_dict())
         self.assertNotIn("观察提示", serialized)
         self.assertNotIn("下一步", serialized)
@@ -46,6 +52,32 @@ class NarrationContentPlanTests(unittest.TestCase):
         self.assertIsNotNone(restored)
         self.assertEqual(restored.allocated_content_seconds, 120)
 
+    def test_optional_dimension_is_a_non_required_audited_fact_unit(self):
+        audit = {
+            **self.audit,
+            "rendered_dimension_ids": ["knowledge_deadbeef"],
+            "fact_units": [
+                *self.audit["fact_units"],
+                {
+                    "unit_id": "dimension:knowledge_deadbeef",
+                    "topic_kind": "dimension",
+                    "required": False,
+                    "statements": ["馆方历史资料记录了这一装饰的保护案例。"],
+                },
+            ],
+        }
+        plan = build_narration_content_plan(
+            public_message=self.message,
+            stop_program=self.program,
+            render_audit=audit,
+            visitor_profile={},
+            narration_coverage={},
+        )
+        self.assertEqual(plan.status, "ready")
+        optional = next(fact for fact in plan.facts if fact.fact_id.startswith("dimension:"))
+        self.assertFalse(optional.required)
+        self.assertEqual(optional.topic_kind, "ornament")
+
     def test_mismatched_reviewed_id_fails_closed(self):
         audit = {**self.audit, "rendered_ornament_ids": ["missing"]}
         plan = build_narration_content_plan(
@@ -53,7 +85,7 @@ class NarrationContentPlanTests(unittest.TestCase):
             render_audit=audit, visitor_profile={}, narration_coverage={},
         )
         self.assertEqual(plan.status, "rejected")
-        self.assertIn("ornament_section_mismatch", plan.reason_codes)
+        self.assertIn("fact_unit_subject_mismatch", plan.reason_codes)
 
     def test_listen_only_disables_interaction(self):
         plan = build_narration_content_plan(
@@ -63,7 +95,26 @@ class NarrationContentPlanTests(unittest.TestCase):
         )
         self.assertFalse(plan.interaction_allowed)
 
-    def test_known_review_location_boilerplate_is_naturalized_without_fact_drift(self):
+    def test_explicit_craft_request_excludes_unrelated_ornament_story(self):
+        plan = build_narration_content_plan(
+            public_message=self.message, stop_program=self.program,
+            render_audit=self.audit, visitor_profile={}, narration_coverage={},
+            request_text="请以古风书生风格讲解这里的灰塑工艺",
+        )
+        self.assertEqual(plan.requested_scope, "craft")
+        self.assertEqual([fact.fact_id for fact in plan.facts], ["craft:灰塑:000"])
+
+    def test_explicit_space_request_never_expands_to_craft_or_ornament(self):
+        plan = build_narration_content_plan(
+            public_message=self.message,
+            stop_program={**self.program, "display_name": "前院中部"},
+            render_audit=self.audit, visitor_profile={}, narration_coverage={},
+            request_text="请以古风书生风格讲解这里的建筑空间",
+        )
+        self.assertEqual(plan.requested_scope, "space")
+        self.assertEqual([fact.fact_id for fact in plan.facts], ["space:front_courtyard_center"])
+
+    def test_audited_location_statement_is_already_visitor_safe_in_the_plan(self):
         message = (
             "【工艺背景：灰塑】\n\n灰塑是建筑装饰工艺。\n\n"
             "【观察对象：独角狮】\n\n"
@@ -74,16 +125,35 @@ class NarrationContentPlanTests(unittest.TestCase):
         )
         plan = build_narration_content_plan(
             public_message=message, stop_program=self.program,
-            render_audit=self.audit, visitor_profile={"language": "zh"},
+            render_audit={**self.audit, "fact_units": [
+                self.audit["fact_units"][0],
+                {"unit_id": "ornament:lion_01", "topic_kind": "ornament", "required": True,
+                 "statements": [
+                    "独角狮是一件灰塑装饰。",
+                    "它与建筑山墙垂脊前沿存在审核关联；可结合现场标识观察。",
+                    "观察时，可结合建筑山墙垂脊前沿处的构件位置辨认其造型。",
+                 ]},
+            ]}, visitor_profile={"language": "zh"},
             narration_coverage={},
         )
         self.assertEqual(plan.status, "ready")
-        fact = plan.facts[1]
-        self.assertEqual(fact.fact_id, "ornament:lion_01")
-        self.assertIn("在建筑山墙垂脊前沿寻找它", fact.statement)
-        self.assertIn("找到位置后，再留意它的造型和细节", fact.statement)
-        self.assertNotIn("存在审核关联", fact.statement)
-        self.assertNotIn("构件位置辨认其造型", fact.statement)
+        # Content plans only consume public fact units.  Source wording is
+        # retained in render audit, never allowed to reach role generation.
+        self.assertEqual(plan.facts[2].statement, "它与建筑山墙垂脊前沿存在审核关联；可结合现场标识观察。")
+        self.assertEqual(plan.facts[3].statement, "观察时，可结合建筑山墙垂脊前沿处的构件位置辨认其造型。")
+
+    def test_buddy_plan_starts_with_first_visible_object_unit(self):
+        plan = build_narration_content_plan(
+            public_message=self.message,
+            stop_program=self.program,
+            render_audit={**self.audit, "style_id": "buddy_guide"},
+            visitor_profile={}, narration_coverage={},
+        )
+        self.assertEqual(plan.status, "ready")
+        self.assertEqual(
+            [fact.fact_id for fact in plan.facts],
+            ["ornament:lion_01:000", "craft:灰塑:000"],
+        )
 
 
 if __name__ == "__main__":

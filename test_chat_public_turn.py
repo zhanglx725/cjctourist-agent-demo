@@ -91,6 +91,21 @@ class ChatPublicTurnTests(unittest.TestCase):
             ["assistant", "tour_qa"],
         )
 
+    def test_contract_scene_tags_for_arrival_navigation_and_safety_are_public(self):
+        graph = _FakeGraph([
+            HumanMessage(content="continue"),
+            _message("arrival", "你已到达前院中部，现在开始本点讲解。", "arrival_confirmation"),
+            _message("navigation", "请沿中路前往下一站。", "navigation"),
+            _message("safety", "不建议踩踏栏杆拍照。", "safety_refusal"),
+        ])
+        with patch.object(agent_graph, "agent_graph", graph):
+            result = agent_graph.chat_public_turn("continue", "contract-scenes")
+
+        self.assertEqual(
+            [item.scene_kind for item in result.public_messages],
+            ["arrival_confirmation", "navigation", "safety_refusal"],
+        )
+
     def test_tour_closing_summary_and_recommendation_remain_separate_public_messages(self):
         graph = _FakeGraph([
             HumanMessage(content="结束游览"),

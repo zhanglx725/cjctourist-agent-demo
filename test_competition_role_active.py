@@ -12,6 +12,7 @@ from agent_graph import (
     _route_role_narration_shadow_update,
 )
 from controlled_rollout import (
+    STOP_GUIDANCE_ACTIVE_STYLES,
     competition_role_active_allowed,
     competition_role_active_from_environment,
 )
@@ -22,8 +23,15 @@ ACTIVE_ENV = {
     "CJC_READ_ONLY_ROLLOUT_MODE": "read_only_active",
     "CJC_READ_ONLY_ROLLOUT_CAPABILITIES": "role_narration",
     "ROLE_ACTIVE_ENABLED": "true",
-    "ROLE_ACTIVE_STYLES": "neutral,child,ancient_scholar",
+    "ROLE_ACTIVE_STYLES": ",".join(STOP_GUIDANCE_ACTIVE_STYLES),
     "ROLE_ACTIVE_SCENES": "route_planning,route_opening,stop_guidance",
+    "PRODUCT_ROLE_ACTIVE_ENABLED": "true",
+    "PRODUCT_ROLE_ACTIVE_STYLES": ",".join(STOP_GUIDANCE_ACTIVE_STYLES),
+    "PRODUCT_ROLE_ACTIVE_SCENES": "route_planning,route_opening,stop_guidance",
+    "PRODUCT_ROLE_ROLLOUT_PERCENTAGE": "100",
+    "PRODUCT_ROLE_KILL_SWITCH": "false",
+    "PRODUCT_ROLE_VALIDATION_LEVEL": "strict",
+    "PRODUCT_ROLE_FALLBACK_POLICY": "legacy",
 }
 
 SOURCES = {
@@ -105,27 +113,37 @@ class CompetitionRoleActiveTests(unittest.TestCase):
             "ancient_scholar", "stop_guidance", ACTIVE_ENV,
         ))
         for style_id, scene_kind in (
-            ("child", "route_planning"),
-            ("neutral", "route_opening"),
             ("ancient_scholar", "navigation"),
             ("child", "tour_qa"),
             ("professional", "qa_follow_up_detail"),
-            ("dominant_ceo", "stop_guidance"),
+            ("dominant_ceo", "tour_qa"),
         ):
             with self.subTest(style_id=style_id, scene_kind=scene_kind):
                 self.assertFalse(competition_role_active_allowed(
                     style_id, scene_kind, ACTIVE_ENV,
                 ))
+        for style_id in STOP_GUIDANCE_ACTIVE_STYLES:
+            with self.subTest(style_id=style_id):
+                self.assertTrue(competition_role_active_allowed(
+                    style_id, "stop_guidance", {
+                        **ACTIVE_ENV,
+                        "ROLE_ACTIVE_STYLES": ",".join(STOP_GUIDANCE_ACTIVE_STYLES),
+                    },
+                ))
 
-    def test_ancient_scholar_route_planning_and_opening_take_over(self):
+    def test_all_reviewed_styles_route_planning_and_opening_take_over(self):
         with patch.dict(os.environ, ACTIVE_ENV, clear=False):
-            for scene_kind in ("route_planning", "route_opening"):
-                with self.subTest(scene_kind=scene_kind):
+            for scene_kind, role_mode in (
+                ("route_planning", "ancient_scholar"),
+                ("route_opening", "child"),
+                ("route_opening", "cute_junior"),
+            ):
+                with self.subTest(scene_kind=scene_kind, role_mode=role_mode):
                     state = _state()
                     update = _route_role_narration_shadow_update(
                         state,
                         {"configurable": {"thread_id": f"active-{scene_kind}"}},
-                        presentation_plan=_plan(scene_kind, "ancient_scholar"),
+                        presentation_plan=_plan(scene_kind, role_mode),
                     )
                     audit = update["route_role_narration_evaluations"][-1]
                     self.assertEqual(audit["validation_status"], "accepted")
@@ -166,7 +184,6 @@ class CompetitionRoleActiveTests(unittest.TestCase):
     def test_unapproved_scene_or_style_stays_shadow_and_preserves_message(self):
         with patch.dict(os.environ, ACTIVE_ENV, clear=False):
             for scene_kind, role_mode in (
-                ("route_planning", "child"),
                 ("navigation", "ancient_scholar"),
             ):
                 with self.subTest(scene_kind=scene_kind, role_mode=role_mode):
@@ -203,7 +220,7 @@ class CompetitionRoleActiveTests(unittest.TestCase):
         self.assertNotIn("messages", update)
 
     def test_kill_switch_keeps_legacy_message(self):
-        disabled = {**ACTIVE_ENV, "ROLE_ACTIVE_ENABLED": "false"}
+        disabled = {**ACTIVE_ENV, "ROLE_ACTIVE_ENABLED": "false", "PRODUCT_ROLE_ACTIVE_ENABLED": "false"}
         with patch.dict(os.environ, disabled, clear=False):
             update = _route_role_narration_shadow_update(
                 _state(), None,

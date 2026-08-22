@@ -26,6 +26,23 @@ DOCUMENT_SOURCES = {
     "07_ornament_crafts.md": ("S10",),
     "08_ornament_items.md": ("S11",),
     "09_ornament_locations.md": ("S11",),
+    "10_people_builders_craftspeople.md": (
+        "S02", "S10", "S11", "S12", "S13", "S14", "S15", "S16", "S17", "S18",
+    ),
+    "11_architectural_conservation.md": (
+        "S09", "S13", "S15", "S16", "S17", "S19", "S20", "S21", "S22", "S23",
+        "S24", "S25", "S26", "S27", "S28", "S29",
+    ),
+    "12_craft_process_and_transmission.md": (
+        "S10", "S13", "S14", "S17", "S30", "S31", "S32", "S33", "S34",
+        "S35", "S36", "S37",
+    ),
+    "13_literary_citation_cards.md": (
+        "S10", "S11", "S38", "S39", "S40", "S41", "S42", "S43",
+    ),
+    "14_students_examinations_and_education.md": (
+        "S02", "S12", "S14", "S44", "S45", "S46", "S47",
+    ),
 }
 
 # Most documents have one source family.  The history document deliberately mixes
@@ -40,6 +57,51 @@ SECTION_SOURCES = {
         "文物保护与科技应用": ("S09",),
         "文化解释": ("S02",),
     },
+    "10_people_builders_craftspeople.md": {
+        "一、可用于普通导览的人物与群体": ("S02", "S12", "S14"),
+        "二、文物保护、研究与工艺传承人物": ("S13", "S15", "S16", "S17"),
+        "三、陶塑商号：可讲作营造组织，不等同于个人工匠": ("S10", "S11", "S14"),
+        "四、博物馆藏品建设相关人物": ("S18",),
+    },
+    "11_architectural_conservation.md": {
+        "一、保护原则在陈家祠中的可核验实践": ("S13", "S16", "S27"),
+        "二、灰塑：现有证据最充分的专项保护材料": ("S13", "S16", "S17", "S22", "S23", "S26"),
+        "三、木构件、木雕与白蚁保护": ("S09", "S19", "S20", "S28"),
+        "四、青砖墙体、基础和整体结构安全": ("S09", "S15", "S19", "S20", "S24"),
+        "五、陶塑、石雕、砖雕和彩绘：已有巡查，专项病害资料不足": ("S19",),
+        "六、重要保护与修缮时间线": (
+            "S13", "S16", "S17", "S19", "S20", "S21", "S22", "S23", "S24", "S25", "S27", "S29",
+        ),
+    },
+    "12_craft_process_and_transmission.md": {
+        "二、灰塑：陈家祠直接证据最完整的工艺": ("S13", "S17", "S30", "S31"),
+        "三、陶塑瓦脊：分件烧制，再运输和安装": ("S14", "S30", "S32", "S36"),
+        "四、木雕：从一比一图样到粗雕、细雕和表面保护": ("S30", "S33", "S35"),
+        "五、砖雕：逐砖雕刻、编号组合与现场收口": ("S30", "S33", "S34"),
+        "六、石雕：先理解构件功能，再看雕刻层次": ("S10", "S30"),
+        "八、当代传承并非只有传统师徒制": ("S17", "S31", "S33", "S34", "S37"),
+    },
+    "13_literary_citation_cards.md": {
+        "二、引用卡 A01：九如图与《诗经·小雅·天保》": ("S11", "S38"),
+        "三、引用卡 A02：古城会与《三国演义》第二十八回": ("S11", "S40", "S41"),
+        "四、引用卡 A03：桃园结义与《三国演义》第一回": ("S11", "S40"),
+        "五、引用卡 A04：三顾茅庐与《三国演义》第三十七、三十八回": ("S11", "S40", "S42"),
+        "六、引用卡 A05：夜游赤壁的来源冲突": ("S11", "S39"),
+        "七、引用卡 B01：郭沫若对陈家祠的题咏": ("S43",),
+        "八、引用卡 B02：罗哲文对陈家祠的评价": ("S43",),
+        "九、引用卡 C01：借《诗经·斯干》形容屋脊": ("S38",),
+        "十、引用卡 C02：借《前赤壁赋》形容安静氛围": ("S39",),
+    },
+    "14_students_examinations_and_education.md": {
+        "一、目前可以确认的早期功能": ("S02", "S44"),
+        "二、《议建陈氏书院章程》：制度设想不等于执行记录": ("S45", "S47"),
+        "三、族谱、倡建名录与捐资资料能证明什么": ("S02", "S45", "S47"),
+        "四、旗杆夹石：四位人物与两种教育制度": ("S12",),
+        "五、人物证据卡 E01：陈伯陶": ("S12", "S14", "S46"),
+        "六、人物证据卡 E02：陈昭常": ("S12",),
+        "七、人物证据卡 E03：陈振先与陈启辉": ("S12",),
+        "九、1905 年前后：功能转换应怎样讲": ("S02",),
+    },
 }
 
 DOCUMENT_TYPES = {
@@ -51,6 +113,13 @@ DOCUMENT_TYPES = {
     "07_ornament_crafts.md": "ornament_craft",
     "08_ornament_items.md": "ornament_item",
     "09_ornament_locations.md": "ornament_location",
+    # Reuse the reviewed public taxonomy so controlled history/architecture
+    # queries can retrieve these extensions without opening a new category.
+    "10_people_builders_craftspeople.md": "history_architecture",
+    "11_architectural_conservation.md": "history_architecture",
+    "12_craft_process_and_transmission.md": "ornament_craft",
+    "13_literary_citation_cards.md": "literary_citation",
+    "14_students_examinations_and_education.md": "history_architecture",
 }
 
 

@@ -15,10 +15,56 @@ from typing import Any, Mapping
 
 from narration_content_plan import NarrationContentPlan, NarrationFact
 from role_mode_shadow import ROLE_MODE_IDS
+from narration_style_policy import StyleBrief
+from role_narration_generation import RoleNarrationCandidate
 
 
 QA_PLAN_SCHEMA_VERSION = "qa_content_plan_v1"
 QA_SCENE_KINDS = frozenset({"tour_qa", "qa_follow_up_detail"})
+
+
+def qa_role_components(brief: StyleBrief, scene_kind: str) -> dict[str, str]:
+    """Return reviewed, fact-free QA phrases for one role and scene."""
+    components = brief.point_narration_components
+    opening = next(iter(components.get("opening", ())), "")
+    closing = next(iter(components.get("closing", ())), "")
+    listen_only = brief.style_id == "listen_only"
+    return {
+        "opening": opening,
+        "direct_answer": "直接回答是：" if scene_kind == "tour_qa" else "接着刚才的问题补充：",
+        "follow_up": (
+            "本次回答到这里。" if listen_only
+            else "如需继续，可以再问一个具体细节。" if scene_kind == "tour_qa"
+            else "以上是本次追问范围内的补充。"
+        ),
+        "uncertainty": "现有资料只能确认到这里。",
+        "closing": closing,
+    }
+
+
+def apply_qa_role_scaffold(
+    candidate: RoleNarrationCandidate,
+    plan: "QaContentPlan",
+    brief: StyleBrief,
+) -> RoleNarrationCandidate:
+    if candidate.generation_status != "generated":
+        return candidate
+    approved = plan.legacy_public_message
+    if candidate.used_fact_ids != ("qa:approved_answer",) or approved not in candidate.public_text:
+        return candidate
+    # A question-answer turn is not a point narration.  The visitor has asked
+    # for a direct fact (opening hours, route, term, rule, etc.), so retain the
+    # reviewed answer exactly instead of injecting the currently selected tour
+    # persona's opening and closing.  The role model remains bounded to the
+    # same immutable fact contract for audit, but cannot make QA sound like a
+    # sudden guided-performance interruption.
+    public_text = approved
+    return RoleNarrationCandidate(
+        style_id=candidate.style_id, public_text=public_text,
+        used_fact_ids=candidate.used_fact_ids, omitted_fact_ids=candidate.omitted_fact_ids,
+        self_check=candidate.self_check, model_called=candidate.model_called,
+        latency_ms=candidate.latency_ms,
+    )
 
 
 @dataclass(frozen=True)

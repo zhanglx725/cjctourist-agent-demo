@@ -14,6 +14,8 @@ from typing import Any
 
 import yaml
 
+from visitor_qa_intent import is_nearby_visitor_intent
+
 
 CATALOG_FILE = (
     Path(__file__).parent
@@ -31,7 +33,7 @@ NEARBY_CUES = (
 )
 PURPOSE_CUES = (
     "吃饭", "吃什么", "好吃", "餐厅", "餐馆", "饭店", "美食", "小吃", "咖啡", "喝茶", "奶茶", "甜品", "糖水", "面食", "面馆",
-    "休息", "歇脚", "手信", "伴手礼", "购物", "店", "去哪里", "推荐",
+    "休息", "歇脚", "手信", "伴手礼", "购物", "店", "去哪里", "推荐", "早茶", "逛", "可逛", "景点", "游玩", "玩的地方",
 )
 ROUTE_CHANGE_CUES = ("加入路线", "加入行程", "改路线", "调整路线", "顺路安排")
 PROHIBITED_PUBLIC_CLAIMS = (
@@ -53,6 +55,13 @@ SUBTYPE_CUES = {
     "local_food": ("本地美食", "广州美食", "粤菜", "老字号"),
     "souvenir": ("手信", "伴手礼"),
 }
+CANTONESE_CUISINE_CUES = (
+    "广东特色", "广东美食", "广州特色", "广州美食", "广州小吃",
+    "广府美食", "广府菜", "广府小吃", "岭南美食", "岭南菜", "粤菜",
+)
+CANTONESE_CUISINE_EVIDENCE = (
+    "粤式", "粤菜", "广府", "岭南", "广东特色", "广州特色", "广州非遗",
+)
 
 CATEGORY_LABELS = {
     "food": "餐饮",
@@ -94,11 +103,9 @@ def _repair_legacy_text(value: Any) -> str:
 
 
 def is_explicit_nearby_request(user_query: str) -> bool:
-    text = str(user_query or "")
-    return (
-        any(cue in text for cue in NEARBY_CUES)
-        and any(cue in text for cue in PURPOSE_CUES)
-    )
+    """Use the shared visitor-language router for off-site intent detection."""
+
+    return is_nearby_visitor_intent(user_query)
 
 
 def classify_nearby_offer_response(user_query: str) -> str | None:
@@ -157,6 +164,25 @@ def _requested_tags(text: str) -> set[str]:
         "伴手礼": "shopping",
     }
     return {tag for cue, tag in mapping.items() if cue in text}
+
+
+def _requests_cantonese_cuisine(text: str) -> bool:
+    return any(cue in str(text or "") for cue in CANTONESE_CUISINE_CUES)
+
+
+def _has_cantonese_cuisine_evidence(card: dict[str, Any]) -> bool:
+    """Use reviewed public text, not the broad ``local_food`` ranking tag.
+
+    The catalog's ``local_food`` tag only means a nearby food candidate.  It
+    is not evidence that every entry is Guangdong cuisine, so it cannot answer
+    a visitor who explicitly asks for Cantonese or Guangdong food.
+    """
+
+    # ``why_recommend_zh`` describes the visit connection and can contain a
+    # negative comparison such as “不同于广府菜”.  Only the reviewed summary
+    # is a positive cuisine statement, so use it as the evidence boundary.
+    content = str(card.get("one_line_summary_zh") or "")
+    return any(cue in content for cue in CANTONESE_CUISINE_EVIDENCE)
 
 
 def _valid_source(card: dict[str, Any]) -> bool:
@@ -322,7 +348,7 @@ def answer_nearby_request(
     cards = load_approved_nearby_pois()
     if not cards:
         return {
-            "message": "当前没有可用的已审核周边推荐。" + PUBLIC_UNCERTAINTY,
+            "message": "当前没有可用的周边推荐。" + PUBLIC_UNCERTAINTY,
             "mode": "nearby_unavailable",
             "nearby_pois": [],
             "selected_poi_ids": [],
@@ -330,6 +356,20 @@ def answer_nearby_request(
     categories = _requested_categories(user_query)
     tags = _requested_tags(user_query)
     ranked = sorted(cards, key=lambda card: _sort_key(card, categories, tags))
+    cantonese_cuisine = _requests_cantonese_cuisine(user_query)
+    if cantonese_cuisine:
+        ranked = [card for card in ranked if _has_cantonese_cuisine_evidence(card)]
+        if not ranked:
+            return {
+                "message": (
+                    "当前审核候选中没有能明确支持为广东/广府特色美食的周边选择，"
+                    "我不会用其他菜系替代回答。\n\n" + PUBLIC_UNCERTAINTY
+                ),
+                "mode": "nearby_no_matching_cuisine",
+                "nearby_pois": [],
+                "selected_poi_ids": [],
+                "offer_status": "awaiting_choice" if offer_pending else None,
+            }
     subtype = requested_nearby_subtype(user_query)
     if subtype:
         subtype_matches = [card for card in ranked if subtype in card.get("subtypes", ())]
@@ -342,7 +382,7 @@ def answer_nearby_request(
     remaining = [card for card in ranked if card["poi_id"] not in excluded]
     if not remaining:
         return {
-            "message": "这一类别中已审核且当前可用的候选已经全部为您展示完毕。您也可以换一种美食或饮品类型。",
+            "message": "这一类别中当前可用的选择已经全部为您展示完毕。您也可以换一种美食或饮品类型。",
             "mode": "nearby_candidates_exhausted",
             "nearby_pois": [],
             "selected_poi_ids": [],
@@ -352,7 +392,8 @@ def answer_nearby_request(
     rendered = [_render_card(card) for card in selected]
     return {
         "message": (
-            "可以参考以下已审核周边候选：\n\n"
+            ("可以参考以下广东特色美食：" if cantonese_cuisine else "可以参考以下周边选择：")
+            + "\n\n"
             + "\n\n".join(text for text, _ in rendered)
             + "\n\n" + PUBLIC_UNCERTAINTY
         ),

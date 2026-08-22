@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from spatial_graph import build_spatial_graph, shortest_route
 from tour_state import ENTRY_NODE_ID, TourStateError, next_stop
@@ -30,6 +30,43 @@ class NextStopNavigation:
     estimated_walk_seconds: int | None
     walk_time_basis: tuple[str, ...]
     warning: str
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a checkpoint-safe navigation payload using only primitives."""
+        return {
+            "from_node_id": self.from_node_id,
+            "next_stop_id": self.next_stop_id,
+            "next_stop_name": self.next_stop_name,
+            "guide_focus": self.guide_focus,
+            "path_node_ids": list(self.path_node_ids),
+            "path_names": list(self.path_names),
+            "edge_ids": list(self.edge_ids),
+            "estimated_walk_seconds": self.estimated_walk_seconds,
+            "walk_time_basis": list(self.walk_time_basis),
+            "warning": self.warning,
+        }
+
+
+def navigation_from_dict(value: Mapping[str, Any]) -> NextStopNavigation:
+    """Restore a reviewed navigation value after a checkpoint round trip."""
+    try:
+        estimated_walk_seconds = value.get("estimated_walk_seconds")
+        if estimated_walk_seconds is not None:
+            estimated_walk_seconds = int(estimated_walk_seconds)
+        return NextStopNavigation(
+            from_node_id=str(value["from_node_id"]),
+            next_stop_id=str(value["next_stop_id"]),
+            next_stop_name=str(value["next_stop_name"]),
+            guide_focus=str(value["guide_focus"]),
+            path_node_ids=tuple(str(item) for item in value["path_node_ids"]),
+            path_names=tuple(str(item) for item in value["path_names"]),
+            edge_ids=tuple(str(item) for item in value["edge_ids"]),
+            estimated_walk_seconds=estimated_walk_seconds,
+            walk_time_basis=tuple(str(item) for item in value["walk_time_basis"]),
+            warning=str(value["warning"]),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise TourNavigationError("下一站导航数据格式无效。") from exc
 
 
 def _load_catalog(path: Path = CATALOG_FILE) -> dict[str, dict[str, str]]:
@@ -70,7 +107,7 @@ def next_stop_navigation(
     source_id = state["current_stop_id"] or ENTRY_NODE_ID
     graph = build_spatial_graph()
     if source_id not in graph:
-        raise TourNavigationError(f"当前点位不在已审核空间图中：{source_id}")
+        raise TourNavigationError(f"当前点位不在当前空间图中：{source_id}")
     catalog = _load_catalog()
     card = catalog.get(target_id)
     if card is None:
@@ -90,10 +127,14 @@ def next_stop_navigation(
     )
 
 
-def format_next_stop_navigation(instruction: NextStopNavigation | None) -> str:
+def format_next_stop_navigation(
+    instruction: NextStopNavigation | Mapping[str, Any] | None,
+) -> str:
     """Render a compact deterministic visitor-facing navigation message."""
     if instruction is None:
         return "当前路线的正式讲解点均已完成或跳过。您可以结束游览，或告诉我是否需要重新规划。"
+    if isinstance(instruction, Mapping):
+        instruction = navigation_from_dict(instruction)
     walk = (
         f"约 {instruction.estimated_walk_seconds} 秒"
         if instruction.estimated_walk_seconds is not None

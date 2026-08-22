@@ -27,7 +27,12 @@ from term_card_runtime import (
     is_explicit_term_question,
     runtime_term_instance_enhancement,
 )
-from photo_spot_runtime import answer_photo_request, is_explicit_photo_request
+from photo_spot_runtime import (
+    PHOTO_SAFETY_SAFE,
+    answer_photo_request,
+    classify_photo_safety_intent,
+    is_explicit_photo_request,
+)
 from nearby_poi_runtime import answer_nearby_request, is_nearby_offer_input
 from visit_safety_rules import answer_visit_safety_question
 from qa_context import create_qa_context, is_qa_follow_up_detail_request, validate_qa_context
@@ -95,6 +100,58 @@ def current_stop_context(tour_state: dict[str, Any] | None) -> dict[str, Any] | 
     return point_context_for_node(tour_state["current_stop_id"])
 
 
+def _is_academy_lineage_function_question(user_query: str) -> bool:
+    """Recognize the reviewed school/lineage-function question without an LLM."""
+    compact = "".join(str(user_query or "").split())
+    has_subject = "陈家祠" in compact or "陈氏书院" in compact or (
+        "书院" in compact and "宗族" in compact
+    )
+    has_function = any(term in compact for term in ("宗族", "合族", "书院", "功能", "为什么", "有关", "关系"))
+    return has_subject and has_function
+
+
+def _academy_lineage_function_answer(
+    tour_state: dict[str, Any] | None,
+    interaction_state: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Return the reviewed institutional explanation used in the demo script.
+
+    This is deliberately deterministic: it avoids a semantic-plan/model branch
+    for a core, repeatedly demonstrated visitor question.
+    """
+    message = (
+        "陈家祠与宗族有关，因为它本来就是各地陈氏宗族共同筹建的合族祠。"
+        "1888年，陈氏书院建祠公所成立，以“房”为单位发动题捐牌位和集资，"
+        "把不同地区、参与筹建的陈氏宗族联结为一个公共共同体。\n\n"
+        "“书院”则说明它不只承担祭祖和宗族联络：馆方资料记载，"
+        "参与集资的各地陈氏子弟到广州应考或办理事务时，可以在此暂时落脚。"
+        "这并不等于它像现代学校一样长期授课；目前没有公开名册或课卷，"
+        "能够证明具体学生在这里住宿、读书的日常情形。"
+    )
+    evidence = [{
+        "document": "14_students_examinations_and_education.md",
+        "title_path": ["目前可以确认的早期功能", "族谱、倡建名录与捐资资料能证明什么"],
+        "source_ids": ["S02"],
+        "content": "陈氏书院由各地陈氏宗族以房为单位集资筹建，并为参与集资宗族子弟进广州应考或办事提供临时落脚处。",
+    }]
+    presentation = (
+        present_tour_state(tour_state, interaction_state, message=message)
+        if tour_state and interaction_state
+        else None
+    )
+    return {
+        "message": message,
+        "mode": "academy_lineage_function",
+        "answer_mode": "academy_lineage_function",
+        "evidence": evidence,
+        "source_ids": ["S02"],
+        "point_context": current_stop_context(tour_state),
+        "presentation": presentation,
+        "retrieval_query": None,
+        "retrieval_strategy": "deterministic_reviewed_institutional_fact",
+    }
+
+
 def point_context_for_node(node_id: str) -> dict[str, Any]:
     """Return reviewed metadata for one node; never infer physical location."""
     card = load_guide_cards().get(node_id, {})
@@ -134,6 +191,20 @@ def resolve_point_context(user_query: str, tour_state: dict[str, Any] | None) ->
     return None, None
 
 
+def _is_whole_venue_photo_request(user_query: str) -> bool:
+    """Recognise venue-wide photo/discovery wording, not an unknown point.
+
+    ``馆里哪里拍照好看`` asks for a set of photo/check-in candidates.  The
+    generic point resolver correctly treats ``馆`` as location-like for object
+    inventory requests, but photo discovery must leave whole-venue wording
+    unscoped so the reviewed photo runtime can rank its candidate cards.
+    """
+
+    return any(cue in str(user_query or "") for cue in (
+        "馆里", "馆内", "全馆", "整个馆", "园区里", "园区内", "景区里", "景区内",
+    ))
+
+
 def is_point_inventory_request(user_query: str, tour_state: dict[str, Any] | None = None) -> bool:
     """Recognize only deterministic 'what is at this point' inventory requests."""
     inventory_terms = (
@@ -160,10 +231,10 @@ def format_point_inventory(
     presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
     if error_code:
         messages = {
-            "ambiguous_node_name": "该名称对应多个已审核点位，请补充方位后再查询。",
+            "ambiguous_node_name": "该名称对应地图上的多个点位，请补充方位后再查询。",
             "multiple_node_mentions": "您同时提到了多个点位，请一次查询一个明确点位。",
-            "current_point_unavailable": "当前没有可用的导览位置，请先到达一个已审核点位或直接说出地图上的点位名称。",
-            "unknown_point": "未找到该点位对应的已审核空间节点，因此不会猜测其文物清单。",
+            "current_point_unavailable": "当前没有可用的导览位置，请先到达一个地图点位，或直接说出地图上的点位名称。",
+            "unknown_point": "地图中未找到这个点位，因此暂时无法确认它的文物清单。",
         }
         return {
             "message": messages[error_code], "inventory": None, "point_context": None,
@@ -174,7 +245,7 @@ def format_point_inventory(
         return {"message": "这不是可识别的点位清单问题，将按普通事实检索处理。", "inventory": None, "point_context": None, "presentation": None, "mode": "not_inventory"}
     card = context.get("card")
     if not card:
-        message = f"{context['name']} 已是审核空间点位，但当前点位讲解包缺失；我不能据此猜测文物清单。"
+        message = f"已经找到{context['name']}，但当前缺少这个点位的讲解资料，因此暂时无法确认文物清单。"
         return {
             "message": message, "inventory": None, "point_context": context,
             "presentation": {**presentation, "message": message, "code": "point_card_missing", "ok": False} if presentation else None,
@@ -191,11 +262,11 @@ def format_point_inventory(
     glossary_terms = glossary_context.get("terms", [])
     glossary_text = "、".join(item["zh"] for item in glossary_terms[:8] if item.get("zh"))
     message = (
-        f"{context['name']} 的已审核点位清单共有 {len(ornaments)} 件关联文物。\n"
+        f"{context['name']} 的现有点位清单共有 {len(ornaments)} 件文物。\n"
         f"导览关注：{context.get('guide_focus') or '待补充'}。\n"
         f"工艺分布：{craft_text or '待补充'}。\n"
         f"关联文物：{names or '暂无'}。\n"
-        "以上是人工审核的“文物—点位”关联清单；如需了解某件文物的工艺、寓意或故事，我会再调用基础 RAG 并给出来源。"
+        "以上是当前导览中的文物清单；如需了解某件文物的工艺、寓意或故事，可以继续问我。"
     )
     if glossary_text:
         message += f"\n本点可继续追问的专业术语：{glossary_text}。"
@@ -292,7 +363,7 @@ def _candidate_categories_for_ambiguous_ornaments(
                 "node_id": node_id,
                 "node_name": node_name,
                 "raw_location": raw_location or None,
-                "summary": f"审核对象记录显示其属于{craft}装饰。",
+                "summary": f"现有对象记录显示其属于{craft}装饰。",
                 "source_ids": [],
                 "ornament_id": member_ids[0],
                 "selectable_for_exact_detail": True,
@@ -305,7 +376,7 @@ def _candidate_categories_for_ambiguous_ornaments(
                 "node_id": node_id,
                 "node_name": node_name,
                 "raw_location": raw_location or None,
-                "summary": f"审核对象记录显示其属于{craft}装饰。",
+                "summary": f"现有对象记录显示其属于{craft}装饰。",
                 "source_ids": [],
                 "member_ornament_ids": member_ids,
                 "selectable_for_exact_detail": False,
@@ -320,10 +391,10 @@ def _render_ornament_candidate_clarification(
     subject_name: str,
     candidates: list[dict[str, Any]],
 ) -> str:
-    lines = [f"“{subject_name}”对应多个审核对象，请先选择想了解的版本："]
+    lines = [f"“{subject_name}”对应多个对象，请先选择想了解的版本："]
     for candidate in candidates:
         location = candidate.get("raw_location")
-        location_text = f"，审核关联位置为{location}" if location else ""
+        location_text = f"，记录位置为{location}" if location else ""
         lines.append(
             f"{candidate['choice_index']}. {candidate['craft']}《{candidate['display_name']}》"
             f"——{candidate['node_name']}{location_text}。{candidate['summary']}"
@@ -434,7 +505,7 @@ def _ornament_story_source_clarification(
     subject = story_scope.get("requested_subject") or "该对象"
     message = (
         f"现有工艺总述只能说明相关工艺，无法证明“{subject}”的完整传说或人物情节。"
-        f"如允许使用“{subject}”的审核对象资料，我可以再按该对象的已核验内容说明。"
+        f"如果您想了解“{subject}”，我可以按现有资料继续说明。"
     )
     presentation = (
         present_tour_state(tour_state, interaction_state)
@@ -477,9 +548,9 @@ def _ornament_candidate_data_ambiguity(
     name = candidate["display_name"]
     craft = candidate["craft"]
     message = (
-        f"{candidate['node_name']}审核数据中有 {len(candidate['member_ornament_ids'])} 条名称、"
+        f"{candidate['node_name']}的现有资料中有 {len(candidate['member_ornament_ids'])} 条名称、"
         f"工艺和公开位置都相同的{craft}《{name}》记录，现有资料暂时无法可靠区分具体对象。"
-        "在审核关系确认前，我不能任选其中一条讲述。"
+        "在对应关系确认前，我不能任选其中一条讲述。"
         "您可以先了解其他可唯一识别的版本，或等待对象关系完成核验。"
     )
     return {
@@ -529,7 +600,7 @@ def _answer_pending_ornament_choice(
     )
     if choice["status"] == "unavailable":
         return {
-            "message": "该对象的审核候选资料已更新，当前没有可安全核验的对应对象；请重新说明想了解的对象。",
+            "message": "该对象的候选资料已经变化，目前无法确认对应对象；请重新说明想了解的对象。",
             "mode": "ornament_detail_unavailable",
             "evidence": [],
             "presentation": None,
@@ -540,7 +611,7 @@ def _answer_pending_ornament_choice(
         item = _reviewed_ornament_by_pending_choice(choice["candidate"])
         if item is None:
             return {
-                "message": "该候选的审核对象记录目前无法安全确认，请重新选择或稍后再试。",
+                "message": "目前无法确认该候选对应的对象，请重新选择或稍后再试。",
                 "mode": "ornament_detail_clarification",
                 "evidence": [],
                 "presentation": None,
@@ -606,10 +677,10 @@ def _answer_ornament_detail(
     status = resolved.get("status")
     presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
     if status == "ambiguous":
-        message = "该名称对应多个已审核对象，请补充所在点位或工艺后再讲解。"
+        message = "该名称对应多个对象，请补充所在点位或工艺后再讲解。"
         return {"message": message, "mode": "ornament_detail_clarification", "evidence": [], "point_context": context, "presentation": presentation, "retrieval_query": None}
     if status == "unmatched_at_point":
-        message = f"该对象未在{context['name']}的已审核对象中匹配，因此不把其他点位对象当作本点内容。"
+        message = f"该对象未在{context['name']}的本点清单中出现，因此不会把其他点位的对象当作这里的内容。"
         return {"message": message, "mode": "ornament_detail_clarification", "evidence": [], "point_context": context, "presentation": presentation, "retrieval_query": None}
     item = resolved["item"]
     if item.get("craft") not in REVIEWED_ORNAMENT_CRAFTS:
@@ -747,7 +818,7 @@ def build_tour_qa_query(user_query: str, tour_state: dict[str, Any] | None) -> t
     if context.get("guide_focus"):
         hints.append(f"讲解关注方向：{context['guide_focus']}")
     if candidates:
-        hints.append(f"可用于检索的已审核名称提示：{candidates}")
+        hints.append(f"可以尝试使用这些名称继续查询：{candidates}")
     glossary_hint = format_point_glossary_hint(context["node_id"], user_query)
     if glossary_hint:
         hints.append(glossary_hint)
@@ -793,8 +864,7 @@ def format_tour_qa_answer(
         # Raw evidence carries document names, source IDs and retrieval context.
         # It is retained in the structured return, never formatted for visitors.
         answer = (
-            "已找到与问题相关的审核资料，但当前通用问答出口无法在不展示检索细节的前提下"
-            "安全整理为游客答案。请换一种更具体的问法。"
+            "现有资料暂时不足以直接回答这个问题。您可以补充想了解的具体方面，我再继续查找。"
         )
         mode = "rag"
     else:
@@ -863,7 +933,7 @@ def _current_point_craft_term_answer(
     context = current_stop_context(tour_state)
     presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
     if not context or not context.get("card"):
-        message = "当前没有可核对的已审核导览位置；请先到达一个点位，或直接说明要问的点位名称。"
+        message = "当前还没有明确的导览位置；请先到达一个点位，或直接说明要问的点位名称。"
         return {
             "message": message,
             "mode": "current_craft_unavailable",
@@ -890,7 +960,7 @@ def _current_point_craft_term_answer(
             point_context=context,
         )
     message = (
-        f"您当前位于{context['name']}。该点已审核关联清单中确有{craft}对象；\n"
+        f"您当前位于{context['name']}。本点清单中确有{craft}对象；\n"
         + term_answer["message"]
     )
     term_presentation = term_answer.get("presentation")
@@ -994,7 +1064,7 @@ def answer_current_point_craft_features(
     )
     presentation = present_tour_state(tour_state, interaction_state) if interaction_state else None
     if not context or not context.get("card"):
-        message = "当前没有可用的已审核点位讲解包，无法把“这里”安全限定为具体现场实例。"
+        message = "当前缺少这个点位的讲解资料，暂时无法确认“这里”具体指向哪个现场实例。"
         return {"message": message, "evidence": [], "point_context": context, "presentation": presentation, "mode": "current_craft_unavailable", "retrieval_query": None}
 
     local_items = [
@@ -1003,7 +1073,7 @@ def answer_current_point_craft_features(
     ]
     if not local_items:
         message = (
-            f"您当前位于{context['name']}。该点的已审核关联清单中没有{craft}，"
+            f"您当前位于{context['name']}。本点清单中没有{craft}，"
             "因此我不会把全馆其他位置的同类装饰当作您眼前的实例。"
         )
         if presentation:
@@ -1032,15 +1102,15 @@ def answer_current_point_craft_features(
 
     sections = [f"您现在位于{context['name']}。这里的{craft}可以从“工艺特点”和“眼前实例”两层看："]
     if not is_physical_context:
-        sections[0] = f"您问的是{context['name']}的{craft}，可以从“工艺特点”和“该点审核实例”两层看："
+        sections[0] = f"您问的是{context['name']}的{craft}，可以从“工艺特点”和“本点实例”两层看："
     if detailed:
-        sections.append("- 展开说明：以下实例只限于该点已审核关联对象；每项解释均重新检索后再引用。")
+        sections.append("- 展开说明：以下实例只限于本点清单中的对象。")
     if craft_evidence:
         sections.append(f"- 工艺特点：{_fact_summary(craft_evidence[0])}")
     else:
-        availability = "本地知识检索暂时不可用；" if retrieval_errors else ""
-        sections.append(f"- 工艺特点：{availability}资料不足；本地知识库暂未检索到足以概括{craft}特点的可引用资料。")
-    sections.append("- 本点已审核关联的实例：" + "、".join(item["name"] for item in local_items) + "。")
+        availability = "当前检索暂时不可用；" if retrieval_errors else ""
+        sections.append(f"- 工艺特点：{availability}现有资料不足以概括{craft}的特点。")
+    sections.append("- 本点实例：" + "、".join(item["name"] for item in local_items) + "。")
     sourced_instances = []
     for local in local_items:
         matches = instance_evidence[local["name"]]
@@ -1049,7 +1119,7 @@ def answer_current_point_craft_features(
     if sourced_instances:
         sections.extend(sourced_instances)
     else:
-        sections.append("- 上述实例的现场关联已经审核；但当前检索未找到可逐件引用的解释，因此不据名称补造寓意或故事。")
+        sections.append("- 当前资料还不足以逐件解释，因此不会只根据名称补造寓意或故事。")
     sections.append("您可以继续查看本点讲解、结束讲解，或在下方选择其他导览操作；本次问答未改变路线进度。")
     message = "\n".join(sections)
     if presentation:
@@ -1198,11 +1268,11 @@ def _answer_whole_site_craft_follow_up(
                 for item in enhancement["term_instances"]
             )
             if enhancement["instance_scope"] == "whole_site":
-                label = "陈家祠全馆审核关联实例"
+                label = "陈家祠全馆相关实例"
             elif instance_context_origin == "explicit_query_location":
-                label = "所问点位的审核关联实例"
+                label = "所问点位的相关实例"
             else:
-                label = "当前点的审核关联实例"
+                label = "当前点的相关实例"
             message += f"\n\n作为{label}，可参考：{examples}。现场可见情况请以实际为准。"
             # Whole-site references remain short names only. A reliable point
             # may add one compact, same-object ``08`` detail per selected
@@ -1230,7 +1300,7 @@ def _answer_whole_site_craft_follow_up(
                     evidence.extend(detail["evidence"])
         elif enhancement and enhancement["instance_scope"] == "current_node":
             subject = "所问点位" if instance_context_origin == "explicit_query_location" else "当前点"
-            message += f"\n\n{subject}的已审核关联清单中暂未找到该工艺实例。"
+            message += f"\n\n{subject}的现有清单中暂未找到该工艺实例。"
             instance_details = []
         else:
             instance_details = []
@@ -1349,7 +1419,7 @@ def answer_qa_follow_up_detail(
         }
     if not point_context.get("card"):
         return {
-            "message": f"{point_context['name']}缺少已审核讲解包，无法安全展开上一轮问答。",
+            "message": f"{point_context['name']}缺少讲解资料，暂时无法继续展开上一轮问答。",
             "mode": "qa_follow_up_clarification",
             "evidence": [],
             "point_context": point_context,
@@ -1383,6 +1453,42 @@ def answer_tour_question(
     ) = None,
 ) -> dict[str, Any]:
     """Use one injected existing RAG callable and leave both state snapshots untouched."""
+    # Core institutional explanation used in the live demo.  It is backed by
+    # one reviewed source and must not fluctuate with semantic routing, RAG
+    # ranking, role style, or model rendering.
+    if _is_academy_lineage_function_question(user_query):
+        return _academy_lineage_function_answer(tour_state, interaction_state)
+    # Photo conduct safety owns the turn before point-name resolution and
+    # editorial candidate lookup.  Ambiguous high-risk wording must clarify,
+    # never degrade into an ordinary photo recommendation.
+    if (
+        is_explicit_photo_request(user_query)
+        and classify_photo_safety_intent(user_query) != PHOTO_SAFETY_SAFE
+    ):
+        result = answer_photo_request(
+            user_query,
+            point_context=current_stop_context(tour_state),
+            tour_state=tour_state,
+            visitor_profile=visitor_profile,
+        )
+        presentation = (
+            present_tour_state(tour_state, interaction_state)
+            if tour_state and interaction_state
+            else None
+        )
+        if presentation:
+            presentation = {
+                **presentation,
+                "message": result["message"],
+                "code": result["mode"],
+                "ok": False,
+            }
+        return {
+            **result,
+            "evidence": [],
+            "presentation": presentation,
+            "retrieval_query": None,
+        }
     if is_identity_document_civil_service_request(user_query):
         message = render_identity_document_civil_service_boundary(user_query)
         presentation = (
@@ -1720,8 +1826,10 @@ def answer_tour_question(
         }
     if is_explicit_photo_request(user_query):
         context, error_code = resolve_point_context(user_query, tour_state)
+        if error_code == "unknown_point" and _is_whole_venue_photo_request(user_query):
+            context, error_code = None, None
         if error_code in {"ambiguous_node_name", "multiple_node_mentions", "unknown_point"}:
-            message = "我无法确定您提到的拍摄点位，请使用地图中的明确点位名称，或直接询问全馆的项目编辑拍摄候选。"
+            message = "我无法确定您提到的拍摄位置。请使用地图中的明确点位名称，或直接询问全馆有哪些位置适合拍摄。"
             presentation = present_tour_state(tour_state, interaction_state) if tour_state and interaction_state else None
             if presentation:
                 presentation = {**presentation, "message": message, "code": "photo_point_clarification", "ok": False}

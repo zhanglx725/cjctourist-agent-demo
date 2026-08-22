@@ -13,6 +13,8 @@ import json
 import re
 from typing import Any, Callable, Iterable
 
+from knowledge_evidence_policy import rank_domain_evidence, retrieval_limit_for_plan
+
 
 KNOWLEDGE_DOMAIN_CATEGORIES: dict[str, tuple[str, ...]] = {
     "site_overview": ("basic_info", "history_architecture"),
@@ -23,6 +25,15 @@ KNOWLEDGE_DOMAIN_CATEGORIES: dict[str, tuple[str, ...]] = {
     "ornament_craft": ("ornament_craft",),
     "ornament_item": ("ornament_item",),
     "ornament_location": ("ornament_location", "ornament_item"),
+    # The following domains make the newly curated libraries addressable by
+    # the controlled planner.  Several currently share a broad persisted RAG
+    # category; the domain-specific query hints below provide the narrower
+    # retrieval intent without changing existing index compatibility.
+    "people_craftspeople": ("history_architecture",),
+    "architectural_conservation": ("history_architecture",),
+    "craft_process": ("ornament_craft",),
+    "literary_citation": ("literary_citation",),
+    "education_examination": ("history_architecture",),
 }
 KNOWLEDGE_DOMAINS = frozenset(KNOWLEDGE_DOMAIN_CATEGORIES)
 QUESTION_TYPES = frozenset(
@@ -74,6 +85,11 @@ _DOMAIN_QUERY_HINTS = {
     "ornament_craft": ("陈家祠", "建筑装饰工艺"),
     "ornament_item": ("陈家祠", "建筑装饰", "题材", "寓意"),
     "ornament_location": ("陈家祠", "建筑装饰", "位置"),
+    "people_craftspeople": ("陈家祠", "人物", "工匠", "传承人", "史料依据"),
+    "architectural_conservation": ("陈家祠", "古建筑保护", "修缮", "病害", "证据年代"),
+    "craft_process": ("陈家祠", "工艺制作", "材料", "工具", "工序", "传承"),
+    "literary_citation": ("陈家祠", "文学引用", "原文", "出处", "关联类型"),
+    "education_examination": ("陈氏书院", "学子", "科举", "应试", "教育史", "史料边界"),
 }
 _QUESTION_QUERY_HINTS = {
     "definition": ("是什么", "定义", "性质"),
@@ -103,6 +119,9 @@ _FORBIDDEN_VISITOR_TOKENS = (
     "本地参考快照",
     "本地快照",
     "本地知识库",
+    "项目编辑",
+    "审核",
+    "未核验",
     "原始chunk",
     "原始 chunk",
     "资料标题",
@@ -120,11 +139,12 @@ _FORBIDDEN_VISITOR_TOKENS = (
     "visitor_profile",
     "qa_context",
     "trace_url",
-    "http://",
-    "https://",
     "DSML",
     "tool_calls",
 )
+OFFICIAL_TICKETING_URL = "https://wx.gzcjc.com.cn"
+_PUBLIC_URL = re.compile(r"https?://[^\s<>()\[\]{}\"'，。；！？]+", re.IGNORECASE)
+_ALLOWED_PUBLIC_URLS = frozenset({OFFICIAL_TICKETING_URL})
 _SOURCE_ID = re.compile(r"(?<![A-Za-z0-9])S\d+(?![A-Za-z0-9])", re.IGNORECASE)
 _INTERNAL_IDENTIFIER = re.compile(
     r"(?<![A-Za-z0-9_])(?:label_[A-Za-z0-9_]+|stop_[A-Za-z0-9_]+|orn_\d+|term_[A-Za-z0-9_]+|card_[A-Za-z0-9_]+)(?![A-Za-z0-9_])",
@@ -217,6 +237,41 @@ def identify_controlled_knowledge_plan(
         for term in ("规划路线", "路线怎么走", "怎么逛", "参观顺序")
     ):
         return None
+    has_child_ticket_eligibility = (
+        any(term in compact for term in ("儿童", "未成年人", "小孩", "孩子"))
+        and any(term in compact for term in ("票", "购票", "入场"))
+        and any(
+            term in compact
+            for term in ("年龄", "身高", "要求", "条件", "适用", "半票", "免票", "优惠")
+        )
+    )
+    if has_child_ticket_eligibility:
+        try:
+            return ControlledKnowledgePlan(
+                domain="ticketing",
+                question_type="eligibility",
+                subject_text=subject,
+                detail_level="brief",
+            )
+        except ValueError:
+            return None
+    has_purchase_method_request = any(
+        term in compact
+        for term in (
+            "怎么购票", "怎么买票", "如何购票", "购票方式", "购票方法",
+            "怎么预约", "如何预约", "预约方式", "预约购票",
+        )
+    )
+    if has_purchase_method_request:
+        try:
+            return ControlledKnowledgePlan(
+                domain="ticketing",
+                question_type="method",
+                subject_text=subject,
+                detail_level="brief",
+            )
+        except ValueError:
+            return None
     has_invoice = "发票" in compact or "开票" in compact
     if not has_invoice:
         return None
@@ -284,7 +339,7 @@ def filter_plan_evidence(
 ) -> list[dict[str, Any]]:
     """Keep only evidence from the plan's reviewed category boundary."""
 
-    return [
+    scoped = [
         item
         for item in evidence
         if (
@@ -293,6 +348,12 @@ def filter_plan_evidence(
             and str(item.get("content") or "").strip()
         )
     ]
+    return rank_domain_evidence(
+        plan.domain,
+        plan.subject_text,
+        scoped,
+        limit=retrieval_limit_for_plan(plan.detail_level, len(plan.categories)),
+    )
 
 
 def grounded_answer_prompt(
@@ -321,6 +382,23 @@ def grounded_answer_prompt(
         if plan.is_dynamic
         else "只在有必要时用“馆方公开资料表明”说明证据边界。"
     )
+    domain_rule = {
+        "people_craftspeople": (
+            "人物姓名、身份、年代和经历必须逐项由 evidence 支持；不得补写人物生平、师承或参与项目。"
+        ),
+        "architectural_conservation": (
+            "必须区分历史记录、某次工程和当前状态；没有当前证据时不得使用‘目前仍在运行’等现在时断言。"
+        ),
+        "literary_citation": (
+            "只能按 evidence 的关联类型引用。C类必须明确说是借用诗意形容，并说明诗句不是描写陈家祠；不得补写原文。"
+        ),
+        "education_examination": (
+            "没有姓名、题名、书信、日记或档案时，只讲制度背景，不得虚构具体学子的生活场景。"
+        ),
+        "craft_process": (
+            "必须区分陈家祠直接记录与岭南通用工艺，不得把通用流程说成某件陈家祠原作的确定制作记录。"
+        ),
+    }.get(plan.domain, "")
     return (
         "你是陈家祠受控知识讲解器。只根据下方 evidence 回答，不得使用模型记忆补充陈家祠事实。\n"
         f"问题领域：{plan.domain}\n"
@@ -332,6 +410,7 @@ def grounded_answer_prompt(
         "若 evidence 只支持部分答案，明确说清支持到哪里；若存在冲突，说明口径差异，不自行裁决。\n"
         "不得输出文件名、资料标题、原始chunk、来源编号、URL、类别名、节点名、JSON或工具调用文本。\n"
         f"时效要求：{dynamic_rule}\n"
+        f"领域证据规则：{domain_rule or '遵守证据边界，不补写未提供事实。'}\n"
         "evidence：\n"
         + json.dumps(safe_evidence, ensure_ascii=False)
     )
@@ -346,6 +425,12 @@ def is_public_visitor_message(message: str) -> bool:
     compact = str(message or "").strip()
     if not compact or len(compact) > 1800:
         return False
+    normalized_original = compact.casefold()
+    if "http://" in normalized_original or "https://" in normalized_original:
+        urls = tuple(_PUBLIC_URL.findall(compact))
+        if not urls or any(url not in _ALLOWED_PUBLIC_URLS for url in urls):
+            return False
+        compact = _PUBLIC_URL.sub("", compact)
     normalized = compact.casefold()
     if any(token.casefold() in normalized for token in _FORBIDDEN_VISITOR_TOKENS):
         return False
@@ -421,6 +506,62 @@ def _is_invoice_plan(plan: ControlledKnowledgePlan) -> bool:
     )
 
 
+def _render_reviewed_child_ticket_eligibility(
+    plan: ControlledKnowledgePlan,
+    evidence: list[dict[str, Any]],
+) -> str | None:
+    """Render the complete reviewed age/height rule without model synthesis."""
+
+    if (
+        plan.domain != "ticketing"
+        or plan.question_type != "eligibility"
+        or not any(term in plan.subject_text for term in ("儿童", "未成年人", "小孩", "孩子"))
+    ):
+        return None
+    compact = "".join(
+        "".join(str(item.get("content") or "").split()) for item in evidence
+    )
+    required_clauses = (
+        "6周岁（不含）至18周岁未成年人",
+        "身高1.3米以上儿童",
+        "未满6周岁儿童",
+        "身高1.3米（含）以下儿童",
+    )
+    if not all(clause in compact for clause in required_clauses):
+        return None
+    return (
+        "按现有票务规则快照，儿童的年龄和身高都会影响票种："
+        "6 周岁（不含）至 18 周岁未成年人，或身高 1.3 米以上儿童，"
+        "适用半票；未满 6 周岁儿童，或身高 1.3 米（含）以下儿童，"
+        "按免预约购票/凭证入场规则办理。"
+        "优惠和免票资格可能调整，请在官方小程序核验当日适用条件。"
+    )
+
+
+def _render_reviewed_ticket_purchase_method(
+    plan: ControlledKnowledgePlan,
+    evidence: list[dict[str, Any]],
+) -> str | None:
+    """Render the reviewed official purchase channel without model synthesis."""
+
+    if plan.domain != "ticketing" or plan.question_type != "method":
+        return None
+    compact = "".join(
+        "".join(str(item.get("content") or "").split()) for item in evidence
+    )
+    channel = "微信公众号“广东民间工艺博物馆”服务号"
+    if channel not in compact:
+        return None
+    message = f"请通过{channel}预约或购票。"
+    if "未授权第三方" in compact and "讲解导览+门票预约" in compact:
+        message += "馆方未授权第三方销售门票或提供“讲解导览 + 门票预约”套餐，请勿通过此类渠道购票。"
+    return (
+        message
+        + f"购票入口：{OFFICIAL_TICKETING_URL}。"
+        "票价、场次、库存和开放安排可能调整，请以服务号或小程序当日页面为准。"
+    )
+
+
 def render_controlled_knowledge_answer(
     plan: ControlledKnowledgePlan,
     evidence: Iterable[dict[str, Any]],
@@ -442,6 +583,12 @@ def render_controlled_knowledge_answer(
             "现有票务资料不足以同时确认电子发票的申请期限、修改限制和退票限制，"
             "因此不作推测。具体规则请以官方小程序订单页面为准。"
         )
+    reviewed_child_ticket = _render_reviewed_child_ticket_eligibility(plan, scoped)
+    if reviewed_child_ticket is not None:
+        return reviewed_child_ticket
+    reviewed_purchase_method = _render_reviewed_ticket_purchase_method(plan, scoped)
+    if reviewed_purchase_method is not None:
+        return reviewed_purchase_method
     try:
         message = str(invoke_model(grounded_answer_prompt(plan, scoped))).strip()
     except Exception:

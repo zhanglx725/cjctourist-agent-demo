@@ -75,10 +75,10 @@ def _reviewed_catalog() -> tuple[dict[str, str], dict[str, tuple[str, str, str]]
     try:
         payload = json.loads(GUIDE_CARDS_FILE.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise VisitSummaryError("审核点位资料不可用。") from exc
+        raise VisitSummaryError("点位资料不可用。") from exc
     cards = payload.get("cards") if isinstance(payload, dict) else None
     if not isinstance(cards, list) or not cards:
-        raise VisitSummaryError("审核点位资料为空。")
+        raise VisitSummaryError("点位资料为空。")
     stops: dict[str, str] = {}
     ornaments: dict[str, tuple[str, str, str]] = {}
     conflicts: set[str] = set()
@@ -105,7 +105,7 @@ def _reviewed_catalog() -> tuple[dict[str, str], dict[str, tuple[str, str, str]]
     for ornament_id in conflicts:
         ornaments.pop(ornament_id, None)
     if not stops:
-        raise VisitSummaryError("审核点位名称不可用。")
+        raise VisitSummaryError("点位名称不可用。")
     return stops, ornaments
 
 
@@ -126,7 +126,7 @@ def build_visit_summary(
         raise VisitSummaryError("TourState 完成记录不一致。")
     stops, ornament_catalog = _reviewed_catalog()
     if any(node_id not in stops for node_id in visited):
-        raise VisitSummaryError("已访问点缺少审核名称。")
+        raise VisitSummaryError("已访问点缺少可用名称。")
     completion_kind = (
         "completed_all_stops"
         if not (tour_state.get("remaining_stop_ids") or [])
@@ -138,7 +138,9 @@ def build_visit_summary(
         coverage = load_narration_coverage(narration_coverage)
         accepted_records = [
             record for record in coverage.introduction_records
-            if record.introduced_by == "stop_guidance" and record.node_id in visited
+            if record.introduced_by in {
+                "stop_guidance", "narration_commit", "deterministic_narration_fallback",
+            } and record.node_id in visited
         ]
     except NarrationCoverageError:
         coverage_status = "unavailable"

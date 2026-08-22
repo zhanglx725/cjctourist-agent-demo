@@ -68,6 +68,7 @@ FACT_KINDS = frozenset(
         "museum_reopening",
         "museum_renaming",
         "academy_name_reason",
+        "transport",
     }
 )
 
@@ -105,7 +106,7 @@ def render_identity_document_civil_service_boundary(user_query: str) -> str:
     if any(term in text for term in ("入馆", "进馆", "入场", "检票")):
         return (
             "您同时询问了入馆和身份证挂失或补办。"
-            "请先确认您希望解决哪一项：我可以说明场馆已审核的检票流程；"
+            "请先确认您希望解决哪一项：我可以说明场馆当前的检票流程；"
             "身份证挂失或补办请通过公安机关官方渠道查询。"
         )
     return (
@@ -235,10 +236,12 @@ def identify_single_fact_kind(user_query: str) -> str | None:
     if any(term in text for term in ("停止入场", "停止入馆", "最晚入场", "最晚入馆")):
         return "last_admission"
     if (
-        any(term in text for term in ("闭馆时间", "几点闭馆", "什么时候闭馆", "何时闭馆", "几点关门"))
+        any(term in text for term in ("闭馆时间", "几点闭馆", "什么时候闭馆", "何时闭馆", "几点关门", "什么时候关门", "何时关门"))
         and "周二" not in text
     ):
         return "closing_time"
+    if any(term in text for term in ("交通方式", "怎么去", "怎么来", "坐地铁", "地铁怎么", "公交怎么", "自驾", "停车")):
+        return "transport"
 
     if not has_site:
         return None
@@ -281,6 +284,8 @@ def single_fact_categories_for_kind(fact_kind: str | None) -> list[str] | None:
         return ["ticketing_snapshot"]
     if fact_kind == "identity_admission_workaround":
         return ["ticketing_snapshot", "visit_service"]
+    if fact_kind == "transport":
+        return ["basic_info"]
     return None
 
 
@@ -325,6 +330,7 @@ def single_fact_retrieval_query_for_kind(
             "陈家祠 忘带身份证 未携带身份证件 综合服务处 "
             "电子身份证 其他有效证件 换取实体票 入馆"
         ),
+        "transport": "陈家祠 交通 地铁 1号线 8号线 陈家祠站 D E出口 地址",
     }.get(fact_kind, fallback)
 
 
@@ -903,6 +909,40 @@ def _identity_admission_answer(
     )
 
 
+def _transport_answer(evidence: list[dict[str, Any]]) -> SingleFactAnswer:
+    """Render the reviewed, stable part of an arrival question.
+
+    Parking availability and bus arrangements are deliberately omitted because
+    the source marks them as changeable or not yet verified.
+    """
+    relevant = _service_items(evidence, ("地铁：", "陈家祠站", "中山七路"))
+    items = [item for _, item in relevant]
+    source_ids = _source_ids(items)
+    indexes = tuple(index for index, _ in relevant)
+    categories = _categories(items)
+    combined = "\n".join(str(item.get("content") or "") for item in items)
+    if source_ids and "陈家祠站" in combined:
+        return SingleFactAnswer(
+            fact_kind="transport",
+            message=(
+                "前往陈家祠可优先乘广州地铁 1 号线或 8 号线，在陈家祠站下车，"
+                "从 D/E 出口附近步行前往。自驾停车位和实时交通变化较快，建议出发前使用导航确认。"
+            ),
+            source_ids=source_ids,
+            evidence_indexes=indexes,
+            evidence_categories=categories,
+            ok=True,
+        )
+    return SingleFactAnswer(
+        fact_kind="transport",
+        message="现有资料不足以确认合适的到达方式，建议以地图导航和场馆官方指引为准。",
+        source_ids=source_ids,
+        evidence_indexes=indexes,
+        evidence_categories=categories,
+        ok=False,
+    )
+
+
 def _validate_visitor_message(message: str) -> None:
     if not is_public_visitor_message(message):
         raise ValueError("游客文本包含内部检索字段或来源描述。")
@@ -945,6 +985,8 @@ def render_single_fact_answer(
         "designer_and_foundation_date",
     }:
         result = _construction_answer(resolved_fact_kind, normalized_evidence)
+    elif resolved_fact_kind == "transport":
+        result = _transport_answer(normalized_evidence)
     else:
         result = _service_answer(resolved_fact_kind, normalized_evidence)
     _validate_visitor_message(result.message)

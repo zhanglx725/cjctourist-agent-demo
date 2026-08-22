@@ -6,7 +6,11 @@ from unittest.mock import patch
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from agent_graph import role_narration_generation_node, semantic_normalization_node
+from agent_graph import (
+    role_narration_generation_node,
+    route_initial_request,
+    semantic_normalization_node,
+)
 from narration_content_plan import NarrationContentPlan, NarrationFact
 from narration_style_policy import approved_style_ids, compile_style_brief
 from profile_dialogue import EXPLICIT_STYLE_PHRASES, STYLE_ALIASES
@@ -70,6 +74,74 @@ class RoleModeShadowTests(unittest.TestCase):
         self.assertEqual(unknown.status, "clarification")
         self.assertEqual(unknown.reason_codes, ("unsupported_role_request",))
         self.assertEqual(unknown.candidate_style_ids, ())
+
+    def test_venue_questions_with_child_terms_are_not_role_controls(self):
+        # ``儿童`` is a valid profile-form value, but in free text it is also
+        # part of ordinary ticketing and visit questions.  It must not switch
+        # the active narration role or resume navigation.
+        for text in (
+            "儿童票有年龄或身高要求吗",
+            "儿童票多少钱",
+            "儿童能参观吗",
+            "儿童节有什么活动",
+        ):
+            with self.subTest(text=text):
+                result = resolve_role_mode(text)
+                self.assertEqual(result.status, "not_requested")
+                self.assertIsNone(result.selected_style_id)
+
+                route = route_initial_request({
+                    "messages": [HumanMessage(content=text)],
+                    "role_mode_shadow": result.to_dict(),
+                    "visitor_profile": {
+                        "available_minutes": 60,
+                        "interests": [],
+                        "detail_level": "standard",
+                        "audience_mode": "standard",
+                        "knowledge_level": "general",
+                        "explanation_style": "standard",
+                        "interaction_mode": "normal",
+                    },
+                    "tour_state": {"route_status": "active"},
+                    "tour_interaction_state": {"stop_phase": "navigating"},
+                })
+                self.assertNotEqual(route, "role_mode_confirmation")
+
+    def test_child_role_requires_a_role_phrase_or_control_intent(self):
+        selected = resolve_role_mode("请切换为儿童友好讲解")
+        self.assertEqual(selected.status, "selected")
+        self.assertEqual(selected.selected_style_id, "child")
+
+    def test_ticket_question_keeps_semantic_and_initial_route_out_of_role_flow(self):
+        state = {
+            "messages": [HumanMessage(content="儿童票有年龄或身高要求吗")],
+            "visitor_profile": {
+                "available_minutes": 60,
+                "interests": [],
+                "detail_level": "standard",
+                "audience_mode": "standard",
+                "knowledge_level": "general",
+                "explanation_style": "standard",
+                "interaction_mode": "normal",
+            },
+            "tour_state": {"route_status": "active"},
+            "tour_interaction_state": {"stop_phase": "navigating"},
+        }
+        with patch(
+            "agent_graph._invoke_semantic_model",
+            return_value='{"candidates":[],"ambiguity_reason":"no_candidate"}',
+        ):
+            normalized = semantic_normalization_node(state)
+        self.assertNotEqual(
+            normalized["role_mode_shadow"].get("source"), "explicit_request",
+        )
+        self.assertNotEqual(
+            normalized["role_mode_shadow"].get("selected_style_id"), "child",
+        )
+        self.assertNotEqual(
+            route_initial_request({**state, **normalized}),
+            "role_mode_confirmation",
+        )
 
     def test_explicit_selection_can_be_carried_without_profile_write(self):
         prior = resolve_role_mode("古风一点的讲解").to_dict()
@@ -142,7 +214,7 @@ class RoleModeShadowTests(unittest.TestCase):
                     return json.dumps({
                         "schema_version": "role_narration_candidate_v1",
                         "style_id": selected,
-                        "public_text": "屋脊可见灰塑。请从容观察。" if selected == "ancient_scholar" else "屋脊可见灰塑。我们可以看看它。" if selected == "child" else "屋脊可见灰塑。",
+                        "public_text": "[[FACT_000]]",
                         "used_fact_ids": ["craft:灰塑"],
                         "omitted_fact_ids": [],
                         "self_check": {"added_new_facts": False, "role_consistent": True, "within_budget": True},
