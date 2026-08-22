@@ -7,6 +7,7 @@ import sys
 import logging
 import re
 import base64
+import threading
 from datetime import date
 from html import escape
 from pathlib import Path
@@ -62,6 +63,7 @@ SCENE_LABELS = {
     "welcome": "欢迎来到陈家祠",
     "route_opening": "导览开场",
     "stop_guidance": "当前点讲解",
+    "detail_expansion": "延伸讲解",
     "tour_qa": "导览问答",
     "tour_closing": "游览总结",
     "assistant": "导览回复",
@@ -207,6 +209,26 @@ def _session_starter():
     from agent_graph import start_public_session
 
     return start_public_session
+
+
+@st.cache_resource(show_spinner=False)
+def _begin_rag_warmup() -> threading.Thread | None:
+    """Warm local retrieval models while the visitor is choosing a route."""
+    if _secret("DEMO_RAG_WARMUP", "true").strip().lower() not in {"1", "true", "yes", "on"}:
+        return None
+
+    def warm() -> None:
+        try:
+            from agent_graph import warm_rag_models
+            warm_rag_models()
+        except Exception as exc:
+            # Warm-up is only a latency optimization. Normal RAG error handling
+            # remains authoritative if the local dependency is unavailable.
+            LOGGER.warning("rag_background_warmup_failed=%s", type(exc).__name__)
+
+    worker = threading.Thread(target=warm, name="cjc-rag-warmup", daemon=True)
+    worker.start()
+    return worker
 
 
 def _route_request_message(
@@ -370,8 +392,42 @@ def _init_adapter() -> DemoAdapter:
 
 def _send(adapter: DemoAdapter, message: str) -> None:
     st.session_state.messages.append({"role": "user", "content": message})
-    with st.spinner("正在组织本次导览…"):
+    # Streamlit suppresses INFO logging by default.  Keep an explicit,
+    # secret-free terminal trace for the active-tour duration control so a
+    # real replan can always be timed even if a backend branch rejects it.
+    active_duration_replan = (
+        adapter.itinerary.total_count > 0
+        and not getattr(adapter.itinerary, "is_finished", False)
+        and ("分钟" in message or "重规划" in message or "重新规划" in message)
+    )
+    if active_duration_replan:
+        print(
+            "REPLAN_UI_START "
+            f"completed_stops={adapter.itinerary.completed_count} "
+            f"total_stops={adapter.itinerary.total_count}",
+            flush=True,
+        )
+    first_arrival = (
+        message.strip(" ，。！？!?\t\r\n") in {"我到了", "到了"}
+        and adapter.itinerary.total_count > 0
+        and adapter.itinerary.completed_count == 0
+    )
+    spinner_text = (
+        "首次到达：正在准备专属开场与点位讲解…"
+        if first_arrival else "正在组织本次导览…"
+    )
+    with st.spinner(spinner_text):
         reply = adapter.send(_chat_route_request_message(message))
+    if active_duration_replan:
+        print(
+            "REPLAN_UI_END "
+            f"wall_seconds={reply.elapsed_seconds:.3f} error={reply.is_error}",
+            flush=True,
+        )
+    LOGGER.info(
+        "demo_turn_completed elapsed_seconds=%.3f first_arrival=%s error=%s",
+        reply.elapsed_seconds, first_arrival, reply.is_error,
+    )
     for public_message in reply.messages:
         st.session_state.messages.append(
             {
@@ -593,26 +649,45 @@ def _render_chat_message(item: dict[str, object]) -> None:
             for block in re.split(r"\n\s*\n+", raw_content)
             if block.strip()
         ]
-        # Stop narration often arrives as one sentence per line. Present it
-        # like a human guide instead of making each sentence a new paragraph.
-        if scene_kind in {"stop_guidance", "qa_follow_up_detail"}:
-            lines = [line.strip() for line in raw_content.splitlines() if line.strip()]
-            blocks = []
-            current: list[str] = []
-            current_length = 0
-            for line in lines:
-                if current and (len(current) >= 4 or current_length + len(line) > 240):
+        if scene_kind == "detail_expansion":
+            intro = blocks[0] if blocks else ""
+            cards = []
+            for block in blocks[1:]:
+                lines = [line.strip() for line in block.splitlines() if line.strip()]
+                if not lines:
+                    continue
+                title, body = lines[0], " ".join(lines[1:])
+                cards.append(
+                    "<section class='detail-expansion-card'>"
+                    f"<b>{escape(title)}</b>"
+                    f"<p>{escape(body)}</p>"
+                    "</section>"
+                )
+            content = (
+                f"<span class='detail-expansion-intro'>{escape(intro)}</span>"
+                f"<div class='detail-expansion-grid'>{''.join(cards)}</div>"
+            )
+        else:
+            # Stop narration often arrives as one sentence per line. Present it
+            # like a human guide instead of making each sentence a new paragraph.
+            if scene_kind in {"stop_guidance", "qa_follow_up_detail"}:
+                lines = [line.strip() for line in raw_content.splitlines() if line.strip()]
+                blocks = []
+                current: list[str] = []
+                current_length = 0
+                for line in lines:
+                    if current and (len(current) >= 4 or current_length + len(line) > 240):
+                        blocks.append("".join(current))
+                        current = []
+                        current_length = 0
+                    current.append(line)
+                    current_length += len(line)
+                if current:
                     blocks.append("".join(current))
-                    current = []
-                    current_length = 0
-                current.append(line)
-                current_length += len(line)
-            if current:
-                blocks.append("".join(current))
-        content = "".join(
-            f"<span class='chat-paragraph'>{escape(block).replace(chr(10), '<br>')}</span>"
-            for block in blocks
-        )
+            content = "".join(
+                f"<span class='chat-paragraph'>{escape(block).replace(chr(10), '<br>')}</span>"
+                for block in blocks
+            )
     # Public answers allow exactly one reviewed external destination.  It is
     # escaped before this replacement, and the URL constant is not model
     # supplied, so the custom chat HTML can offer a clickable official entry
@@ -797,9 +872,12 @@ def main() -> None:
         initial_sidebar_state="expanded",
     )
     _configure_environment()
+    _begin_rag_warmup()
     background_image_data = _background_image_data()
     st.markdown("""<style>
     .stApp {background:#09191a;color:#2b2119;}
+    [data-testid='stSpinner'] p,[data-testid='stSpinner'] span {color:#fff !important;text-shadow:0 1px 5px rgba(0,0,0,.9);}
+    [data-testid='stSpinner'] svg {stroke:#fff !important;}
     .stApp:before {display:none;}
     [data-testid='stAppViewContainer'] {background:transparent !important;}
     [data-testid='stMain'] {position:relative;z-index:1;background-color:#09191a !important;background-image:linear-gradient(180deg,rgba(4,17,19,.08),rgba(20,10,7,.14)),url('data:image/png;base64,__BACKGROUND_IMAGE__') !important;background-size:cover !important;background-position:center bottom !important;background-repeat:no-repeat !important;background-attachment:fixed !important;}
@@ -849,6 +927,7 @@ def main() -> None:
     .route-progress-panel .progress-track {overflow-x:auto;scrollbar-width:thin;}.route-progress-panel .progress-step {width:82px;}
     .craft-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.32rem;}.craft-badge {display:flex;align-items:center;justify-content:center;gap:.3rem;min-height:1.55rem;border:1px solid rgba(119,151,153,.34);border-radius:4px 9px 4px 9px;background:rgba(5,25,29,.42);color:#8fa6a6;font-size:.7rem;}.craft-badge.unlocked {border-color:rgba(229,185,91,.72);background:linear-gradient(120deg,rgba(129,47,31,.82),rgba(18,91,91,.82));color:#fff0bf;box-shadow:0 0 10px rgba(66,205,213,.14);}.craft-symbol {color:#55ced6;font-weight:700;}.craft-badge.unlocked .craft-symbol {color:#f0c469;}
     .wechat-row {display:flex;align-items:flex-start;gap:.55rem;margin:.7rem 0;}.wechat-row.visitor {justify-content:flex-end;}.wechat-avatar {flex:0 0 2.3rem;height:2.3rem;border-radius:.65rem;display:grid;place-items:center;font-weight:700;color:#fff;background:linear-gradient(145deg,#a86d2d,#6f351d);border:1px solid rgba(240,198,105,.5);box-shadow:0 4px 14px rgba(0,0,0,.26);}.wechat-row.visitor .wechat-avatar {background:linear-gradient(145deg,#4f9d37,#267522);border-color:rgba(182,240,139,.7);}.wechat-bubble {max-width:min(88%,940px);padding:.62rem .82rem;border-radius:4px 14px 14px 14px;background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.72);box-shadow:0 7px 20px rgba(0,0,0,.18);font-size:.95rem;line-height:1.55;color:#172630;}.wechat-row.visitor .wechat-bubble {border-radius:14px 4px 14px 14px;background:#95ec69;border-color:#79d852;color:#172314;}.wechat-speaker {font-size:.74rem;color:#8a6a45;margin-bottom:.18rem;}.wechat-row.visitor .wechat-speaker {color:#376328;}.wechat-service {margin-top:.42rem;padding-top:.35rem;border-top:1px solid rgba(156,116,65,.25);color:#765231;font-size:.82rem;}.wechat-row.visitor .wechat-service {border-color:rgba(47,116,31,.22);color:#315d27;}
+    .detail-expansion-intro {display:block;margin:.12rem 0 .5rem;color:#7a542d;font-weight:700;}.detail-expansion-grid {display:grid;grid-template-columns:1fr;gap:.48rem;}.detail-expansion-card {min-height:5.7rem;padding:.58rem .65rem;border:1px solid rgba(174,119,45,.42);border-radius:4px 12px 4px 12px;background:linear-gradient(135deg,rgba(255,246,224,.94),rgba(230,242,237,.92));}.detail-expansion-card b {display:block;margin-bottom:.25rem;color:#8a4d1d;font-size:.88rem;letter-spacing:.04em;}.detail-expansion-card p {margin:0;color:#20313a;font-size:.84rem;line-height:1.62;}
     .chat-paragraph {display:block;text-indent:2em;margin:.12rem 0;}
     .tour-summary-card {position:relative;width:min(88%,940px);box-sizing:border-box;margin:1rem auto;padding:1.15rem 1.3rem 1rem;overflow:hidden;border:1px solid rgba(232,191,94,.82);border-radius:5px 22px 5px 22px;background:linear-gradient(135deg,rgba(72,28,22,.97),rgba(12,61,64,.96));color:#fff4d6;box-shadow:0 16px 38px rgba(0,0,0,.34),inset 0 0 0 3px rgba(255,255,255,.035);}
     .tour-end-record {width:min(72%,760px);box-sizing:border-box;margin:.45rem auto .65rem;padding:.72rem .9rem;border:1px solid rgba(232,191,94,.68);border-radius:4px 16px 4px 16px;background:linear-gradient(135deg,rgba(72,28,22,.92),rgba(12,61,64,.92));color:#f7ecd0;box-shadow:0 9px 24px rgba(0,0,0,.24);}.tour-end-record>div {display:flex;align-items:center;justify-content:space-between;gap:1rem;}.tour-end-record b {color:#efca76;font-size:.92rem;}.tour-end-record span,.tour-end-record p {color:#cbdad6;font-size:.72rem;}.tour-end-record p {margin:.35rem 0 0;padding-top:.35rem;border-top:1px solid rgba(232,191,94,.2);}

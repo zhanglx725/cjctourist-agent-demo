@@ -298,7 +298,9 @@ def _navigation_data(tour_state: dict[str, Any], target_stop_id: str | None = No
     if target_stop_id is None:
         return {"navigation": None}
     navigation = next_stop_navigation(tour_state, target_stop_id=target_stop_id)
-    return {"navigation": navigation}
+    # Event data can be copied into presentation state and checkpointed by
+    # LangGraph. Persist only primitives, never the navigation dataclass.
+    return {"navigation": navigation.to_dict() if navigation is not None else None}
 
 
 def handle_tour_event(

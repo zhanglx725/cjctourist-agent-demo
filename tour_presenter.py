@@ -232,7 +232,8 @@ def present_tour_state(
     pending_name = _stop_name((interaction_state or {}).get("pending_stop_id"))
     navigation = None
     if tour_state and (interaction_state or {}).get("pending_stop_id"):
-        navigation = next_stop_navigation(tour_state)
+        instruction = next_stop_navigation(tour_state)
+        navigation = instruction.to_dict() if instruction is not None else None
     return {
         "message": message or f"路线已建立，下一站是{pending_name or '待确认讲解点'}。",
         "phase": (interaction_state or {}).get("stop_phase"),

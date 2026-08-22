@@ -28,6 +28,11 @@ DEMO_MODE = "true"
 DEMO_MAX_TURNS = "20"
 DEMO_MAX_INPUT_CHARS = "200"
 DEMO_REQUEST_TIMEOUT_SECONDS = "45"
+# 页面加载后在后台预热本地检索模型，避免首次“我到了”承担模型加载。
+DEMO_RAG_WARMUP = "true"
+# 保留模型生成的角色化路线开场，但限制其专用生成预算和等待时间；超时会回退审核开场文本。
+ROLE_ROUTE_OPENING_MAX_TOKENS = "900"
+ROLE_ROUTE_OPENING_TIMEOUT_SECONDS = "20"
 DEMO_SHOW_TECH_PANEL = "false"
 DEMO_VIDEO_URL = ""
 DEMO_ACCESS_CODE = ""

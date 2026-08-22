@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import re
+import threading
 from typing import Any, Iterable, Sequence
 
 from rag_ingestion import KNOWLEDGE_DIR, KnowledgeChunk, load_knowledge_chunks
@@ -259,23 +260,29 @@ class ChenClanHybridRetriever:
         self._model = None
         self._reranker = None
         self._collection = None
+        # The demo warms models in the background. Guard lazy construction so
+        # a very early visitor request never creates a duplicate transformer.
+        self._model_lock = threading.Lock()
+        self._reranker_lock = threading.Lock()
 
     @property
     def manifest_path(self) -> Path:
         return self.index_dir / MANIFEST_NAME
 
     def _model_instance(self):
-        if self._model is None:
-            _, _, _, SentenceTransformer = _lazy_dependencies()
-            self._model = SentenceTransformer(self.model_name)
+        with self._model_lock:
+            if self._model is None:
+                _, _, _, SentenceTransformer = _lazy_dependencies()
+                self._model = SentenceTransformer(self.model_name)
         return self._model
 
     def _reranker_instance(self):
-        if self._reranker is None:
-            _, _, CrossEncoder, _ = _lazy_dependencies()
-            self._reranker = CrossEncoder(
-                self.reranker_model_name, max_length=self.reranker_max_length
-            )
+        with self._reranker_lock:
+            if self._reranker is None:
+                _, _, CrossEncoder, _ = _lazy_dependencies()
+                self._reranker = CrossEncoder(
+                    self.reranker_model_name, max_length=self.reranker_max_length
+                )
         return self._reranker
 
     def _embed(self, texts: list[str]) -> list[list[float]]:

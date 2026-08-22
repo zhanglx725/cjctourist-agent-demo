@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import os
 import json
+import logging
 import re
 import time
 import secrets
+from threading import Lock
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Annotated, Any, Mapping
@@ -56,6 +58,7 @@ from tour_qa import (
     answer_tour_question,
     build_qa_context_from_answer,
     is_point_inventory_request,
+    load_guide_cards,
     resolve_ornament_story_scope_request,
 )
 from craft_knowledge import (
@@ -191,6 +194,7 @@ from single_fact_answer import (
     single_fact_retrieval_query_for_kind,
 )
 from guide_program_evidence import build_stop_guidance, reexpress_current_stop_guidance
+from detail_expansion import build_detail_expansion
 from profile_dialogue import (
     CLASSIC_PROFILE_FIELDS,
     COLLECTION_FIELD_ORDER,
@@ -237,6 +241,7 @@ from visitor_localization import localize_visitor_text
 MAX_TOOL_LOOPS = 3
 DEFAULT_DEEPSEEK_MAX_TOKENS = 450
 DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -314,6 +319,11 @@ class AgentState(TypedDict, total=False):
     narration_coverage: dict[str, Any]
     active_guidance_evidence_bundle: dict[str, Any]
     active_narration_render_audit: dict[str, Any]
+    # Detail expansions are read-only, checkpoint-safe curation records. They
+    # never alter TourState, the primary StopProgram or introduction coverage.
+    detail_expansion_history: list[dict[str, Any]]
+    detail_expansion_audits: list[dict[str, Any]]
+    active_detail_expansion: dict[str, Any] | None
     qa_context: dict[str, Any]
     # Thread-local control state only: it stores a bounded pending choice among
     # reviewed same-name objects and is never a second fact or location source.
@@ -425,14 +435,16 @@ class AgentState(TypedDict, total=False):
 
 
 _retriever: ChenClanHybridRetriever | None = None
+_retriever_lock = Lock()
 
 
 def get_retriever() -> ChenClanHybridRetriever:
     """Load the persisted index lazily so imports do not load embedding models."""
     global _retriever
-    if _retriever is None:
-        _retriever = ChenClanHybridRetriever()
-        _retriever.load()
+    with _retriever_lock:
+        if _retriever is None:
+            _retriever = ChenClanHybridRetriever()
+            _retriever.load()
     return _retriever
 
 
@@ -705,7 +717,12 @@ def _invoke_grounded_knowledge_model(prompt: str) -> str:
     return response.content if isinstance(response.content, str) else str(response.content)
 
 
-def _invoke_role_narration_model(prompt: str) -> str:
+def _invoke_role_narration_model(
+    prompt: str,
+    *,
+    max_tokens_override: int | str | None = None,
+    timeout_seconds_override: float | str | None = None,
+) -> str:
     """Realize reviewed claims only; no tools, retrieval, or state is exposed."""
     injected_failure = os.getenv("CJC_ROLE_NARRATION_TEST_FAILURE", "").strip().lower()
     if injected_failure == "timeout":
@@ -720,15 +737,23 @@ def _invoke_role_narration_model(prompt: str) -> str:
     # raise LengthFinishReasonError before our own fail-closed decoder could
     # inspect the response. Keep this budget role-specific and bounded.
     try:
-        max_tokens = int(os.getenv("ROLE_NARRATION_MAX_TOKENS", "4096"))
-    except ValueError as exc:
-        raise ValueError("ROLE_NARRATION_MAX_TOKENS must be an integer") from exc
+        max_tokens = (
+            int(max_tokens_override)
+            if max_tokens_override is not None
+            else int(os.getenv("ROLE_NARRATION_MAX_TOKENS", "4096"))
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError("role narration max_tokens must be an integer") from exc
     if not 512 <= max_tokens <= 8192:
         raise ValueError("ROLE_NARRATION_MAX_TOKENS must be between 512 and 8192")
     try:
-        timeout_seconds = float(os.getenv("ROLE_NARRATION_TIMEOUT_SECONDS", "45"))
-    except ValueError as exc:
-        raise ValueError("ROLE_NARRATION_TIMEOUT_SECONDS must be a number") from exc
+        timeout_seconds = (
+            float(timeout_seconds_override)
+            if timeout_seconds_override is not None
+            else float(os.getenv("ROLE_NARRATION_TIMEOUT_SECONDS", "45"))
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError("role narration timeout_seconds must be a number") from exc
     if not 5 <= timeout_seconds <= 120:
         raise ValueError("ROLE_NARRATION_TIMEOUT_SECONDS must be between 5 and 120")
     # Expression is now genuinely model-authored inside a reviewed knowledge
@@ -844,6 +869,18 @@ def _invoke_role_narration_model(prompt: str) -> str:
                 raise TypeError("role narration model returned non-text content")
         return "".join(parts)
     raise TypeError("role narration model returned unsupported content")
+
+
+def _invoke_route_opening_role_model(prompt: str) -> str:
+    """Use a short bounded model request for a route-opening expression."""
+    return _invoke_role_narration_model(
+        prompt,
+        # Keep strings here so malformed deployment values fail inside the
+        # candidate generator and deterministically fall back, rather than
+        # interrupting the surrounding graph node before it can do so.
+        max_tokens_override=os.getenv("ROLE_ROUTE_OPENING_MAX_TOKENS", "900"),
+        timeout_seconds_override=os.getenv("ROLE_ROUTE_OPENING_TIMEOUT_SECONDS", "20"),
+    )
 
 
 def _arrival_candidate_audit(candidate: Any) -> dict[str, Any] | None:
@@ -1255,6 +1292,34 @@ def build_model(with_tools: bool = True):
     model_name = os.getenv("DEEPSEEK_MODEL", DEFAULT_DEEPSEEK_MODEL)
     model = ChatDeepSeek(model=model_name, temperature=0, max_tokens=max_tokens)
     return model.bind_tools([chen_clan_academy_rag_search]) if with_tools else model
+
+
+def _invoke_detail_expansion_selector(prompt: str) -> str:
+    """Let the model choose among reviewed detail candidates, never author facts."""
+    if not os.getenv("DEEPSEEK_API_KEY"):
+        raise RuntimeError("DEEPSEEK_API_KEY is not set.")
+    model = ChatDeepSeek(
+        model=os.getenv("DEEPSEEK_MODEL", DEFAULT_DEEPSEEK_MODEL),
+        temperature=0.65,
+        max_tokens=256,
+        timeout=10,
+        max_retries=0,
+        extra_body={
+            "thinking": {"type": "disabled"},
+            "response_format": {"type": "json_object"},
+        },
+    )
+    response = model.invoke([
+        {
+            "role": "system",
+            "content": (
+                "你只负责从已审核的候选证据中选择一个导览深讲主题。"
+                "不得补充事实、不得调用工具、不得输出候选编号以外的内容。"
+            ),
+        },
+        {"role": "user", "content": prompt},
+    ])
+    return response.content if isinstance(response.content, str) else str(response.content)
 
 
 def _invoke_visitor_translation(public_text: str, target_language: str) -> str:
@@ -2823,12 +2888,14 @@ def prepare_replan_candidate_node(state: AgentState, config: RunnableConfig = No
             "pending_replan_time_confirmation": None,
         }
     try:
+        planner_started = time.perf_counter()
         proposal = prepare_remaining_route_proposal(
             tour,
             origin_node_id=origin,
             origin_source="confirmed_remaining_time",
             remaining_minutes=parsed.minutes,
         ).to_dict()
+        route_planning_seconds = time.perf_counter() - planner_started
     except (ValueError, KeyError) as exc:
         message = f"无法按您提供的 {parsed.minutes} 分钟生成可靠的后续路线候选：{exc}"
         return {
@@ -2852,6 +2919,7 @@ def prepare_replan_candidate_node(state: AgentState, config: RunnableConfig = No
         "performance_metrics": _append_metric(
             state, "prepare_replan_candidate", time.perf_counter() - started,
             ok=True, origin_node_id=origin, remaining_minutes=parsed.minutes,
+            route_planning_seconds=round(route_planning_seconds, 4),
         ),
     }
     updates.update(_replan_composite_shadow_update(
@@ -2878,12 +2946,14 @@ def prepare_duration_replan_node(state: AgentState, config: RunnableConfig = Non
             "performance_metrics": _append_metric(state, "prepare_duration_replan", time.perf_counter() - started, ok=False),
         }
     try:
+        planner_started = time.perf_counter()
         proposal = prepare_remaining_route_proposal(
             tour,
             origin_node_id=origin,
             origin_source="explicit_duration_control",
             remaining_minutes=parsed.minutes,
         ).to_dict()
+        route_planning_seconds = time.perf_counter() - planner_started
     except (ValueError, KeyError) as exc:
         message = f"无法按您提供的 {parsed.minutes} 分钟生成可靠的后续路线候选：{exc}"
         return {
@@ -2906,6 +2976,7 @@ def prepare_duration_replan_node(state: AgentState, config: RunnableConfig = Non
         "performance_metrics": _append_metric(
             state, "prepare_duration_replan", time.perf_counter() - started,
             ok=True, origin_node_id=origin, remaining_minutes=parsed.minutes,
+            route_planning_seconds=round(route_planning_seconds, 4),
         ),
     }
     updates.update(_replan_composite_shadow_update(
@@ -3202,6 +3273,74 @@ def stop_guidance_node(state: AgentState, config: RunnableConfig = None) -> dict
     started = time.perf_counter()
     last_event = state.get("last_tour_event", {})
     is_detail_request = last_event.get("event") == "request_stop_detail"
+    if is_detail_request:
+        detail_program = state.get("active_stop_program")
+        if not isinstance(detail_program, dict):
+            tour = state.get("tour_state") or {}
+            node_id = tour.get("current_stop_id")
+            card = load_guide_cards().get(node_id, {}) if isinstance(node_id, str) else {}
+            detail_program = {
+                "node_id": node_id,
+                "display_name": card.get("display_name") or "当前点位",
+                "selected_items": [
+                    {"name": item.get("name"), "craft": item.get("craft")}
+                    for item in card.get("ornaments", [])
+                    if isinstance(item, dict)
+                ],
+            }
+        expansion = build_detail_expansion(
+            detail_program,
+            state.get("detail_expansion_history"),
+            lambda retrieval_query: str(chen_clan_academy_rag_search.invoke({
+                "query": retrieval_query, "limit": 6,
+            })),
+            selector=_invoke_detail_expansion_selector,
+        )
+        accepted = expansion.get("status") in {"accepted", "fallback"}
+        raw_message = (
+            str(expansion.get("message") or "")
+            if accepted
+            else ""
+        )
+        public_message = public_visitor_message_or_fallback(raw_message)
+        presentation = present_tour_state(
+            state.get("tour_state"), state.get("tour_interaction_state"),
+            message=public_message,
+        )
+        audit = expansion.get("audit") if isinstance(expansion.get("audit"), dict) else {}
+        history = list(state.get("detail_expansion_history") or [])
+        records = expansion.get("history_records")
+        if not isinstance(records, list):
+            records = [expansion.get("history_record")]
+        committed_records = [record for record in records if isinstance(record, dict)] if accepted else []
+        history.extend(committed_records)
+        return {
+            "messages": [AIMessage(
+                content=public_message,
+                additional_kwargs={
+                    "stop_guidance": True,
+                    "detail_expansion": True,
+                    "public_scene_kind": "detail_expansion",
+                },
+            )],
+            "tour_presentation": {**presentation, "message": public_message},
+            "active_detail_expansion": {
+                "status": expansion.get("status"),
+                "card": expansion.get("card"),
+            },
+            "detail_expansion_history": history[-20:],
+            "detail_expansion_audits": [
+                *state.get("detail_expansion_audits", []), audit,
+            ][-20:],
+            "pending_role_narration_commit": None,
+            "performance_metrics": _append_metric(
+                state, "detail_expansion", time.perf_counter() - started,
+                status=expansion.get("status"),
+                topic_types=[record.get("topic_type") for record in committed_records],
+                candidate_count=len(audit.get("candidates", [])),
+                model_called=bool(audit.get("model_called")),
+            ),
+        }
     result = build_stop_guidance(
         state.get("tour_state"),
         state.get("tour_interaction_state"),
@@ -4269,10 +4408,18 @@ def _route_role_narration_shadow_update(
     # visitor-facing role flow around them; malformed output falls back to the
     # existing safe deterministic candidate.
     candidate_from_model = bool(active_allowed and natural_route_enabled and supported_scene and legacy_text)
+    # Route openings retain model-authored role expression, but their short,
+    # immutable brief does not need the point-narration budget or 45-second
+    # wait. Provider failure still falls back to reviewed deterministic prose.
     candidate = (
         generate_route_role_text_candidate(
             scene_kind=scene_kind, role_mode=role_mode,
-            legacy_text=legacy_text, invoke_model=_invoke_role_narration_model,
+            legacy_text=legacy_text,
+            invoke_model=(
+                _invoke_route_opening_role_model
+                if scene_kind == "route_opening"
+                else _invoke_role_narration_model
+            ),
         )
         if candidate_from_model else None
     )
@@ -5653,6 +5800,13 @@ def route_after_narration_continuation_control(state: AgentState) -> str:
     )
 
 
+def route_after_stop_guidance(state: AgentState) -> str:
+    """Keep curated detail output out of the ordinary ornament re-narration."""
+    if (state.get("last_tour_event") or {}).get("event") == "request_stop_detail":
+        return "atomic_read_plan_shadow"
+    return "narration_content_plan"
+
+
 def route_after_qa_role_narration_validation(state: AgentState) -> str:
     audit = state.get("active_qa_role_narration_audit") or {}
     if audit.get("mode") != "active":
@@ -5947,7 +6101,13 @@ def build_agent_graph(with_checkpointer: bool = True):
     workflow.add_edge("show_replan", "replan_proposal_shadow")
     workflow.add_edge("show_replan_time", "replan_proposal_shadow")
     workflow.add_edge("replan_proposal_shadow", "atomic_read_plan_shadow")
-    workflow.add_edge("stop_guidance", "narration_content_plan")
+    workflow.add_conditional_edges(
+        "stop_guidance", route_after_stop_guidance,
+        {
+            "narration_content_plan": "narration_content_plan",
+            "atomic_read_plan_shadow": "atomic_read_plan_shadow",
+        },
+    )
     workflow.add_conditional_edges(
         "narration_continuation_control", route_after_narration_continuation_control,
         {"role_narration_generation": "role_narration_generation", "atomic_read_plan_shadow": "atomic_read_plan_shadow"},
@@ -6001,7 +6161,7 @@ def chat(user_text: str, thread_id: str = "default") -> str:
 _PUBLIC_SCENE_KINDS = frozenset({
     "welcome", "route_planning", "route_opening", "arrival_confirmation",
     "stop_guidance", "navigation", "tour_qa", "safety_refusal",
-    "tour_closing", "assistant",
+    "tour_closing", "detail_expansion", "assistant",
 })
 _PUBLIC_TEXT_FORBIDDEN = re.compile(
     r"(?:source_ids|node_id|route_id|traceback|langsmith|"
@@ -6114,6 +6274,56 @@ def _public_turn_from_result(result: dict[str, Any], *, after_last_human: bool) 
     return PublicTurnResult(tuple(public_messages), _public_tour_summary(result))
 
 
+def _log_public_turn_performance(
+    thread_id: str,
+    result: dict[str, Any],
+    *,
+    wall_seconds: float | None = None,
+) -> None:
+    """Log a small secret-free timing summary for production latency checks."""
+    metrics = result.get("performance_metrics", [])
+    if not isinstance(metrics, list):
+        return
+    slow_nodes = [
+        {"node": item.get("node"), "elapsed_seconds": item.get("elapsed_seconds")}
+        for item in metrics
+        if isinstance(item, dict) and float(item.get("elapsed_seconds", 0) or 0) >= 0.5
+    ]
+    LOGGER.info(
+        "public_turn_performance thread_id=%s total_seconds=%.3f slow_nodes=%s",
+        thread_id,
+        sum(float(item.get("elapsed_seconds", 0) or 0) for item in metrics if isinstance(item, dict)),
+        slow_nodes,
+    )
+    # Streamlit normally hides INFO records in its terminal. Print one
+    # narrow, secret-free line only for a replan so field testing can separate
+    # planner time from graph/checkpoint/UI overhead.
+    replan_metrics = [
+        item for item in metrics
+        if isinstance(item, dict)
+        and str(item.get("node", "")).startswith(
+            ("prepare_replan", "prepare_duration_replan", "confirm_replan")
+        )
+    ]
+    if replan_metrics:
+        node_timings = [
+            {
+                "node": item.get("node"),
+                "elapsed_seconds": item.get("elapsed_seconds"),
+                "route_planning_seconds": item.get("route_planning_seconds"),
+            }
+            for item in metrics
+            if isinstance(item, dict)
+        ]
+        print(
+            "REPLAN_PERFORMANCE "
+            f"wall_seconds={wall_seconds if wall_seconds is not None else 'n/a'} "
+            f"instrumented_seconds={sum(float(item.get('elapsed_seconds', 0) or 0) for item in metrics if isinstance(item, dict)):.3f} "
+            f"nodes={node_timings}",
+            flush=True,
+        )
+
+
 def start_public_session(thread_id: str = "default") -> PublicTurnResult:
     """Start one new thread and return its existing bilingual welcome once."""
     result = agent_graph.invoke(
@@ -6125,11 +6335,13 @@ def start_public_session(thread_id: str = "default") -> PublicTurnResult:
         },
         config=_public_graph_config(thread_id),
     )
+    _log_public_turn_performance(thread_id, result)
     return _public_turn_from_result(result, after_last_human=False)
 
 
 def chat_public_turn(user_text: str, thread_id: str = "default") -> PublicTurnResult:
     """Run one visitor turn and return only explicitly committed public output."""
+    started = time.perf_counter()
     result = agent_graph.invoke(
         {
             "messages": [("user", user_text)],
@@ -6138,6 +6350,9 @@ def chat_public_turn(user_text: str, thread_id: str = "default") -> PublicTurnRe
             "performance_metrics": [],
         },
         config=_public_graph_config(thread_id),
+    )
+    _log_public_turn_performance(
+        thread_id, result, wall_seconds=time.perf_counter() - started,
     )
     return _public_turn_from_result(result, after_last_human=True)
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+import time
 from dataclasses import dataclass
 from typing import Callable
 
@@ -17,6 +18,7 @@ class DemoReply:
     messages: tuple[PublicMessage, ...]
     itinerary: PublicTourSummary
     is_error: bool = False
+    elapsed_seconds: float = 0.0
 
 
 def new_thread_id() -> str:
@@ -49,7 +51,7 @@ class DemoAdapter:
         self.itinerary = PublicTourSummary()
         self._displayed_message_ids.clear()
 
-    def _error(self) -> DemoReply:
+    def _error(self, *, elapsed_seconds: float = 0.0) -> DemoReply:
         return DemoReply(
             messages=(PublicMessage(
                 message_id=f"demo-error-{self.turn_count}",
@@ -59,45 +61,48 @@ class DemoAdapter:
             ),),
             itinerary=self.itinerary,
             is_error=True,
+            elapsed_seconds=elapsed_seconds,
         )
 
     def start(self) -> DemoReply:
         """Fetch the Graph-owned bilingual welcome for this fresh thread."""
+        started = time.perf_counter()
         try:
             response = self.session_starter(self.thread_id)
         except Exception:
-            return self._error()
+            return self._error(elapsed_seconds=time.perf_counter() - started)
         if not isinstance(response, PublicTurnResult) or not response.public_messages:
-            return self._error()
+            return self._error(elapsed_seconds=time.perf_counter() - started)
         fresh_messages = tuple(
             message
             for message in response.public_messages
             if message.message_id not in self._displayed_message_ids
         )
         if not fresh_messages:
-            return self._error()
+            return self._error(elapsed_seconds=time.perf_counter() - started)
         self._displayed_message_ids.update(message.message_id for message in fresh_messages)
         self.itinerary = response.tour_summary
-        return DemoReply(fresh_messages, self.itinerary)
+        return DemoReply(fresh_messages, self.itinerary, elapsed_seconds=time.perf_counter() - started)
 
     def send(self, user_text: str) -> DemoReply:
         text = (user_text or "").strip()
         if not text or len(text) > self.max_input_chars or self.turn_count >= self.max_turns:
             return self._error()
+        started = time.perf_counter()
         try:
             response = self.agent_call(text, self.thread_id)
         except Exception:
-            return self._error()
+            return self._error(elapsed_seconds=time.perf_counter() - started)
         self.turn_count += 1
         if not isinstance(response, PublicTurnResult):
-            return self._error()
+            return self._error(elapsed_seconds=time.perf_counter() - started)
         fresh_messages = tuple(
             message
             for message in response.public_messages
             if message.message_id not in self._displayed_message_ids
         )
         if not fresh_messages:
-            return self._error()
+            return self._error(elapsed_seconds=time.perf_counter() - started)
         self._displayed_message_ids.update(message.message_id for message in fresh_messages)
         self.itinerary = response.tour_summary
-        return DemoReply(fresh_messages, self.itinerary)
+        return DemoReply(fresh_messages, self.itinerary, elapsed_seconds=time.perf_counter() - started)
