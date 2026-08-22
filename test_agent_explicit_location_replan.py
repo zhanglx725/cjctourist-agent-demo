@@ -11,8 +11,11 @@ from agent_graph import (
     cancel_replan_node,
     clarification_node,
     confirm_replan_node,
+    direct_route_node,
+    prepare_duration_replan_node,
     prepare_replan_node,
     prepare_replan_candidate_node,
+    route_after_semantic_normalization,
     route_initial_request,
     route_after_confirm_replan,
     show_replan_node,
@@ -115,6 +118,36 @@ class AgentExplicitLocationReplanTests(unittest.TestCase):
         self.assertTrue(applied["last_tour_event"]["ok"])
         self.assertEqual(applied["tour_state"]["current_stop_id"], "stop_rear_west_courtyard")
         self.assertIsNone(applied["pending_replan_proposal"])
+
+    def test_explicit_remaining_time_applies_from_current_state_and_keeps_completed_stops(self):
+        state = self._active_state()
+        state["messages"] = [HumanMessage(content="我还有30分钟")]
+        result = prepare_duration_replan_node(state)
+        self.assertTrue(result["last_tour_event"]["ok"])
+        self.assertEqual(result["last_tour_event"]["code"], "replan_proposal_applied")
+        self.assertIn("stop_front_courtyard_center", result["tour_state"]["visited_stop_ids"])
+        self.assertNotIn("stop_front_courtyard_center", result["tour_state"]["remaining_stop_ids"])
+        self.assertNotIn("stop_juxian_hall", result["tour_state"]["remaining_stop_ids"])
+        self.assertIsNone(result["pending_replan_proposal"])
+
+    def test_active_tour_cannot_be_overwritten_by_initial_route_writer(self):
+        state = self._active_state()
+        before = deepcopy(state["tour_state"])
+        result = direct_route_node(state)
+        self.assertNotIn("tour_state", result)
+        self.assertEqual(state["tour_state"], before)
+        self.assertIn("保留已完成点位", result["messages"][0].content)
+
+    def test_active_stop_detail_command_never_falls_into_qa_follow_up(self):
+        tour = start_tour(plan_template("crafts_60"), interests=["灰塑"])
+        interaction = initialize_interaction(tour)
+        arrived = handle_tour_event(tour, interaction, "arrive_at_stop")
+        state = {
+            "messages": [HumanMessage(content="再讲详细一点")],
+            "tour_state": arrived["tour_state"],
+            "tour_interaction_state": arrived["interaction_state"],
+        }
+        self.assertEqual(route_after_semantic_normalization(state), "tour_event")
 
     def test_new_replan_origin_clears_an_older_pending_proposal(self):
         state = self._pending_route_confirmation_state()

@@ -9,6 +9,7 @@ from duration_parser import (
     has_route_duration_context,
     parse_duration_minutes,
 )
+from duration_control import classify_duration_control_text
 
 
 class DurationParserTests(unittest.TestCase):
@@ -98,6 +99,10 @@ class DurationParserTests(unittest.TestCase):
         self.assertTrue(has_remaining_duration_context("我现在只剩三十分钟"))
         self.assertTrue(has_remaining_duration_context("把时间改成一个半小时"))
         self.assertFalse(has_remaining_duration_context("我有一个小时，喜欢灰塑"))
+
+    def test_i_still_have_duration_is_an_active_replan_control(self):
+        self.assertTrue(has_remaining_duration_context("我还有 30 分钟"))
+        self.assertEqual(classify_duration_control_text("我还有 30 分钟"), "parsed")
 
 
 if __name__ == "__main__":

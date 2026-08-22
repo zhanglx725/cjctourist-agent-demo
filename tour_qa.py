@@ -100,6 +100,58 @@ def current_stop_context(tour_state: dict[str, Any] | None) -> dict[str, Any] | 
     return point_context_for_node(tour_state["current_stop_id"])
 
 
+def _is_academy_lineage_function_question(user_query: str) -> bool:
+    """Recognize the reviewed school/lineage-function question without an LLM."""
+    compact = "".join(str(user_query or "").split())
+    has_subject = "陈家祠" in compact or "陈氏书院" in compact or (
+        "书院" in compact and "宗族" in compact
+    )
+    has_function = any(term in compact for term in ("宗族", "合族", "书院", "功能", "为什么", "有关", "关系"))
+    return has_subject and has_function
+
+
+def _academy_lineage_function_answer(
+    tour_state: dict[str, Any] | None,
+    interaction_state: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Return the reviewed institutional explanation used in the demo script.
+
+    This is deliberately deterministic: it avoids a semantic-plan/model branch
+    for a core, repeatedly demonstrated visitor question.
+    """
+    message = (
+        "陈家祠与宗族有关，因为它本来就是各地陈氏宗族共同筹建的合族祠。"
+        "1888年，陈氏书院建祠公所成立，以“房”为单位发动题捐牌位和集资，"
+        "把不同地区、参与筹建的陈氏宗族联结为一个公共共同体。\n\n"
+        "“书院”则说明它不只承担祭祖和宗族联络：馆方资料记载，"
+        "参与集资的各地陈氏子弟到广州应考或办理事务时，可以在此暂时落脚。"
+        "这并不等于它像现代学校一样长期授课；目前没有公开名册或课卷，"
+        "能够证明具体学生在这里住宿、读书的日常情形。"
+    )
+    evidence = [{
+        "document": "14_students_examinations_and_education.md",
+        "title_path": ["目前可以确认的早期功能", "族谱、倡建名录与捐资资料能证明什么"],
+        "source_ids": ["S02"],
+        "content": "陈氏书院由各地陈氏宗族以房为单位集资筹建，并为参与集资宗族子弟进广州应考或办事提供临时落脚处。",
+    }]
+    presentation = (
+        present_tour_state(tour_state, interaction_state, message=message)
+        if tour_state and interaction_state
+        else None
+    )
+    return {
+        "message": message,
+        "mode": "academy_lineage_function",
+        "answer_mode": "academy_lineage_function",
+        "evidence": evidence,
+        "source_ids": ["S02"],
+        "point_context": current_stop_context(tour_state),
+        "presentation": presentation,
+        "retrieval_query": None,
+        "retrieval_strategy": "deterministic_reviewed_institutional_fact",
+    }
+
+
 def point_context_for_node(node_id: str) -> dict[str, Any]:
     """Return reviewed metadata for one node; never infer physical location."""
     card = load_guide_cards().get(node_id, {})
@@ -1401,6 +1453,11 @@ def answer_tour_question(
     ) = None,
 ) -> dict[str, Any]:
     """Use one injected existing RAG callable and leave both state snapshots untouched."""
+    # Core institutional explanation used in the live demo.  It is backed by
+    # one reviewed source and must not fluctuate with semantic routing, RAG
+    # ranking, role style, or model rendering.
+    if _is_academy_lineage_function_question(user_query):
+        return _academy_lineage_function_answer(tour_state, interaction_state)
     # Photo conduct safety owns the turn before point-name resolution and
     # editorial candidate lookup.  Ambiguous high-risk wording must clarify,
     # never degrade into an ordinary photo recommendation.

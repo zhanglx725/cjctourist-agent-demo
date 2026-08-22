@@ -54,6 +54,18 @@ class TourQaTests(unittest.TestCase):
         self.assertTrue(result["photo_spots"])
         self.assertTrue(is_public_visitor_message(result["message"]))
 
+    def test_academy_and_lineage_question_is_deterministic_and_never_calls_rag(self):
+        result = answer_tour_question(
+            "陈家祠为什么既是书院，又和宗族有关？",
+            self.tour,
+            self.interaction,
+            lambda _query: self.fail("institutional explanation must not use RAG"),
+        )
+        self.assertEqual(result["mode"], "academy_lineage_function")
+        self.assertIn("合族祠", result["message"])
+        self.assertIn("暂时落脚", result["message"])
+        self.assertEqual(result["source_ids"], ["S02"])
+
     @staticmethod
     def _success_search(query: str) -> str:
         return json.dumps({"query": query, "evidence": [EVIDENCE]}, ensure_ascii=False)

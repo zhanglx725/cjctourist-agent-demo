@@ -1540,6 +1540,25 @@ def direct_route_node(state: AgentState) -> dict[str, Any]:
     """Plan and render a reviewed route without risking LLM route fabrication."""
     query = _latest_user_text(state)
     started = time.perf_counter()
+    # A live TourState is authoritative.  No misclassified duration, style or
+    # knowledge turn may enter the initial-route writer and erase completed
+    # stops or move the physical origin back to the entrance.  Mid-tour route
+    # changes are owned exclusively by the replan nodes and their snapshot
+    # checks; starting over requires the explicit session reset in the UI.
+    active_tour = (state.get("tour_state") or {}).get("route_status") == "touring"
+    if active_tour:
+        message = "当前路线仍在进行中；我会保留已完成点位。请使用“重新规划后续路线”或说明剩余时间来调整后续行程。"
+        return {
+            "messages": [AIMessage(content=message)],
+            "tour_presentation": present_clarification(
+                message, state.get("tour_interaction_state")
+            ),
+            "qa_context": clear_qa_context(state.get("qa_context")),
+            "performance_metrics": _append_metric(
+                state, "direct_route", time.perf_counter() - started,
+                route_started=False, blocked_active_route_reset=True,
+            ),
+        }
     # C3 consumes the already validated C1/C2 profile.  The legacy fallback
     # preserves safe direct calls used by existing scripts and tests; it does
     # not create a second persistent profile store.
@@ -2931,7 +2950,7 @@ def prepare_replan_candidate_node(state: AgentState, config: RunnableConfig = No
 
 
 def prepare_duration_replan_node(state: AgentState, config: RunnableConfig = None) -> dict[str, Any]:
-    """Preview an active-route duration change without applying it."""
+    """Atomically apply an explicit active-route remaining-time replan."""
     started = time.perf_counter()
     tour = state.get("tour_state")
     interaction = state.get("tour_interaction_state")
@@ -2962,27 +2981,62 @@ def prepare_duration_replan_node(state: AgentState, config: RunnableConfig = Non
             "pending_replan_proposal": None,
             "performance_metrics": _append_metric(state, "prepare_duration_replan", time.perf_counter() - started, ok=False),
         }
-    updated_interaction = {**interaction, "pending_action_kind": "replan_route_confirmation"}
-    presentation = present_replan_proposal(proposal)
+    # A sidebar click or the explicit phrase “我还有 N 分钟” already carries
+    # the visitor's affirmative replan instruction.  The old preview required
+    # a second textual confirmation, but the Streamlit surface had no matching
+    # confirmation control; that left an invisible pending proposal and made
+    # later actions appear to revert the route.  Apply the freshness-checked
+    # proposal in the same atomic turn instead.
+    proposal_interaction = {**interaction, "pending_action_kind": "replan_route_confirmation"}
+    applied = handle_tour_event(
+        tour, proposal_interaction, "apply_replan_proposal", proposal=proposal,
+    )
+    if not applied.get("ok"):
+        message = "后续路线候选未能安全应用，已保留原有游览进度。请稍后重新规划。"
+        return {
+            "messages": [AIMessage(content=message)],
+            "tour_state": tour,
+            "tour_interaction_state": interaction,
+            "tour_presentation": present_clarification(message, interaction),
+            "pending_replan_proposal": None,
+            "pending_replan_time_confirmation": None,
+            "qa_context": clear_qa_context(state.get("qa_context")),
+            "pending_ornament_clarification": None,
+            "performance_metrics": _append_metric(
+                state, "prepare_duration_replan", time.perf_counter() - started,
+                ok=False, code=str(applied.get("code") or "apply_failed"),
+            ),
+        }
+    preview = present_replan_proposal(proposal)
+    message = str(preview["message"]).replace(
+        "该候选尚未替换原路线；请确认使用新路线，或取消并保留原路线。",
+        "后续路线已生效；此前完成的点位已保留，不会重新加入路线。",
+    )
+    updated_tour = applied["tour_state"]
+    updated_interaction = applied["interaction_state"]
+    presentation = present_tour_state(updated_tour, updated_interaction, message=message)
     updates = {
-        "messages": [AIMessage(content=presentation["message"])],
-        "tour_state": tour,
+        "messages": [AIMessage(content=message)],
+        "tour_state": updated_tour,
         "tour_interaction_state": updated_interaction,
         "tour_presentation": presentation,
-        "pending_replan_proposal": proposal,
+        "last_tour_event": {"event": applied["event"], "code": applied["code"], "ok": True},
+        "active_route_plan": {**proposal, "route_strategy": "replanned_from_current"},
+        "selected_route_id": str(proposal["route_id"]),
+        "pending_replan_proposal": None,
         "pending_replan_time_confirmation": None,
         "qa_context": clear_qa_context(state.get("qa_context")),
         "pending_ornament_clarification": None,
         "performance_metrics": _append_metric(
             state, "prepare_duration_replan", time.perf_counter() - started,
-            ok=True, origin_node_id=origin, remaining_minutes=parsed.minutes,
+            ok=True, code="replan_applied", origin_node_id=origin, remaining_minutes=parsed.minutes,
             route_planning_seconds=round(route_planning_seconds, 4),
         ),
     }
     updates.update(_replan_composite_shadow_update(
         state, config, operation_kind="prepare_replan_candidate",
-        legacy_event_sequence=[], tour_after=tour, interaction_after=updated_interaction,
-        proposal_after=proposal, time_confirmation_after=None,
+        legacy_event_sequence=["apply_replan_proposal"], tour_after=updated_tour, interaction_after=updated_interaction,
+        proposal_after=None, time_confirmation_after=None,
     ))
     return updates
 
@@ -5680,21 +5734,25 @@ def route_initial_request(state: AgentState) -> str:
         return "tour_qa"
     if parse_craft_location_request(raw_text):
         return "tour_qa"
-    # A1 reserves request_stop_detail for the active physical StopProgram.
-    # The same wording may instead follow a successful knowledge answer; that
-    # read-only path is selected only from explicit message metadata.
+    # A1 owns this exact button command whenever a formal stop is active.
+    # Do not consult the previous answer kind here: a visitor may ask a normal
+    # question between arrival and this click, and that read-only turn must not
+    # demote the button into the QA-follow-up path.
+    if (
+        raw_text.strip(" ，。！？!?\t\r\n") in {"再讲详细一点", "再详细一点", "讲详细一点"}
+        and (state.get("tour_state") or {}).get("current_stop_id")
+        and (state.get("tour_state") or {}).get("route_status") == "touring"
+        and (state.get("tour_interaction_state") or {}).get("stop_phase")
+        in {"explaining", "awaiting_confirmation"}
+    ):
+        return "tour_event"
+    # Other follow-up wording can still be owned by the last successful QA
+    # response, but never the active-stop button command above.
     if (
         not state.get("pending_ornament_clarification")
         and (is_qa_follow_up_detail_request(raw_text) or is_qa_subject_follow_up_request(raw_text))
     ):
         previous_kind = _last_assistant_response_kind(state)
-        if (
-            raw_text.strip(" ，。！？!?\t\r\n") in {"再讲详细一点", "再详细一点", "讲详细一点"}
-            and (state.get("tour_state") or {}).get("current_stop_id")
-            and (state.get("tour_state") or {}).get("route_status") == "touring"
-            and previous_kind == "stop_guidance"
-        ):
-            return "tour_event"
         # A craft named in this turn is a complete question, not an omitted
         # subject that depends on the previous QA response.  This keeps
         # “请详细讲讲灰塑” usable before any route has started.
